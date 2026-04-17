@@ -2,8 +2,8 @@ pipeline {
     agent any
 
     tools {
-            nodejs 'node' // 젠킨스 'Global Tool Configuration'에 등록한 이름과 같아야 함
-        }
+        nodejs 'node'
+    }
 
     environment {
         // 도커 허브 정보 및 이미지 이름
