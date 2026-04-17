@@ -19,9 +19,11 @@ spec:
       labels:
         app: frontend
     spec:
+      imagePullSecrets:
+        - name: dockerhub-cred-front
       containers:
         - name: frontend-container
-          image: saralove20/stockit-front:v1.0
+          image: saralove20/stockit-front:${IMAGE_TAG}
           imagePullPolicy: Always
           ports:
             - containerPort: 80
