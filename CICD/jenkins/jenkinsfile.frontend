@@ -20,6 +20,8 @@ spec:
       image: gcr.io/kaniko-project/executor:debug
       command: ['/busybox/sh','-c','sleep infinity']
       tty: true
+      securityContext:
+        runAsUser: 0
       volumeMounts:
         - name: docker-config
           mountPath: /kaniko/.docker
@@ -27,8 +29,6 @@ spec:
       image: bitnami/kubectl:latest
       command: ['cat']
       tty: true
-      securityContext:
-        runAsUser: 0
       resources:
         requests:
           memory: "256Mi"
@@ -95,7 +95,9 @@ spec:
         // jnlp(기본컨테이너)에서 실행
         container('kubectl') {
           script {
-            sh "echo test > /tmp/test"
+            sh "sed -i 's/\${IMAGE_TAG}/${IMAGE_TAG}/g' CICD/k8s/front-deployment.yml"
+            sh "kubectl apply -f CICD/k8s/front-deployment.yml"
+            sh "kubectl apply -f CICD/k8s/front-service.yml"
           }
         }
       }
