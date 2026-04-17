@@ -27,10 +27,16 @@ spec:
       image: bitnami/kubectl:latest
       command: ['cat']
       tty: true
+      resources:
+        requests:
+          memory: "256Mi"
+          cpu: "100m"
+        limits:
+          memory: "512Mi"
+          cpu: "200m"
   volumes:
     - name: docker-config
-      secret:
-        # 이 이름이 kubectl get secret으로 확인했을 때의 이름과 정확히 일치해야 합니다.
+      secret:=
         secretName: dockerhub-cred-front
         items:
           - key: .dockerconfigjson
@@ -87,7 +93,6 @@ spec:
         // jnlp(기본컨테이너)에서 실행
         container('kubectl') {
           script {
-            // 파일 경로가 CICD/k8s 인지 확인 필요
             sh "sed -i 's/\${IMAGE_TAG}/${IMAGE_TAG}/g' CICD/k8s/front-deployment.yml"
             sh "kubectl apply -f CICD/k8s/front-deployment.yml"
             sh "kubectl apply -f CICD/k8s/front-service.yml"
