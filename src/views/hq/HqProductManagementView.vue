@@ -1,7 +1,7 @@
 <script setup>
 import { computed, h, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import AppLayout from '@/components/AppLayout.vue'
+import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 
@@ -206,1274 +206,167 @@ const iconMap = {
     show-system-card
     @logout="handleLogout"
   >
-    <div class="products-content">
-        <section class="panel action-bar">
-          <div class="action-left">
-            <label class="search-box wide-search">
-              <SearchIcon :size="14" class="search-icon" />
-              <input
-                type="text"
-                :placeholder="
-                  activeSideMenu === '카테고리 관리'
-                    ? '카테고리 명 또는 코드 검색...'
-                    : '제품명, 제품 코드, 거래처명 검색...'
-                "
-              />
-            </label>
+    <div class="flex flex-col gap-4 overflow-hidden">
+      <section class="flex flex-wrap items-center justify-between gap-3 border border-gray-300 bg-white p-3 shadow-sm">
+        <div class="flex flex-wrap items-center gap-3">
+          <label class="relative block">
+            <SearchIcon :size="14" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              :placeholder="activeSideMenu === '카테고리 관리' ? '카테고리 명 또는 코드 검색...' : '제품명, 제품 코드, 거래처명 검색...'"
+              class="w-72 border border-gray-300 bg-gray-50 py-1.5 pl-8 pr-3 text-xs outline-none focus:border-[#004D3C] focus:bg-white"
+            />
+          </label>
 
-            <div v-if="activeSideMenu !== '카테고리 관리'" class="category-filter">
-              <span>카테고리</span>
-              <select>
-                <option>전체 카테고리</option>
-                <option>전자제품</option>
-                <option>문구/사무</option>
-                <option>위생용품</option>
-                <option>주방잡화</option>
-              </select>
+          <label v-if="activeSideMenu !== '카테고리 관리'" class="flex items-center gap-2 text-[11px] font-black uppercase text-gray-400">
+            카테고리
+            <select class="border border-gray-300 bg-gray-50 px-3 py-1.5 text-xs font-bold text-gray-700 outline-none focus:border-[#004D3C] focus:bg-white">
+              <option>전체 카테고리</option>
+              <option>전자제품</option>
+              <option>문구/사무</option>
+              <option>위생용품</option>
+              <option>주방잡화</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <button v-if="activeSideMenu !== '카테고리 관리'" type="button" class="inline-flex items-center gap-1.5 border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50">
+            <DownloadIcon :size="14" />
+            일괄 업로드 (CSV)
+          </button>
+          <button type="button" class="inline-flex items-center gap-1.5 border border-[#004D3C] bg-[#004D3C] px-3 py-2 text-xs font-black text-white hover:bg-[#003d30]">
+            <PlusCircleIcon :size="14" />
+            {{ activeSideMenu === '카테고리 관리' ? '카테고리 추가 (SO-006)' : '신규 제품 등록 (SO-011)' }}
+          </button>
+        </div>
+      </section>
+
+      <section v-if="activeSideMenu === '카테고리 관리'" class="flex min-h-0 flex-col gap-4 xl:flex-row">
+        <div class="flex min-w-0 flex-1 flex-col overflow-hidden border border-gray-300 bg-white shadow-sm">
+          <div class="flex items-center justify-between border-b border-gray-200 bg-gray-50/70 px-4 py-3">
+            <h3 class="inline-flex items-center gap-2 text-xs font-black uppercase tracking-wider text-gray-800">
+              <TagsIcon :size="14" />
+              카테고리 마스터
+            </h3>
+            <span class="text-[10px] font-bold text-gray-400">총 {{ categoryData.length }}개</span>
+          </div>
+          <div class="overflow-auto">
+            <table class="w-full min-w-[760px] text-xs">
+              <thead class="bg-gray-100 text-[10px] uppercase tracking-wider text-gray-500">
+                <tr>
+                  <th class="w-28 px-3 py-2 text-center font-black">분류 코드</th>
+                  <th class="px-3 py-2 text-left font-black">카테고리명</th>
+                  <th class="w-28 px-3 py-2 text-right font-black">연결 제품수</th>
+                  <th class="w-24 px-3 py-2 text-center font-black">노출 순서</th>
+                  <th class="w-24 px-3 py-2 text-center font-black">상태</th>
+                  <th class="w-32 px-3 py-2 text-center font-black">최종 수정일</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                <tr v-for="cat in categoryData" :key="cat.id" class="cursor-pointer hover:bg-gray-50" :class="selectedCategory?.id === cat.id ? 'bg-[#E6F2F0]' : ''" @click="selectedCategory = cat">
+                  <td class="px-3 py-3 text-center font-bold text-gray-400">{{ cat.id }}</td>
+                  <td class="px-3 py-3 font-black text-gray-800">{{ cat.name }}</td>
+                  <td class="px-3 py-3 text-right font-black text-[#004D3C]">{{ cat.productCount.toLocaleString() }}</td>
+                  <td class="px-3 py-3 text-center text-gray-600">{{ cat.order }}</td>
+                  <td class="px-3 py-3 text-center"><span class="bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">{{ cat.status }}</span></td>
+                  <td class="px-3 py-3 text-center font-bold text-gray-400">{{ cat.lastUpdated }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <aside v-if="selectedCategory" class="w-full shrink-0 border border-gray-300 bg-white shadow-sm xl:w-80">
+          <div class="flex items-center justify-between bg-[#004D3C] px-4 py-3 text-white">
+            <h3 class="inline-flex items-center gap-2 text-[11px] font-black uppercase"><InfoIcon :size="14" /> 카테고리 상세</h3>
+            <button type="button" class="p-1 hover:bg-white/10" @click="closeCategoryDetail"><XIcon :size="16" /></button>
+          </div>
+          <div class="space-y-4 p-4">
+            <div>
+              <p class="text-[10px] font-bold uppercase text-gray-400">마스터 코드: {{ selectedCategory.id }}</p>
+              <h4 class="mt-1 text-lg font-black text-gray-900">{{ selectedCategory.name }}</h4>
+              <p class="mt-1 text-xs font-bold text-gray-400">시스템 계층: 대분류 (단일 체계)</p>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <label class="col-span-2 text-[10px] font-bold uppercase text-gray-400">카테고리명<input type="text" :value="selectedCategory.name" class="mt-1 w-full border border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#004D3C]" /></label>
+              <label class="text-[10px] font-bold uppercase text-gray-400">노출 순서<input type="number" :value="selectedCategory.order" class="mt-1 w-full border border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#004D3C]" /></label>
+              <label class="text-[10px] font-bold uppercase text-gray-400">상태<select class="mt-1 w-full border border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#004D3C]"><option>{{ selectedCategory.status }}</option><option>사용중</option><option>점검중</option><option>미사용</option></select></label>
+            </div>
+            <div class="border border-gray-200 bg-gray-50 p-3">
+              <p class="text-[10px] font-bold uppercase text-gray-400">연결 제품수</p>
+              <strong class="mt-1 block text-xl font-black text-[#004D3C]">{{ selectedCategory.productCount }} SKU</strong>
             </div>
           </div>
+        </aside>
+      </section>
 
-          <div class="action-right">
-            <button v-if="activeSideMenu !== '카테고리 관리'" type="button" class="ghost-button">
-              <DownloadIcon :size="14" />
-              일괄 업로드 (CSV)
-            </button>
-            <button type="button" class="primary-button">
-              <PlusCircleIcon :size="14" />
-              {{ activeSideMenu === '카테고리 관리' ? '카테고리 추가 (SO-006)' : '신규 제품 등록 (SO-011)' }}
-            </button>
+      <section v-else class="flex min-h-0 flex-col gap-4 xl:flex-row">
+        <div class="flex min-w-0 flex-1 flex-col overflow-hidden border border-gray-300 bg-white shadow-sm">
+          <div class="border-b border-gray-200 bg-gray-50/70 px-4 py-3">
+            <h3 class="inline-flex items-center gap-2 text-xs font-black uppercase tracking-wider text-gray-800">
+              <PackageIcon :size="14" />
+              {{ activeSideMenu }}
+            </h3>
           </div>
-        </section>
+          <div class="overflow-auto">
+            <table class="w-full min-w-[980px] text-xs">
+              <thead class="bg-gray-100 text-[10px] uppercase tracking-wider text-gray-500">
+                <tr>
+                  <th class="w-24 px-3 py-2 text-center font-black">제품 코드</th>
+                  <th class="px-3 py-2 text-left font-black">제품명</th>
+                  <th class="w-24 px-3 py-2 text-left font-black">카테고리</th>
+                  <th class="w-32 px-3 py-2 text-left font-black">규격/단위</th>
+                  <th class="w-28 px-3 py-2 text-right font-black">표준 단가</th>
+                  <th class="w-32 px-3 py-2 text-left font-black">메인 거래처</th>
+                  <th class="w-24 px-3 py-2 text-center font-black">상태</th>
+                  <th class="w-28 px-3 py-2 text-center font-black">등록일</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                <tr v-for="prod in productMasterData" :key="prod.id" class="cursor-pointer hover:bg-gray-50" :class="selectedProduct?.id === prod.id ? 'bg-[#E6F2F0]' : ''" @click="selectedProduct = prod">
+                  <td class="px-3 py-3 text-center font-bold text-gray-400">{{ prod.id }}</td>
+                  <td class="px-3 py-3 font-black text-gray-800">{{ prod.name }}</td>
+                  <td class="px-3 py-3 text-gray-600">{{ prod.cat }}</td>
+                  <td class="px-3 py-3 font-bold uppercase text-gray-500">{{ prod.spec }} ({{ prod.unit }})</td>
+                  <td class="px-3 py-3 text-right font-black text-gray-800">₩{{ prod.price.toLocaleString() }}</td>
+                  <td class="px-3 py-3 text-gray-600">{{ prod.vendor }}</td>
+                  <td class="px-3 py-3 text-center"><span class="bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">{{ prod.status }}</span></td>
+                  <td class="px-3 py-3 text-center font-bold text-gray-400">{{ prod.regDate }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
 
-        <section class="products-split">
-          <template v-if="activeSideMenu === '카테고리 관리'">
-            <div class="panel master-panel">
-              <div class="master-head">
-                <div class="master-head-left">
-                  <h3 class="with-icon">
-                    <ListTreeIcon :size="14" />
-                    전사 카테고리 마스터 (SO-010)
-                  </h3>
-                  <span>총 {{ categoryData.length }}개 분류</span>
-                </div>
-              </div>
-
-              <div class="table-wrap">
-                <table class="product-table">
-                  <thead>
-                    <tr>
-                      <th class="w-code center">분류 코드</th>
-                      <th>카테고리 명</th>
-                      <th class="w-price align-right">연결 제품수</th>
-                      <th class="w-status center">노출 순서</th>
-                      <th class="w-status center">상태</th>
-                      <th class="w-date center">최종 수정일</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr
-                      v-for="cat in categoryData"
-                      :key="cat.id"
-                      :class="{ selected: selectedCategory?.id === cat.id }"
-                      @click="selectedCategory = cat"
-                    >
-                      <td class="center muted strong-small">{{ cat.id }}</td>
-                      <td class="strong">
-                        <span class="table-inline">
-                          <FolderTreeIcon :size="12" class="table-inline-icon" />
-                          {{ cat.name }}
-                        </span>
-                      </td>
-                      <td class="align-right strong">{{ cat.productCount.toLocaleString() }}</td>
-                      <td class="center muted strong-small">{{ cat.order }}</td>
-                      <td class="center">
-                        <span class="status-badge" :class="cat.status">{{ cat.status }}</span>
-                      </td>
-                      <td class="center muted strong-small">{{ cat.lastUpdated }}</td>
-                    </tr>
-                  </tbody>
-                </table>
+        <aside v-if="selectedProduct" class="w-full shrink-0 border border-gray-300 bg-white shadow-sm xl:w-80">
+          <div class="flex items-center justify-between bg-[#004D3C] px-4 py-3 text-white">
+            <h3 class="inline-flex items-center gap-2 text-[11px] font-black uppercase"><InfoIcon :size="14" /> 제품 상세</h3>
+            <button type="button" class="p-1 hover:bg-white/10" @click="closeDetail"><XIcon :size="16" /></button>
+          </div>
+          <div class="space-y-4 p-4">
+            <div>
+              <p class="text-[10px] font-bold uppercase text-gray-400">마스터 ID: {{ selectedProduct.id }}</p>
+              <h4 class="mt-1 text-base font-black leading-snug text-gray-900">{{ selectedProduct.name }}</h4>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <span class="border border-gray-200 bg-gray-100 px-2 py-1 text-[10px] font-bold text-gray-600">{{ selectedProduct.cat }}</span>
+                <span class="border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700">{{ selectedProduct.status }}</span>
               </div>
             </div>
-
-            <aside v-if="selectedCategory" class="panel detail-panel category-detail-panel">
-              <div class="detail-head">
-                <h3>
-                  <InfoIcon :size="14" />
-                  분류 정보 상세 (SO-009)
-                </h3>
-                <button type="button" class="detail-close" @click="closeCategoryDetail">
-                  <XIcon :size="16" />
-                </button>
-              </div>
-
-              <div class="detail-body">
-                <section class="detail-intro">
-                  <p class="caption">마스터 코드: {{ selectedCategory.id }}</p>
-                  <h4>{{ selectedCategory.name }}</h4>
-                  <p class="sub-caption">시스템 계층: 대분류 (단일 체계)</p>
-                </section>
-
-                <section class="detail-section">
-                  <p class="section-title">속성 정의</p>
-                  <div class="form-stack">
-                    <div>
-                      <label class="label block">카테고리 명칭</label>
-                      <input type="text" :value="selectedCategory.name" class="detail-input" />
-                    </div>
-                    <div class="spec-grid">
-                      <div>
-                        <label class="label block">정렬 가중치</label>
-                        <input type="number" :value="selectedCategory.order" class="detail-input" />
-                      </div>
-                      <div>
-                        <label class="label block">운영 상태</label>
-                        <select class="detail-input">
-                          <option :selected="selectedCategory.status === '사용중'">사용중</option>
-                          <option :selected="selectedCategory.status === '점검중'">점검중</option>
-                          <option :selected="selectedCategory.status === '미사용'">미사용</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                </section>
-
-                <section class="detail-section">
-                  <p class="section-title">데이터 현황</p>
-                  <div class="metric-card">
-                    <span>연결 제품 마스터</span>
-                    <strong>{{ selectedCategory.productCount }} SKU</strong>
-                  </div>
-                </section>
-              </div>
-
-              <div class="detail-actions single-column">
-                <button type="button" class="dark-button">
-                  <Edit3Icon :size="14" />
-                  분류 정보 수정 (SO-007)
-                </button>
-                <button type="button" class="danger-button">
-                  <Trash2Icon :size="14" />
-                  카테고리 삭제 (SO-008)
-                </button>
-              </div>
-            </aside>
-          </template>
-
-          <template v-else>
-          <div class="panel master-panel">
-            <div class="master-head">
-              <div class="master-head-left">
-                <h3>제품 마스터 목록 (SO-017)</h3>
-                <span>총 {{ productMasterData.length }}개 품목 마스터</span>
-              </div>
-              <div class="master-head-actions">
-                <button type="button"><FilterIcon :size="14" /></button>
-                <button type="button"><SettingsIcon :size="14" /></button>
-              </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div class="border border-gray-200 bg-gray-50 p-3"><p class="text-[10px] font-bold uppercase text-gray-400">단위</p><p class="mt-1 font-black text-gray-900">{{ selectedProduct.unit }}</p></div>
+              <div class="border border-gray-200 bg-gray-50 p-3"><p class="text-[10px] font-bold uppercase text-gray-400">단가</p><p class="mt-1 font-black text-gray-900">₩{{ selectedProduct.price.toLocaleString() }}</p></div>
+              <div class="border border-gray-200 bg-gray-50 p-3"><p class="text-[10px] font-bold uppercase text-gray-400">규격</p><p class="mt-1 font-black text-gray-900">{{ selectedProduct.spec }}</p></div>
+              <div class="border border-gray-200 bg-gray-50 p-3"><p class="text-[10px] font-bold uppercase text-gray-400">리드타임</p><p class="mt-1 font-black text-gray-900">{{ selectedProduct.leadTime }}</p></div>
             </div>
-
-            <div class="table-wrap">
-              <table class="product-table">
-                <thead>
-                  <tr>
-                    <th class="w-code center">제품 코드</th>
-                    <th>제품명</th>
-                    <th class="w-category">카테고리</th>
-                    <th class="w-spec">규격/단위</th>
-                    <th class="w-price align-right">표준 단가</th>
-                    <th class="w-vendor">메인 거래처</th>
-                    <th class="w-status center">상태</th>
-                    <th class="w-date center">등록일</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    v-for="prod in productMasterData"
-                    :key="prod.id"
-                    :class="{ selected: selectedProduct?.id === prod.id }"
-                    @click="selectedProduct = prod"
-                  >
-                    <td class="center muted strong-small">{{ prod.id }}</td>
-                    <td class="strong truncate">{{ prod.name }}</td>
-                    <td>{{ prod.cat }}</td>
-                    <td class="semi-strong truncate uppercase">{{ prod.spec }} ({{ prod.unit }})</td>
-                    <td class="align-right strong">₩{{ prod.price.toLocaleString() }}</td>
-                    <td class="truncate">{{ prod.vendor }}</td>
-                    <td class="center">
-                      <span class="status-badge" :class="prod.status">{{ prod.status }}</span>
-                    </td>
-                    <td class="center muted strong-small">{{ prod.regDate }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <div class="table-footer">
-              <span>Product Master View (Page 1 of 1)</span>
-              <div class="pagination">
-                <button type="button"><ChevronLeftIcon :size="14" /></button>
-                <button type="button" class="active">1</button>
-                <button type="button"><ChevronRightIcon :size="14" /></button>
-              </div>
+            <div class="border border-gray-200 bg-gray-50 p-3">
+              <p class="text-[10px] font-bold uppercase text-gray-400">메인 계약처</p>
+              <div class="mt-2 flex items-center justify-between gap-2 text-xs font-bold text-gray-700"><span>{{ selectedProduct.vendor }}</span><span class="bg-[#E6F2F0] px-2 py-1 text-[#004D3C]">메인 계약처</span></div>
+              <div class="mt-2 flex justify-between text-xs"><span class="text-gray-500">계약가</span><strong class="text-[#004D3C]">₩{{ Math.round(selectedProduct.price * 0.95).toLocaleString() }}</strong></div>
             </div>
           </div>
-
-          <aside v-if="selectedProduct" class="panel detail-panel">
-            <div class="detail-head">
-              <h3>
-                <InfoIcon :size="14" />
-                제품 마스터 상세 (SO-014)
-              </h3>
-              <button type="button" class="detail-close" @click="closeDetail">
-                <XIcon :size="16" />
-              </button>
-            </div>
-
-            <div class="detail-body">
-              <section class="detail-intro">
-                <p class="caption">마스터 ID: {{ selectedProduct.id }}</p>
-                <h4>{{ selectedProduct.name }}</h4>
-                <div class="detail-tags">
-                  <span>{{ selectedProduct.cat }}</span>
-                  <span :class="selectedProduct.status">{{ selectedProduct.status }}</span>
-                </div>
-              </section>
-
-              <section class="detail-section">
-                <p class="section-title">기본 규격 정보</p>
-                <div class="spec-grid">
-                  <div>
-                    <p class="label">단위</p>
-                    <p class="value">{{ selectedProduct.unit }}</p>
-                  </div>
-                  <div>
-                    <p class="label">표준 단가</p>
-                    <p class="value">₩{{ selectedProduct.price.toLocaleString() }}</p>
-                  </div>
-                  <div>
-                    <p class="label">규격 상세</p>
-                    <p class="value">{{ selectedProduct.spec }}</p>
-                  </div>
-                  <div>
-                    <p class="label">표준 리드타임</p>
-                    <p class="value">{{ selectedProduct.leadTime }}</p>
-                  </div>
-                </div>
-              </section>
-
-              <section class="detail-section">
-                <p class="section-title">계약 및 단가 현황 (SO-018)</p>
-                <div class="contract-card">
-                  <div class="contract-row top">
-                    <span class="contract-name">{{ selectedProduct.vendor }}</span>
-                    <span class="contract-badge">메인 계약처</span>
-                  </div>
-                  <div class="contract-row">
-                    <span>계약 단가</span>
-                    <strong>₩{{ Math.round(selectedProduct.price * 0.95).toLocaleString() }}</strong>
-                  </div>
-                  <div class="contract-row">
-                    <span>최근 계약 갱신일</span>
-                    <strong class="subtle">2024.03.01</strong>
-                  </div>
-                </div>
-                <button type="button" class="outline-link">계약 이력 전체 보기 (SO-021)</button>
-              </section>
-
-              <section class="audit-box">
-                <div class="audit-row">
-                  <span>마지막 수정</span>
-                  <span>시스템 관리자 (2024.04.16 10:20)</span>
-                </div>
-              </section>
-            </div>
-
-            <div class="detail-actions">
-              <button type="button" class="dark-button">
-                <Edit3Icon :size="14" />
-                제품 수정
-              </button>
-              <button type="button" class="danger-button">
-                <Trash2Icon :size="14" />
-                마스터 삭제
-              </button>
-            </div>
-          </aside>
-          </template>
-        </section>
+        </aside>
+      </section>
     </div>
   </AppLayout>
 </template>
-
-<style scoped>
-:global(body) {
-  background: #f3f4f6;
-}
-
-.erp-page {
-  min-height: 100vh;
-  background: #f3f4f6;
-  color: #111827;
-  font-family: inherit;
-  font-size: 13px;
-  -webkit-font-smoothing: antialiased;
-}
-
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  min-height: 48px;
-  padding: 0 16px;
-  background: #004d3c;
-  border-bottom: 1px solid #374151;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.14);
-}
-
-.topbar-left,
-.topbar-right,
-.topbar-actions,
-.top-nav,
-.side-nav-main,
-.sidebar-footer-line,
-.action-left,
-.action-right,
-.master-head,
-.master-head-left,
-.master-head-actions,
-.detail-head,
-.detail-tags,
-.contract-row,
-.pagination {
-  display: flex;
-  align-items: center;
-}
-
-.topbar-left,
-.topbar-right,
-.topbar-actions {
-  gap: 16px;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-right: 24px;
-  margin-right: 8px;
-  border-right: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.brand-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.brand-mark.inverse {
-  background: #fff;
-  color: #111827;
-}
-
-.brand-name {
-  font-size: 14px;
-  font-weight: 900;
-  letter-spacing: -0.04em;
-  text-transform: uppercase;
-}
-
-.brand-name.inverse {
-  color: #fff;
-}
-
-.top-nav {
-  gap: 0;
-  height: 100%;
-}
-
-.top-nav-button,
-.icon-button,
-.user-card,
-.side-nav-button,
-.ghost-button,
-.primary-button,
-.master-head-actions button,
-.pagination button,
-.detail-close,
-.outline-link,
-.dark-button,
-.danger-button {
-  border: 0;
-  background: transparent;
-  font: inherit;
-  cursor: pointer;
-}
-
-.top-nav-button {
-  height: 48px;
-  padding: 0 14px;
-  border-bottom: 2px solid transparent;
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 10.5px;
-  font-weight: 700;
-}
-
-.top-nav-button:hover,
-.icon-button:hover,
-.user-card:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.top-nav-button.active {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.1);
-  border-bottom-color: #fff;
-}
-
-.topbar-actions {
-  padding-left: 16px;
-  border-left: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.icon-button {
-  padding: 6px;
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.user-card {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px;
-}
-
-.user-avatar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.user-name {
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.layout-shell {
-  display: flex;
-  min-height: calc(100vh - 48px);
-}
-
-.sidebar {
-  display: flex;
-  flex-direction: column;
-  width: 208px;
-  border-right: 1px solid #d1d5db;
-  background: #fff;
-}
-
-.sidebar-head {
-  padding: 16px;
-  border-bottom: 1px solid #f3f4f6;
-  background: rgba(249, 250, 251, 0.5);
-}
-
-.sidebar-caption {
-  margin-bottom: 4px;
-  color: #9ca3af;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
-.sidebar-title {
-  color: #1f2937;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.side-nav {
-  padding: 8px;
-}
-
-.side-nav-button {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid transparent;
-  color: #4b5563;
-  font-size: 12px;
-  text-align: left;
-}
-
-.side-nav-button + .side-nav-button {
-  margin-top: 2px;
-}
-
-.side-nav-button:hover {
-  background: #f9fafb;
-}
-
-.side-nav-main {
-  gap: 10px;
-}
-
-.side-nav-id {
-  font-size: 9px;
-  font-weight: 700;
-  opacity: 0.4;
-}
-
-.sidebar-footer {
-  margin-top: auto;
-  padding: 16px;
-  border-top: 1px solid #e5e7eb;
-  background: #f9fafb;
-}
-
-.sidebar-footer-line {
-  gap: 8px;
-  color: #6b7280;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.content {
-  flex: 1;
-  padding: 16px;
-}
-
-.products-content {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  overflow: hidden;
-}
-
-.panel {
-  border: 1px solid #d1d5db;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
-}
-
-.action-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px;
-  flex-shrink: 0;
-}
-
-.action-left,
-.action-right {
-  gap: 12px;
-}
-
-.search-box {
-  position: relative;
-  display: block;
-}
-
-.wide-search input {
-  width: 320px;
-  padding: 7px 12px 7px 32px;
-  border: 1px solid #d1d5db;
-  background: #f9fafb;
-  outline: none;
-  font: inherit;
-  font-size: 11px;
-}
-
-.wide-search input:focus,
-.category-filter select:focus {
-  border-color: #004d3c;
-  background: #fff;
-}
-
-.search-icon {
-  position: absolute;
-  top: 50%;
-  left: 10px;
-  transform: translateY(-50%);
-  color: #9ca3af;
-}
-
-.category-filter {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.category-filter span {
-  color: #9ca3af;
-  font-size: 11px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.category-filter select {
-  border: 1px solid #d1d5db;
-  background: #f9fafb;
-  padding: 6px 8px;
-  outline: none;
-  font: inherit;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.ghost-button,
-.primary-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  font-size: 11px;
-  font-weight: 900;
-}
-
-.ghost-button {
-  border: 1px solid #d1d5db;
-  color: #374151;
-}
-
-.ghost-button:hover {
-  background: #f9fafb;
-}
-
-.primary-button {
-  background: #004d3c;
-  color: #fff;
-}
-
-.products-split {
-  display: flex;
-  flex: 1;
-  gap: 16px;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.master-panel {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.master-head {
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  border-bottom: 1px solid #e5e7eb;
-  background: rgba(249, 250, 251, 0.5);
-}
-
-.master-head-left {
-  gap: 10px;
-}
-
-.master-head-left h3 {
-  color: #374151;
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.master-head-left h3.with-icon {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.master-head-left span {
-  color: #9ca3af;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.master-head-actions {
-  gap: 8px;
-}
-
-.master-head-actions button {
-  padding: 4px;
-  color: #9ca3af;
-}
-
-.master-head-actions button:hover {
-  color: #374151;
-}
-
-.table-wrap {
-  flex: 1;
-  overflow: auto;
-}
-
-.product-table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-}
-
-.product-table thead {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.product-table thead tr {
-  border-bottom: 1px solid #d1d5db;
-  background: #f3f4f6;
-}
-
-.product-table th,
-.product-table td {
-  padding: 8px 12px;
-  border-right: 1px solid #f3f4f6;
-  text-align: left;
-  white-space: nowrap;
-}
-
-.product-table th:last-child,
-.product-table td:last-child {
-  border-right: 0;
-}
-
-.product-table th {
-  color: #6b7280;
-  font-size: 10px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.product-table tbody tr {
-  border-bottom: 1px solid #f3f4f6;
-  cursor: pointer;
-}
-
-.product-table tbody tr:hover {
-  background: rgba(239, 246, 255, 0.7);
-}
-
-.product-table tbody tr.selected {
-  background: #e6f2f0;
-}
-
-.product-table td {
-  color: #6b7280;
-  font-size: 11px;
-}
-
-.w-code {
-  width: 96px;
-}
-
-.w-category {
-  width: 96px;
-}
-
-.w-spec {
-  width: 112px;
-}
-
-.w-price {
-  width: 96px;
-}
-
-.w-vendor {
-  width: 112px;
-}
-
-.w-status {
-  width: 80px;
-}
-
-.w-date {
-  width: 96px;
-}
-
-.center {
-  text-align: center !important;
-}
-
-.align-right {
-  text-align: right !important;
-}
-
-.strong {
-  color: #111827 !important;
-  font-size: 12px !important;
-  font-weight: 900;
-}
-
-.semi-strong {
-  color: #4b5563 !important;
-  font-weight: 700;
-}
-
-.muted {
-  color: #9ca3af !important;
-}
-
-.strong-small {
-  font-weight: 700;
-}
-
-.truncate {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.table-inline {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.table-inline-icon {
-  color: #9ca3af;
-}
-
-.uppercase {
-  text-transform: uppercase;
-}
-
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2px 6px;
-  border: 1px solid #d1d5db;
-  font-size: 10px;
-  font-weight: 900;
-}
-
-.status-badge.활성 {
-  border-color: #a7f3d0;
-  background: #ecfdf5;
-  color: #047857;
-}
-
-.status-badge.비활성 {
-  border-color: #fecaca;
-  background: #fef2f2;
-  color: #b91c1c;
-}
-
-.status-badge.점검중 {
-  border-color: #fcd34d;
-  background: #fffbeb;
-  color: #b45309;
-}
-
-.status-badge.사용중 {
-  border-color: #a7f3d0;
-  background: #ecfdf5;
-  color: #047857;
-}
-
-.status-badge.미사용 {
-  border-color: #fecaca;
-  background: #fef2f2;
-  color: #b91c1c;
-}
-
-.table-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 12px;
-  border-top: 1px solid #d1d5db;
-  background: #f9fafb;
-  color: #9ca3af;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.pagination {
-  gap: 4px;
-}
-
-.pagination button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 24px;
-  height: 24px;
-  border: 1px solid #d1d5db;
-  color: #4b5563;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.pagination button:hover {
-  background: #f9fafb;
-}
-
-.pagination button.active {
-  border-color: #1f2937;
-  background: #1f2937;
-  color: #fff;
-}
-
-.detail-panel {
-  display: flex;
-  flex-direction: column;
-  width: 380px;
-  flex-shrink: 0;
-  overflow: hidden;
-}
-
-.detail-head {
-  justify-content: space-between;
-  padding: 12px;
-  border-bottom: 1px solid #e5e7eb;
-  background: #004d3c;
-  color: #fff;
-}
-
-.detail-head h3 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.detail-close {
-  padding: 2px;
-  color: #fff;
-}
-
-.detail-body {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 24px;
-  overflow-y: auto;
-  padding: 16px;
-}
-
-.detail-intro {
-  padding-bottom: 16px;
-  border-bottom: 1px solid #f3f4f6;
-}
-
-.detail-intro h4 {
-  margin: 6px 0 10px;
-  color: #111827;
-  font-size: 15px;
-  font-weight: 900;
-  line-height: 1.35;
-}
-
-.caption,
-.section-title,
-.label {
-  color: #9ca3af;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.sub-caption {
-  color: #9ca3af;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.label.block {
-  display: block;
-  margin-bottom: 4px;
-}
-
-.detail-tags {
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.detail-tags span {
-  padding: 2px 6px;
-  border: 1px solid #e5e7eb;
-  background: #f3f4f6;
-  color: #4b5563;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.detail-tags span.활성 {
-  border-color: #a7f3d0;
-  background: #ecfdf5;
-  color: #047857;
-}
-
-.detail-tags span.비활성 {
-  border-color: #fecaca;
-  background: #fef2f2;
-  color: #b91c1c;
-}
-
-.detail-tags span.점검중 {
-  border-color: #fcd34d;
-  background: #fffbeb;
-  color: #b45309;
-}
-
-.detail-section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.section-title {
-  padding-bottom: 4px;
-  border-bottom: 1px solid #f3f4f6;
-}
-
-.spec-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 20px;
-}
-
-.form-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.detail-input {
-  width: 100%;
-  padding: 6px 8px;
-  border: 1px solid #d1d5db;
-  background: #f9fafb;
-  outline: none;
-  font: inherit;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.detail-input:focus {
-  border-color: #004d3c;
-  background: #fff;
-}
-
-.value {
-  color: #1f2937;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.contract-card {
-  padding: 12px;
-  border: 1px solid #e5e7eb;
-  background: #f9fafb;
-}
-
-.contract-row {
-  justify-content: space-between;
-  color: #6b7280;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.contract-row + .contract-row {
-  margin-top: 8px;
-}
-
-.contract-row.top {
-  margin-bottom: 10px;
-}
-
-.contract-name {
-  color: #374151;
-  font-size: 11px;
-  font-weight: 900;
-}
-
-.contract-badge {
-  padding: 2px 6px;
-  border: 1px solid #e5e7eb;
-  background: #fff;
-  color: #6b7280;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.contract-row strong {
-  color: #111827;
-  font-weight: 900;
-}
-
-.contract-row strong.subtle {
-  color: #4b5563;
-}
-
-.outline-link {
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid #004d3c;
-  color: #004d3c;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.outline-link:hover {
-  background: #ecfdf5;
-}
-
-.audit-box {
-  padding: 12px;
-  background: #f3f4f6;
-}
-
-.metric-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px;
-  border: 1px solid #e5e7eb;
-  background: #f9fafb;
-  color: #6b7280;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.metric-card strong {
-  color: #004d3c;
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.audit-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  color: #9ca3af;
-  font-size: 9px;
-  font-weight: 700;
-}
-
-.detail-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  padding: 12px 16px 16px;
-  background: #fff;
-}
-
-.detail-actions.single-column {
-  grid-template-columns: 1fr;
-}
-
-.dark-button,
-.danger-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 10px 12px;
-  font-size: 11px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.dark-button {
-  background: #1f2937;
-  color: #fff;
-}
-
-.dark-button:hover {
-  background: #374151;
-}
-
-.danger-button {
-  border: 1px solid #fecaca;
-  color: #dc2626;
-}
-
-.danger-button:hover {
-  background: #fef2f2;
-}
-
-@media (max-width: 1180px) {
-  .products-split {
-    flex-direction: column;
-  }
-
-  .detail-panel {
-    width: 100%;
-  }
-}
-
-@media (max-width: 980px) {
-  .topbar,
-  .layout-shell,
-  .action-bar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .topbar {
-    position: static;
-    padding: 12px 16px;
-  }
-
-  .topbar-left,
-  .topbar-right,
-  .action-left,
-  .action-right {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .brand {
-    margin-right: 0;
-    padding-right: 0;
-    border-right: 0;
-  }
-
-  .top-nav {
-    flex-wrap: wrap;
-  }
-
-  .topbar-actions {
-    padding-left: 0;
-    border-left: 0;
-  }
-
-  .sidebar {
-    width: 100%;
-  }
-
-  .wide-search input {
-    width: 100%;
-  }
-}
-</style>

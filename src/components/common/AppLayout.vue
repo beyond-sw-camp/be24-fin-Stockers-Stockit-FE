@@ -233,16 +233,6 @@ const iconMap = {
           </button>
         </nav>
 
-        <div v-if="showSystemCard" class="mt-auto border-t border-gray-200 bg-gray-50 p-4">
-          <div class="mb-2 flex items-center justify-between text-[10px] font-bold text-gray-400">
-            <span>시스템 상태</span>
-            <span class="h-2 w-2 rounded-full bg-emerald-500" />
-          </div>
-          <div class="mb-1 h-1 w-full bg-gray-200">
-            <div class="h-full w-[74%] bg-[#004D3C]" />
-          </div>
-          <p class="text-[9px] text-gray-500">서버 점유율: 74%</p>
-        </div>
       </aside>
 
       <main class="min-w-0 flex-1 p-4">

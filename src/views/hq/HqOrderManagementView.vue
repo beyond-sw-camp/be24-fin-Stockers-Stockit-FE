@@ -1,7 +1,7 @@
 <script setup>
 import { computed, h, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import AppLayout from '@/components/AppLayout.vue'
+import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 
@@ -268,1205 +268,241 @@ const iconMap = {
     show-system-card
     @logout="handleLogout"
   >
-    <div class="orders-content">
-        <section class="panel status-tabs">
-          <button
-            v-for="tab in statusTabs"
-            :key="tab.label"
-            type="button"
-            class="status-tab"
-            :class="{ active: activeStatusTab === tab.label }"
-            @click="activeStatusTab = tab.label"
+    <div class="flex flex-col gap-4 overflow-hidden">
+      <section class="flex flex-wrap gap-2 border border-gray-300 bg-white p-2 shadow-sm">
+        <button
+          v-for="tab in statusTabs"
+          :key="tab.label"
+          type="button"
+          class="flex items-center gap-2 border px-4 py-2 text-xs font-black transition-colors"
+          :class="activeStatusTab === tab.label ? 'border-[#004D3C] bg-[#004D3C] text-white' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'"
+          @click="activeStatusTab = tab.label"
+        >
+          <span>{{ tab.label }}</span>
+          <span
+            class="px-1.5 py-0.5 text-[10px]"
+            :class="activeStatusTab === tab.label ? 'bg-white/20 text-white' : tab.highlight ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-500'"
           >
-            <span class="tab-label">{{ tab.label }}</span>
-            <span class="tab-count" :class="{ highlight: tab.highlight && activeStatusTab !== tab.label }">
-              {{ tab.count }}
-            </span>
-          </button>
-        </section>
+            {{ tab.count }}
+          </span>
+        </button>
+      </section>
 
-        <section class="alert-banner">
-          <div class="alert-left">
-            <div class="alert-mark">
-              <AlertCircleIcon :size="14" />
-            </div>
-            <p>[발주량 이상 감지] 강남 서초점의 '고속 충전기' 발주량이 평소 대비 300% 급증했습니다. (기준일: 최근 4주 평균)</p>
+      <section class="flex flex-wrap items-center justify-between gap-3 border border-red-200 bg-red-50 px-4 py-3 text-red-800">
+        <div class="flex items-start gap-3">
+          <div class="mt-0.5 flex h-6 w-6 items-center justify-center bg-red-100">
+            <AlertCircleIcon :size="14" />
           </div>
-          <button type="button">상세 분석 보고서 열기</button>
-        </section>
+          <p class="text-xs font-bold">[발주량 이상 감지] 강남 서초점의 '고속 충전기' 발주량이 평소 대비 300% 급증했습니다. (기준일: 최근 4주 평균)</p>
+        </div>
+        <button type="button" class="text-xs font-black underline">상세 분석 보고서 열기</button>
+      </section>
 
-        <section class="orders-split">
-          <div class="panel orders-table-panel">
-            <div class="table-action-bar">
-              <div class="action-left">
-                <label class="check-all">
-                  <input type="checkbox" :checked="isAllChecked" @change="handleCheckAll($event.target.checked)" />
-                  <span>전체 선택</span>
-                </label>
+      <section class="flex min-h-0 flex-col gap-4 xl:flex-row">
+        <div class="flex min-w-0 flex-1 flex-col overflow-hidden border border-gray-300 bg-white shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-gray-50/70 px-3 py-2.5">
+            <div class="flex flex-wrap items-center gap-3">
+              <label class="inline-flex items-center gap-2 text-xs font-bold text-gray-600">
+                <input type="checkbox" class="h-3 w-3 accent-[#004D3C]" :checked="isAllChecked" @change="handleCheckAll($event.target.checked)" />
+                <span>전체 선택</span>
+              </label>
 
-                <div v-if="checkedOrders.length > 0" class="bulk-actions">
-                  <button type="button" class="bulk-button approve">
-                    <ThumbsUpIcon :size="12" />
-                    일괄 승인 ({{ checkedOrders.length }})
-                  </button>
-                  <button type="button" class="bulk-button reject">
-                    <ThumbsDownIcon :size="12" />
-                    일괄 반려
-                  </button>
-                </div>
-              </div>
-
-              <div class="action-right">
-                <label class="search-box compact-search">
-                  <SearchIcon :size="14" class="search-icon" />
-                  <input type="text" placeholder="발주 번호/매장 검색..." />
-                </label>
-                <button type="button" class="download-icon">
-                  <DownloadIcon :size="14" />
+              <div v-if="checkedOrders.length > 0" class="flex items-center gap-2">
+                <button type="button" class="inline-flex items-center gap-1 border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-black text-emerald-700">
+                  <ThumbsUpIcon :size="12" />
+                  일괄 승인 ({{ checkedOrders.length }})
+                </button>
+                <button type="button" class="inline-flex items-center gap-1 border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] font-black text-red-700">
+                  <ThumbsDownIcon :size="12" />
+                  일괄 반려
                 </button>
               </div>
             </div>
 
-            <div class="table-wrap">
-              <table class="orders-table">
-                <thead>
+            <div class="flex items-center gap-2">
+              <label class="relative block">
+                <SearchIcon :size="14" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input type="text" placeholder="발주 번호/매장 검색..." class="w-56 border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-xs outline-none focus:border-[#004D3C]" />
+              </label>
+              <button type="button" class="border border-gray-300 bg-white p-2 text-gray-600 hover:bg-gray-50">
+                <DownloadIcon :size="14" />
+              </button>
+            </div>
+          </div>
+
+          <div class="overflow-auto">
+            <table class="w-full min-w-[960px] table-fixed border-collapse text-xs">
+              <thead class="bg-gray-100 text-[10px] uppercase tracking-wider text-gray-500">
+                <tr>
+                  <th class="w-10 px-3 py-2 text-center font-black"></th>
+                  <th class="w-32 px-3 py-2 text-left font-black">발주 번호</th>
+                  <th class="w-36 px-3 py-2 text-left font-black">요청 매장</th>
+                  <th class="px-3 py-2 text-left font-black">품목 명세</th>
+                  <th class="w-24 px-3 py-2 text-right font-black">총 수량</th>
+                  <th class="w-28 px-3 py-2 text-right font-black">발주 금액</th>
+                  <th class="w-24 px-3 py-2 text-center font-black">상태</th>
+                  <th class="w-24 px-3 py-2 text-center font-black">관리</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                <tr
+                  v-for="order in filteredOrders"
+                  :key="order.id"
+                  class="cursor-pointer transition-colors hover:bg-gray-50"
+                  :class="{
+                    'bg-[#E6F2F0]': selectedOrder?.id === order.id,
+                    'bg-red-50/60': order.isAnomaly && selectedOrder?.id !== order.id,
+                  }"
+                  @click="selectedOrder = order"
+                >
+                  <td class="px-3 py-3 text-center" @click.stop>
+                    <input type="checkbox" class="h-3 w-3 accent-[#004D3C]" :checked="checkedOrders.includes(order.id)" @change="handleCheck(order.id)" />
+                  </td>
+                  <td class="px-3 py-3 font-bold text-gray-400">
+                    {{ order.id }}
+                    <span v-if="order.isAnomaly" class="ml-1 bg-red-600 px-1 py-0.5 text-[9px] font-black text-white">이상</span>
+                  </td>
+                  <td class="px-3 py-3 font-black text-gray-800">{{ order.store }}</td>
+                  <td class="truncate px-3 py-3 font-bold text-gray-600">{{ order.items }}</td>
+                  <td class="px-3 py-3 text-right font-black text-gray-800">{{ order.totalQty.toLocaleString() }}</td>
+                  <td class="px-3 py-3 text-right font-black text-gray-800">{{ order.amount }}</td>
+                  <td class="px-3 py-3 text-center">
+                    <span
+                      class="inline-flex px-2 py-1 text-[10px] font-black"
+                      :class="{
+                        'bg-amber-50 text-amber-700': order.status === '승인 대기',
+                        'bg-emerald-50 text-emerald-700': order.status === '승인 완료',
+                        'bg-red-50 text-red-700': order.status === '반려',
+                      }"
+                    >
+                      {{ order.status }}
+                    </span>
+                  </td>
+                  <td class="px-3 py-3 text-center" @click.stop>
+                    <div class="flex items-center justify-center gap-1">
+                      <button type="button" class="border border-gray-200 bg-white p-1 text-gray-500 hover:bg-gray-50"><SearchIcon :size="12" /></button>
+                      <button v-if="order.status === '승인 대기'" type="button" class="border border-emerald-200 bg-emerald-50 p-1 text-emerald-700"><ThumbsUpIcon :size="12" /></button>
+                      <button v-if="order.status === '승인 대기'" type="button" class="border border-red-200 bg-red-50 p-1 text-red-700"><ThumbsDownIcon :size="12" /></button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-300 bg-gray-50 px-3 py-2 text-[11px] font-bold text-gray-500">
+            <span>Page 1 of 8 (Total: 142 Orders)</span>
+            <div class="flex items-center gap-1">
+              <button type="button" class="flex h-6 min-w-6 items-center justify-center border border-gray-300 bg-white px-1.5"><ChevronLeftIcon :size="14" /></button>
+              <button v-for="page in [1, 2, 3]" :key="page" type="button" class="flex h-6 min-w-6 items-center justify-center border border-gray-300 px-2" :class="page === 1 ? 'bg-gray-800 text-white' : 'bg-white text-gray-600 hover:bg-gray-100'">
+                {{ page }}
+              </button>
+              <button type="button" class="flex h-6 min-w-6 items-center justify-center border border-gray-300 bg-white px-1.5"><ChevronRightIcon :size="14" /></button>
+            </div>
+          </div>
+        </div>
+
+        <aside v-if="selectedOrder" class="flex w-full shrink-0 flex-col overflow-hidden border border-gray-300 bg-white shadow-sm xl:w-[360px]">
+          <div class="flex items-center justify-between bg-[#004D3C] px-4 py-3 text-white">
+            <h3 class="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-wider">
+              <InfoIcon :size="14" />
+              발주 상세 명세 (SO-005)
+            </h3>
+            <button type="button" class="p-1 text-white hover:bg-white/10" @click="closeDetail">
+              <XIcon :size="16" />
+            </button>
+          </div>
+
+          <div class="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
+            <section class="space-y-4">
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <p class="text-[10px] font-bold uppercase text-gray-400">발주 번호</p>
+                  <p class="mt-1 text-sm font-black text-gray-900">{{ selectedOrder.id }}</p>
+                </div>
+                <div class="text-right">
+                  <p class="text-[10px] font-bold uppercase text-gray-400">상태</p>
+                  <span class="mt-1 inline-flex px-2 py-1 text-[10px] font-black" :class="selectedOrder.status === '승인 대기' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'">
+                    {{ selectedOrder.status }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <p class="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-gray-400"><StoreIcon :size="10" /> 요청 매장</p>
+                  <p class="mt-1 text-xs font-black text-gray-800">{{ selectedOrder.store }}</p>
+                </div>
+                <div>
+                  <p class="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-gray-400"><UserIcon :size="10" /> 요청자</p>
+                  <p class="mt-1 text-xs font-black text-gray-800">{{ selectedOrder.manager }} 점장</p>
+                </div>
+                <div>
+                  <p class="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-gray-400"><ClockIcon :size="10" /> 요청 일시</p>
+                  <p class="mt-1 text-xs font-bold text-gray-500">{{ selectedOrder.reqDate }}</p>
+                </div>
+                <div>
+                  <p class="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-gray-400"><CalendarIcon :size="10" /> 희망 배송일</p>
+                  <p class="mt-1 text-xs font-black text-[#004D3C]">{{ selectedOrder.wishDate }}</p>
+                </div>
+              </div>
+            </section>
+
+            <section v-if="selectedOrder.isAnomaly" class="border border-red-200 bg-red-50 p-3 text-red-800">
+              <p class="inline-flex items-center gap-1.5 text-[11px] font-black"><AlertCircleIcon :size="12" /> 이상 발주 알림 (RQ-006)</p>
+              <p class="mt-2 text-xs leading-relaxed">해당 매장의 '고속 충전기' 발주 패턴이 최근 4주 평균 대비 320% 초과되었습니다. 승인 전 창고 재고 및 매장 특이사항을 반드시 확인하십시오.</p>
+            </section>
+
+            <section>
+              <p class="mb-2 text-[10px] font-black uppercase text-gray-400">발주 품목 내역</p>
+              <table class="w-full text-xs">
+                <thead class="bg-gray-100 text-[10px] uppercase text-gray-500">
                   <tr>
-                    <th class="check-col"></th>
-                    <th class="w-order">발주 번호</th>
-                    <th class="w-store">요청 매장</th>
-                    <th>품목 명세</th>
-                    <th class="align-right w-qty">총 수량</th>
-                    <th class="align-right w-amount">발주 금액</th>
-                    <th class="center w-status">상태</th>
-                    <th class="center w-actions">관리</th>
+                    <th class="px-2 py-2 text-left font-black">품목정보</th>
+                    <th class="w-14 px-2 py-2 text-right font-black">수량</th>
+                    <th class="w-24 px-2 py-2 text-right font-black">소계</th>
                   </tr>
                 </thead>
-                <tbody>
-                  <tr
-                    v-for="order in filteredOrders"
-                    :key="order.id"
-                    :class="{
-                      selected: selectedOrder?.id === order.id,
-                      anomaly: order.isAnomaly,
-                    }"
-                    @click="selectedOrder = order"
-                  >
-                    <td class="center" @click.stop>
-                      <input
-                        type="checkbox"
-                        :checked="checkedOrders.includes(order.id)"
-                        @change="handleCheck(order.id)"
-                      />
+                <tbody class="divide-y divide-gray-100">
+                  <tr v-for="item in orderDetails" :key="item.name">
+                    <td class="px-2 py-2">
+                      <p class="font-black text-gray-800">{{ item.name }}</p>
+                      <p class="mt-0.5 text-[10px] text-gray-400">{{ item.spec }} | ₩{{ item.price.toLocaleString() }}</p>
                     </td>
-                    <td class="muted strong-small">
-                      {{ order.id }}
-                      <span v-if="order.isAnomaly" class="flag-badge">이상</span>
-                    </td>
-                    <td class="strong">{{ order.store }}</td>
-                    <td class="semi-strong truncate">{{ order.items }}</td>
-                    <td class="align-right strong">{{ order.totalQty.toLocaleString() }}</td>
-                    <td class="align-right strong">{{ order.amount }}</td>
-                    <td class="center">
-                      <span class="status-badge" :class="order.status">
-                        {{ order.status }}
-                      </span>
-                    </td>
-                    <td class="center" @click.stop>
-                      <div class="row-actions">
-                        <button type="button"><SearchIcon :size="12" /></button>
-                        <button v-if="order.status === '승인 대기'" type="button" class="approve-mini">
-                          <ThumbsUpIcon :size="12" />
-                        </button>
-                        <button v-if="order.status === '승인 대기'" type="button" class="reject-mini">
-                          <ThumbsDownIcon :size="12" />
-                        </button>
-                      </div>
-                    </td>
+                    <td class="px-2 py-2 text-right font-bold text-gray-700">{{ item.qty }}</td>
+                    <td class="px-2 py-2 text-right font-bold text-gray-700">₩{{ item.subtotal.toLocaleString() }}</td>
                   </tr>
                 </tbody>
+                <tfoot class="border-t border-gray-300 bg-gray-50 font-black text-gray-900">
+                  <tr>
+                    <td class="px-2 py-2">총계</td>
+                    <td class="px-2 py-2 text-right">462</td>
+                    <td class="px-2 py-2 text-right text-[#004D3C]">{{ selectedOrder.amount }}</td>
+                  </tr>
+                </tfoot>
               </table>
-            </div>
-
-            <div class="table-footer">
-              <span>Page 1 of 8 (Total: 142 Orders)</span>
-              <div class="pagination">
-                <button type="button"><ChevronLeftIcon :size="14" /></button>
-                <button v-for="page in [1, 2, 3]" :key="page" type="button" :class="{ active: page === 1 }">
-                  {{ page }}
-                </button>
-                <button type="button"><ChevronRightIcon :size="14" /></button>
-              </div>
-            </div>
+            </section>
           </div>
 
-          <aside v-if="selectedOrder" class="panel detail-panel">
-            <div class="detail-head">
-              <h3>
-                <InfoIcon :size="14" />
-                발주 상세 명세 (SO-005)
-              </h3>
-              <button type="button" class="detail-close" @click="closeDetail">
-                <XIcon :size="16" />
+          <div class="space-y-2 px-4 pb-4">
+            <div v-if="selectedOrder.status === '승인 대기'" class="grid grid-cols-2 gap-2">
+              <button type="button" class="inline-flex items-center justify-center gap-1.5 border border-emerald-600 bg-emerald-600 px-3 py-2.5 text-[11px] font-black uppercase text-white">
+                <ThumbsUpIcon :size="14" />
+                발주 승인
+              </button>
+              <button type="button" class="inline-flex items-center justify-center gap-1.5 border border-red-600 bg-red-600 px-3 py-2.5 text-[11px] font-black uppercase text-white">
+                <ThumbsDownIcon :size="14" />
+                발주 반려
               </button>
             </div>
-
-            <div class="detail-body">
-              <section class="detail-summary">
-                <div class="summary-row">
-                  <div>
-                    <p class="caption">발주 번호</p>
-                    <p class="headline">{{ selectedOrder.id }}</p>
-                  </div>
-                  <div class="status-right">
-                    <p class="caption">상태</p>
-                    <span class="status-badge large" :class="selectedOrder.status">{{ selectedOrder.status }}</span>
-                  </div>
-                </div>
-
-                <div class="meta-grid">
-                  <div>
-                    <p class="caption inline"><StoreIcon :size="10" /> 요청 매장</p>
-                    <p class="meta-value">{{ selectedOrder.store }}</p>
-                  </div>
-                  <div>
-                    <p class="caption inline"><UserIcon :size="10" /> 요청자</p>
-                    <p class="meta-value">{{ selectedOrder.manager }} 점장</p>
-                  </div>
-                  <div>
-                    <p class="caption inline"><ClockIcon :size="10" /> 요청 일시</p>
-                    <p class="meta-sub">{{ selectedOrder.reqDate }}</p>
-                  </div>
-                  <div>
-                    <p class="caption inline"><CalendarIcon :size="10" /> 희망 배송일</p>
-                    <p class="meta-emphasis">{{ selectedOrder.wishDate }}</p>
-                  </div>
-                </div>
-              </section>
-
-              <section v-if="selectedOrder.isAnomaly" class="anomaly-box">
-                <p class="anomaly-title">
-                  <AlertCircleIcon :size="12" />
-                  이상 발주 알림 (RQ-006)
-                </p>
-                <p class="anomaly-text">
-                  해당 매장의 '고속 충전기' 발주 패턴이 최근 4주 평균 대비 320% 초과되었습니다. 승인 전 창고 재고 및 매장 특이사항을 반드시 확인하십시오.
-                </p>
-              </section>
-
-              <section class="detail-items">
-                <p class="section-label">발주 품목 내역</p>
-                <table class="detail-table">
-                  <thead>
-                    <tr>
-                      <th>품목정보</th>
-                      <th class="align-right w-mini">수량</th>
-                      <th class="align-right w-subtotal">소계</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="item in orderDetails" :key="item.name">
-                      <td>
-                        <p class="item-name">{{ item.name }}</p>
-                        <p class="item-meta">{{ item.spec }} | ₩{{ item.price.toLocaleString() }}</p>
-                      </td>
-                      <td class="align-right strong-small">{{ item.qty }}</td>
-                      <td class="align-right strong-small">₩{{ item.subtotal.toLocaleString() }}</td>
-                    </tr>
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <td>총계</td>
-                      <td class="align-right">462</td>
-                      <td class="align-right total-amount">{{ selectedOrder.amount }}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </section>
-            </div>
-
-            <div class="detail-actions">
-              <div v-if="selectedOrder.status === '승인 대기'" class="decision-grid">
-                <button type="button" class="decision-button approve">
-                  <ThumbsUpIcon :size="14" />
-                  발주 최종 승인
-                </button>
-                <button type="button" class="decision-button reject">
-                  <ThumbsDownIcon :size="14" />
-                  발주 반려 처리
-                </button>
-              </div>
-              <button v-else type="button" class="decision-button reissue">
-                <FileTextIcon :size="14" />
-                명세서 재발행
-              </button>
-              <button type="button" class="close-button" @click="closeDetail">닫기 (Esc)</button>
-            </div>
-          </aside>
-        </section>
+            <button v-else type="button" class="inline-flex w-full items-center justify-center gap-2 border border-[#004D3C] bg-[#004D3C] px-3 py-2.5 text-[11px] font-black uppercase text-white">
+              <FileTextIcon :size="14" />
+              명세서 재발행
+            </button>
+            <button type="button" class="w-full border border-gray-300 bg-white px-3 py-2.5 text-[11px] font-black uppercase text-gray-700 hover:bg-gray-50" @click="closeDetail">닫기 (Esc)</button>
+          </div>
+        </aside>
+      </section>
     </div>
   </AppLayout>
 </template>
-
-<style scoped>
-:global(body) {
-  background: #f3f4f6;
-}
-
-.erp-page {
-  min-height: 100vh;
-  background: #f3f4f6;
-  color: #111827;
-  font-family: inherit;
-  font-size: 13px;
-  -webkit-font-smoothing: antialiased;
-}
-
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  min-height: 48px;
-  padding: 0 16px;
-  background: #004d3c;
-  border-bottom: 1px solid #374151;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.14);
-}
-
-.topbar-left,
-.topbar-right,
-.topbar-actions,
-.top-nav,
-.side-nav-button,
-.alert-left,
-.action-left,
-.action-right,
-.bulk-actions,
-.check-all,
-.row-actions,
-.summary-row,
-.table-footer,
-.pagination,
-.detail-head,
-.inline,
-.status-tabs {
-  display: flex;
-  align-items: center;
-}
-
-.topbar-left,
-.topbar-right,
-.topbar-actions {
-  gap: 16px;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-right: 24px;
-  margin-right: 8px;
-  border-right: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.brand-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.brand-mark.inverse {
-  background: #fff !important;
-  color: #111827;
-}
-
-.brand-name {
-  font-size: 14px;
-  font-weight: 900;
-  letter-spacing: -0.04em;
-  text-transform: uppercase;
-}
-
-.brand-name.inverse {
-  color: #fff !important;
-}
-
-.top-nav {
-  gap: 0;
-  height: 100%;
-}
-
-.top-nav-button,
-.icon-button,
-.user-card,
-.side-nav-button,
-.status-tab,
-.bulk-button,
-.download-icon,
-.row-actions button,
-.pagination button,
-.detail-close,
-.decision-button,
-.close-button {
-  border: 0;
-  background: transparent;
-  font: inherit;
-  cursor: pointer;
-}
-
-.top-nav-button {
-  height: 48px;
-  padding: 0 14px;
-  border-bottom: 2px solid transparent;
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 10.5px;
-  font-weight: 700;
-}
-
-.top-nav-button:hover,
-.icon-button:hover,
-.user-card:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.side-nav-button:hover,
-.status-tab:hover,
-.row-actions button:hover,
-.pagination button:hover {
-  background: #f9fafb;
-}
-
-.top-nav-button.active {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.1);
-  border-bottom-color: #fff;
-}
-
-.topbar-actions {
-  padding-left: 16px;
-  border-left: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.icon-button {
-  padding: 6px;
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.user-card {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px;
-}
-
-.user-avatar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.user-name {
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.layout-shell {
-  display: flex;
-  min-height: calc(100vh - 48px);
-}
-
-.sidebar {
-  display: flex;
-  flex-direction: column;
-  width: 208px;
-  border-right: 1px solid #d1d5db;
-  background: #fff;
-}
-
-.sidebar-head {
-  padding: 16px;
-  border-bottom: 1px solid #f3f4f6;
-  background: rgba(249, 250, 251, 0.5);
-}
-
-.sidebar-caption {
-  margin-bottom: 4px;
-  color: #9ca3af;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
-.sidebar-title {
-  color: #1f2937;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.side-nav {
-  padding: 8px;
-}
-
-.side-nav-button {
-  gap: 10px;
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid transparent;
-  color: #4b5563;
-  font-size: 12px;
-  text-align: left;
-}
-
-.side-nav-button + .side-nav-button {
-  margin-top: 2px;
-}
-
-.side-nav-button.active {
-  border-color: #004d3c;
-  background: #e6f2f0;
-  color: #004d3c;
-  font-weight: 700;
-}
-
-.content {
-  flex: 1;
-  padding: 16px;
-}
-
-.orders-content {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  overflow: hidden;
-}
-
-.panel {
-  border: 1px solid #d1d5db;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
-}
-
-.status-tabs {
-  flex-shrink: 0;
-}
-
-.status-tab {
-  flex: 1;
-  flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-  padding: 12px 16px;
-  border-right: 1px solid #e5e7eb;
-  color: #6b7280;
-  text-align: center;
-}
-
-.status-tab:last-child {
-  border-right: 0;
-}
-
-.status-tab.active {
-  color: #004d3c;
-  background: #f9fafb;
-  border-bottom: 2px solid #004d3c;
-}
-
-.tab-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
-.tab-count {
-  font-size: 24px;
-  font-weight: 900;
-  letter-spacing: -0.05em;
-}
-
-.tab-count.highlight {
-  color: #ef4444;
-  text-decoration: underline;
-}
-
-.alert-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 10px 12px;
-  border: 1px solid #fcd34d;
-  background: #fffbeb;
-}
-
-.alert-left {
-  gap: 12px;
-}
-
-.alert-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  background: #f59e0b;
-  color: #fff;
-}
-
-.alert-banner p {
-  color: #78350f;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.alert-banner button {
-  border: 0;
-  background: transparent;
-  color: #b45309;
-  font-size: 10px;
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.orders-split {
-  display: flex;
-  flex: 1;
-  gap: 16px;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.orders-table-panel {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.table-action-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 12px;
-  border-bottom: 1px solid #e5e7eb;
-  background: #f9fafb;
-}
-
-.action-left,
-.action-right,
-.bulk-actions {
-  gap: 8px;
-}
-
-.check-all {
-  gap: 6px;
-  color: #9ca3af;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.bulk-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  font-size: 11px;
-  font-weight: 900;
-}
-
-.bulk-button.approve {
-  border: 1px solid #004d3c;
-  background: #004d3c;
-  color: #fff;
-}
-
-.bulk-button.reject {
-  border: 1px solid #fecaca;
-  background: #fff;
-  color: #dc2626;
-}
-
-.search-box {
-  position: relative;
-  display: block;
-}
-
-.compact-search input {
-  width: 192px;
-  padding: 6px 12px 6px 32px;
-  border: 1px solid #d1d5db;
-  background: #fff;
-  outline: none;
-  font: inherit;
-  font-size: 11px;
-}
-
-.compact-search input:focus {
-  border-color: #004d3c;
-}
-
-.search-icon {
-  position: absolute;
-  top: 50%;
-  left: 10px;
-  transform: translateY(-50%);
-  color: #9ca3af;
-}
-
-.download-icon {
-  padding: 6px 8px;
-  border: 1px solid #d1d5db;
-  color: #6b7280;
-}
-
-.table-wrap {
-  flex: 1;
-  overflow: auto;
-}
-
-.orders-table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-}
-
-.orders-table thead {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.orders-table thead tr {
-  border-bottom: 1px solid #d1d5db;
-  background: #f3f4f6;
-}
-
-.orders-table th,
-.orders-table td {
-  padding: 8px 12px;
-  border-right: 1px solid #f3f4f6;
-  text-align: left;
-  white-space: nowrap;
-}
-
-.orders-table th:last-child,
-.orders-table td:last-child {
-  border-right: 0;
-}
-
-.orders-table th {
-  color: #6b7280;
-  font-size: 10px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.orders-table tbody tr {
-  border-bottom: 1px solid #f3f4f6;
-  cursor: pointer;
-}
-
-.orders-table tbody tr:hover {
-  background: rgba(239, 246, 255, 0.7);
-}
-
-.orders-table tbody tr.selected {
-  background: #e6efee;
-}
-
-.orders-table tbody tr.anomaly {
-  background: rgba(255, 251, 235, 0.4);
-}
-
-.orders-table tbody tr.anomaly.selected {
-  background: #e6efee;
-}
-
-.orders-table td {
-  color: #6b7280;
-  font-size: 11px;
-}
-
-.check-col {
-  width: 40px;
-}
-
-.w-order {
-  width: 144px;
-}
-
-.w-store {
-  width: 128px;
-}
-
-.w-qty {
-  width: 96px;
-}
-
-.w-amount {
-  width: 112px;
-}
-
-.w-status {
-  width: 96px;
-}
-
-.w-actions {
-  width: 128px;
-}
-
-.center {
-  text-align: center !important;
-}
-
-.align-right {
-  text-align: right !important;
-}
-
-.muted {
-  color: #9ca3af !important;
-}
-
-.strong-small {
-  font-weight: 700;
-}
-
-.strong {
-  color: #111827 !important;
-  font-size: 12px !important;
-  font-weight: 900;
-}
-
-.semi-strong {
-  color: #4b5563 !important;
-  font-size: 12px !important;
-  font-weight: 700;
-}
-
-.truncate {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.flag-badge {
-  margin-left: 4px;
-  padding: 1px 4px;
-  background: #f59e0b;
-  color: #fff;
-  font-size: 9px;
-  font-weight: 900;
-}
-
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2px 6px;
-  border: 1px solid #d1d5db;
-  font-size: 10px;
-  font-weight: 900;
-}
-
-.status-badge.승인\ 대기 {
-  border-color: #fcd34d;
-  background: #fffbeb;
-  color: #b45309;
-}
-
-.status-badge.승인\ 완료 {
-  border-color: #a7f3d0;
-  background: #ecfdf5;
-  color: #047857;
-}
-
-.status-badge.출고\ 중 {
-  border-color: #bfdbfe;
-  background: #eff6ff;
-  color: #1d4ed8;
-}
-
-.status-badge.배송\ 완료 {
-  border-color: #d1d5db;
-  background: #f9fafb;
-  color: #374151;
-}
-
-.status-badge.반려,
-.status-badge.취소 {
-  border-color: #fecaca;
-  background: #fef2f2;
-  color: #b91c1c;
-}
-
-.status-badge.large {
-  padding: 3px 8px;
-  font-size: 11px;
-}
-
-.row-actions {
-  justify-content: center;
-  gap: 4px;
-}
-
-.row-actions button {
-  padding: 4px;
-  border: 1px solid #e5e7eb;
-  color: #6b7280;
-}
-
-.approve-mini {
-  border-color: #004d3c !important;
-  color: #004d3c !important;
-}
-
-.reject-mini {
-  border-color: #fecaca !important;
-  color: #dc2626 !important;
-}
-
-.table-footer {
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 12px;
-  border-top: 1px solid #d1d5db;
-  background: #f9fafb;
-  color: #9ca3af;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.pagination {
-  gap: 4px;
-}
-
-.pagination button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 24px;
-  height: 24px;
-  border: 1px solid #d1d5db;
-  color: #4b5563;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.pagination button.active {
-  border-color: #1f2937;
-  background: #1f2937;
-  color: #fff;
-}
-
-.detail-panel {
-  display: flex;
-  flex-direction: column;
-  width: 420px;
-  flex-shrink: 0;
-  overflow: hidden;
-}
-
-.detail-head {
-  justify-content: space-between;
-  padding: 12px;
-  border-bottom: 1px solid #e5e7eb;
-  background: #004d3c;
-  color: #fff;
-}
-
-.detail-head h3 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.detail-close {
-  padding: 2px;
-  color: #fff;
-}
-
-.detail-body {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 24px;
-  overflow-y: auto;
-  padding: 16px;
-}
-
-.detail-summary {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.summary-row {
-  justify-content: space-between;
-  align-items: flex-start;
-}
-
-.caption {
-  color: #9ca3af;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.headline {
-  color: #111827;
-  font-size: 14px;
-  font-weight: 900;
-}
-
-.status-right {
-  text-align: right;
-}
-
-.meta-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  padding-top: 12px;
-  border-top: 1px solid #f3f4f6;
-}
-
-.inline {
-  gap: 6px;
-}
-
-.meta-value {
-  color: #1f2937;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.meta-sub {
-  color: #4b5563;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.meta-emphasis {
-  color: #004d3c;
-  font-size: 11px;
-  font-weight: 900;
-}
-
-.anomaly-box {
-  padding: 12px;
-  border: 1px solid #fecaca;
-  background: #fef2f2;
-}
-
-.anomaly-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 6px;
-  color: #b91c1c;
-  font-size: 10px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.anomaly-text {
-  color: #7f1d1d;
-  font-size: 11px;
-  line-height: 1.45;
-}
-
-.section-label {
-  padding-bottom: 4px;
-  border-bottom: 1px solid #e5e7eb;
-  color: #9ca3af;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.detail-table {
-  width: 100%;
-  margin-top: 8px;
-  border-collapse: collapse;
-}
-
-.detail-table thead tr {
-  border-bottom: 1px solid #e5e7eb;
-  background: #f9fafb;
-}
-
-.detail-table th,
-.detail-table td {
-  padding: 8px;
-  text-align: left;
-}
-
-.detail-table th {
-  color: #9ca3af;
-  font-size: 9px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.detail-table tbody tr {
-  border-bottom: 1px solid #f3f4f6;
-}
-
-.detail-table tfoot tr {
-  border-top: 1px solid #d1d5db;
-  background: #f9fafb;
-  font-size: 11px;
-  font-weight: 900;
-}
-
-.w-mini {
-  width: 64px;
-}
-
-.w-subtotal {
-  width: 96px;
-}
-
-.item-name {
-  margin-bottom: 4px;
-  color: #1f2937;
-  font-size: 11px;
-  font-weight: 900;
-}
-
-.item-meta {
-  color: #9ca3af;
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.total-amount {
-  color: #004d3c;
-  font-size: 13px;
-  text-decoration: underline double;
-}
-
-.detail-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 16px 16px;
-  background: #fff;
-}
-
-.decision-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.decision-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border: 1px solid #d1d5db;
-  font-size: 11px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.decision-button.approve {
-  border-color: #004d3c;
-  background: #004d3c;
-  color: #fff;
-}
-
-.decision-button.reject {
-  border-color: #fca5a5;
-  background: #fff;
-  color: #dc2626;
-}
-
-.decision-button.reissue {
-  width: 100%;
-  background: #1f2937;
-  color: #fff;
-  border-color: #1f2937;
-}
-
-.close-button {
-  width: 100%;
-  padding: 8px 12px;
-  color: #6b7280;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-@media (max-width: 1180px) {
-  .orders-split {
-    flex-direction: column;
-  }
-
-  .detail-panel {
-    width: 100%;
-  }
-}
-
-@media (max-width: 980px) {
-  .topbar,
-  .layout-shell {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .topbar {
-    position: static;
-    padding: 12px 16px;
-  }
-
-  .topbar-left,
-  .topbar-right,
-  .table-action-bar,
-  .alert-banner {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .brand {
-    margin-right: 0;
-    padding-right: 0;
-    border-right: 0;
-  }
-
-  .top-nav {
-    flex-wrap: wrap;
-  }
-
-  .topbar-actions {
-    padding-left: 0;
-    border-left: 0;
-  }
-
-  .sidebar {
-    width: 100%;
-  }
-}
-</style>
