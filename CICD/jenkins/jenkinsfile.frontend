@@ -50,7 +50,7 @@ spec:
   environment {
     DOCKERHUB_ID = 'saralove20'
     IMAGE_NAME = "${DOCKERHUB_ID}/stockit-front"
-    IMAGE_TAG  = "v${env.BUILD_NUMBER}"
+    IMAGE_TAG  = "v${env.BUILD_NUMBER}-${env.BRANCH_NAME.replaceAll('/', '-')}"
   }
 
   stages {
