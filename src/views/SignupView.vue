@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { ShieldCheck, UserPlus, Store, Warehouse } from 'lucide-vue-next'
 
 const form = ref({
@@ -15,9 +15,23 @@ const form = ref({
 })
 
 const roleOptions = [
-  { id: 'store',     label: '직영점 매장 관리자', desc: '매장 재고·발주·POS 업무 담당', icon: Store },
-  { id: 'warehouse', label: '창고 관리자',         desc: '물류 창고 입출고·재고 담당',  icon: Warehouse },
+  {
+    id: 'store',
+    label: '직영점 관리자',
+    desc: '매장 재고·발주 담당',
+    icon: Store,
+    detail: '매장 재고 조회·수정, 발주 신청, 판매 현황 및 통계 확인이 가능합니다.',
+  },
+  {
+    id: 'warehouse',
+    label: '창고 관리자',
+    desc: '창고 입출고 담당',
+    icon: Warehouse,
+    detail: '창고 입출고 처리, 재고 이동 승인, 전체 창고 현황 관리가 가능합니다.',
+  },
 ]
+
+const selectedRole = computed(() => roleOptions.find(o => o.id === form.value.role) ?? null)
 
 const isSubmitting = ref(false)
 const submitted = ref(false)
@@ -33,10 +47,10 @@ function validate() {
   }
   if (!form.value.phone.trim())        e.phone       = '전화번호를 입력해주세요.'
   if (!form.value.birthdate)           e.birthdate   = '생년월일을 입력해주세요.'
-  if (!form.value.position.trim())     e.position    = '직책을 입력해주세요.'
+  if (!form.value.position.trim())     e.position    = '사원코드를 입력해주세요.'
   if (!form.value.storeCode.trim())    e.storeCode   = '매장 코드를 입력해주세요.'
-  if (!form.value.storeName.trim())    e.storeName   = '매장명을 입력해주세요.'
-  if (!form.value.role)                e.role        = '신청 권한을 선택해주세요.'
+  if (!form.value.storeName.trim())    e.storeName   = '지점명을 입력해주세요.'
+  if (!form.value.role)                e.role        = '권한을 선택해주세요.'
   errors.value = e
   return Object.keys(e).length === 0
 }
@@ -56,227 +70,227 @@ function clearErr(field) {
 </script>
 
 <template>
-  <main class="flex min-h-screen items-start justify-center bg-[#f4f7f6] px-4 py-10 sm:px-8">
+  <!-- 화면 전체를 중앙 정렬하여 스크롤 없이 꽉 차게 배치 -->
+  <main class="flex min-h-screen items-center justify-center bg-[#f4f7f6] px-4 py-6">
     <section
-      class="w-full max-w-[620px] overflow-hidden border border-[#dce5e2] bg-white shadow-[0_24px_70px_rgba(15,23,42,0.14)]"
-      aria-label="점주 계정 신청"
+        class="w-full max-w-[900px] overflow-hidden border border-[#dce5e2] bg-white shadow-[0_24px_70px_rgba(15,23,42,0.14)]"
+        aria-label="점주 계정 신청"
     >
 
       <!-- ── HEADER ── -->
-      <div class="flex items-start justify-between gap-4 bg-[#004D3C] px-8 py-7">
-        <div class="flex items-start gap-4">
-          <div class="flex h-11 w-11 shrink-0 items-center justify-center border border-white/40 bg-white text-[22px] font-black text-[#004D3C]">S</div>
+      <div class="flex items-center justify-between gap-4 bg-[#004D3C] px-6 py-5">
+        <div class="flex items-center gap-4">
+          <div class="flex h-10 w-10 shrink-0 items-center justify-center border border-white/40 bg-white text-[20px] font-black text-[#004D3C]">S</div>
           <div>
-            <p class="text-[11px] font-black uppercase tracking-[0.14em] text-white/70">StockIT ERP</p>
-            <h1 class="mt-1.5 text-[22px] font-black leading-tight text-white">계정 신청</h1>
-            <p class="mt-1.5 text-[13px] text-white/60">신청 후 중앙 관리자의 승인이 완료되어야 로그인할 수 있습니다.</p>
+            <div class="flex items-baseline gap-2">
+              <h1 class="text-[18px] font-black leading-tight text-white">Stockit 계정 신청</h1>
+              <p class="text-[10px] font-black uppercase tracking-[0.14em] text-white/70">ERP System</p>
+            </div>
+            <p class="mt-0.5 text-[12px] text-white/70">신청 후 중앙 관리자의 승인이 완료되어야 로그인할 수 있습니다.</p>
           </div>
         </div>
-        <div class="inline-flex shrink-0 items-center gap-1.5 border border-white/30 bg-white/10 px-2.5 py-1.5 text-xs font-black text-white">
+        <div class="hidden shrink-0 items-center gap-1.5 border border-white/30 bg-white/10 px-2.5 py-1.5 text-xs font-black text-white sm:inline-flex">
           <ShieldCheck :size="14" />
           <span>RBAC</span>
         </div>
       </div>
 
-      <!-- ── SUBMITTED ── -->
-      <div v-if="submitted" class="flex flex-col items-center px-8 py-12 text-center">
-        <div class="mb-4 flex h-14 w-14 items-center justify-center bg-[#eef7f4] text-[#004D3C]">
+      <!-- ── SUBMITTED (완료 화면) ── -->
+      <div v-if="submitted" class="flex flex-col items-center px-8 py-16 text-center">
+        <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#eef7f4] text-[#004D3C]">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/>
           </svg>
         </div>
         <h2 class="text-[20px] font-black text-gray-900">신청이 접수되었습니다</h2>
         <p class="mt-2 text-[13px] leading-relaxed text-gray-500">
-          중앙 관리자가 신청 내용을 검토한 후<br />입력하신 이메일로 결과를 안내드립니다.
+          중앙 관리자가 신청 내용을 검토한 후 입력하신 이메일로 결과를 안내드립니다.
         </p>
-        <div class="mt-6 w-full border border-[#dce5e2] text-left">
-          <div v-for="(row, i) in [
-            { label: '신청자', val: form.name },
-            { label: '이메일', val: form.email },
-            { label: '매장명', val: `${form.storeName} (${form.storeCode})` },
-            { label: '신청 권한', val: roleOptions.find(r => r.id === form.role)?.label },
-          ]" :key="i" class="flex items-center justify-between border-b border-gray-100 px-4 py-3 last:border-b-0">
-            <span class="text-[11px] font-black uppercase tracking-[0.12em] text-[#5b7f76]">{{ row.label }}</span>
-            <span class="text-[13px] font-extrabold text-gray-900">{{ row.val }}</span>
-          </div>
-          <div class="flex items-center justify-between px-4 py-3">
-            <span class="text-[11px] font-black uppercase tracking-[0.12em] text-[#5b7f76]">처리 상태</span>
-            <span class="inline-flex items-center border border-[#fcd34d] bg-[#fffbeb] px-2.5 py-1 text-[11px] font-black text-[#92400e]">검토 대기중</span>
-          </div>
-        </div>
-        <a href="/login" class="mt-6 text-[13px] font-bold text-[#004D3C] underline underline-offset-2">로그인으로 돌아가기</a>
+        <router-link to="/login" class="mt-6 inline-flex h-10 items-center justify-center bg-[#004D3C] px-6 text-[13px] font-bold text-white transition hover:bg-[#003d30]">
+          로그인으로 돌아가기
+        </router-link>
       </div>
 
-      <!-- ── FORM ── -->
-      <form v-else novalidate class="px-8 py-7" @submit.prevent="handleSubmit">
+      <!-- ── FORM (입력 화면) ── -->
+      <form v-else novalidate class="px-6 py-6" @submit.prevent="handleSubmit">
+        
+        <!-- 좌우 2단 분할 레이아웃 -->
+        <div class="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-2">
+          
+          <!-- [왼쪽 영역] 01 신청자 정보 -->
+          <div class="flex flex-col gap-4">
+            <div class="mb-1 flex items-center gap-2 border-b border-gray-100 pb-2">
+              <span class="flex h-4 w-4 shrink-0 items-center justify-center bg-[#004D3C] text-[9px] font-black text-white">01</span>
+              <p class="text-[12px] font-black text-[#004D3C]">신청자 정보</p>
+            </div>
 
-        <!-- 01 신청자 정보 -->
-        <div class="mb-5 flex items-center gap-3">
-          <span class="flex h-5 w-5 shrink-0 items-center justify-center bg-[#004D3C] text-[10px] font-black text-white">01</span>
-          <p class="text-[11px] font-black uppercase tracking-[0.14em] text-[#5b7f76]">신청자 정보</p>
-        </div>
+            <div class="grid grid-cols-2 gap-3">
+              <label class="flex flex-col gap-1.5">
+                <span class="text-[12px] font-bold text-gray-600">이름 <em class="not-italic text-red-500">*</em></span>
+                <div :class="['flex h-9 items-center border bg-gray-50 px-3 transition focus-within:bg-white focus-within:border-[#004D3C]', errors.name ? 'border-red-400' : 'border-gray-300']">
+                  <input v-model="form.name" type="text" placeholder="홍길동" class="w-full bg-transparent text-sm outline-none placeholder:text-gray-400" @input="clearErr('name')" />
+                </div>
+                <p v-if="errors.name" class="text-[11px] font-bold text-red-600">{{ errors.name }}</p>
+              </label>
 
-        <div class="flex flex-col gap-4">
-          <div class="grid grid-cols-2 gap-4 max-[520px]:grid-cols-1">
-            <label class="flex flex-col gap-2">
-              <span class="text-[13px] font-extrabold text-gray-600">이름 <em class="not-italic text-red-500">*</em></span>
-              <div :class="['flex min-h-12 items-center border bg-gray-50 px-3.5 transition focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(0,77,60,0.09)]', errors.name ? 'border-red-400 bg-red-50' : 'border-gray-300 focus-within:border-[#004D3C]']">
-                <input v-model="form.name" type="text" placeholder="홍길동" class="min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400" @input="clearErr('name')" />
+              <label class="flex flex-col gap-1.5">
+                <span class="text-[12px] font-bold text-gray-600">사원코드 <em class="not-italic text-red-500">*</em></span>
+                <div :class="['flex h-9 items-center border bg-gray-50 px-3 transition focus-within:bg-white focus-within:border-[#004D3C]', errors.position ? 'border-red-400' : 'border-gray-300']">
+                  <input v-model="form.position" type="text" placeholder="EMP-0001" class="w-full bg-transparent text-sm outline-none placeholder:text-gray-400" @input="clearErr('position')" />
+                </div>
+                <p v-if="errors.position" class="text-[11px] font-bold text-red-600">{{ errors.position }}</p>
+              </label>
+            </div>
+
+            <label class="flex flex-col gap-1.5">
+              <div class="flex items-baseline justify-between">
+                <span class="text-[12px] font-bold text-gray-600">이메일 <em class="not-italic text-red-500">*</em></span>
               </div>
-              <p v-if="errors.name" class="text-[12px] font-bold text-red-600">{{ errors.name }}</p>
+              <div :class="['flex h-9 items-center border bg-gray-50 px-3 transition focus-within:bg-white focus-within:border-[#004D3C]', errors.email ? 'border-red-400' : 'border-gray-300']">
+                <input v-model="form.email" type="email" placeholder="example@stockit.com" class="w-full bg-transparent text-sm outline-none placeholder:text-gray-400" @input="clearErr('email')" />
+              </div>
+              <p v-if="errors.email" class="text-[11px] font-bold text-red-600">{{ errors.email }}</p>
             </label>
 
-            <label class="flex flex-col gap-2">
-              <span class="text-[13px] font-extrabold text-gray-600">직책 <em class="not-italic text-red-500">*</em></span>
-              <div :class="['flex min-h-12 items-center border bg-gray-50 px-3.5 transition focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(0,77,60,0.09)]', errors.position ? 'border-red-400 bg-red-50' : 'border-gray-300 focus-within:border-[#004D3C]']">
-                <input v-model="form.position" type="text" placeholder="예) 점장, 부점장" class="min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400" @input="clearErr('position')" />
-              </div>
-              <p v-if="errors.position" class="text-[12px] font-bold text-red-600">{{ errors.position }}</p>
-            </label>
+            <div class="grid grid-cols-2 gap-3">
+              <label class="flex flex-col gap-1.5">
+                <span class="text-[12px] font-bold text-gray-600">휴대폰 <em class="not-italic text-red-500">*</em></span>
+                <div :class="['flex h-9 items-center border bg-gray-50 px-3 transition focus-within:bg-white focus-within:border-[#004D3C]', errors.phone ? 'border-red-400' : 'border-gray-300']">
+                  <input v-model="form.phone" type="tel" placeholder="010-0000-0000" class="w-full bg-transparent text-sm outline-none placeholder:text-gray-400" @input="clearErr('phone')" />
+                </div>
+                <p v-if="errors.phone" class="text-[11px] font-bold text-red-600">{{ errors.phone }}</p>
+              </label>
+
+              <label class="flex flex-col gap-1.5">
+                <div class="flex items-baseline justify-between">
+                  <span class="text-[12px] font-bold text-gray-600">생년월일 <em class="not-italic text-red-500">*</em></span>
+                </div>
+                <div :class="['flex h-9 items-center border bg-gray-50 px-3 transition focus-within:bg-white focus-within:border-[#004D3C]', errors.birthdate ? 'border-red-400' : 'border-gray-300']">
+                  <input v-model="form.birthdate" type="date" class="w-full border-0 bg-transparent text-sm outline-none [&::-webkit-datetime-edit]:text-gray-700" @change="clearErr('birthdate')" />
+                </div>
+                <p v-if="errors.birthdate" class="text-[11px] font-bold text-red-600">{{ errors.birthdate }}</p>
+              </label>
+            </div>
           </div>
 
-          <label class="flex flex-col gap-2">
-            <div class="flex items-baseline justify-between">
-              <span class="text-[13px] font-extrabold text-gray-600">이메일 <em class="not-italic text-red-500">*</em></span>
-              <small class="text-xs font-bold text-gray-400">영문·숫자만 허용</small>
+          <!-- [오른쪽 영역] 02 담당 매장 & 03 권한 -->
+          <div class="flex flex-col gap-4">
+            
+            <div class="mb-1 flex items-center gap-2 border-b border-gray-100 pb-2">
+              <span class="flex h-4 w-4 shrink-0 items-center justify-center bg-[#004D3C] text-[9px] font-black text-white">02</span>
+              <p class="text-[12px] font-black text-[#004D3C]">매장 및 권한 정보</p>
             </div>
-            <div :class="['flex min-h-12 items-center border bg-gray-50 px-3.5 transition focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(0,77,60,0.09)]', errors.email ? 'border-red-400 bg-red-50' : 'border-gray-300 focus-within:border-[#004D3C]']">
-              <input v-model="form.email" type="email" placeholder="example@stockit.com" spellcheck="false" class="min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400" @input="clearErr('email')" />
+
+            <div class="grid grid-cols-2 gap-3">
+              <label class="flex flex-col gap-1.5">
+                <span class="text-[12px] font-bold text-gray-600">매장 코드 <em class="not-italic text-red-500">*</em></span>
+                <div :class="['flex h-9 items-center border bg-gray-50 px-3 transition focus-within:bg-white focus-within:border-[#004D3C]', errors.storeCode ? 'border-red-400' : 'border-gray-300']">
+                  <input v-model="form.storeCode" type="text" placeholder="ST-001" class="w-full bg-transparent text-sm outline-none placeholder:text-gray-400" @input="clearErr('storeCode')" />
+                </div>
+                <p v-if="errors.storeCode" class="text-[11px] font-bold text-red-600">{{ errors.storeCode }}</p>
+              </label>
+
+              <label class="flex flex-col gap-1.5">
+                <span class="text-[12px] font-bold text-gray-600">지점명 <em class="not-italic text-red-500">*</em></span>
+                <div :class="['flex h-9 items-center border bg-gray-50 px-3 transition focus-within:bg-white focus-within:border-[#004D3C]', errors.storeName ? 'border-red-400' : 'border-gray-300']">
+                  <input v-model="form.storeName" type="text" placeholder="강남 서초점" class="w-full bg-transparent text-sm outline-none placeholder:text-gray-400" @input="clearErr('storeName')" />
+                </div>
+                <p v-if="errors.storeName" class="text-[11px] font-bold text-red-600">{{ errors.storeName }}</p>
+              </label>
             </div>
-            <p v-if="errors.email" class="text-[12px] font-bold text-red-600">{{ errors.email }}</p>
+
+            <!-- 권한 버튼을 가로 2단으로 압축 -->
+            <div class="flex flex-col gap-1.5">
+              <span class="text-[12px] font-bold text-gray-600">권한 선택 <em class="not-italic text-red-500">*</em></span>
+              <div class="grid grid-cols-2 gap-2">
+                <button
+                    v-for="opt in roleOptions"
+                    :key="opt.id"
+                    type="button"
+                    :class="['flex items-center gap-2 border p-2 text-left transition', form.role === opt.id ? 'border-[#004D3C] bg-[#eef7f4]' : 'border-gray-200 bg-white hover:border-[#004D3C]']"
+                    @click="form.role = opt.id; clearErr('role')"
+                >
+                  <component :is="opt.icon" :size="16" :class="form.role === opt.id ? 'text-[#004D3C]' : 'text-gray-400'" />
+                  <div>
+                    <strong :class="['block text-[12px] font-bold', form.role === opt.id ? 'text-[#004D3C]' : 'text-gray-800']">{{ opt.label }}</strong>
+                    <small class="block text-[10px] text-gray-500">{{ opt.desc }}</small>
+                  </div>
+                </button>
+              </div>
+              <p v-if="errors.role" class="text-[11px] font-bold text-red-600">{{ errors.role }}</p>
+            </div>
+
+            <!-- 권한 안내 카드 -->
+            <div class="relative h-[72px] overflow-hidden">
+              <Transition name="fade" mode="out-in">
+                <div v-if="selectedRole" :key="selectedRole.id" class="absolute inset-0 flex items-start gap-3 border border-[#004D3C]/20 bg-[#eef7f4] px-4 py-3">
+                  <component :is="selectedRole.icon" :size="18" class="mt-0.5 shrink-0 text-[#004D3C]" />
+                  <div>
+                    <p class="text-[12px] font-black text-[#004D3C]">{{ selectedRole.label }}</p>
+                    <p class="mt-0.5 text-[11px] leading-relaxed text-[#004D3C]/70">{{ selectedRole.detail }}</p>
+                  </div>
+                </div>
+                <div v-else class="absolute inset-0 flex items-center gap-2 border border-dashed border-gray-300 px-4 text-[11px] text-gray-400">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
+                  권한을 선택하면 상세 안내가 표시됩니다.
+                </div>
+              </Transition>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- 신청 사유 (전체 너비) -->
+        <div class="mt-6 border-t border-gray-100 pt-5">
+          <div class="mb-3 flex items-center gap-2">
+            <span class="flex h-4 w-4 shrink-0 items-center justify-center bg-[#004D3C] text-[9px] font-black text-white">03</span>
+            <p class="text-[12px] font-black text-[#004D3C]">추가 정보</p>
+          </div>
+          <label class="flex flex-col gap-1.5">
+            <span class="text-[12px] font-bold text-gray-600">신청 사유 (선택)</span>
+            <textarea
+                v-model="form.reason"
+                placeholder="추가 전달 사항 입력"
+                rows="2"
+                class="resize-none border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-[#004D3C] focus:bg-white"
+            />
           </label>
-
-          <div class="grid grid-cols-2 gap-4 max-[520px]:grid-cols-1">
-            <label class="flex flex-col gap-2">
-              <span class="text-[13px] font-extrabold text-gray-600">휴대폰 번호 <em class="not-italic text-red-500">*</em></span>
-              <div :class="['flex min-h-12 items-center border bg-gray-50 px-3.5 transition focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(0,77,60,0.09)]', errors.phone ? 'border-red-400 bg-red-50' : 'border-gray-300 focus-within:border-[#004D3C]']">
-                <input v-model="form.phone" type="tel" placeholder="010-0000-0000" class="min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400" @input="clearErr('phone')" />
-              </div>
-              <p v-if="errors.phone" class="text-[12px] font-bold text-red-600">{{ errors.phone }}</p>
-            </label>
-
-            <label class="flex flex-col gap-2">
-              <div class="flex items-baseline justify-between">
-                <span class="text-[13px] font-extrabold text-gray-600">생년월일 <em class="not-italic text-red-500">*</em></span>
-                <small class="text-xs font-bold text-gray-400">초기 비밀번호로 사용</small>
-              </div>
-              <div :class="['flex min-h-12 items-center border bg-gray-50 px-3.5 transition focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(0,77,60,0.09)]', errors.birthdate ? 'border-red-400 bg-red-50' : 'border-gray-300 focus-within:border-[#004D3C]']">
-                <input v-model="form.birthdate" type="date" class="min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none" @change="clearErr('birthdate')" />
-              </div>
-              <p v-if="errors.birthdate" class="text-[12px] font-bold text-red-600">{{ errors.birthdate }}</p>
-            </label>
-          </div>
         </div>
 
-        <div class="my-7 border-t border-gray-100" />
-
-        <!-- 02 담당 매장 정보 -->
-        <div class="mb-5 flex items-center gap-3">
-          <span class="flex h-5 w-5 shrink-0 items-center justify-center bg-[#004D3C] text-[10px] font-black text-white">02</span>
-          <p class="text-[11px] font-black uppercase tracking-[0.14em] text-[#5b7f76]">담당 매장 정보</p>
-        </div>
-
-        <div class="flex flex-col gap-4">
-          <div class="grid grid-cols-2 gap-4 max-[520px]:grid-cols-1">
-            <label class="flex flex-col gap-2">
-              <div class="flex items-baseline justify-between">
-                <span class="text-[13px] font-extrabold text-gray-600">매장 코드 <em class="not-italic text-red-500">*</em></span>
-                <small class="text-xs font-bold text-gray-400">계약서 참고</small>
-              </div>
-              <div :class="['flex min-h-12 items-center border bg-gray-50 px-3.5 transition focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(0,77,60,0.09)]', errors.storeCode ? 'border-red-400 bg-red-50' : 'border-gray-300 focus-within:border-[#004D3C]']">
-                <input v-model="form.storeCode" type="text" placeholder="예) ST-001" class="min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400" @input="clearErr('storeCode')" />
-              </div>
-              <p v-if="errors.storeCode" class="text-[12px] font-bold text-red-600">{{ errors.storeCode }}</p>
-            </label>
-
-            <label class="flex flex-col gap-2">
-              <span class="text-[13px] font-extrabold text-gray-600">매장명 <em class="not-italic text-red-500">*</em></span>
-              <div :class="['flex min-h-12 items-center border bg-gray-50 px-3.5 transition focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(0,77,60,0.09)]', errors.storeName ? 'border-red-400 bg-red-50' : 'border-gray-300 focus-within:border-[#004D3C]']">
-                <input v-model="form.storeName" type="text" placeholder="예) 강남 서초점" class="min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400" @input="clearErr('storeName')" />
-              </div>
-              <p v-if="errors.storeName" class="text-[12px] font-bold text-red-600">{{ errors.storeName }}</p>
-            </label>
+        <!-- ── 하단 액션 영역 ── -->
+        <div class="mt-5 border-t border-gray-100 pt-5">
+          <div class="flex items-stretch gap-3">
+            <div class="flex flex-1 items-center gap-2 bg-[#eef7f4] px-3 py-2">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-[#004D3C]"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
+              <p class="text-[11px] font-bold text-[#004D3C]">승인 후 초기 비밀번호(생년월일)로 로그인 가능하며, 결과는 이메일로 안내됩니다.</p>
+            </div>
+            <button
+              type="submit"
+              class="relative flex shrink-0 items-center justify-center gap-2 bg-[#004D3C] px-5 text-[13px] font-black text-white transition hover:bg-[#003d30] disabled:opacity-55"
+              :disabled="isSubmitting"
+            >
+              <div v-show="isSubmitting" class="absolute h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              <span :class="['flex items-center gap-2', { 'opacity-0': isSubmitting }]">
+                <UserPlus :size="15" />
+                계정 신청하기
+              </span>
+            </button>
           </div>
 
-        </div>
-
-        <div class="my-7 border-t border-gray-100" />
-
-        <!-- 03 권한 신청 -->
-        <div class="mb-5 flex items-center gap-3">
-          <span class="flex h-5 w-5 shrink-0 items-center justify-center bg-[#004D3C] text-[10px] font-black text-white">03</span>
-          <p class="text-[11px] font-black uppercase tracking-[0.14em] text-[#5b7f76]">권한 신청</p>
-        </div>
-
-        <div class="flex flex-col gap-2 sm:flex-row">
-          <button
-            v-for="opt in roleOptions"
-            :key="opt.id"
-            type="button"
-            :class="['grid w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-3 border p-3.5 text-left transition hover:-translate-y-px', form.role === opt.id ? 'border-[#004D3C] bg-[#eef7f4]' : 'border-gray-200 bg-white hover:border-[#a9cac1] hover:bg-[#f4faf8]']"
-            @click="form.role = opt.id; clearErr('role')"
-          >
-            <span :class="['flex h-10 w-10 items-center justify-center transition', form.role === opt.id ? 'bg-[#004D3C] text-white' : 'bg-gray-100 text-gray-500']">
-              <component :is="opt.icon" :size="20" />
-            </span>
-            <span>
-              <strong :class="['block text-[13px] font-black', form.role === opt.id ? 'text-[#004D3C]' : 'text-gray-900']">{{ opt.label }}</strong>
-              <small class="block text-[12px] font-bold text-gray-500">{{ opt.desc }}</small>
-            </span>
-          </button>
-        </div>
-        <p v-if="errors.role" class="mt-2 text-[12px] font-bold text-red-600">{{ errors.role }}</p>
-
-        <div class="my-7 border-t border-gray-100" />
-
-        <!-- 신청 사유 (optional) -->
-        <label class="flex flex-col gap-2">
-          <div class="flex items-baseline justify-between">
-            <span class="text-[13px] font-extrabold text-gray-600">신청 사유</span>
-            <small class="text-xs font-bold text-gray-400">선택</small>
+          <div class="mt-3 text-center">
+            <span class="text-[12px] font-bold text-gray-500">이미 계정이 있으신가요? </span>
+            <router-link to="/login" class="text-[12px] font-bold text-[#004D3C] hover:underline">
+              로그인으로 돌아가기
+            </router-link>
           </div>
-          <textarea
-            v-model="form.reason"
-            placeholder="신청 사유 또는 전달 사항을 입력해주세요."
-            rows="3"
-            class="resize-y border border-gray-300 bg-gray-50 px-3.5 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-[#004D3C] focus:bg-white focus:shadow-[0_0_0_4px_rgba(0,77,60,0.09)]"
-          />
-        </label>
-
-        <!-- 안내 박스 -->
-        <div class="mt-5 flex items-start gap-3 border border-[#cfe2dc] bg-[#eef7f4] px-4 py-3">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mt-px shrink-0 text-[#004D3C]"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
-          <p class="text-[12px] font-bold leading-relaxed text-[#004D3C]">
-            승인 완료 후 초기 비밀번호(생년월일)로 로그인하실 수 있습니다. 승인 결과는 입력하신 이메일로 안내됩니다.
-          </p>
         </div>
-
-        <!-- 제출 버튼 -->
-        <button
-          type="submit"
-          class="relative mt-5 flex min-h-[50px] w-full items-center justify-center gap-2 bg-[#004D3C] text-sm font-black text-white transition hover:-translate-y-px hover:bg-[#003d30] disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0"
-          :disabled="isSubmitting"
-        >
-          <div v-show="isSubmitting" class="absolute h-[14px] w-[14px] animate-spin rounded-full border-2 border-white/30 border-t-white" />
-          <span :class="['flex items-center gap-2', { 'opacity-0': isSubmitting }]">
-            <UserPlus :size="16" />
-            계정 신청하기
-          </span>
-        </button>
-
-        <p class="mt-4 text-center text-[12px] font-bold text-gray-400">
-          이미 계정이 있으신가요?
-          <a href="/login" class="text-[#004D3C] underline underline-offset-2">로그인으로 돌아가기</a>
-        </p>
-
       </form>
-
-      <!-- FOOTER -->
-      <div class="flex items-center justify-between border-t border-gray-100 px-8 py-3">
-        <span class="text-[11px] font-bold text-gray-400">© 2026 StockIt Corp.</span>
-        <span class="text-[11px] font-bold text-gray-400">문의: 중앙 관리자(김사라)</span>
-      </div>
 
     </section>
   </main>
 </template>
+
+<style scoped>
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s, transform 0.2s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(4px); }
+</style>
