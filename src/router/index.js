@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
 import { roleHomeMap } from '@/config/roleMenus.js'
 
+import DevLoginView from '@/views/DevLoginView.vue'
 import LoginView from '@/views/LoginView.vue'
 import SignupView from '@/views/SignupView.vue'
 
@@ -35,6 +36,7 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     { path: '/login', name: 'login', component: LoginView, meta: { requiresAuth: false } },
+    { path: '/dev-login', name: 'dev-login', component: DevLoginView, meta: { requiresAuth: false } },
     { path: '/signup', name: 'signup', component: SignupView, meta: { requiresAuth: false } },
     { path: '/hq/dashboard', name: 'hq-dashboard', component: OperationStatusView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/dashboard/inventory-risk', name: 'hq-dashboard-inventory-risk', component: InventoryRiskView, meta: { requiresAuth: true, role: 'hq' } },
