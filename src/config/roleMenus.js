@@ -2,7 +2,7 @@ export const roleMenus = {
   hq: [
     { label: '대시보드', path: '/hq/dashboard', icon: 'layout' },
     { label: '재고 관리', path: '/hq/inventory', icon: 'warehouse' },
-    { label: '발주 관리', path: '/hq/orders', icon: 'truck' },
+    { label: '주문/발주 관리', path: '/hq/orders', icon: 'truck' },
     { label: '상품 관리', path: '/hq/products', icon: 'file' },
     { label: '인프라 관리', path: '/hq/infrastructure', icon: 'store' },
     { label: '정산/통계', path: '/hq/analytics', icon: 'chart' },
