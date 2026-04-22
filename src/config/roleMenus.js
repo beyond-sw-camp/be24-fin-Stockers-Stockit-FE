@@ -16,7 +16,7 @@ export const roleMenus = {
       path: '/hq/inventory',
       icon: 'warehouse',
       children: [
-        { label: '전사 재고 집계' },
+        { label: '전사 재고 조회', path: '/hq/inventory' },
         { label: '창고별 재고 현황' },
         { label: '매장별 재고 현황' },
         { label: '재고 실사 내역' },
