@@ -12,6 +12,7 @@ export const roleMenus = {
     { label: '주문 관리', path: '/store/orders', icon: 'file' },
     { label: '재고 관리', path: '/store/inventory', icon: 'warehouse' },
     { label: '입고 관리', path: '/store/inbound', icon: 'check' },
+    { label: 'AI 리포트', path: '/store/ai-report', icon: 'chart' },
   ],
   warehouse: [
     { label: '창고 재고 관리', path: '/warehouse/inventory', icon: 'warehouse' },
