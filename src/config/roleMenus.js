@@ -31,6 +31,15 @@ export const roleMenus = {
       ],
     },
     {
+      label: '순환 재고 관리',
+      path: '/hq/circular-inventory/candidates',
+      icon: 'refresh',
+      children: [
+        { label: '순환 재고 후보 조회', path: '/hq/circular-inventory/candidates' },
+        { label: '순환 재고 조회', path: '/hq/circular-inventory' },
+      ],
+    },
+    {
       label: '상품 관리',
       path: '/hq/products',
       icon: 'file',
