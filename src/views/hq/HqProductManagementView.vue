@@ -17,7 +17,7 @@ function handleLogout() {
 const brandColor = '#004D3C'
 const brandColorLight = '#E6F2F0'
 
-const activeTopMenu = computed(() => '제품 관리')
+const activeTopMenu = computed(() => '상품 관리')
 const activeSideMenu = ref('카테고리 관리')
 const selectedProduct = ref(null)
 const selectedCategory = ref(null)

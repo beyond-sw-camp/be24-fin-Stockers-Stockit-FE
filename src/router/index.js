@@ -30,6 +30,7 @@ import HqInfrastructureManagementView from '@/views/hq/HqInfrastructureManagemen
 import HqSettlementStatisticsView from '@/views/hq/HqSettlementStatisticsView.vue'
 import HqPurchaseOrderView from '@/views/hq/HqPurchaseOrderView.vue'
 import HqVendorManagementView from '@/views/hq/HqVendorManagementView.vue'
+import HqAiReportView from '@/views/hq/HqAiReportView.vue'
 import AccountListView from '@/views/hq/account/AccountListView.vue'
 import AccountApprovalView from '@/views/hq/account/AccountApprovalView.vue'
 
@@ -44,130 +45,31 @@ const router = createRouter({
       meta: { requiresAuth: false },
     },
     { path: '/signup', name: 'signup', component: SignupView, meta: { requiresAuth: false } },
-    {
-      path: '/hq/dashboard',
-      name: 'hq-dashboard',
-      component: OperationStatusView,
-      meta: { requiresAuth: true, role: 'hq' },
-    },
-    {
-      path: '/hq/dashboard/inventory-risk',
-      name: 'hq-dashboard-inventory-risk',
-      component: InventoryRiskView,
-      meta: { requiresAuth: true, role: 'hq' },
-    },
-    {
-      path: '/hq/dashboard/flow',
-      name: 'hq-dashboard-flow',
-      component: InboundOutboundFlowView,
-      meta: { requiresAuth: true, role: 'hq' },
-    },
-    {
-      path: '/hq/dashboard/flow/all',
-      name: 'hq-dashboard-flow-all',
-      component: AllFlowTransactionsView,
-      meta: { requiresAuth: true, role: 'hq' },
-    },
-    {
-      path: '/hq/dashboard/alerts',
-      name: 'hq-dashboard-alerts',
-      component: AlertCenterView,
-      meta: { requiresAuth: true, role: 'hq' },
-    },
-    {
-      path: '/hq/dashboard/transactions',
-      name: 'hq-dashboard-transactions',
-      component: AllTransactionsView,
-      meta: { requiresAuth: true, role: 'hq' },
-    },
+    { path: '/hq/dashboard', name: 'hq-dashboard', component: OperationStatusView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/dashboard/inventory-risk', name: 'hq-dashboard-inventory-risk', component: InventoryRiskView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/dashboard/flow', name: 'hq-dashboard-flow', component: InboundOutboundFlowView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/dashboard/flow/all', name: 'hq-dashboard-flow-all', component: AllFlowTransactionsView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/dashboard/alerts', name: 'hq-dashboard-alerts', component: AlertCenterView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/dashboard/transactions', name: 'hq-dashboard-transactions', component: AllTransactionsView, meta: { requiresAuth: true, role: 'hq' } },
 
-    {
-      path: '/hq/account/accountlist',
-      name: 'hq-account-list',
-      component: AccountListView,
-      meta: { requiresAuth: true, role: 'hq' },
-    },
-    {
-      path: '/hq/account/approval',
-      name: 'hq-account-approval',
-      component: AccountApprovalView,
-      meta: { requiresAuth: true, role: 'hq' },
-    },
+    { path: '/hq/inventory', name: 'hq-inventory', component: HqInventoryStatusView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/orders', name: 'hq-orders', component: HqOrderManagementView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/products', name: 'hq-products', component: HqProductManagementView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/infrastructure', name: 'hq-infrastructure', component: HqInfrastructureManagementView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/analytics', name: 'hq-analytics', component: HqSettlementStatisticsView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/purchase-orders', name: 'hq-purchase-orders', component: HqPurchaseOrderView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/vendors', name: 'hq-vendors', component: HqVendorManagementView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/accounts', name: 'hq-accounts', component: AccountListView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/accounts/approvals', name: 'hq-account-approvals', component: AccountApprovalView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/account/accountlist', name: 'hq-account-list', component: AccountListView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/account/approval', name: 'hq-account-approval', component: AccountApprovalView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/ai-report', name: 'hq-ai-report', component: HqAiReportView, meta: { requiresAuth: true, role: 'hq' } },
 
-    {
-      path: '/hq/inventory',
-      name: 'hq-inventory',
-      component: HqInventoryStatusView,
-      meta: { requiresAuth: true, role: 'hq' },
-    },
-    {
-      path: '/hq/orders',
-      name: 'hq-orders',
-      component: HqOrderManagementView,
-      meta: { requiresAuth: true, role: 'hq' },
-    },
-    {
-      path: '/hq/products',
-      name: 'hq-products',
-      component: HqProductManagementView,
-      meta: { requiresAuth: true, role: 'hq' },
-    },
-    {
-      path: '/hq/infrastructure',
-      name: 'hq-infrastructure',
-      component: HqInfrastructureManagementView,
-      meta: { requiresAuth: true, role: 'hq' },
-    },
-    {
-      path: '/hq/analytics',
-      name: 'hq-analytics',
-      component: HqSettlementStatisticsView,
-      meta: { requiresAuth: true, role: 'hq' },
-    },
-    {
-      path: '/hq/purchase-orders',
-      name: 'hq-purchase-orders',
-      component: HqPurchaseOrderView,
-      meta: { requiresAuth: true, role: 'hq' },
-    },
-
-    {
-      path: '/hq/vendors',
-      name: 'hq-vendors',
-      component: HqVendorManagementView,
-      meta: { requiresAuth: true, role: 'hq' },
-    },
-
-    {
-      path: '/store/pos',
-      name: 'store-pos',
-      component: StorePosView,
-      meta: { requiresAuth: true, role: 'store' },
-    },
-    {
-      path: '/store/orders',
-      name: 'store-orders',
-      component: StoreOrdersView,
-      meta: { requiresAuth: true, role: 'store' },
-    },
-    {
-      path: '/store/inventory',
-      name: 'store-inventory',
-      component: StoreInventoryView,
-      meta: { requiresAuth: true, role: 'store' },
-    },
-    {
-      path: '/store/inbound',
-      name: 'store-inbound',
-      component: StoreInboundView,
-      meta: { requiresAuth: true, role: 'store' },
-    },
-    {
-      path: '/store/ai-report',
-      name: 'store-ai-report',
-      component: StoreAiReportView,
-      meta: { requiresAuth: true, role: 'store' },
-    },
+    { path: '/store/pos', name: 'store-pos', component: StorePosView, meta: { requiresAuth: true, role: 'store' } },
+    { path: '/store/orders', name: 'store-orders', component: StoreOrdersView, meta: { requiresAuth: true, role: 'store' } },
+    { path: '/store/inventory', name: 'store-inventory', component: StoreInventoryView, meta: { requiresAuth: true, role: 'store' } },
+    { path: '/store/inbound', name: 'store-inbound', component: StoreInboundView, meta: { requiresAuth: true, role: 'store' } },
+    { path: '/store/ai-report', name: 'store-ai-report', component: StoreAiReportView, meta: { requiresAuth: true, role: 'store' } },
 
     {
       path: '/warehouse/inventory',

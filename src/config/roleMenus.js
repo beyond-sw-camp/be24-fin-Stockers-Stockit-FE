@@ -1,11 +1,89 @@
 export const roleMenus = {
   hq: [
-    { label: '대시보드', path: '/hq/dashboard', icon: 'layout' },
-    { label: '재고 관리', path: '/hq/inventory', icon: 'warehouse' },
-    { label: '주문/발주 관리', path: '/hq/orders', icon: 'truck' },
-    { label: '상품 관리', path: '/hq/products', icon: 'file' },
-    { label: '인프라 관리', path: '/hq/infrastructure', icon: 'store' },
-    { label: '정산/통계', path: '/hq/analytics', icon: 'chart' },
+    {
+      label: '대시보드',
+      path: '/hq/dashboard',
+      icon: 'layout',
+      children: [
+        { label: '운영 현황', path: '/hq/dashboard' },
+        { label: '재고 위험', path: '/hq/dashboard/inventory-risk' },
+        { label: '입출고 흐름', path: '/hq/dashboard/flow' },
+        { label: '알림 센터', path: '/hq/dashboard/alerts' },
+      ],
+    },
+    {
+      label: '재고 관리',
+      path: '/hq/inventory',
+      icon: 'warehouse',
+      children: [
+        { label: '전사 재고 집계' },
+        { label: '창고별 재고 현황' },
+        { label: '매장별 재고 현황' },
+        { label: '재고 실사 내역' },
+        { label: '재고 변동 이력' },
+      ],
+    },
+    {
+      label: '주문/발주 관리',
+      path: '/hq/orders',
+      icon: 'truck',
+      children: [
+        { label: '매장 주문', path: '/hq/orders' },
+        { label: '거래처 발주', path: '/hq/purchase-orders' },
+        { label: '거래처 관리', path: '/hq/vendors' },
+      ],
+    },
+    {
+      label: '상품 관리',
+      path: '/hq/products',
+      icon: 'file',
+      children: [
+        { label: '카테고리 관리' },
+        { label: '제품 마스터' },
+        { label: '단가/계약 관리' },
+        { label: '거래처 정보 관리' },
+      ],
+    },
+    {
+      label: '인프라 관리',
+      path: '/hq/infrastructure',
+      icon: 'store',
+      children: [
+        { label: '매장 정보 관리' },
+        { label: '창고 정보 관리' },
+        { label: '매장-창고 매핑 설정' },
+      ],
+    },
+    {
+      label: '정산/통계',
+      path: '/hq/analytics',
+      icon: 'chart',
+      children: [
+        { label: '통합 KPI 대시보드' },
+        { label: '매출 분석' },
+        { label: '상품/카테고리 분석' },
+        { label: '재고 회전율 분석' },
+        { label: '발주/수요 분석' },
+        { label: '예측 정확도 분석' },
+      ],
+    },
+    {
+      label: '계정 관리',
+      path: '/hq/accounts',
+      icon: 'settings',
+      children: [
+        { label: '회원가입 승인', path: '/hq/accounts/approvals' },
+        { label: '계정 관리', path: '/hq/accounts' },
+      ],
+    },
+    {
+      label: 'AI 리포트',
+      path: '/hq/ai-report',
+      icon: 'chart',
+      children: [
+        { label: 'AI 리포트', path: '/hq/ai-report' },
+      ],
+    },
   ],
   store: [
     { label: 'POS / 판매', path: '/store/pos', icon: 'store' },

@@ -18,9 +18,9 @@ const router = useRouter()
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 
-const activeSideMenu = ref('계정 신청 승인')
+const activeSideMenu = ref('회원가입 승인')
 const sideMenus = [
-  { label: '계정 신청 승인', path: '/hq/account/approval' },
+  { label: '회원가입 승인', path: '/hq/accounts/approvals' },
 ]
 const activeTopMenu = computed(() => '계정 관리')
 

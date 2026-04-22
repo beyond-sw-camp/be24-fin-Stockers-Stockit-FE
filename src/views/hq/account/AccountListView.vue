@@ -24,9 +24,9 @@ const router = useRouter()
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 
-const activeSideMenu = ref('계정 목록')
+const activeSideMenu = ref('계정 관리')
 const sideMenus = [
-  { label: '계정 목록', path: '/hq/account/accountlist' },
+  { label: '계정 관리', path: '/hq/accounts' },
 ]
 
 const activeTopMenu = computed(() => '계정 관리')
