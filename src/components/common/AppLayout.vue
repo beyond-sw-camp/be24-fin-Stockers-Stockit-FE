@@ -1,10 +1,34 @@
 <script setup>
-import { h, computed } from 'vue'
+import { h, computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
 
+const openTopMenusStorageKey = 'stockit:openTopMenus'
+
+const readStoredOpenTopMenus = () => {
+  if (typeof window === 'undefined') return []
+
+  try {
+    const stored = window.sessionStorage.getItem(openTopMenusStorageKey)
+    const parsed = stored ? JSON.parse(stored) : []
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+const sharedOpenTopMenus = ref(readStoredOpenTopMenus())
+
+const saveOpenTopMenus = (menus) => {
+  sharedOpenTopMenus.value = menus
+
+  if (typeof window === 'undefined') return
+
+  window.sessionStorage.setItem(openTopMenusStorageKey, JSON.stringify(menus))
+}
+
 const props = defineProps({
-  activeTopMenu: { type: String, required: true },
+  activeTopMenu: { type: String, default: '' },
   topMenus: { type: Array, default: () => [] },
   sideMenus: { type: Array, required: true },
   activeSideMenu: { type: String, required: true },
@@ -25,12 +49,40 @@ const userInitials = computed(() => {
 const brandColor = '#004D3C'
 const brandColorLight = '#E6F2F0'
 
-const topMenus = computed(() => props.topMenus?.length ? props.topMenus : props.sideMenus)
+const hasTopMenus = computed(() => Boolean(props.topMenus?.length))
+const topMenus = computed(() => props.topMenus ?? [])
+const currentNavigationLabel = computed(() => props.activeTopMenu || 'Navigation')
+const openTopMenus = sharedOpenTopMenus
 
 const handleTopMenuClick = (menu) => {
-  const item = topMenus.value.find(m => m.label === menu.label)
-  if (item) router.push(item.path)
+  const isOpen = openTopMenus.value.includes(menu.label)
+  saveOpenTopMenus(isOpen
+    ? openTopMenus.value.filter(label => label !== menu.label)
+    : [...openTopMenus.value, menu.label])
 }
+
+const keepParentMenuOpen = (parentMenu) => {
+  if (!parentMenu || openTopMenus.value.includes(parentMenu.label)) return
+  saveOpenTopMenus([...openTopMenus.value, parentMenu.label])
+}
+
+const handleSideMenuClick = (item, parentMenu = null) => {
+  keepParentMenuOpen(parentMenu)
+
+  if (item.path) {
+    router.push(item.path)
+    return
+  }
+
+  if (parentMenu && parentMenu.label !== props.activeTopMenu && parentMenu.path) {
+    router.push(parentMenu.path)
+    return
+  }
+
+  emit('update:activeSideMenu', item.label)
+}
+
+const getMenuChildren = (menu) => menu.children?.length ? menu.children : props.sideMenus
 
 const IconBase = (paths) => ({
   props: {
@@ -159,28 +211,11 @@ const iconMap = {
     >
       <div class="flex items-center gap-4 max-[980px]:flex-col max-[980px]:items-stretch">
         <div
-          class="mr-2 flex items-center gap-2 border-r border-white/20 pr-6 max-[980px]:mr-0 max-[980px]:border-r-0 max-[980px]:pr-0"
+          class="mr-2 flex items-center gap-2 max-[980px]:mr-0"
         >
           <div class="flex h-6 w-6 items-center justify-center bg-white text-xs font-bold text-gray-900">S</div>
           <span class="text-sm font-black uppercase text-white">StockIt ERP</span>
         </div>
-
-        <nav class="flex flex-wrap items-center gap-1">
-          <button
-            v-for="menu in topMenus"
-            :key="menu.label"
-            type="button"
-            class="h-12 border-b-2 px-4 text-xs font-bold transition-colors hover:bg-white/10"
-            :class="
-              activeTopMenu === menu.label
-                ? 'border-white bg-white/10 text-white'
-                : 'border-transparent text-white/60'
-            "
-            @click="handleTopMenuClick(menu)"
-          >
-            {{ menu.label }}
-          </button>
-        </nav>
       </div>
 
       <div class="flex items-center gap-4 max-[980px]:flex-col max-[980px]:items-stretch">
@@ -212,21 +247,65 @@ const iconMap = {
       <aside class="flex w-52 shrink-0 flex-col border-r border-gray-300 bg-white max-[980px]:w-full">
         <div class="border-b border-gray-100 bg-gray-50/50 p-4">
           <p class="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-gray-400">Navigation</p>
-          <p class="text-xs font-black text-gray-800">{{ activeTopMenu }}</p>
+          <p class="text-xs font-black text-gray-800">{{ currentNavigationLabel }}</p>
         </div>
 
-        <nav class="p-2">
+        <nav v-if="hasTopMenus" class="p-2">
+          <div v-for="menu in topMenus" :key="menu.label" class="mt-0.5">
+            <button
+              type="button"
+              class="flex w-full items-center gap-2.5 rounded-md px-3 py-2.5 text-left text-xs transition-colors"
+              :class="
+                activeTopMenu === menu.label
+                  ? 'bg-[#EBF5F5] font-bold text-black'
+                  : 'font-semibold text-black hover:bg-[#EBF5F5]'
+              "
+              @click="handleTopMenuClick(menu)"
+            >
+              <component :is="iconMap[menu.icon] ?? FileTextIcon" :size="14" />
+              <span class="min-w-0 flex-1">{{ menu.label }}</span>
+              <span
+                class="text-[10px] text-black/60 transition-transform"
+                :class="openTopMenus.includes(menu.label) ? 'rotate-90' : ''"
+                aria-hidden="true"
+              >
+                ›
+              </span>
+            </button>
+
+            <div v-if="openTopMenus.includes(menu.label)" class="relative ml-5 mt-1 py-1 pl-5 pr-1">
+              <span class="absolute bottom-3 left-2 top-3 w-px bg-[#D6EAEA]" aria-hidden="true"></span>
+              <button
+                v-for="item in getMenuChildren(menu)"
+                :key="item.label"
+                type="button"
+                class="relative mt-0.5 flex w-full items-center rounded-md px-3 py-2 text-left text-[11px] transition-colors"
+                :class="
+                  activeTopMenu === menu.label && activeSideMenu === item.label
+                    ? 'bg-[#EBF5F5] font-semibold text-black'
+                    : 'text-black hover:bg-[#EBF5F5]'
+                "
+                @click="handleSideMenuClick(item, menu)"
+              >
+                <span class="absolute -left-3 top-1/2 h-px w-3 bg-[#D6EAEA]" aria-hidden="true"></span>
+                <span>{{ item.label }}</span>
+              </button>
+            </div>
+          </div>
+        </nav>
+
+        <nav v-else class="p-2">
           <button
             v-for="item in sideMenus"
             :key="item.label"
             type="button"
-            class="mt-0.5 flex w-full items-center gap-2.5 border px-3 py-2.5 text-left text-xs transition-colors"
+            class="mt-0.5 flex w-full items-center gap-2.5 rounded-md px-3 py-2.5 text-left text-xs transition-colors"
             :class="
               activeSideMenu === item.label
-                ? 'border-[#004D3C] bg-[#E6F2F0] font-bold text-[#004D3C]'
-                : 'border-transparent text-gray-600 hover:bg-gray-50'
+                ? 'bg-[#EBF5F5] font-bold text-black'
+                : 'font-semibold text-black hover:bg-[#EBF5F5]'
             "
-            @click="item.path ? router.push(item.path) : emit('update:activeSideMenu', item.label)"
+            @click="handleSideMenuClick(item)"
           >
             <component :is="iconMap[item.icon] ?? FileTextIcon" :size="14" />
             <span>{{ item.label }}</span>
