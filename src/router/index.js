@@ -38,6 +38,7 @@ import HqAnalyticsOrderStatsView from '@/views/hq/analytics/HqAnalyticsOrderStat
 import HqAnalyticsSeasonalView from '@/views/hq/analytics/HqAnalyticsSeasonalView.vue'
 import HqAnalyticsTurnoverView from '@/views/hq/analytics/HqAnalyticsTurnoverView.vue'
 import HqAnalyticsSalesPatternView from '@/views/hq/analytics/HqAnalyticsSalesPatternView.vue'
+import HqAnalyticsMenuSalesView from '@/views/hq/analytics/HqAnalyticsMenuSalesView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -70,6 +71,7 @@ const router = createRouter({
     { path: '/hq/analytics/seasonal', name: 'hq-analytics-seasonal', component: HqAnalyticsSeasonalView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/analytics/turnover', name: 'hq-analytics-turnover', component: HqAnalyticsTurnoverView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/analytics/sales-pattern', name: 'hq-analytics-sales-pattern', component: HqAnalyticsSalesPatternView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/analytics/menu-sales', name: 'hq-analytics-menu-sales', component: HqAnalyticsMenuSalesView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/purchase-orders', name: 'hq-purchase-orders', component: HqPurchaseOrderView, meta: { requiresAuth: true, role: 'hq' } },
     {
       path: '/hq/purchase-orders/new',
