@@ -144,6 +144,7 @@ const SEED_ORDERS = [
     recommendationId: null,
     status: 'REJECTED',
     totalPrice: 420000,
+    cancelReason: '거래처 단가 변경으로 발주 취소',
     createdAt: '2026-04-17T11:30:00',
     updatedAt: '2026-04-17T14:00:00',
     items: [
@@ -427,7 +428,7 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     saveToStorage()
   }
 
-  function cancelOrder(id) {
+  function cancelOrder(id, reason = '') {
     const order = purchaseOrders.value.find((o) => o.id === id)
     if (!order) return
 
@@ -439,6 +440,7 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     }
 
     order.status = 'REJECTED'
+    order.cancelReason = reason
     order.updatedAt = new Date().toISOString()
     saveToStorage()
   }
@@ -483,7 +485,12 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
       if (saved) {
-        purchaseOrders.value = JSON.parse(saved)
+        const parsed = JSON.parse(saved)
+        // 구버전 데이터 호환 — missing 필드 default
+        purchaseOrders.value = parsed.map((o) => ({
+          ...o,
+          cancelReason: o.cancelReason ?? '',
+        }))
         return true
       }
     } catch (e) {
