@@ -19,8 +19,8 @@ const activeTopMenu = computed(() => '상품 관리')
 const activeSideMenu = ref('카테고리 관리')
 
 const productSideMenus = [
-  { label: '카테고리 관리', icon: 'tags', id: 'SO-006' },
-  { label: '제품 마스터', icon: 'package', id: 'SO-011' },
+  { label: '카테고리 관리', icon: 'tags', id: 'SO-006', path: '/hq/products' },
+  { label: '제품 마스터', icon: 'package', id: 'SO-011', path: '/hq/products' },
 ]
 
 const parentCategories = [
