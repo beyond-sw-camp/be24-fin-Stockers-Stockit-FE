@@ -181,19 +181,37 @@ function handleSubmitForm() {
   }
 }
 
-// --- 상태 변경 ---
+// --- 상태 변경 (CEN-029) ---
+// expired 는 버튼 자체가 disabled 라 가드 분기 불필요.
+// 네이티브 confirm/alert 대신 커스텀 모달로 통일(CEN-027/028 톤 일치).
+const showStatusConfirm = ref(false)
+const pendingStatusChange = ref(null) // { productId, productName, newStatus, label }
+
 function handleToggleStatus() {
   const detail = vendor.selectedProductDetail
-  if (!detail) return
-  if (detail.status === 'expired') {
-    alert('만료된 계약은 상태를 변경할 수 없습니다.')
-    return
-  }
+  if (!detail || detail.status === 'expired') return
   const newStatus = detail.status === 'active' ? 'suspended' : 'active'
   const label = newStatus === 'active' ? '활성' : '정지'
-  if (confirm(`해당 계약을 "${label}" 상태로 변경하시겠습니까?`)) {
-    vendor.updateStatus(detail.id, newStatus)
+  pendingStatusChange.value = {
+    productId: detail.id,
+    productName: detail.productName,
+    newStatus,
+    label,
   }
+  showStatusConfirm.value = true
+}
+
+function confirmStatusChange() {
+  const change = pendingStatusChange.value
+  if (!change) return
+  vendor.updateStatus(change.productId, change.newStatus)
+  triggerToast(`계약이 "${change.label}" 상태로 변경되었습니다`)
+  cancelStatusChange()
+}
+
+function cancelStatusChange() {
+  showStatusConfirm.value = false
+  pendingStatusChange.value = null
 }
 
 // --- 삭제 ---
@@ -857,7 +875,61 @@ const InfoIcon = IconBase([
       </div>
     </div>
 
-    <!-- 등록 성공 토스트 -->
+    <!-- ====================================================
+         계약 상태 변경 확인 모달 (CEN-029)
+         ==================================================== -->
+    <div
+      v-if="showStatusConfirm"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      @click.self="cancelStatusChange"
+    >
+      <div class="w-full max-w-sm border border-gray-300 bg-white shadow-xl">
+        <div class="flex items-center justify-between bg-[#004D3C] px-4 py-3 text-white">
+          <h3 class="text-[11px] font-black uppercase tracking-wider">계약 상태 변경 확인</h3>
+          <button type="button" class="p-1 hover:bg-white/10" @click="cancelStatusChange">
+            <XIcon :size="16" />
+          </button>
+        </div>
+
+        <div class="p-5 text-xs text-gray-700 space-y-2">
+          <p>
+            <strong class="font-black text-gray-900">{{ pendingStatusChange?.productName }}</strong>
+            계약을
+            <strong
+              class="font-black"
+              :class="
+                pendingStatusChange?.newStatus === 'active' ? 'text-emerald-700' : 'text-amber-700'
+              "
+            >
+              "{{ pendingStatusChange?.label }}"
+            </strong>
+            상태로 변경하시겠습니까?
+          </p>
+          <p class="text-[10px] font-bold text-gray-400">
+            변경 즉시 본사 발주 가능 여부에 영향이 있습니다.
+          </p>
+        </div>
+
+        <div class="flex justify-end gap-2 border-t border-gray-200 px-4 py-3">
+          <button
+            type="button"
+            class="border border-gray-300 bg-white px-4 py-2 text-[11px] font-black text-gray-700 hover:bg-gray-50"
+            @click="cancelStatusChange"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            class="border border-[#004D3C] bg-[#004D3C] px-4 py-2 text-[11px] font-black text-white hover:bg-[#1f4b3a]"
+            @click="confirmStatusChange"
+          >
+            변경
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 토스트 (등록·수정·상태 변경 공통) -->
     <Transition
       enter-active-class="transition-opacity duration-200"
       enter-from-class="opacity-0"
