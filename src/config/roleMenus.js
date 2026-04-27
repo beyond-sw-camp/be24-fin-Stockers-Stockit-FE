@@ -102,9 +102,23 @@ export const roleMenus = {
     { label: 'AI 리포트', path: '/store/ai-report', icon: 'chart' },
   ],
   warehouse: [
-    { label: '창고 재고 관리', path: '/warehouse/inventory', icon: 'warehouse' },
-    { label: '입고 관리', path: '/warehouse/inbound', icon: 'check' },
-    { label: '출고 관리', path: '/warehouse/outbound', icon: 'truck' },
+    {
+      label: '재고 관리',
+      path: '/warehouse/inventory',
+      icon: 'warehouse',
+      children: [
+        { label: '창고 재고 조회', path: '/warehouse/inventory' },
+      ],
+    },
+    {
+      label: '입/출고 관리',
+      path: '/warehouse/inbound',
+      icon: 'truck',
+      children: [
+        { label: '입고 관리', path: '/warehouse/inbound' },
+        { label: '출고 관리', path: '/warehouse/outbound' },
+      ],
+    },
   ],
 }
 

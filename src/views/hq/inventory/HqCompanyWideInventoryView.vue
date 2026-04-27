@@ -1,11 +1,12 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 const inventoryMenus = roleMenus.hq.find(menu => menu.label === '재고 관리')?.children ?? []
@@ -34,6 +35,8 @@ const locationOptions = {
   창고: ['인천 제1창고', '이천 풀필먼트', '부산 물류창고', '대전 허브창고'],
 }
 
+const locationTypeOptions = ['매장', '창고']
+
 const inventoryData = [
   { itemCode: 'SPA-TOP-001', parentCategory: '상의', childCategory: '반팔', itemName: '코튼 베이직 반팔 티셔츠', locationType: '매장', locationName: '강남 플래그십', actualStock: 184, availableStock: 172, safetyStock: 60, status: '정상', updatedAt: '2026.04.22 09:20' },
   { itemCode: 'SPA-TOP-002', parentCategory: '상의', childCategory: '긴팔', itemName: '슬림핏 긴팔 티셔츠', locationType: '매장', locationName: '홍대 스토어', actualStock: 38, availableStock: 32, safetyStock: 45, status: '부족', updatedAt: '2026.04.22 09:10' },
@@ -58,6 +61,28 @@ const childCategoryOptions = computed(() =>
 
 const currentLocationOptions = computed(() => locationOptions[locationType.value])
 
+const parseQueryList = (value) => {
+  if (typeof value !== 'string') return []
+  return value.split(',').map(v => v.trim()).filter(Boolean)
+}
+
+const initializeFiltersFromQuery = () => {
+  const queryType = typeof route.query.type === 'string' ? route.query.type : ''
+  locationType.value = locationTypeOptions.includes(queryType) ? queryType : '매장'
+
+  selectedParentCategory.value = typeof route.query.parent === 'string' ? route.query.parent : ''
+  selectedChildCategory.value = typeof route.query.child === 'string' ? route.query.child : ''
+  selectedStatus.value = typeof route.query.status === 'string' ? route.query.status : ''
+  searchTerm.value = typeof route.query.search === 'string' ? route.query.search : ''
+
+  const queryLocations = parseQueryList(route.query.locations)
+  selectedLocations.value = queryLocations.filter(location =>
+    locationOptions[locationType.value].includes(location),
+  )
+}
+
+initializeFiltersFromQuery()
+
 const isAllLocationSelected = computed(() =>
   currentLocationOptions.value.length > 0
   && currentLocationOptions.value.every(location => selectedLocations.value.includes(location)),
@@ -71,7 +96,7 @@ const hiddenLocationCount = computed(() =>
   selectedLocations.value.length >= 3 ? selectedLocations.value.length - 1 : 0,
 )
 
-const filteredInventory = computed(() => {
+const locationScopedInventory = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase()
 
   return inventoryData.filter((item) => {
@@ -79,12 +104,46 @@ const filteredInventory = computed(() => {
     const matchesLocation = selectedLocations.value.length === 0 || selectedLocations.value.includes(item.locationName)
     const matchesParentCategory = !selectedParentCategory.value || item.parentCategory === selectedParentCategory.value
     const matchesChildCategory = !selectedChildCategory.value || item.childCategory === selectedChildCategory.value
-    const matchesStatus = !selectedStatus.value || item.status === selectedStatus.value
     const matchesKeyword = !keyword || [item.itemCode, item.itemName, item.locationName].join(' ').toLowerCase().includes(keyword)
 
-    return matchesType && matchesLocation && matchesParentCategory && matchesChildCategory && matchesStatus && matchesKeyword
+    return matchesType && matchesLocation && matchesParentCategory && matchesChildCategory && matchesKeyword
   })
 })
+
+const aggregatedInventory = computed(() => {
+  const grouped = new Map()
+
+  locationScopedInventory.value.forEach((item) => {
+    const existing = grouped.get(item.itemCode)
+    if (!existing) {
+      grouped.set(item.itemCode, {
+        itemCode: item.itemCode,
+        parentCategory: item.parentCategory,
+        childCategory: item.childCategory,
+        itemName: item.itemName,
+        actualStock: item.actualStock,
+        availableStock: item.availableStock,
+        safetyStock: item.safetyStock,
+        updatedAt: item.updatedAt,
+      })
+      return
+    }
+
+    existing.actualStock += item.actualStock
+    existing.availableStock += item.availableStock
+    existing.safetyStock += item.safetyStock
+    if (item.updatedAt > existing.updatedAt) existing.updatedAt = item.updatedAt
+  })
+
+  return [...grouped.values()].map((item) => ({
+    ...item,
+    status: item.availableStock === 0 ? '품절' : item.availableStock < item.safetyStock ? '부족' : '정상',
+  }))
+})
+
+const filteredInventory = computed(() =>
+  aggregatedInventory.value.filter((item) => !selectedStatus.value || item.status === selectedStatus.value),
+)
 
 const locationSummary = computed(() => {
   if (selectedLocations.value.length === 0) return `전체 ${locationType.value}`
@@ -120,6 +179,27 @@ const clearLocations = () => {
 
 const removeLocation = (location) => {
   selectedLocations.value = selectedLocations.value.filter(selectedLocation => selectedLocation !== location)
+}
+
+const moveToSkuDetail = (item) => {
+  router.push({
+    name: 'hq-inventory-sku-detail',
+    params: { itemCode: item.itemCode },
+    query: {
+      itemCode: item.itemCode,
+      itemName: item.itemName,
+      parentCategory: item.parentCategory,
+      childCategory: item.childCategory,
+      locationType: locationType.value,
+      locationName: locationSummary.value,
+      type: locationType.value,
+      locations: selectedLocations.value.length > 0 ? selectedLocations.value.join(',') : undefined,
+      parent: selectedParentCategory.value || undefined,
+      child: selectedChildCategory.value || undefined,
+      status: selectedStatus.value || undefined,
+      search: searchTerm.value || undefined,
+    },
+  })
 }
 
 const handleDocumentClick = (event) => {
@@ -329,7 +409,6 @@ function handleLogout() {
                 <th class="px-3 py-3 font-black">품목 코드</th>
                 <th class="px-3 py-3 font-black">카테고리</th>
                 <th class="px-3 py-3 font-black">품목명</th>
-                <th class="px-3 py-3 font-black">위치</th>
                 <th class="px-3 py-3 text-right font-black">실제고</th>
                 <th class="px-3 py-3 text-right font-black">가용재고</th>
                 <th class="px-3 py-3 text-right font-black">안전재고</th>
@@ -338,11 +417,15 @@ function handleLogout() {
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
-              <tr v-for="item in filteredInventory" :key="`${item.itemCode}-${item.locationName}`" class="hover:bg-[#EBF5F5]/60">
+              <tr
+                v-for="item in filteredInventory"
+                :key="item.itemCode"
+                class="cursor-pointer hover:bg-[#EBF5F5]/60"
+                @click="moveToSkuDetail(item)"
+              >
                 <td class="px-3 py-3 font-mono font-bold text-gray-500">{{ item.itemCode }}</td>
                 <td class="px-3 py-3 font-bold text-gray-800">{{ item.parentCategory }} &gt; {{ item.childCategory }}</td>
                 <td class="px-3 py-3 font-bold text-gray-900">{{ item.itemName }}</td>
-                <td class="px-3 py-3 text-gray-700">{{ item.locationType }}: {{ item.locationName }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ item.actualStock.toLocaleString() }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ item.availableStock.toLocaleString() }}</td>
                 <td class="px-3 py-3 text-right font-bold text-gray-500">{{ item.safetyStock.toLocaleString() }}</td>
@@ -354,7 +437,7 @@ function handleLogout() {
                 <td class="px-3 py-3 font-bold text-gray-500">{{ item.updatedAt }}</td>
               </tr>
               <tr v-if="filteredInventory.length === 0">
-                <td colspan="9" class="px-3 py-14 text-center text-sm font-bold text-gray-400">
+                <td colspan="8" class="px-3 py-14 text-center text-sm font-bold text-gray-400">
                   조건에 맞는 전사 재고가 없습니다.
                 </td>
               </tr>
