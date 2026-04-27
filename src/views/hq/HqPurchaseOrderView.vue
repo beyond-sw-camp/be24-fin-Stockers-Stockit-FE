@@ -41,15 +41,12 @@ function selectOrder(id) {
   poStore.selectOrder(id)
 }
 
-function handleCancel() {
-  if (!poStore.selectedOrder) return
-  if (!confirm(`발주 ${poStore.selectedOrder.id}를 취소하시겠습니까?`)) return
-  poStore.cancelOrder(poStore.selectedOrder.id)
-}
-
 // ─── 거래처 액션 대리 트리거 (옵션 A) ──────────────────────────────────────
 const showApproveConfirm = ref(false)
 const showShippingConfirm = ref(false)
+// 발주 취소 confirm
+const showCancelConfirm = ref(false)
+const cancelReason = ref('')
 
 const toast = ref({ show: false, message: '' })
 let toastTimer = null
@@ -89,6 +86,25 @@ function confirmShipping() {
 }
 function cancelShipping() {
   showShippingConfirm.value = false
+}
+
+// ─── 발주 취소 (CEN-038) ────────────────────────────────────────────────────
+function openCancelConfirm() {
+  if (poStore.selectedOrder?.status !== 'PENDING') return
+  cancelReason.value = '' // 모달 열 때마다 초기화
+  showCancelConfirm.value = true
+}
+
+function cancelCancelConfirm() {
+  showCancelConfirm.value = false
+}
+
+function confirmCancelOrder() {
+  const id = poStore.selectedOrder?.id
+  if (!id) return
+  poStore.cancelOrder(id, cancelReason.value.trim())
+  showCancelConfirm.value = false
+  triggerToast('발주가 취소되었습니다')
 }
 
 // 상태 뱃지 클래스
@@ -483,7 +499,7 @@ const TruckIcon = IconBase([
                 <button
                   type="button"
                   class="inline-flex items-center justify-center gap-1 border border-red-500 bg-red-50 px-2 py-2.5 text-[11px] font-black text-red-700 hover:bg-red-100"
-                  @click="handleCancel"
+                  @click="openCancelConfirm"
                 >
                   <XIcon :size="12" />
                   취소
@@ -515,7 +531,13 @@ const TruckIcon = IconBase([
             </template>
 
             <template v-else>
-              <p class="text-center text-xs text-gray-400">
+              <p
+                v-if="poStore.selectedOrder.status === 'REJECTED' && poStore.selectedOrder.cancelReason"
+                class="border border-red-200 bg-red-50 px-3 py-2.5 text-[11px] font-bold leading-relaxed text-red-700"
+              >
+                취소 사유: {{ poStore.selectedOrder.cancelReason }}
+              </p>
+              <p class="pt-2 text-center text-xs text-gray-400">
                 {{
                   poStore.selectedOrder.status === 'COMPLETED'
                     ? '입고 완료된 발주입니다.'
@@ -618,6 +640,60 @@ const TruckIcon = IconBase([
             @click="confirmShipping"
           >
             출고 기록
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ───────── 모달: 발주 취소 confirm (파괴, red) ───────── -->
+    <div
+      v-if="showCancelConfirm && poStore.selectedOrder"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      @click.self="cancelCancelConfirm"
+    >
+      <div class="w-full max-w-sm overflow-hidden bg-white shadow-xl">
+        <div class="bg-red-700 px-5 py-3 text-white">
+          <h2 class="text-sm font-black">발주 취소</h2>
+        </div>
+        <div class="space-y-3 p-5 text-xs text-gray-700">
+          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">발주 정보</p>
+          <p>
+            <strong>{{ poStore.selectedOrder.id }}</strong> ·
+            {{ poStore.selectedOrder.vendorName }} ·
+            <span class="font-bold text-[#004D3C]">
+              ₩{{ poStore.selectedOrder.totalPrice.toLocaleString() }}
+            </span>
+          </p>
+          <label class="block">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+              취소 사유 (선택)
+            </span>
+            <textarea
+              v-model="cancelReason"
+              rows="3"
+              maxlength="500"
+              placeholder="예: 거래처 단가 변경, 수량 잘못 입력 등"
+              class="mt-1 w-full resize-none border border-gray-300 px-2 py-1.5 text-xs outline-none focus:border-red-500"
+            />
+          </label>
+          <p class="text-[11px] leading-relaxed text-red-600">
+            취소 후에는 되돌릴 수 없습니다. 같은 발주가 필요하면 새 발주로 다시 만들어야 합니다.
+          </p>
+        </div>
+        <div class="flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3">
+          <button
+            type="button"
+            class="border border-gray-300 bg-white px-4 py-2 text-xs font-black text-gray-700 hover:bg-gray-100"
+            @click="cancelCancelConfirm"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            class="border border-red-700 bg-red-700 px-4 py-2 text-xs font-black text-white hover:bg-red-600"
+            @click="confirmCancelOrder"
+          >
+            취소 확정
           </button>
         </div>
       </div>
