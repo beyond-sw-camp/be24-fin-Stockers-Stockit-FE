@@ -107,6 +107,12 @@ function confirmCancelOrder() {
   triggerToast('발주가 취소되었습니다')
 }
 
+// 탭 변경 시 선택 클리어 — 좌측 목록과 우측 상세의 컨텍스트 일치 유지
+function changeTab(key) {
+  poStore.activeStatusTab = key
+  poStore.selectedOrderId = null
+}
+
 // 상태 뱃지 클래스
 function statusClass(status) {
   const map = {
@@ -300,7 +306,7 @@ const TruckIcon = IconBase([
                 ? 'border-[#004D3C] bg-[#004D3C] text-white'
                 : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
             "
-            @click="poStore.activeStatusTab = tab.key"
+            @click="changeTab(tab.key)"
           >
             <span>{{ tab.label }}</span>
             <span
