@@ -263,6 +263,30 @@ function cancelDelete() {
   pendingDelete.value = null
 }
 
+// --- 계약 기간 파생 정보 (CEN-033) ---
+// 오늘 기준 잔여일 / 경과일 / 진행률을 계산해 단일 조회 패널에 D-Day·진행 표시로 노출.
+// contractStart, contractEnd 는 'YYYY-MM-DD' 문자열. 시간대 영향 없게 자정 기준으로 비교.
+function startOfDay(date) {
+  const d = new Date(date)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+const contractTermInfo = computed(() => {
+  const detail = vendor.selectedProductDetail
+  if (!detail) return null
+  const today = startOfDay(new Date())
+  const start = startOfDay(detail.contractStart)
+  const end = startOfDay(detail.contractEnd)
+  const msPerDay = 24 * 60 * 60 * 1000
+  const totalDays = Math.max(1, Math.round((end - start) / msPerDay) + 1)
+  const remainingDays = Math.round((end - today) / msPerDay)
+  const elapsedDays = Math.round((today - start) / msPerDay)
+  const progress =
+    today < start ? 0 : today > end ? 100 : Math.round(((today - start) / (end - start)) * 100)
+  return { totalDays, remainingDays, elapsedDays, progress }
+})
+
 // --- 상태 뱃지 헬퍼 ---
 function statusLabel(status) {
   const map = { active: '활성', suspended: '정지', expired: '만료' }
@@ -636,14 +660,22 @@ const InfoIcon = IconBase([
       <div
         class="flex w-72 shrink-0 flex-col overflow-hidden border border-gray-300 bg-white shadow-sm"
       >
-        <!-- 패널 헤더 -->
-        <div class="flex items-center bg-[#004D3C] px-3 py-2.5 text-white">
+        <!-- 패널 헤더 (CEN-033) — 선택 시 제품명/코드 노출 -->
+        <div class="flex items-center justify-between gap-2 bg-[#004D3C] px-3 py-2.5 text-white">
           <h2
             class="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider"
           >
             <InfoIcon :size="13" />
             계약 조건 상세
           </h2>
+          <span
+            v-if="vendor.selectedProductDetail"
+            class="truncate text-[10px] font-bold opacity-80"
+            :title="vendor.selectedProductDetail.productName"
+          >
+            {{ vendor.selectedProductDetail.productCode }} ·
+            {{ vendor.selectedProductDetail.productName }}
+          </span>
         </div>
 
         <!-- 제품 미선택 상태 -->
@@ -663,6 +695,20 @@ const InfoIcon = IconBase([
         <!-- 상세 정보 -->
         <template v-else>
           <div class="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
+            <!-- 상태 안내 배너 (CEN-033) — suspended/expired 일 때만 -->
+            <div
+              v-if="vendor.selectedProductDetail.status === 'suspended'"
+              class="border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-700"
+            >
+              일시 정지 상태 — 본사 발주 생성이 차단됩니다. 활성화 시 즉시 재개됩니다.
+            </div>
+            <div
+              v-else-if="vendor.selectedProductDetail.status === 'expired'"
+              class="border border-red-200 bg-red-50 px-3 py-2 text-[10px] font-bold text-red-700"
+            >
+              계약 만료 — 수정·상태 변경이 불가합니다. 재계약은 신규 등록으로 진행하세요.
+            </div>
+
             <!-- 제품 기본 정보 -->
             <section class="space-y-2">
               <p class="text-[9px] font-black uppercase tracking-wider text-gray-400">제품 정보</p>
@@ -727,13 +773,63 @@ const InfoIcon = IconBase([
                   </span>
                 </div>
               </div>
+
+              <!-- D-Day / 진행률 (CEN-033) -->
+              <div v-if="contractTermInfo" class="space-y-1.5 pt-1">
+                <div class="flex items-center justify-between text-[10px] font-bold">
+                  <span class="text-gray-400">진행</span>
+                  <span
+                    v-if="vendor.selectedProductDetail.status === 'expired'"
+                    class="text-red-600"
+                  >
+                    만료 후 {{ contractTermInfo.elapsedDays - contractTermInfo.totalDays + 1 }}일
+                    경과
+                  </span>
+                  <span
+                    v-else-if="contractTermInfo.remainingDays >= 0"
+                    :class="contractTermInfo.remainingDays <= 30 ? 'text-amber-600' : 'text-[#004D3C]'"
+                  >
+                    D-{{ contractTermInfo.remainingDays }} (잔여
+                    {{ contractTermInfo.remainingDays }}일)
+                  </span>
+                </div>
+                <div class="h-1.5 w-full overflow-hidden bg-gray-100">
+                  <div
+                    class="h-full transition-all"
+                    :class="
+                      vendor.selectedProductDetail.status === 'expired'
+                        ? 'bg-red-400'
+                        : contractTermInfo.remainingDays <= 30
+                          ? 'bg-amber-400'
+                          : 'bg-[#004D3C]'
+                    "
+                    :style="{ width: contractTermInfo.progress + '%' }"
+                  ></div>
+                </div>
+                <p class="text-[10px] font-bold text-gray-400">
+                  총 {{ contractTermInfo.totalDays }}일 계약 ·
+                  <span v-if="contractTermInfo.elapsedDays >= 0">
+                    {{ Math.min(contractTermInfo.elapsedDays, contractTermInfo.totalDays) }}일 경과
+                  </span>
+                  <span v-else>아직 시작 전</span>
+                </p>
+              </div>
             </section>
 
             <!-- 거래처 담당자 정보 -->
             <section v-if="vendor.selectedVendor" class="space-y-2 border-t border-gray-100 pt-3">
-              <p class="text-[9px] font-black uppercase tracking-wider text-gray-400">
-                거래처 담당자
-              </p>
+              <div class="flex items-center justify-between">
+                <p class="text-[9px] font-black uppercase tracking-wider text-gray-400">
+                  거래처 담당자
+                </p>
+                <span
+                  class="px-2 py-0.5 text-[9px] font-black"
+                  :class="vendorStatusClass(vendor.selectedVendor.status)"
+                >
+                  거래처 {{ vendorStatusLabel(vendor.selectedVendor.status) }}
+                </span>
+              </div>
+              <p class="text-[10px] font-bold text-gray-800">{{ vendor.selectedVendor.name }}</p>
               <div class="space-y-1 text-xs font-bold">
                 <p class="text-gray-800">{{ vendor.selectedVendor.contactPerson }}</p>
                 <p class="text-gray-400">{{ vendor.selectedVendor.contactEmail }}</p>
