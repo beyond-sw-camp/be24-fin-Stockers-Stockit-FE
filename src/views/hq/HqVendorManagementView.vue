@@ -47,7 +47,9 @@ function handleSelectProduct(id) {
 const showModal = ref(false)
 const modalMode = ref('create') // 'create' | 'edit'
 
-const formData = ref({
+// 등록 모달은 status 키 없음 (CEN-027: 신규 등록은 항상 active로 store default 적용).
+// 수정 모달은 openEditModal 에서 detail.status 를 별도 주입한다.
+const initialFormData = () => ({
   productCode: '',
   productName: '',
   unitPrice: '',
@@ -55,21 +57,71 @@ const formData = ref({
   leadTimeDays: '',
   contractStart: '',
   contractEnd: '',
-  status: 'active',
 })
+
+const formData = ref(initialFormData())
+
+const initialFormErrors = () => ({
+  productCode: '',
+  productName: '',
+  unitPrice: '',
+  moq: '',
+  leadTimeDays: '',
+  contractStart: '',
+  contractEnd: '',
+})
+
+const formErrors = ref(initialFormErrors())
+
+function validateForm() {
+  const errors = initialFormErrors()
+  const fd = formData.value
+
+  if (!fd.productCode) {
+    errors.productCode = '필수 입력 항목입니다'
+  } else if (
+    modalMode.value === 'create' &&
+    vendor.isProductCodeDuplicate(vendor.selectedVendorId, fd.productCode)
+  ) {
+    errors.productCode = '이미 등록된 제품 코드입니다'
+  }
+
+  if (!fd.productName) errors.productName = '필수 입력 항목입니다'
+
+  if (fd.unitPrice === '' || fd.unitPrice === null) {
+    errors.unitPrice = '필수 입력 항목입니다'
+  } else if (!(Number(fd.unitPrice) > 0)) {
+    errors.unitPrice = '0보다 큰 값을 입력하세요'
+  }
+
+  if (fd.moq === '' || fd.moq === null) {
+    errors.moq = '필수 입력 항목입니다'
+  } else if (!(Number(fd.moq) > 0)) {
+    errors.moq = '0보다 큰 값을 입력하세요'
+  }
+
+  if (fd.leadTimeDays === '' || fd.leadTimeDays === null) {
+    errors.leadTimeDays = '필수 입력 항목입니다'
+  } else if (!(Number(fd.leadTimeDays) > 0)) {
+    errors.leadTimeDays = '0보다 큰 값을 입력하세요'
+  }
+
+  if (!fd.contractStart) errors.contractStart = '필수 입력 항목입니다'
+
+  if (!fd.contractEnd) {
+    errors.contractEnd = '필수 입력 항목입니다'
+  } else if (fd.contractStart && fd.contractEnd < fd.contractStart) {
+    errors.contractEnd = '종료일은 시작일 이후여야 합니다'
+  }
+
+  formErrors.value = errors
+  return Object.values(errors).every((msg) => !msg)
+}
 
 function openCreateModal() {
   modalMode.value = 'create'
-  formData.value = {
-    productCode: '',
-    productName: '',
-    unitPrice: '',
-    moq: '',
-    leadTimeDays: '',
-    contractStart: '',
-    contractEnd: '',
-    status: 'active',
-  }
+  formData.value = initialFormData()
+  formErrors.value = initialFormErrors()
   showModal.value = true
 }
 
@@ -87,33 +139,39 @@ function openEditModal() {
     contractEnd: detail.contractEnd,
     status: detail.status,
   }
+  formErrors.value = initialFormErrors()
   showModal.value = true
 }
 
 function closeModal() {
   showModal.value = false
+  formErrors.value = initialFormErrors()
+}
+
+// --- 등록 성공 토스트 ---
+const toastMessage = ref('')
+const showToast = ref(false)
+let toastTimer = null
+function triggerToast(message) {
+  toastMessage.value = message
+  showToast.value = true
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => {
+    showToast.value = false
+  }, 3000)
 }
 
 function handleSubmitForm() {
-  if (
-    !formData.value.productCode ||
-    !formData.value.productName ||
-    !formData.value.unitPrice ||
-    !formData.value.moq ||
-    !formData.value.leadTimeDays ||
-    !formData.value.contractStart ||
-    !formData.value.contractEnd
-  ) {
-    alert('모든 필드를 입력해주세요.')
-    return
-  }
+  if (!validateForm()) return
 
   if (modalMode.value === 'create') {
     vendor.createProduct(formData.value)
+    closeModal()
+    triggerToast('계약 제품이 등록되었습니다')
   } else {
     vendor.updateProduct(vendor.selectedProductId, formData.value)
+    closeModal()
   }
-  closeModal()
 }
 
 // --- 상태 변경 ---
@@ -276,10 +334,14 @@ const InfoIcon = IconBase([
       <!-- ====================================================
            1열: 거래처 목록 패널
            ==================================================== -->
-      <div class="flex w-64 shrink-0 flex-col overflow-hidden border border-gray-300 bg-white shadow-sm">
+      <div
+        class="flex w-64 shrink-0 flex-col overflow-hidden border border-gray-300 bg-white shadow-sm"
+      >
         <!-- 패널 헤더 -->
         <div class="flex items-center justify-between bg-[#004D3C] px-3 py-2.5 text-white">
-          <h2 class="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider">
+          <h2
+            class="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider"
+          >
             <BuildingIcon :size="13" />
             거래처 목록
           </h2>
@@ -289,7 +351,10 @@ const InfoIcon = IconBase([
         <!-- 검색 / 필터 -->
         <div class="border-b border-gray-200 p-2 space-y-2">
           <label class="relative block">
-            <SearchIcon :size="13" class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <SearchIcon
+              :size="13"
+              class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+            />
             <input
               v-model="vendorSearch"
               type="text"
@@ -339,7 +404,9 @@ const InfoIcon = IconBase([
                 {{ vendorStatusLabel(v.status) }}
               </span>
             </div>
-            <p class="mt-0.5 truncate text-[10px] text-gray-400">{{ v.contactPerson }} · {{ v.phone }}</p>
+            <p class="mt-0.5 truncate text-[10px] text-gray-400">
+              {{ v.contactPerson }} · {{ v.phone }}
+            </p>
           </button>
         </div>
       </div>
@@ -347,14 +414,16 @@ const InfoIcon = IconBase([
       <!-- ====================================================
            2열: 계약 제품 목록 패널
            ==================================================== -->
-      <div class="flex min-w-0 flex-1 flex-col overflow-hidden border border-gray-300 bg-white shadow-sm">
+      <div
+        class="flex min-w-0 flex-1 flex-col overflow-hidden border border-gray-300 bg-white shadow-sm"
+      >
         <!-- 패널 헤더 -->
         <div class="flex items-center justify-between bg-[#004D3C] px-3 py-2.5 text-white">
-          <h2 class="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider">
+          <h2
+            class="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider"
+          >
             <PackageIcon :size="13" />
-            <span v-if="vendor.selectedVendor">
-              {{ vendor.selectedVendor.name }} — 계약 제품
-            </span>
+            <span v-if="vendor.selectedVendor"> {{ vendor.selectedVendor.name }} — 계약 제품 </span>
             <span v-else>계약 제품 목록</span>
           </h2>
           <button
@@ -376,7 +445,9 @@ const InfoIcon = IconBase([
           <BuildingIcon :size="40" class="opacity-20" />
           <div>
             <p class="text-sm font-black">거래처를 선택해주세요</p>
-            <p class="mt-1 text-xs">좌측 목록에서 거래처를 선택하면<br />계약 제품 목록이 표시됩니다.</p>
+            <p class="mt-1 text-xs">
+              좌측 목록에서 거래처를 선택하면<br />계약 제품 목록이 표시됩니다.
+            </p>
           </div>
         </div>
 
@@ -384,7 +455,9 @@ const InfoIcon = IconBase([
         <template v-else>
           <div class="overflow-auto flex-1">
             <table class="w-full min-w-[560px] table-fixed border-collapse text-xs">
-              <thead class="sticky top-0 z-10 bg-gray-100 text-[10px] uppercase tracking-wider text-gray-500">
+              <thead
+                class="sticky top-0 z-10 bg-gray-100 text-[10px] uppercase tracking-wider text-gray-500"
+              >
                 <tr>
                   <th class="w-24 px-3 py-2 text-left font-black">제품 코드</th>
                   <th class="px-3 py-2 text-left font-black">제품명</th>
@@ -395,9 +468,7 @@ const InfoIcon = IconBase([
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">
-                <tr
-                  v-if="vendor.currentVendorProducts.length === 0"
-                >
+                <tr v-if="vendor.currentVendorProducts.length === 0">
                   <td colspan="6" class="py-12 text-center text-[11px] text-gray-400">
                     등록된 계약 제품이 없습니다.
                   </td>
@@ -411,12 +482,16 @@ const InfoIcon = IconBase([
                   @click="handleSelectProduct(vp.id)"
                 >
                   <td class="px-3 py-2.5 font-bold text-gray-400">{{ vp.productCode }}</td>
-                  <td class="truncate px-3 py-2.5 font-black text-gray-800">{{ vp.productName }}</td>
+                  <td class="truncate px-3 py-2.5 font-black text-gray-800">
+                    {{ vp.productName }}
+                  </td>
                   <td class="px-3 py-2.5 text-right font-black text-gray-700">
                     {{ formatPrice(vp.unitPrice) }}
                   </td>
                   <td class="px-3 py-2.5 text-right font-bold text-gray-600">{{ vp.moq }}</td>
-                  <td class="px-3 py-2.5 text-right font-bold text-gray-600">{{ vp.leadTimeDays }}</td>
+                  <td class="px-3 py-2.5 text-right font-bold text-gray-600">
+                    {{ vp.leadTimeDays }}
+                  </td>
                   <td class="px-3 py-2.5 text-center">
                     <span
                       class="inline-flex px-2 py-0.5 text-[10px] font-black"
@@ -431,7 +506,9 @@ const InfoIcon = IconBase([
           </div>
 
           <!-- 요약 푸터 -->
-          <div class="border-t border-gray-200 bg-gray-50 px-3 py-2 text-[10px] font-bold text-gray-500">
+          <div
+            class="border-t border-gray-200 bg-gray-50 px-3 py-2 text-[10px] font-bold text-gray-500"
+          >
             총 {{ vendor.currentVendorProducts.length }}건의 계약 제품
           </div>
         </template>
@@ -440,10 +517,14 @@ const InfoIcon = IconBase([
       <!-- ====================================================
            3열: 계약 조건 상세 패널
            ==================================================== -->
-      <div class="flex w-72 shrink-0 flex-col overflow-hidden border border-gray-300 bg-white shadow-sm">
+      <div
+        class="flex w-72 shrink-0 flex-col overflow-hidden border border-gray-300 bg-white shadow-sm"
+      >
         <!-- 패널 헤더 -->
         <div class="flex items-center bg-[#004D3C] px-3 py-2.5 text-white">
-          <h2 class="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider">
+          <h2
+            class="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider"
+          >
             <InfoIcon :size="13" />
             계약 조건 상세
           </h2>
@@ -457,7 +538,9 @@ const InfoIcon = IconBase([
           <PackageIcon :size="36" class="opacity-20" />
           <div>
             <p class="text-sm font-black">제품을 선택해주세요</p>
-            <p class="mt-1 text-xs">계약 제품 목록에서 행을 선택하면<br />상세 조건이 표시됩니다.</p>
+            <p class="mt-1 text-xs">
+              계약 제품 목록에서 행을 선택하면<br />상세 조건이 표시됩니다.
+            </p>
           </div>
         </div>
 
@@ -471,7 +554,9 @@ const InfoIcon = IconBase([
                 {{ vendor.selectedProductDetail.productName }}
               </p>
               <div class="flex flex-wrap gap-1.5">
-                <span class="border border-gray-200 bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-600">
+                <span
+                  class="border border-gray-200 bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-600"
+                >
                   {{ vendor.selectedProductDetail.productCode }}
                 </span>
                 <span
@@ -530,7 +615,9 @@ const InfoIcon = IconBase([
 
             <!-- 거래처 담당자 정보 -->
             <section v-if="vendor.selectedVendor" class="space-y-2 border-t border-gray-100 pt-3">
-              <p class="text-[9px] font-black uppercase tracking-wider text-gray-400">거래처 담당자</p>
+              <p class="text-[9px] font-black uppercase tracking-wider text-gray-400">
+                거래처 담당자
+              </p>
               <div class="space-y-1 text-xs font-bold">
                 <p class="text-gray-800">{{ vendor.selectedVendor.contactPerson }}</p>
                 <p class="text-gray-400">{{ vendor.selectedVendor.contactEmail }}</p>
@@ -563,10 +650,7 @@ const InfoIcon = IconBase([
               :disabled="vendor.selectedProductDetail.status === 'expired'"
               @click="handleToggleStatus"
             >
-              <ToggleRightIcon
-                v-if="vendor.selectedProductDetail.status === 'active'"
-                :size="13"
-              />
+              <ToggleRightIcon v-if="vendor.selectedProductDetail.status === 'active'" :size="13" />
               <ToggleLeftIcon v-else :size="13" />
               {{
                 vendor.selectedProductDetail.status === 'active'
@@ -611,17 +695,25 @@ const InfoIcon = IconBase([
 
         <!-- 모달 본문 -->
         <div class="p-4 space-y-3">
-          <div class="grid grid-cols-2 gap-3">
+          <div :class="modalMode === 'edit' ? 'grid grid-cols-2 gap-3' : ''">
             <label class="flex flex-col gap-1">
               <span class="text-[10px] font-black uppercase text-gray-400">제품 코드</span>
               <input
                 v-model="formData.productCode"
                 type="text"
                 placeholder="ITM-XXXX"
-                class="border border-gray-300 bg-gray-50 px-3 py-2 text-xs outline-none focus:border-[#004D3C] focus:bg-white"
+                class="border bg-gray-50 px-3 py-2 text-xs outline-none focus:bg-white"
+                :class="
+                  formErrors.productCode
+                    ? 'border-red-400 focus:border-red-500'
+                    : 'border-gray-300 focus:border-[#004D3C]'
+                "
               />
+              <p v-if="formErrors.productCode" class="mt-1 text-[10px] font-bold text-red-600">
+                {{ formErrors.productCode }}
+              </p>
             </label>
-            <label class="flex flex-col gap-1">
+            <label v-if="modalMode === 'edit'" class="flex flex-col gap-1">
               <span class="text-[10px] font-black uppercase text-gray-400">상태</span>
               <select
                 v-model="formData.status"
@@ -639,8 +731,16 @@ const InfoIcon = IconBase([
               v-model="formData.productName"
               type="text"
               placeholder="제품명을 입력하세요"
-              class="border border-gray-300 bg-gray-50 px-3 py-2 text-xs outline-none focus:border-[#004D3C] focus:bg-white"
+              class="border bg-gray-50 px-3 py-2 text-xs outline-none focus:bg-white"
+              :class="
+                formErrors.productName
+                  ? 'border-red-400 focus:border-red-500'
+                  : 'border-gray-300 focus:border-[#004D3C]'
+              "
             />
+            <p v-if="formErrors.productName" class="mt-1 text-[10px] font-bold text-red-600">
+              {{ formErrors.productName }}
+            </p>
           </label>
 
           <div class="grid grid-cols-3 gap-3">
@@ -651,8 +751,16 @@ const InfoIcon = IconBase([
                 type="number"
                 min="0"
                 placeholder="0"
-                class="border border-gray-300 bg-gray-50 px-3 py-2 text-xs outline-none focus:border-[#004D3C] focus:bg-white"
+                class="border bg-gray-50 px-3 py-2 text-xs outline-none focus:bg-white"
+                :class="
+                  formErrors.unitPrice
+                    ? 'border-red-400 focus:border-red-500'
+                    : 'border-gray-300 focus:border-[#004D3C]'
+                "
               />
+              <p v-if="formErrors.unitPrice" class="mt-1 text-[10px] font-bold text-red-600">
+                {{ formErrors.unitPrice }}
+              </p>
             </label>
             <label class="flex flex-col gap-1">
               <span class="text-[10px] font-black uppercase text-gray-400">MOQ (EA)</span>
@@ -661,8 +769,16 @@ const InfoIcon = IconBase([
                 type="number"
                 min="1"
                 placeholder="0"
-                class="border border-gray-300 bg-gray-50 px-3 py-2 text-xs outline-none focus:border-[#004D3C] focus:bg-white"
+                class="border bg-gray-50 px-3 py-2 text-xs outline-none focus:bg-white"
+                :class="
+                  formErrors.moq
+                    ? 'border-red-400 focus:border-red-500'
+                    : 'border-gray-300 focus:border-[#004D3C]'
+                "
               />
+              <p v-if="formErrors.moq" class="mt-1 text-[10px] font-bold text-red-600">
+                {{ formErrors.moq }}
+              </p>
             </label>
             <label class="flex flex-col gap-1">
               <span class="text-[10px] font-black uppercase text-gray-400">납기일수</span>
@@ -671,8 +787,16 @@ const InfoIcon = IconBase([
                 type="number"
                 min="1"
                 placeholder="0"
-                class="border border-gray-300 bg-gray-50 px-3 py-2 text-xs outline-none focus:border-[#004D3C] focus:bg-white"
+                class="border bg-gray-50 px-3 py-2 text-xs outline-none focus:bg-white"
+                :class="
+                  formErrors.leadTimeDays
+                    ? 'border-red-400 focus:border-red-500'
+                    : 'border-gray-300 focus:border-[#004D3C]'
+                "
               />
+              <p v-if="formErrors.leadTimeDays" class="mt-1 text-[10px] font-bold text-red-600">
+                {{ formErrors.leadTimeDays }}
+              </p>
             </label>
           </div>
 
@@ -682,16 +806,32 @@ const InfoIcon = IconBase([
               <input
                 v-model="formData.contractStart"
                 type="date"
-                class="border border-gray-300 bg-gray-50 px-3 py-2 text-xs outline-none focus:border-[#004D3C] focus:bg-white"
+                class="border bg-gray-50 px-3 py-2 text-xs outline-none focus:bg-white"
+                :class="
+                  formErrors.contractStart
+                    ? 'border-red-400 focus:border-red-500'
+                    : 'border-gray-300 focus:border-[#004D3C]'
+                "
               />
+              <p v-if="formErrors.contractStart" class="mt-1 text-[10px] font-bold text-red-600">
+                {{ formErrors.contractStart }}
+              </p>
             </label>
             <label class="flex flex-col gap-1">
               <span class="text-[10px] font-black uppercase text-gray-400">계약 종료일</span>
               <input
                 v-model="formData.contractEnd"
                 type="date"
-                class="border border-gray-300 bg-gray-50 px-3 py-2 text-xs outline-none focus:border-[#004D3C] focus:bg-white"
+                class="border bg-gray-50 px-3 py-2 text-xs outline-none focus:bg-white"
+                :class="
+                  formErrors.contractEnd
+                    ? 'border-red-400 focus:border-red-500'
+                    : 'border-gray-300 focus:border-[#004D3C]'
+                "
               />
+              <p v-if="formErrors.contractEnd" class="mt-1 text-[10px] font-bold text-red-600">
+                {{ formErrors.contractEnd }}
+              </p>
             </label>
           </div>
         </div>
@@ -715,5 +855,20 @@ const InfoIcon = IconBase([
         </div>
       </div>
     </div>
+
+    <!-- 등록 성공 토스트 -->
+    <Transition
+      enter-active-class="transition-opacity duration-200"
+      enter-from-class="opacity-0"
+      leave-active-class="transition-opacity duration-200"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="showToast"
+        class="fixed top-4 right-4 z-[60] border border-[#004D3C] bg-white px-4 py-3 shadow-lg"
+      >
+        <p class="text-[11px] font-black text-[#004D3C]">{{ toastMessage }}</p>
+      </div>
+    </Transition>
   </AppLayout>
 </template>
