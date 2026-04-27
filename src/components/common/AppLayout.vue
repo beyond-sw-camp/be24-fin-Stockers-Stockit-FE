@@ -42,6 +42,7 @@ const router = useRouter()
 const auth = useAuthStore()
 
 const userName = computed(() => auth.user?.name ?? '사용자')
+const isHq = computed(() => auth.user?.role === 'hq')
 const userInitials = computed(() => {
   const name = auth.user?.name ?? ''
   return name.slice(-2).toUpperCase() || 'US'
@@ -319,7 +320,7 @@ const iconMap = {
           </button>
         </nav>
 
-        <EsgTreeWidget />
+        <EsgTreeWidget v-if="isHq" />
       </aside>
 
       <main class="min-w-0 flex-1 p-4">
