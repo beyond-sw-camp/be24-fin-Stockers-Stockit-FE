@@ -171,14 +171,16 @@ const shippingOrders = computed(() =>
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
 )
 
-// 단계별 진행 막대
-const statusBars = computed(() => [
-  { label: '입고 예정', value: shippingCount.value, color: 'bg-blue-400' },
-  { label: '입고 완료', value: completedCount.value, color: 'bg-emerald-500' },
-])
-const maxBarValue = computed(() =>
-  Math.max(1, shippingCount.value, completedCount.value),
-)
+// 단계 비율 (세그먼트 스택 막대용)
+const stageTotal = computed(() => shippingCount.value + completedCount.value)
+const shippingPct = computed(() => {
+  if (stageTotal.value === 0) return 0
+  return Math.round((shippingCount.value / stageTotal.value) * 100)
+})
+const completedPct = computed(() => {
+  if (stageTotal.value === 0) return 0
+  return 100 - shippingPct.value
+})
 
 function formatDate(iso) {
   if (!iso) return '-'
@@ -316,7 +318,7 @@ function formatDate(iso) {
           </div>
         </article>
 
-        <!-- 우: 단계별 진행 막대 -->
+        <!-- 우: 단계별 현황 -->
         <article class="border border-gray-200 bg-white shadow-sm">
           <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
             <h2 class="inline-flex items-center gap-2 text-sm font-black text-gray-900">
@@ -324,24 +326,97 @@ function formatDate(iso) {
               입고 단계별 현황
             </h2>
           </div>
-          <div class="space-y-3 px-4 py-4">
-            <div v-for="bar in statusBars" :key="bar.label">
-              <div class="flex justify-between text-xs font-black text-gray-600">
-                <span>{{ bar.label }}</span>
-                <span>{{ bar.value }}건</span>
+          <div class="space-y-4 px-4 py-4">
+            <!-- 큰 진행률 -->
+            <div class="flex items-baseline justify-between gap-3 border-b border-gray-100 pb-3">
+              <div>
+                <p class="text-[10px] font-black uppercase tracking-wider text-gray-500">
+                  진행률
+                </p>
+                <p class="mt-1 text-xs font-bold text-gray-500">
+                  총 {{ stageTotal }}건 중 {{ completedCount }}건 완료
+                </p>
               </div>
-              <div class="mt-1 h-7 bg-gray-100">
+              <p
+                v-if="progressRate !== null"
+                class="text-3xl font-black text-[#004D3C]"
+              >
+                {{ progressRate }}%
+              </p>
+              <p v-else class="text-3xl font-black text-gray-400">—</p>
+            </div>
+
+            <!-- 세그먼트 스택 막대: SHIPPING + COMPLETED 비율 한 줄 -->
+            <div>
+              <p
+                class="mb-2 text-[10px] font-black uppercase tracking-wider text-gray-500"
+              >
+                단계 분포
+              </p>
+              <div
+                v-if="stageTotal > 0"
+                class="flex h-9 w-full overflow-hidden border border-gray-100"
+              >
                 <div
-                  class="h-full transition-all duration-300"
-                  :class="bar.color"
-                  :style="{ width: (bar.value / maxBarValue) * 100 + '%' }"
-                />
+                  v-if="shippingCount > 0"
+                  class="flex items-center justify-center bg-blue-400 transition-all duration-300"
+                  :style="{ width: shippingPct + '%' }"
+                >
+                  <span
+                    v-if="shippingPct >= 18"
+                    class="text-[11px] font-black text-white"
+                  >
+                    {{ shippingCount }}건 · {{ shippingPct }}%
+                  </span>
+                </div>
+                <div
+                  v-if="completedCount > 0"
+                  class="flex items-center justify-center bg-emerald-500 transition-all duration-300"
+                  :style="{ width: completedPct + '%' }"
+                >
+                  <span
+                    v-if="completedPct >= 18"
+                    class="text-[11px] font-black text-white"
+                  >
+                    {{ completedCount }}건 · {{ completedPct }}%
+                  </span>
+                </div>
+              </div>
+              <div
+                v-else
+                class="flex h-9 w-full items-center justify-center border border-gray-100 bg-gray-50 text-[11px] font-bold text-gray-400"
+              >
+                데이터 없음
               </div>
             </div>
-            <p class="pt-2 text-[11px] font-bold text-gray-400">
-              합계 {{ shippingCount + completedCount }}건 — 진행률
-              {{ progressRate !== null ? progressRate + '%' : '—' }}
-            </p>
+
+            <!-- 색 범례 + 단계별 수치 -->
+            <div class="grid grid-cols-2 gap-3 border-t border-gray-100 pt-3">
+              <div class="flex items-start gap-2">
+                <span class="mt-1 block h-2.5 w-2.5 shrink-0 bg-blue-400" />
+                <div class="min-w-0 flex-1">
+                  <p class="text-[10px] font-bold uppercase text-gray-500">입고 예정</p>
+                  <p class="mt-0.5 text-sm font-black text-blue-600">
+                    {{ shippingCount }}건
+                    <span class="ml-0.5 text-[10px] font-bold text-gray-400">
+                      ({{ shippingPct }}%)
+                    </span>
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-start gap-2">
+                <span class="mt-1 block h-2.5 w-2.5 shrink-0 bg-emerald-500" />
+                <div class="min-w-0 flex-1">
+                  <p class="text-[10px] font-bold uppercase text-gray-500">입고 완료</p>
+                  <p class="mt-0.5 text-sm font-black text-emerald-600">
+                    {{ completedCount }}건
+                    <span class="ml-0.5 text-[10px] font-bold text-gray-400">
+                      ({{ completedPct }}%)
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </article>
       </section>
