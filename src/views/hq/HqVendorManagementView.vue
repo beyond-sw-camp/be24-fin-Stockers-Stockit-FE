@@ -34,11 +34,31 @@ const displayedVendors = computed(() =>
   vendor.filteredVendors(vendorSearch.value, vendorStatusFilter.value),
 )
 
+// --- 계약 제품 목록 패널 ---
+// CEN-031: 거래처 패널과 동일 톤의 검색·상태 필터.
+// 거래처 전환 시 검색/필터를 초기화해 직전 거래처 컨텍스트가 새 거래처에 새지 않게 한다.
+const productSearch = ref('')
+const productStatusFilter = ref('all')
+
+const displayedVendorProducts = computed(() => {
+  const keyword = productSearch.value.trim().toLowerCase()
+  const status = productStatusFilter.value
+  return vendor.currentVendorProducts.filter((vp) => {
+    const matchStatus = status === 'all' || vp.status === status
+    const matchKeyword =
+      !keyword ||
+      vp.productCode.toLowerCase().includes(keyword) ||
+      vp.productName.toLowerCase().includes(keyword)
+    return matchStatus && matchKeyword
+  })
+})
+
 function handleSelectVendor(id) {
   vendor.selectVendor(id)
+  productSearch.value = ''
+  productStatusFilter.value = 'all'
 }
 
-// --- 계약 제품 목록 패널 ---
 function handleSelectProduct(id) {
   vendor.selectProduct(id)
 }
@@ -471,15 +491,47 @@ const InfoIcon = IconBase([
             <span v-if="vendor.selectedVendor"> {{ vendor.selectedVendor.name }} — 계약 제품 </span>
             <span v-else>계약 제품 목록</span>
           </h2>
-          <button
-            v-if="vendor.selectedVendorId"
-            type="button"
-            class="inline-flex items-center gap-1 border border-white/30 px-2 py-1 text-[10px] font-black text-white hover:bg-white/10"
-            @click="openCreateModal"
+          <div v-if="vendor.selectedVendorId" class="flex items-center gap-2">
+            <span class="text-[10px] font-bold opacity-70">
+              {{ displayedVendorProducts.length }}건
+            </span>
+            <button
+              type="button"
+              class="inline-flex items-center gap-1 border border-white/30 px-2 py-1 text-[10px] font-black text-white hover:bg-white/10"
+              @click="openCreateModal"
+            >
+              <PlusIcon :size="12" />
+              계약 제품 추가
+            </button>
+          </div>
+        </div>
+
+        <!-- 검색 / 필터 (CEN-031) — 거래처 선택된 경우에만 노출 -->
+        <div
+          v-if="vendor.selectedVendorId"
+          class="flex items-center gap-2 border-b border-gray-200 bg-gray-50 p-2"
+        >
+          <label class="relative block flex-1">
+            <SearchIcon
+              :size="13"
+              class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+            />
+            <input
+              v-model="productSearch"
+              type="text"
+              placeholder="제품 코드 / 제품명 검색..."
+              class="w-full border border-gray-300 bg-white py-1.5 pl-7 pr-2 text-[11px] outline-none focus:border-[#004D3C]"
+            />
+          </label>
+          <select
+            v-model="productStatusFilter"
+            class="w-32 shrink-0 appearance-none border border-gray-300 bg-white px-2 py-1.5 text-[11px] font-bold text-gray-700 outline-none focus:border-[#004D3C]"
           >
-            <PlusIcon :size="12" />
-            계약 제품 추가
-          </button>
+            <option value="all">전체 상태</option>
+            <option value="active">활성</option>
+            <option value="suspended">정지</option>
+            <option value="expired">만료</option>
+          </select>
         </div>
 
         <!-- 거래처 미선택 상태 -->
@@ -513,14 +565,25 @@ const InfoIcon = IconBase([
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">
-                <tr v-if="vendor.currentVendorProducts.length === 0">
+                <tr
+                  v-if="
+                    vendor.currentVendorProducts.length === 0 &&
+                    displayedVendorProducts.length === 0
+                  "
+                >
                   <td colspan="6" class="py-12 text-center text-[11px] text-gray-400">
                     등록된 계약 제품이 없습니다.
                   </td>
                 </tr>
+                <tr
+                  v-else-if="displayedVendorProducts.length === 0"
+                  class="text-[11px] text-gray-400"
+                >
+                  <td colspan="6" class="py-12 text-center">검색 결과가 없습니다.</td>
+                </tr>
 
                 <tr
-                  v-for="vp in vendor.currentVendorProducts"
+                  v-for="vp in displayedVendorProducts"
                   :key="vp.id"
                   class="cursor-pointer transition-colors hover:bg-gray-50"
                   :class="vendor.selectedProductId === vp.id ? 'bg-[#E6F2F0]' : ''"
@@ -554,7 +617,15 @@ const InfoIcon = IconBase([
           <div
             class="border-t border-gray-200 bg-gray-50 px-3 py-2 text-[10px] font-bold text-gray-500"
           >
-            총 {{ vendor.currentVendorProducts.length }}건의 계약 제품
+            <template
+              v-if="displayedVendorProducts.length === vendor.currentVendorProducts.length"
+            >
+              총 {{ vendor.currentVendorProducts.length }}건의 계약 제품
+            </template>
+            <template v-else>
+              {{ vendor.currentVendorProducts.length }}건 중
+              {{ displayedVendorProducts.length }}건 표시
+            </template>
           </div>
         </template>
       </div>
