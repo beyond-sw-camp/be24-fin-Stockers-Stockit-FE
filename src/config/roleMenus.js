@@ -43,8 +43,6 @@ export const roleMenus = {
       children: [
         { label: '카테고리 관리' },
         { label: '제품 마스터' },
-        { label: '단가/계약 관리' },
-        { label: '거래처 정보 관리' },
       ],
     },
     {
