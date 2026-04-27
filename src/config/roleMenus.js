@@ -66,11 +66,11 @@ export const roleMenus = {
       icon: 'chart',
       children: [
         { label: '통합 KPI 대시보드' },
-        { label: '매출 분석' },
-        { label: '상품/카테고리 분석' },
-        { label: '재고 회전율 분석' },
-        { label: '발주/수요 분석' },
-        { label: '예측 정확도 분석' },
+        { label: '메뉴별 판매량 및 판매 비중' },
+        { label: '시간대·요일 매출 패턴' },
+        { label: '재고 회전율 통계' },
+        { label: '계절별 판매량 변화' },
+        { label: '발주량 통계', path: '/hq/analytics/order-stats' },
       ],
     },
     {
