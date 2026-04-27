@@ -41,8 +41,8 @@ export const roleMenus = {
       path: '/hq/products',
       icon: 'file',
       children: [
-        { label: '카테고리 관리' },
-        { label: '제품 마스터' },
+        { label: '카테고리 관리', path: '/hq/products?tab=categories' },
+        { label: '제품 마스터', path: '/hq/products?tab=products' },
       ],
     },
     {
