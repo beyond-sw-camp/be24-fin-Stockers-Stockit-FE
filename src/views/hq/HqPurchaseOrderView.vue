@@ -5,12 +5,10 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { usePurchaseOrderStore } from '@/stores/purchaseOrder.js'
-import { useAiOrderRecommendationStore } from '@/stores/aiOrderRecommendation.js'
 
 const router = useRouter()
 const auth = useAuthStore()
 const poStore = usePurchaseOrderStore()
-const aiStore = useAiOrderRecommendationStore()
 
 // ─── 레이아웃 설정 ───────────────────────────────────────────────────────────
 const hqMenus = roleMenus.hq
@@ -179,6 +177,50 @@ function handleCancel() {
   poStore.cancelOrder(poStore.selectedOrder.id)
 }
 
+// ─── 거래처 액션 대리 트리거 (옵션 A) ──────────────────────────────────────
+const showApproveConfirm = ref(false)
+const showShippingConfirm = ref(false)
+
+const toast = ref({ show: false, message: '' })
+let toastTimer = null
+function triggerToast(message) {
+  if (toastTimer) clearTimeout(toastTimer)
+  toast.value = { show: true, message }
+  toastTimer = setTimeout(() => {
+    toast.value = { show: false, message: '' }
+  }, 3000)
+}
+
+function openApproveConfirm() {
+  if (poStore.selectedOrder?.status !== 'PENDING') return
+  showApproveConfirm.value = true
+}
+function confirmApprove() {
+  const id = poStore.selectedOrder?.id
+  if (!id) return
+  poStore.approveOrder(id)
+  showApproveConfirm.value = false
+  triggerToast('거래처 승인이 기록되었습니다')
+}
+function cancelApprove() {
+  showApproveConfirm.value = false
+}
+
+function openShippingConfirm() {
+  if (poStore.selectedOrder?.status !== 'APPROVED') return
+  showShippingConfirm.value = true
+}
+function confirmShipping() {
+  const id = poStore.selectedOrder?.id
+  if (!id) return
+  poStore.markShipping(id)
+  showShippingConfirm.value = false
+  triggerToast('거래처 출고가 기록되었습니다')
+}
+function cancelShipping() {
+  showShippingConfirm.value = false
+}
+
 // 상태 뱃지 클래스
 function statusClass(status) {
   const map = {
@@ -210,16 +252,14 @@ function formatDate(iso) {
 }
 
 // ─── 모달 상태 관리 ──────────────────────────────────────────────────────────
-// 새 발주 / 수정 모달
+// 발주 수정 모달 (신규 등록은 /hq/purchase-orders/new 페이지로 분리됨)
 const showOrderModal = ref(false)
-const orderModalMode = ref('create') // 'create' | 'edit'
 
 // 모달 폼 상태
 const modalWarehouseId = ref('')
 const modalVendorId = ref('')
 const modalProductSearch = ref('')
 const modalCart = ref([]) // [{ productId, productCode, productName, unitPrice, quantity, subtotal }]
-const modalRecommendationId = ref(null)
 
 // 현재 거래처의 제품 목록 (검색 포함)
 const modalVendorProducts = computed(() => {
@@ -235,29 +275,17 @@ const modalVendorProducts = computed(() => {
 
 const modalCartTotal = computed(() => modalCart.value.reduce((sum, item) => sum + item.subtotal, 0))
 
-const selectedVendorName = computed(
-  () => VENDORS.find((v) => v.id === modalVendorId.value)?.name ?? '',
-)
-
-function openCreateModal() {
-  orderModalMode.value = 'create'
-  modalWarehouseId.value = ''
-  modalVendorId.value = ''
-  modalProductSearch.value = ''
-  modalCart.value = []
-  modalRecommendationId.value = null
-  showOrderModal.value = true
+function goCreatePage() {
+  router.push({ name: 'hq-purchase-order-new' })
 }
 
 function openEditModal() {
   const order = poStore.selectedOrder
   if (!order || order.status !== 'PENDING') return
 
-  orderModalMode.value = 'edit'
   modalWarehouseId.value = order.warehouseId
   modalVendorId.value = order.vendorId
   modalProductSearch.value = ''
-  modalRecommendationId.value = order.recommendationId
   // 기존 품목 장바구니에 주입
   modalCart.value = order.items.map((item) => ({
     id: item.id,
@@ -306,7 +334,7 @@ function removeCartItem(idx) {
   modalCart.value.splice(idx, 1)
 }
 
-// 발주 요청 (SO-027) / 수정 저장 (SO-028)
+// 수정 저장 (CEN-037)
 function submitOrder() {
   if (!modalWarehouseId.value) {
     alert('창고를 선택해주세요.')
@@ -321,92 +349,22 @@ function submitOrder() {
     return
   }
 
-  if (orderModalMode.value === 'create') {
-    const newOrder = poStore.createOrder({
-      warehouseId: modalWarehouseId.value,
-      vendorId: modalVendorId.value,
-      vendorName: selectedVendorName.value,
-      items: modalCart.value,
-      recommendationId: modalRecommendationId.value,
-      memberId: auth.user?.memberId ?? 'MB-003',
-      memberName: auth.user?.name ?? '이선엽',
-    })
-    // 시스템 권장 발주에서 생성된 경우 권장 상태를 APPROVED로 변경
-    if (modalRecommendationId.value) {
-      aiStore.markApproved(modalRecommendationId.value, auth.user?.memberId ?? 'MB-003')
-    }
-    poStore.selectOrder(newOrder.id)
-  } else {
-    // 수정 모드
-    poStore.updateOrder(poStore.selectedOrder.id, {
-      warehouseId: modalWarehouseId.value,
-      items: modalCart.value,
-    })
-  }
+  poStore.updateOrder(poStore.selectedOrder.id, {
+    warehouseId: modalWarehouseId.value,
+    items: modalCart.value,
+  })
 
   closeOrderModal()
 }
 
-// ─── 시스템 권장 발주 모달 ───────────────────────────────────────────────────────────
-const showAiModal = ref(false)
-
-function openAiModal() {
-  aiStore.fetchRecommendations()
-  showAiModal.value = true
-}
-
-function closeAiModal() {
-  showAiModal.value = false
-}
-
-function handleAiCreateOrder(rec) {
-  // 시스템 권장 발주에서 새 발주 모달로 전환 (창고/거래처/제품 자동 채움)
-  orderModalMode.value = 'create'
-  modalWarehouseId.value = rec.warehouseId
-  modalVendorId.value = rec.vendorId
-  modalProductSearch.value = ''
-  modalRecommendationId.value = rec.id
-  // 권장 제품 1건 장바구니에 주입 (권장 수량으로)
-  const vp = VENDOR_PRODUCTS.find(
-    (p) => p.productId === rec.productId && p.vendorId === rec.vendorId,
-  )
-  if (vp) {
-    modalCart.value = [
-      {
-        productId: vp.productId,
-        productCode: vp.productCode,
-        productName: vp.productName,
-        unitPrice: vp.unitPrice,
-        quantity: rec.recommendedQty,
-        subtotal: vp.unitPrice * rec.recommendedQty,
-      },
-    ]
-  } else {
-    modalCart.value = []
-  }
-
-  closeAiModal()
-  showOrderModal.value = true
-}
-
 // ─── ESC 키로 상세 패널 닫기 ────────────────────────────────────────────────
 function handleKeydown(e) {
-  if (
-    e.key === 'Escape' &&
-    !showOrderModal.value &&
-    !showAiModal.value &&
-    poStore.selectedOrderId
-  ) {
+  if (e.key === 'Escape' && !showOrderModal.value && poStore.selectedOrderId) {
     poStore.selectedOrderId = null
   }
 }
 onMounted(() => window.addEventListener('keydown', handleKeydown))
 onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
-
-function handleAiReject(rec) {
-  if (!confirm(`권장 발주 [${rec.productName}]을 반려하시겠습니까?`)) return
-  aiStore.markRejected(rec.id, auth.user?.memberId ?? 'MB-003')
-}
 
 // ─── inline SVG 아이콘 (render 함수 방식) ────────────────────────────────────
 const IconBase = (paths) => ({
@@ -443,13 +401,6 @@ const SearchIcon = IconBase([
   { tag: 'path', attrs: { d: 'm20 20-3.5-3.5' } },
 ])
 
-const BarChart3Icon = IconBase([
-  { tag: 'path', attrs: { d: 'M3 3v16a2 2 0 0 0 2 2h16' } },
-  { tag: 'path', attrs: { d: 'M18 17V9' } },
-  { tag: 'path', attrs: { d: 'M13 17V5' } },
-  { tag: 'path', attrs: { d: 'M8 17v-3' } },
-])
-
 const XIcon = IconBase([
   { tag: 'path', attrs: { d: 'M18 6 6 18' } },
   { tag: 'path', attrs: { d: 'm6 6 12 12' } },
@@ -482,6 +433,17 @@ const WarehouseIcon = IconBase([
 const UserIcon = IconBase([
   { tag: 'path', attrs: { d: 'M20 21a8 8 0 0 0-16 0' } },
   { tag: 'circle', attrs: { cx: '12', cy: '8', r: '4' } },
+])
+
+const CheckIcon = IconBase([
+  { tag: 'polyline', attrs: { points: '20 6 9 17 4 12' } },
+])
+
+const TruckIcon = IconBase([
+  { tag: 'path', attrs: { d: 'M10 17H5a2 2 0 0 1-2-2V7h11v10Z' } },
+  { tag: 'path', attrs: { d: 'M14 17h-1V9h3l3 3v5h-1' } },
+  { tag: 'circle', attrs: { cx: '7.5', cy: '17.5', r: '1.5' } },
+  { tag: 'circle', attrs: { cx: '17.5', cy: '17.5', r: '1.5' } },
 ])
 </script>
 
@@ -531,7 +493,7 @@ const UserIcon = IconBase([
         <div
           class="flex min-w-0 flex-1 flex-col overflow-hidden border border-gray-300 bg-white shadow-sm"
         >
-          <!-- 테이블 상단 바: 건수 + 검색 + 시스템 권장 발주 + 새 발주 -->
+          <!-- 테이블 상단 바: 건수 + 검색 + 새 발주 -->
           <div
             class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-white px-3 py-2"
           >
@@ -553,22 +515,8 @@ const UserIcon = IconBase([
               </label>
               <button
                 type="button"
-                class="inline-flex items-center gap-1.5 border border-amber-500 bg-amber-50 px-3 py-1.5 text-xs font-black text-amber-700 transition-colors hover:bg-amber-100"
-                @click="openAiModal"
-              >
-                <BarChart3Icon :size="14" />
-                시스템 권장 발주 검토
-                <span
-                  v-if="aiStore.pendingRecommendations.length > 0"
-                  class="min-w-[18px] bg-amber-500 px-1 py-0.5 text-center text-[10px] text-white"
-                >
-                  {{ aiStore.pendingRecommendations.length }}
-                </span>
-              </button>
-              <button
-                type="button"
                 class="inline-flex items-center gap-1.5 border border-[#004D3C] bg-[#004D3C] px-3 py-1.5 text-xs font-black text-white transition-colors hover:bg-[#1f4b3a]"
-                @click="openCreateModal"
+                @click="goCreatePage"
               >
                 <PlusIcon :size="14" />
                 새 발주
@@ -670,14 +618,6 @@ const UserIcon = IconBase([
                     {{ poStore.selectedOrder.id }}
                   </p>
                 </div>
-                <div v-if="poStore.selectedOrder.recommendationId" class="shrink-0">
-                  <span
-                    class="inline-flex items-center gap-1 bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700"
-                  >
-                    <BarChart3Icon :size="10" />
-                    시스템 권장 연동
-                  </span>
-                </div>
               </div>
 
               <div class="grid grid-cols-2 gap-3">
@@ -753,9 +693,17 @@ const UserIcon = IconBase([
 
           <!-- 액션/안내 (상태별 조건부) -->
           <!-- PENDING 단계에서만 본사 권한(수정/취소) 노출. 승인 이후 단계는 시스템 자동화(RQ-001/002) 및 창고관리자(PO-003/004) 영역이므로 조회만. -->
-          <div class="space-y-2 px-4 pb-4">
+          <div class="space-y-4 px-4 pb-6 pt-2">
             <template v-if="poStore.selectedOrder.status === 'PENDING'">
-              <div class="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                class="inline-flex w-full items-center justify-center gap-1.5 border border-[#004D3C] bg-[#004D3C] px-2 py-3 text-[11px] font-black text-white hover:bg-[#1f4b3a]"
+                @click="openApproveConfirm"
+              >
+                <CheckIcon :size="12" />
+                거래처 승인 받음
+              </button>
+              <div class="grid grid-cols-2 gap-2 border-t border-gray-100 pt-3">
                 <button
                   type="button"
                   class="inline-flex items-center justify-center gap-1 border border-gray-400 bg-white px-2 py-2.5 text-[11px] font-black text-gray-700 hover:bg-gray-50"
@@ -773,14 +721,22 @@ const UserIcon = IconBase([
                   취소
                 </button>
               </div>
-              <p class="text-center text-[11px] text-gray-400">
-                승인 후에는 창고 입고 검수 단계에서 처리됩니다.
+              <p class="pt-1 text-center text-[11px] leading-relaxed text-gray-400">
+                거래처와 확인 후 [거래처 승인 받음] 을 눌러 진행 단계로 넘기세요.
               </p>
             </template>
 
             <template v-else-if="poStore.selectedOrder.status === 'APPROVED'">
-              <p class="text-center text-xs text-gray-500">
-                승인 완료 · 창고 입고 대기 중
+              <button
+                type="button"
+                class="inline-flex w-full items-center justify-center gap-1.5 border border-[#004D3C] bg-[#004D3C] px-2 py-3 text-[11px] font-black text-white hover:bg-[#1f4b3a]"
+                @click="openShippingConfirm"
+              >
+                <TruckIcon :size="12" />
+                거래처 출고 시작
+              </button>
+              <p class="pt-1 text-center text-xs leading-relaxed text-gray-500">
+                승인 완료 · 거래처 출고 통지 받으면 [거래처 출고 시작] 을 누르세요.
               </p>
             </template>
 
@@ -802,7 +758,7 @@ const UserIcon = IconBase([
           </div>
 
           <!-- 하단: 닫기 버튼 -->
-          <div class="border-t border-gray-100">
+          <div class="border-t border-gray-200">
             <button
               type="button"
               class="w-full px-4 py-2.5 text-center text-[11px] font-bold text-gray-500 hover:bg-gray-50"
@@ -826,9 +782,7 @@ const UserIcon = IconBase([
       <div class="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden bg-white shadow-xl">
         <!-- 모달 헤더 -->
         <div class="flex items-center justify-between bg-[#004D3C] px-5 py-4 text-white">
-          <h2 class="text-sm font-black">
-            {{ orderModalMode === 'create' ? '새 발주 생성' : '발주 수정' }}
-          </h2>
+          <h2 class="text-sm font-black">발주 수정</h2>
           <button
             type="button"
             class="p-1 text-white/80 hover:bg-white/10"
@@ -1014,150 +968,110 @@ const UserIcon = IconBase([
             class="border border-[#004D3C] bg-[#004D3C] px-4 py-2 text-xs font-black text-white hover:bg-[#1f4b3a]"
             @click="submitOrder"
           >
-            {{ orderModalMode === 'create' ? '발주 요청' : '수정 저장' }}
+            수정 저장
           </button>
         </div>
       </div>
     </div>
 
-    <!-- ================================================================ -->
-    <!-- 모달 3: 시스템 권장 발주 검토 (SO-030)                                    -->
-    <!-- ================================================================ -->
+    <!-- ───────── 모달: 거래처 승인 received confirm ───────── -->
     <div
-      v-if="showAiModal"
+      v-if="showApproveConfirm && poStore.selectedOrder"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-      @click.self="closeAiModal"
+      @click.self="cancelApprove"
     >
-      <div class="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden bg-white shadow-xl">
-        <!-- 모달 헤더 -->
-        <div class="flex items-center justify-between bg-amber-600 px-5 py-4 text-white">
-          <h2 class="inline-flex items-center gap-2 text-sm font-black">
-            <BarChart3Icon :size="16" />
-            통계 기반 시스템 권장 발주 검토
-          </h2>
-          <button type="button" class="p-1 text-white/80 hover:bg-white/10" @click="closeAiModal">
-            <XIcon :size="16" />
-          </button>
+      <div class="w-full max-w-sm overflow-hidden bg-white shadow-xl">
+        <div class="bg-[#004D3C] px-5 py-3 text-white">
+          <h2 class="text-sm font-black">거래처 승인 기록</h2>
         </div>
-
-        <!-- 안내 문구 -->
-        <div class="border-b border-amber-100 bg-amber-50 px-5 py-3 text-xs text-amber-800">
-          창고 재고·입고 예정·매장 발주 예약을 기반으로 산정한 통계 기반 권장 발주 목록입니다. 발주
-          생성 또는 반려를 선택해주세요.
-        </div>
-
-        <!-- 추천 테이블 -->
-        <div class="flex-1 overflow-auto">
-          <table class="w-full min-w-[900px] table-fixed border-collapse text-xs">
-            <thead class="bg-gray-100 text-[10px] uppercase tracking-wider text-gray-500">
-              <tr>
-                <th class="w-28 px-3 py-2 text-left font-black">창고</th>
-                <th class="px-3 py-2 text-left font-black">제품</th>
-                <th class="w-32 px-3 py-2 text-left font-black">거래처</th>
-                <th class="w-16 px-3 py-2 text-right font-black">현재재고</th>
-                <th class="w-16 px-3 py-2 text-right font-black">안전재고</th>
-                <th class="w-16 px-3 py-2 text-right font-black">추천수량</th>
-                <th class="w-20 px-3 py-2 text-right font-black">일평균출고</th>
-                <th class="w-28 px-3 py-2 text-center font-black">상태</th>
-                <th class="w-32 px-3 py-2 text-center font-black">액션</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100">
-              <tr
-                v-for="rec in aiStore.recommendations"
-                :key="rec.id"
-                :class="{
-                  'bg-amber-50/40': rec.status === 'PENDING',
-                  'bg-emerald-50/40': rec.status === 'APPROVED',
-                  'bg-gray-50': rec.status === 'REJECTED',
-                }"
-              >
-                <td class="px-3 py-2.5 font-bold text-gray-700">{{ rec.warehouseName }}</td>
-                <td class="px-3 py-2.5">
-                  <p class="font-black text-gray-800">{{ rec.productName }}</p>
-                  <p class="text-[10px] text-gray-400">{{ rec.productCode }}</p>
-                </td>
-                <td class="px-3 py-2.5 font-bold text-gray-700">{{ rec.vendorName }}</td>
-                <td
-                  class="px-3 py-2.5 text-right font-bold"
-                  :class="rec.currentQty < rec.safetyStock ? 'text-red-600' : 'text-gray-700'"
-                >
-                  {{ rec.currentQty }}
-                </td>
-                <td class="px-3 py-2.5 text-right font-bold text-gray-500">
-                  {{ rec.safetyStock }}
-                </td>
-                <td class="px-3 py-2.5 text-right font-black text-[#004D3C]">
-                  {{ rec.recommendedQty }}
-                </td>
-                <td class="px-3 py-2.5 text-right text-gray-600">{{ rec.avgDailyOutbound }}/일</td>
-                <td class="px-3 py-2.5 text-center">
-                  <span
-                    class="inline-flex px-2 py-1 text-[10px] font-black"
-                    :class="{
-                      'bg-amber-50 text-amber-700': rec.status === 'PENDING',
-                      'bg-emerald-50 text-emerald-700': rec.status === 'APPROVED',
-                      'bg-gray-100 text-gray-500': rec.status === 'REJECTED',
-                    }"
-                  >
-                    {{
-                      rec.status === 'PENDING'
-                        ? '검토 대기'
-                        : rec.status === 'APPROVED'
-                          ? '발주 완료'
-                          : '반려'
-                    }}
-                  </span>
-                </td>
-                <td class="px-3 py-2.5 text-center">
-                  <div
-                    v-if="rec.status === 'PENDING'"
-                    class="flex items-center justify-center gap-1"
-                  >
-                    <button
-                      type="button"
-                      class="whitespace-nowrap border border-emerald-700 bg-emerald-600 px-3 py-1.5 text-xs font-extrabold text-white shadow-sm hover:bg-emerald-500"
-                      @click="handleAiCreateOrder(rec)"
-                    >
-                      발주 생성
-                    </button>
-                    <button
-                      type="button"
-                      class="whitespace-nowrap border border-red-400 bg-red-50 px-3 py-1.5 text-xs font-extrabold text-red-700 hover:bg-red-100"
-                      @click="handleAiReject(rec)"
-                    >
-                      반려
-                    </button>
-                  </div>
-                  <span v-else class="text-[10px] text-gray-400">처리 완료</span>
-                </td>
-              </tr>
-              <tr v-if="aiStore.recommendations.length === 0">
-                <td colspan="9" class="px-3 py-8 text-center text-xs text-gray-400">
-                  권장 발주 내역이 없습니다.
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <!-- 모달 푸터 -->
-        <div
-          class="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-5 py-3"
-        >
-          <p class="text-xs text-gray-500">
-            대기 중:
-            <strong class="text-amber-700">{{ aiStore.pendingRecommendations.length }}건</strong>
+        <div class="space-y-2 p-5 text-xs text-gray-700">
+          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">발주 정보</p>
+          <p>
+            <strong>{{ poStore.selectedOrder.id }}</strong> ·
+            {{ poStore.selectedOrder.vendorName }} ·
+            <span class="font-bold text-[#004D3C]">
+              ₩{{ poStore.selectedOrder.totalPrice.toLocaleString() }}
+            </span>
           </p>
+          <p class="pt-2">
+            거래처 승인을 시스템에 기록합니다. 발주 상태가 <strong>승인 완료</strong>로 변경됩니다.
+          </p>
+        </div>
+        <div class="flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3">
           <button
             type="button"
             class="border border-gray-300 bg-white px-4 py-2 text-xs font-black text-gray-700 hover:bg-gray-100"
-            @click="closeAiModal"
+            @click="cancelApprove"
           >
-            닫기
+            취소
+          </button>
+          <button
+            type="button"
+            class="border border-[#004D3C] bg-[#004D3C] px-4 py-2 text-xs font-black text-white hover:bg-[#1f4b3a]"
+            @click="confirmApprove"
+          >
+            승인 기록
           </button>
         </div>
       </div>
     </div>
+
+    <!-- ───────── 모달: 거래처 출고 시작 confirm ───────── -->
+    <div
+      v-if="showShippingConfirm && poStore.selectedOrder"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      @click.self="cancelShipping"
+    >
+      <div class="w-full max-w-sm overflow-hidden bg-white shadow-xl">
+        <div class="bg-[#004D3C] px-5 py-3 text-white">
+          <h2 class="text-sm font-black">거래처 출고 기록</h2>
+        </div>
+        <div class="space-y-2 p-5 text-xs text-gray-700">
+          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">발주 정보</p>
+          <p>
+            <strong>{{ poStore.selectedOrder.id }}</strong> ·
+            {{ poStore.selectedOrder.vendorName }} ·
+            <span class="font-bold text-[#004D3C]">
+              ₩{{ poStore.selectedOrder.totalPrice.toLocaleString() }}
+            </span>
+          </p>
+          <p class="pt-2">
+            거래처 출고를 시스템에 기록합니다. 발주 상태가 <strong>배송 중</strong>으로 변경됩니다.
+          </p>
+        </div>
+        <div class="flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3">
+          <button
+            type="button"
+            class="border border-gray-300 bg-white px-4 py-2 text-xs font-black text-gray-700 hover:bg-gray-100"
+            @click="cancelShipping"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            class="border border-[#004D3C] bg-[#004D3C] px-4 py-2 text-xs font-black text-white hover:bg-[#1f4b3a]"
+            @click="confirmShipping"
+          >
+            출고 기록
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ───────── 토스트 ───────── -->
+    <Transition
+      enter-active-class="transition-opacity duration-200"
+      leave-active-class="transition-opacity duration-200"
+      enter-from-class="opacity-0"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="toast.show"
+        class="fixed right-4 top-4 z-[60] border border-[#004D3C] bg-white px-4 py-3 text-xs font-bold text-gray-800 shadow-lg"
+      >
+        {{ toast.message }}
+      </div>
+    </Transition>
+
   </AppLayout>
 </template>
