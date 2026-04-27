@@ -214,13 +214,33 @@ function cancelStatusChange() {
   pendingStatusChange.value = null
 }
 
-// --- 삭제 ---
+// --- 삭제 (CEN-030) ---
+// 네이티브 confirm 대신 커스텀 모달(파괴 동작이라 빨간 톤)로 통일.
+const showDeleteConfirm = ref(false)
+const pendingDelete = ref(null) // { productId, productName, productCode }
+
 function handleDeleteProduct() {
   const detail = vendor.selectedProductDetail
   if (!detail) return
-  if (confirm(`[${detail.productName}] 계약을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) {
-    vendor.deleteProduct(detail.id)
+  pendingDelete.value = {
+    productId: detail.id,
+    productName: detail.productName,
+    productCode: detail.productCode,
   }
+  showDeleteConfirm.value = true
+}
+
+function confirmDelete() {
+  const target = pendingDelete.value
+  if (!target) return
+  vendor.deleteProduct(target.productId)
+  triggerToast(`"${target.productName}" 계약이 삭제되었습니다`)
+  cancelDelete()
+}
+
+function cancelDelete() {
+  showDeleteConfirm.value = false
+  pendingDelete.value = null
 }
 
 // --- 상태 뱃지 헬퍼 ---
@@ -929,7 +949,54 @@ const InfoIcon = IconBase([
       </div>
     </div>
 
-    <!-- 토스트 (등록·수정·상태 변경 공통) -->
+    <!-- ====================================================
+         계약 제품 삭제 확인 모달 (CEN-030)
+         ==================================================== -->
+    <div
+      v-if="showDeleteConfirm"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      @click.self="cancelDelete"
+    >
+      <div class="w-full max-w-sm border border-gray-300 bg-white shadow-xl">
+        <div class="flex items-center justify-between bg-red-700 px-4 py-3 text-white">
+          <h3 class="text-[11px] font-black uppercase tracking-wider">계약 제품 삭제 확인</h3>
+          <button type="button" class="p-1 hover:bg-white/10" @click="cancelDelete">
+            <XIcon :size="16" />
+          </button>
+        </div>
+
+        <div class="p-5 text-xs text-gray-700 space-y-2">
+          <p>
+            <strong class="font-black text-gray-900">{{ pendingDelete?.productName }}</strong>
+            <span class="ml-1 text-gray-400">({{ pendingDelete?.productCode }})</span>
+            계약을 삭제하시겠습니까?
+          </p>
+          <p class="font-bold text-red-700">이 작업은 되돌릴 수 없습니다.</p>
+          <p class="text-[10px] font-bold text-gray-400">
+            삭제 후 해당 거래처에 같은 제품 코드로 다시 등록할 수 있습니다.
+          </p>
+        </div>
+
+        <div class="flex justify-end gap-2 border-t border-gray-200 px-4 py-3">
+          <button
+            type="button"
+            class="border border-gray-300 bg-white px-4 py-2 text-[11px] font-black text-gray-700 hover:bg-gray-50"
+            @click="cancelDelete"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            class="border border-red-700 bg-red-700 px-4 py-2 text-[11px] font-black text-white hover:bg-red-800"
+            @click="confirmDelete"
+          >
+            삭제
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 토스트 (등록·수정·상태 변경·삭제 공통) -->
     <Transition
       enter-active-class="transition-opacity duration-200"
       enter-from-class="opacity-0"
