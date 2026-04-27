@@ -137,6 +137,29 @@ function formatDate(iso) {
   return iso.replace('T', ' ').slice(0, 16)
 }
 
+// 진행 이력 타임라인 — 점/텍스트 색상
+function historyDotClass(status) {
+  const map = {
+    PENDING: 'bg-amber-500',
+    APPROVED: 'bg-emerald-500',
+    SHIPPING: 'bg-blue-500',
+    COMPLETED: 'bg-gray-700',
+    REJECTED: 'bg-red-600',
+  }
+  return map[status] ?? 'bg-gray-400'
+}
+
+function historyTextClass(status) {
+  const map = {
+    PENDING: 'text-amber-700',
+    APPROVED: 'text-emerald-700',
+    SHIPPING: 'text-blue-600',
+    COMPLETED: 'text-gray-700',
+    REJECTED: 'text-red-700',
+  }
+  return map[status] ?? 'text-gray-700'
+}
+
 // ─── 발주 작성/수정 페이지 라우팅 ──────────────────────────────────────────
 function goCreatePage() {
   router.push({ name: 'hq-purchase-order-new' })
@@ -532,6 +555,35 @@ const TruckIcon = IconBase([
                   </tr>
                 </tfoot>
               </table>
+            </section>
+
+            <!-- 진행 이력 타임라인 -->
+            <section v-if="poStore.selectedOrder.statusHistory?.length">
+              <p class="mb-2 text-[10px] font-black uppercase text-gray-400">진행 이력</p>
+              <ol class="ml-2">
+                <li
+                  v-for="(h, idx) in poStore.selectedOrder.statusHistory"
+                  :key="idx"
+                  class="relative pb-3 pl-5 last:pb-0"
+                >
+                  <!-- 점 -->
+                  <span
+                    class="absolute left-0 top-1 block h-2.5 w-2.5"
+                    :class="historyDotClass(h.status)"
+                  />
+                  <!-- 다음 항목까지 잇는 세로선 (마지막 항목 제외) -->
+                  <span
+                    v-if="idx < poStore.selectedOrder.statusHistory.length - 1"
+                    class="absolute bottom-0 left-[4px] top-3.5 w-px bg-gray-300"
+                  />
+                  <p class="text-[11px] font-black" :class="historyTextClass(h.status)">
+                    {{ statusLabel(h.status) }}
+                  </p>
+                  <p class="text-[10px] text-gray-500">
+                    {{ formatDate(h.at) }} · {{ h.byName }}
+                  </p>
+                </li>
+              </ol>
             </section>
           </div>
 

@@ -37,6 +37,12 @@ const SEED_ORDERS = [
     totalPrice: 4500000,
     createdAt: '2026-04-15T09:30:00',
     updatedAt: '2026-04-17T14:20:00',
+    statusHistory: [
+      { status: 'PENDING', at: '2026-04-15T09:30:00', byName: '이선엽' },
+      { status: 'APPROVED', at: '2026-04-15T11:00:00', byName: '이선엽' },
+      { status: 'SHIPPING', at: '2026-04-16T08:30:00', byName: '이선엽' },
+      { status: 'COMPLETED', at: '2026-04-17T14:20:00', byName: '이선엽' },
+    ],
     items: [
       {
         id: 'PI-001-1',
@@ -62,6 +68,10 @@ const SEED_ORDERS = [
     totalPrice: 2400000,
     createdAt: '2026-04-16T10:15:00',
     updatedAt: '2026-04-16T11:00:00',
+    statusHistory: [
+      { status: 'PENDING', at: '2026-04-16T10:15:00', byName: '이선엽' },
+      { status: 'APPROVED', at: '2026-04-16T11:00:00', byName: '이선엽' },
+    ],
     items: [
       {
         id: 'PI-002-1',
@@ -96,6 +106,11 @@ const SEED_ORDERS = [
     totalPrice: 5800000,
     createdAt: '2026-04-16T13:00:00',
     updatedAt: '2026-04-17T08:30:00',
+    statusHistory: [
+      { status: 'PENDING', at: '2026-04-16T13:00:00', byName: '이선엽' },
+      { status: 'APPROVED', at: '2026-04-16T18:00:00', byName: '이선엽' },
+      { status: 'SHIPPING', at: '2026-04-17T08:30:00', byName: '이선엽' },
+    ],
     items: [
       {
         id: 'PI-003-1',
@@ -121,6 +136,9 @@ const SEED_ORDERS = [
     totalPrice: 1250000,
     createdAt: '2026-04-17T09:00:00',
     updatedAt: '2026-04-17T09:00:00',
+    statusHistory: [
+      { status: 'PENDING', at: '2026-04-17T09:00:00', byName: '이선엽' },
+    ],
     items: [
       {
         id: 'PI-004-1',
@@ -147,6 +165,10 @@ const SEED_ORDERS = [
     cancelReason: '거래처 단가 변경으로 발주 취소',
     createdAt: '2026-04-17T11:30:00',
     updatedAt: '2026-04-17T14:00:00',
+    statusHistory: [
+      { status: 'PENDING', at: '2026-04-17T11:30:00', byName: '이선엽' },
+      { status: 'REJECTED', at: '2026-04-17T14:00:00', byName: '이선엽' },
+    ],
     items: [
       {
         id: 'PI-005-1',
@@ -172,6 +194,9 @@ const SEED_ORDERS = [
     totalPrice: 3200000,
     createdAt: '2026-04-18T08:45:00',
     updatedAt: '2026-04-18T08:45:00',
+    statusHistory: [
+      { status: 'PENDING', at: '2026-04-18T08:45:00', byName: '이선엽' },
+    ],
     items: [
       {
         id: 'PI-006-1',
@@ -206,6 +231,10 @@ const SEED_ORDERS = [
     totalPrice: 880000,
     createdAt: '2026-04-18T10:20:00',
     updatedAt: '2026-04-18T15:30:00',
+    statusHistory: [
+      { status: 'PENDING', at: '2026-04-18T10:20:00', byName: '이선엽' },
+      { status: 'APPROVED', at: '2026-04-18T15:30:00', byName: '이선엽' },
+    ],
     items: [
       {
         id: 'PI-007-1',
@@ -231,6 +260,9 @@ const SEED_ORDERS = [
     totalPrice: 1950000,
     createdAt: '2026-04-19T09:15:00',
     updatedAt: '2026-04-19T09:15:00',
+    statusHistory: [
+      { status: 'PENDING', at: '2026-04-19T09:15:00', byName: '이선엽' },
+    ],
     items: [
       {
         id: 'PI-008-1',
@@ -256,6 +288,11 @@ const SEED_ORDERS = [
     totalPrice: 450000,
     createdAt: '2026-04-19T11:00:00',
     updatedAt: '2026-04-19T16:00:00',
+    statusHistory: [
+      { status: 'PENDING', at: '2026-04-19T11:00:00', byName: '이선엽' },
+      { status: 'APPROVED', at: '2026-04-19T13:30:00', byName: '이선엽' },
+      { status: 'SHIPPING', at: '2026-04-19T16:00:00', byName: '이선엽' },
+    ],
     items: [
       {
         id: 'PI-009-1',
@@ -281,6 +318,9 @@ const SEED_ORDERS = [
     totalPrice: 650000,
     createdAt: '2026-04-20T08:00:00',
     updatedAt: '2026-04-20T08:00:00',
+    statusHistory: [
+      { status: 'PENDING', at: '2026-04-20T08:00:00', byName: '이선엽' },
+    ],
     items: [
       {
         id: 'PI-010-1',
@@ -442,6 +482,7 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
       totalPrice,
       createdAt: now,
       updatedAt: now,
+      statusHistory: [{ status: 'PENDING', at: now, byName: memberName }],
       items: items.map((item, idx) => ({
         id: `PI-${Date.now()}-${idx + 1}`,
         productId: item.productId,
@@ -500,9 +541,14 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
       return
     }
 
+    const now = new Date().toISOString()
     order.status = 'REJECTED'
     order.cancelReason = reason
-    order.updatedAt = new Date().toISOString()
+    order.statusHistory = [
+      ...(order.statusHistory ?? []),
+      { status: 'REJECTED', at: now, byName: order.memberName },
+    ]
+    order.updatedAt = now
     saveToStorage()
   }
 
@@ -510,8 +556,13 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     const order = purchaseOrders.value.find((o) => o.id === id)
     if (!order || order.status !== 'PENDING') return
 
+    const now = new Date().toISOString()
     order.status = 'APPROVED'
-    order.updatedAt = new Date().toISOString()
+    order.statusHistory = [
+      ...(order.statusHistory ?? []),
+      { status: 'APPROVED', at: now, byName: order.memberName },
+    ]
+    order.updatedAt = now
     saveToStorage()
   }
 
@@ -519,8 +570,13 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     const order = purchaseOrders.value.find((o) => o.id === id)
     if (!order || order.status !== 'APPROVED') return
 
+    const now = new Date().toISOString()
     order.status = 'SHIPPING'
-    order.updatedAt = new Date().toISOString()
+    order.statusHistory = [
+      ...(order.statusHistory ?? []),
+      { status: 'SHIPPING', at: now, byName: order.memberName },
+    ]
+    order.updatedAt = now
     saveToStorage()
   }
 
@@ -528,8 +584,13 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     const order = purchaseOrders.value.find((o) => o.id === id)
     if (!order || order.status !== 'SHIPPING') return
 
+    const now = new Date().toISOString()
     order.status = 'COMPLETED'
-    order.updatedAt = new Date().toISOString()
+    order.statusHistory = [
+      ...(order.statusHistory ?? []),
+      { status: 'COMPLETED', at: now, byName: order.memberName },
+    ]
+    order.updatedAt = now
     saveToStorage()
   }
 
@@ -551,6 +612,10 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
         purchaseOrders.value = parsed.map((o) => ({
           ...o,
           cancelReason: o.cancelReason ?? '',
+          statusHistory:
+            o.statusHistory && o.statusHistory.length > 0
+              ? o.statusHistory
+              : [{ status: o.status, at: o.createdAt, byName: o.memberName }],
         }))
         return true
       }
