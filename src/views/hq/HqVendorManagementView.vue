@@ -80,8 +80,11 @@ function validateForm() {
   if (!fd.productCode) {
     errors.productCode = '필수 입력 항목입니다'
   } else if (
-    modalMode.value === 'create' &&
-    vendor.isProductCodeDuplicate(vendor.selectedVendorId, fd.productCode)
+    vendor.isProductCodeDuplicate(
+      vendor.selectedVendorId,
+      fd.productCode,
+      modalMode.value === 'edit' ? vendor.selectedProductId : null,
+    )
   ) {
     errors.productCode = '이미 등록된 제품 코드입니다'
   }
@@ -128,6 +131,10 @@ function openCreateModal() {
 function openEditModal() {
   const detail = vendor.selectedProductDetail
   if (!detail) return
+  if (detail.status === 'expired') {
+    alert('만료된 계약은 수정할 수 없습니다.')
+    return
+  }
   modalMode.value = 'edit'
   formData.value = {
     productCode: detail.productCode,
@@ -137,7 +144,6 @@ function openEditModal() {
     leadTimeDays: String(detail.leadTimeDays),
     contractStart: detail.contractStart,
     contractEnd: detail.contractEnd,
-    status: detail.status,
   }
   formErrors.value = initialFormErrors()
   showModal.value = true
@@ -171,6 +177,7 @@ function handleSubmitForm() {
   } else {
     vendor.updateProduct(vendor.selectedProductId, formData.value)
     closeModal()
+    triggerToast('계약 제품 정보가 수정되었습니다')
   }
 }
 
@@ -630,11 +637,17 @@ const InfoIcon = IconBase([
           <div class="flex flex-col gap-2 border-t border-gray-200 p-3">
             <button
               type="button"
-              class="inline-flex w-full items-center justify-center gap-1.5 border border-[#004D3C] bg-[#004D3C] px-3 py-2 text-[11px] font-black text-white hover:bg-[#1f4b3a]"
+              class="inline-flex w-full items-center justify-center gap-1.5 border px-3 py-2 text-[11px] font-black transition-colors"
+              :class="
+                vendor.selectedProductDetail.status === 'expired'
+                  ? 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-300'
+                  : 'border-[#004D3C] bg-[#004D3C] text-white hover:bg-[#1f4b3a]'
+              "
+              :disabled="vendor.selectedProductDetail.status === 'expired'"
               @click="openEditModal"
             >
               <PencilIcon :size="13" />
-              수정
+              {{ vendor.selectedProductDetail.status === 'expired' ? '만료됨 (수정 불가)' : '수정' }}
             </button>
 
             <button
@@ -695,35 +708,23 @@ const InfoIcon = IconBase([
 
         <!-- 모달 본문 -->
         <div class="p-4 space-y-3">
-          <div :class="modalMode === 'edit' ? 'grid grid-cols-2 gap-3' : ''">
-            <label class="flex flex-col gap-1">
-              <span class="text-[10px] font-black uppercase text-gray-400">제품 코드</span>
-              <input
-                v-model="formData.productCode"
-                type="text"
-                placeholder="ITM-XXXX"
-                class="border bg-gray-50 px-3 py-2 text-xs outline-none focus:bg-white"
-                :class="
-                  formErrors.productCode
-                    ? 'border-red-400 focus:border-red-500'
-                    : 'border-gray-300 focus:border-[#004D3C]'
-                "
-              />
-              <p v-if="formErrors.productCode" class="mt-1 text-[10px] font-bold text-red-600">
-                {{ formErrors.productCode }}
-              </p>
-            </label>
-            <label v-if="modalMode === 'edit'" class="flex flex-col gap-1">
-              <span class="text-[10px] font-black uppercase text-gray-400">상태</span>
-              <select
-                v-model="formData.status"
-                class="appearance-none border border-gray-300 bg-gray-50 px-3 py-2 text-xs font-bold outline-none focus:border-[#004D3C]"
-              >
-                <option value="active">활성</option>
-                <option value="suspended">정지</option>
-              </select>
-            </label>
-          </div>
+          <label class="flex flex-col gap-1">
+            <span class="text-[10px] font-black uppercase text-gray-400">제품 코드</span>
+            <input
+              v-model="formData.productCode"
+              type="text"
+              placeholder="ITM-XXXX"
+              class="border bg-gray-50 px-3 py-2 text-xs outline-none focus:bg-white"
+              :class="
+                formErrors.productCode
+                  ? 'border-red-400 focus:border-red-500'
+                  : 'border-gray-300 focus:border-[#004D3C]'
+              "
+            />
+            <p v-if="formErrors.productCode" class="mt-1 text-[10px] font-bold text-red-600">
+              {{ formErrors.productCode }}
+            </p>
+          </label>
 
           <label class="flex flex-col gap-1">
             <span class="text-[10px] font-black uppercase text-gray-400">제품명</span>

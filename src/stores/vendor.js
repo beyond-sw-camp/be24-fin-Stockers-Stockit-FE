@@ -426,11 +426,16 @@ export const useVendorStore = defineStore('vendor', () => {
     })
   }
 
-  // 같은 거래처에 같은 제품 코드가 이미 등록되어 있는지 검사 (CEN-027 등록 검증용)
-  function isProductCodeDuplicate(vendorId, productCode) {
+  // 같은 거래처에 같은 제품 코드가 이미 등록되어 있는지 검사
+  // - CEN-027 등록: excludeId 없이 호출
+  // - CEN-028 수정: 자기 자신은 중복 판정에서 제외하기 위해 excludeId = 현재 VP id
+  function isProductCodeDuplicate(vendorId, productCode, excludeId = null) {
     if (!vendorId || !productCode) return false
     return vendorProducts.value.some(
-      (vp) => vp.vendorId === vendorId && vp.productCode === productCode,
+      (vp) =>
+        vp.vendorId === vendorId &&
+        vp.productCode === productCode &&
+        vp.id !== excludeId,
     )
   }
 
