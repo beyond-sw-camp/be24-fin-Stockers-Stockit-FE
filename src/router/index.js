@@ -12,6 +12,7 @@ import StoreInventoryView from '@/views/store/StoreInventoryView.vue'
 import StoreInboundView from '@/views/store/StoreInboundView.vue'
 import StoreAiReportView from '@/views/store/StoreAiReportView.vue'
 
+import WarehouseDashboardView from '@/views/warehouse/WarehouseDashboardView.vue'
 import WarehouseInventoryView from '@/views/warehouse/WarehouseInventoryView.vue'
 import WarehouseInboundView from '@/views/warehouse/WarehouseInboundView.vue'
 import WarehouseOutboundView from '@/views/warehouse/WarehouseOutboundView.vue'
@@ -96,6 +97,12 @@ const router = createRouter({
     { path: '/store/inbound', name: 'store-inbound', component: StoreInboundView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/ai-report', name: 'store-ai-report', component: StoreAiReportView, meta: { requiresAuth: true, role: 'store' } },
 
+    {
+      path: '/warehouse/dashboard',
+      name: 'wh-dashboard',
+      component: WarehouseDashboardView,
+      meta: { requiresAuth: true, role: 'warehouse' },
+    },
     {
       path: '/warehouse/inventory',
       name: 'wh-inventory',

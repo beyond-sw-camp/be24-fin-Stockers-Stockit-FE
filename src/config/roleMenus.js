@@ -102,6 +102,7 @@ export const roleMenus = {
     { label: 'AI 리포트', path: '/store/ai-report', icon: 'chart' },
   ],
   warehouse: [
+    { label: '대시보드', path: '/warehouse/dashboard', icon: 'layout' },
     { label: '창고 재고 관리', path: '/warehouse/inventory', icon: 'warehouse' },
     { label: '입고 관리', path: '/warehouse/inbound', icon: 'check' },
     { label: '출고 관리', path: '/warehouse/outbound', icon: 'truck' },
