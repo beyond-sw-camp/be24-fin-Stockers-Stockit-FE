@@ -310,6 +310,10 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
   const selectedOrderId = ref(null)
   const activeStatusTab = ref('전체')
   const searchKeyword = ref('')
+  const vendorFilter = ref('')
+  const dateFrom = ref('')
+  const dateTo = ref('')
+  const sortBy = ref('latest') // 'latest' | 'oldest' | 'priceAsc' | 'priceDesc'
 
   // --- 게터(getters) ---
   const selectedOrder = computed(
@@ -332,8 +336,35 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
       )
     }
 
-    // 최신순 정렬
-    return [...list].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    // 거래처 필터
+    if (vendorFilter.value) {
+      list = list.filter((o) => o.vendorId === vendorFilter.value)
+    }
+
+    // 기간 필터 (createdAt 의 YYYY-MM-DD 부분만 비교)
+    if (dateFrom.value) {
+      list = list.filter((o) => o.createdAt.slice(0, 10) >= dateFrom.value)
+    }
+    if (dateTo.value) {
+      list = list.filter((o) => o.createdAt.slice(0, 10) <= dateTo.value)
+    }
+
+    // 정렬 — 새 배열로 (원본 mutate 금지)
+    const sorted = [...list]
+    switch (sortBy.value) {
+      case 'oldest':
+        sorted.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        break
+      case 'priceAsc':
+        sorted.sort((a, b) => a.totalPrice - b.totalPrice)
+        break
+      case 'priceDesc':
+        sorted.sort((a, b) => b.totalPrice - a.totalPrice)
+        break
+      default:
+        sorted.sort((a, b) => b.createdAt.localeCompare(a.createdAt)) // 'latest'
+    }
+    return sorted
   })
 
   const statusCounts = computed(() => {
@@ -345,6 +376,36 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
       SHIPPING: all.filter((o) => o.status === 'SHIPPING').length,
       COMPLETED: all.filter((o) => o.status === 'COMPLETED').length,
       REJECTED: all.filter((o) => o.status === 'REJECTED').length,
+    }
+  })
+
+  // 거래처 필터 옵션 — 발주에 등장한 unique vendor 만, 한국어 이름 오름차순
+  const vendorOptions = computed(() => {
+    const seen = new Map()
+    for (const o of purchaseOrders.value) {
+      if (!seen.has(o.vendorId)) {
+        seen.set(o.vendorId, { id: o.vendorId, name: o.vendorName })
+      }
+    }
+    return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+  })
+
+  // 통계 요약 — 거래처/기간 컨텍스트만 반영, 상태 탭/검색은 무시
+  // 상태 분포는 탭 카운트로 충분하므로 총 건수/금액만 노출
+  const summary = computed(() => {
+    let base = purchaseOrders.value
+    if (vendorFilter.value) {
+      base = base.filter((o) => o.vendorId === vendorFilter.value)
+    }
+    if (dateFrom.value) {
+      base = base.filter((o) => o.createdAt.slice(0, 10) >= dateFrom.value)
+    }
+    if (dateTo.value) {
+      base = base.filter((o) => o.createdAt.slice(0, 10) <= dateTo.value)
+    }
+    return {
+      totalCount: base.length,
+      totalPrice: base.reduce((sum, o) => sum + o.totalPrice, 0),
     }
   })
 
@@ -517,10 +578,16 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     selectedOrderId,
     activeStatusTab,
     searchKeyword,
+    vendorFilter,
+    dateFrom,
+    dateTo,
+    sortBy,
     // getters
     selectedOrder,
     filteredOrders,
     statusCounts,
+    vendorOptions,
+    summary,
     warehouses,
     // actions
     selectOrder,

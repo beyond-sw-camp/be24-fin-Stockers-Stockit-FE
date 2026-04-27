@@ -240,6 +240,29 @@ const TruckIcon = IconBase([
     @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
+      <!-- 총 발주 요약 (거래처/기간 컨텍스트 반영) -->
+      <section
+        class="flex items-center gap-4 border border-gray-200 bg-white px-5 py-4 shadow-sm"
+      >
+        <div
+          class="flex h-12 w-12 shrink-0 items-center justify-center bg-[#E6F2F0] text-[#004D3C]"
+        >
+          <TruckIcon :size="22" />
+        </div>
+        <div class="min-w-0 flex-1">
+          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500">총 발주</p>
+          <p class="mt-0.5 truncate text-2xl font-black text-[#004D3C]">
+            ₩{{ poStore.summary.totalPrice.toLocaleString() }}
+          </p>
+        </div>
+        <div class="text-right">
+          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500">건수</p>
+          <p class="mt-0.5 text-xl font-black text-gray-700">
+            {{ poStore.summary.totalCount }}<span class="ml-0.5 text-xs font-bold">건</span>
+          </p>
+        </div>
+      </section>
+
       <!-- 상단 헤더 영역: 상태 탭 -->
       <section class="border border-gray-300 bg-white p-3 shadow-sm">
         <!-- 상태 탭 -->
@@ -306,6 +329,43 @@ const TruckIcon = IconBase([
                 새 발주
               </button>
             </div>
+          </div>
+
+          <!-- 필터 줄: 거래처 / 기간 / 정렬 -->
+          <div
+            class="flex flex-wrap items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2"
+          >
+            <select
+              v-model="poStore.vendorFilter"
+              class="border border-gray-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-[#004D3C]"
+            >
+              <option value="">전체 거래처</option>
+              <option v-for="v in poStore.vendorOptions" :key="v.id" :value="v.id">
+                {{ v.name }}
+              </option>
+            </select>
+
+            <input
+              v-model="poStore.dateFrom"
+              type="date"
+              class="border border-gray-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-[#004D3C]"
+            />
+            <span class="text-xs text-gray-400">~</span>
+            <input
+              v-model="poStore.dateTo"
+              type="date"
+              class="border border-gray-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-[#004D3C]"
+            />
+
+            <select
+              v-model="poStore.sortBy"
+              class="ml-auto border border-gray-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-[#004D3C]"
+            >
+              <option value="latest">최신순</option>
+              <option value="oldest">오래된순</option>
+              <option value="priceDesc">총금액 ↓</option>
+              <option value="priceAsc">총금액 ↑</option>
+            </select>
           </div>
 
           <div class="overflow-auto">
