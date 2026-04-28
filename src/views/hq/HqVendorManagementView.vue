@@ -167,17 +167,21 @@ function triggerToast(message) {
   }, 3000)
 }
 
-function handleSubmitForm() {
+async function handleSubmitForm() {
   if (!validateForm()) return
 
-  if (modalMode.value === 'create') {
-    vendor.createProduct(formData.value)
-    closeModal()
-    triggerToast('계약 제품이 등록되었습니다')
-  } else {
-    vendor.updateProduct(vendor.selectedProductId, formData.value)
-    closeModal()
-    triggerToast('계약 제품 정보가 수정되었습니다')
+  try {
+    if (modalMode.value === 'create') {
+      await vendor.createProduct(formData.value)
+      closeModal()
+      triggerToast('계약 제품이 등록되었습니다')
+    } else {
+      await vendor.updateProduct(vendor.selectedProductId, formData.value)
+      closeModal()
+      triggerToast('계약 제품 정보가 수정되었습니다')
+    }
+  } catch (err) {
+    triggerToast(err?.message ?? '요청 처리 중 오류가 발생했습니다')
   }
 }
 
@@ -201,12 +205,17 @@ function handleToggleStatus() {
   showStatusConfirm.value = true
 }
 
-function confirmStatusChange() {
+async function confirmStatusChange() {
   const change = pendingStatusChange.value
   if (!change) return
-  vendor.updateStatus(change.productId, change.newStatus)
-  triggerToast(`계약이 "${change.label}" 상태로 변경되었습니다`)
-  cancelStatusChange()
+  try {
+    await vendor.updateStatus(change.productId, change.newStatus)
+    triggerToast(`계약이 "${change.label}" 상태로 변경되었습니다`)
+  } catch (err) {
+    triggerToast(err?.message ?? '상태 변경에 실패했습니다')
+  } finally {
+    cancelStatusChange()
+  }
 }
 
 function cancelStatusChange() {
@@ -215,11 +224,15 @@ function cancelStatusChange() {
 }
 
 // --- 삭제 ---
-function handleDeleteProduct() {
+async function handleDeleteProduct() {
   const detail = vendor.selectedProductDetail
   if (!detail) return
-  if (confirm(`[${detail.productName}] 계약을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) {
-    vendor.deleteProduct(detail.id)
+  if (!confirm(`[${detail.productName}] 계약을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return
+  try {
+    await vendor.deleteProduct(detail.id)
+    triggerToast('계약 제품이 삭제되었습니다')
+  } catch (err) {
+    triggerToast(err?.message ?? '삭제에 실패했습니다')
   }
 }
 

@@ -277,7 +277,7 @@ const iconMap = {
             />
           </label>
 
-          <label v-if="activeSideMenu !== '카테고리 관리'" class="flex items-center gap-2 text-[11px] font-black uppercase text-gray-400">
+          <label v-if="activeSideMenu !== '카테고리 관리'" class="flex items-center gap-2 text-[11px] font-bold text-gray-500">
             대분류
             <select
               :value="selectedParentFilter"
@@ -289,7 +289,7 @@ const iconMap = {
             </select>
           </label>
 
-          <label v-if="activeSideMenu !== '카테고리 관리'" class="flex items-center gap-2 text-[11px] font-black uppercase text-gray-400">
+          <label v-if="activeSideMenu !== '카테고리 관리'" class="flex items-center gap-2 text-[11px] font-bold text-gray-500">
             소분류
             <select
               v-model="selectedChildFilter"
@@ -304,7 +304,7 @@ const iconMap = {
         <div class="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            class="inline-flex items-center gap-1.5 border border-[#004D3C] bg-[#004D3C] px-3 py-2 text-xs font-black text-white hover:bg-[#003d30]"
+            class="inline-flex items-center gap-1.5 border border-[#004D3C] bg-[#004D3C] px-3 py-2 text-xs font-bold text-white hover:bg-[#003d30]"
             @click="activeSideMenu === '카테고리 관리' ? router.push('/hq/products/categories/add') : router.push('/hq/products/new')"
           >
             <PlusCircleIcon :size="14" />
@@ -317,7 +317,7 @@ const iconMap = {
       <section v-if="activeSideMenu === '카테고리 관리'" class="flex min-h-0 flex-col gap-4 xl:flex-row">
         <div class="flex min-w-0 flex-1 flex-col overflow-hidden border border-gray-300 bg-white shadow-sm">
           <div class="flex items-center justify-between border-b border-gray-200 bg-gray-50/70 px-4 py-3">
-            <h3 class="inline-flex items-center gap-2 text-xs font-black uppercase tracking-wider text-gray-800">
+            <h3 class="inline-flex items-center gap-2 text-xs font-bold text-gray-800">
               <TagsIcon :size="14" />
               카테고리 마스터
             </h3>
@@ -325,14 +325,14 @@ const iconMap = {
           </div>
           <div class="overflow-auto">
             <table class="w-full min-w-[640px] text-xs">
-              <thead class="bg-gray-100 text-[10px] uppercase tracking-wider text-gray-500">
+              <thead class="bg-gray-100 text-[10px] text-gray-500">
                 <tr>
-                  <th class="w-28 px-3 py-2 text-center font-black">분류 코드</th>
-                  <th class="px-3 py-2 text-left font-black">카테고리명</th>
-                  <th class="w-20 px-3 py-2 text-center font-black">단계</th>
-                  <th class="w-32 px-3 py-2 text-center font-black">소분류 수 / 상위 분류</th>
-                  <th class="w-24 px-3 py-2 text-center font-black">상태</th>
-                  <th class="w-32 px-3 py-2 text-center font-black">최종 수정일</th>
+                  <th class="w-28 px-3 py-2 text-center font-bold">분류 코드</th>
+                  <th class="px-3 py-2 text-left font-bold">카테고리명</th>
+                  <th class="w-20 px-3 py-2 text-center font-bold">단계</th>
+                  <th class="w-32 px-3 py-2 text-center font-bold">소분류 수 / 상위 분류</th>
+                  <th class="w-24 px-3 py-2 text-center font-bold">상태</th>
+                  <th class="w-32 px-3 py-2 text-center font-bold">최종 수정일</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">
@@ -353,15 +353,15 @@ const iconMap = {
                         >
                           <component :is="expandedCategories.has(cat.id) ? ChevronDownIcon : ChevronRightIcon" :size="11" />
                         </button>
-                        <span class="font-black text-gray-900">{{ cat.name }}</span>
+                        <span class="font-bold text-gray-900">{{ cat.name }}</span>
                       </div>
                     </td>
                     <td class="px-3 py-3 text-center">
-                      <span class="bg-[#EBF5F5] px-2 py-0.5 text-[10px] font-black text-[#004D3C]">대분류</span>
+                      <span class="bg-[#EBF5F5] px-2 py-0.5 text-[10px] font-bold text-[#004D3C]">대분류</span>
                     </td>
-                    <td class="px-3 py-3 text-center font-black text-[#004D3C]">{{ cat.children.length }}개</td>
+                    <td class="px-3 py-3 text-center font-bold text-[#004D3C]">{{ cat.children.length }}개</td>
                     <td class="px-3 py-3 text-center">
-                      <span class="bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">{{ cat.status }}</span>
+                      <span class="bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700">{{ cat.status }}</span>
                     </td>
                     <td class="px-3 py-3 text-center font-bold text-gray-400">{{ cat.lastUpdated }}</td>
                   </tr>
@@ -382,11 +382,11 @@ const iconMap = {
                         </div>
                       </td>
                       <td class="px-3 py-2.5 text-center">
-                        <span class="bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-500">소분류</span>
+                        <span class="bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-500">소분류</span>
                       </td>
                       <td class="px-3 py-2.5 text-center font-bold text-gray-500">{{ child.parentName }}</td>
                       <td class="px-3 py-2.5 text-center">
-                        <span class="bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">{{ child.status }}</span>
+                        <span class="bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700">{{ child.status }}</span>
                       </td>
                       <td class="px-3 py-2.5 text-center font-bold text-gray-400">{{ child.lastUpdated }}</td>
                     </tr>
@@ -400,7 +400,7 @@ const iconMap = {
         <!-- 카테고리 상세 패널 -->
         <aside v-if="selectedCategory" class="w-full shrink-0 border border-gray-300 bg-white shadow-sm xl:w-80">
           <div class="flex items-center justify-between bg-[#004D3C] px-4 py-3 text-white">
-            <h3 class="inline-flex items-center gap-2 text-[11px] font-black uppercase">
+            <h3 class="inline-flex items-center gap-2 text-[11px] font-bold">
               <InfoIcon :size="14" /> 카테고리 상세
             </h3>
             <button type="button" class="p-1 hover:bg-white/10" @click="closeCategoryDetail">
@@ -409,15 +409,15 @@ const iconMap = {
           </div>
           <div class="space-y-4 p-4">
             <div>
-              <p class="text-[10px] font-bold uppercase text-gray-400">분류 코드: {{ selectedCategory.id }}</p>
-              <h4 class="mt-1 text-lg font-black text-gray-900">{{ selectedCategory.name }}</h4>
+              <p class="text-[10px] font-bold text-gray-400">분류 코드: {{ selectedCategory.id }}</p>
+              <h4 class="mt-1 text-lg font-bold text-gray-900">{{ selectedCategory.name }}</h4>
               <p class="mt-1 text-xs font-bold text-gray-400">
                 {{ selectedCategory.level === '대분류' ? '시스템 계층: 대분류' : `시스템 계층: 소분류 (상위: ${selectedCategory.parentName})` }}
               </p>
             </div>
 
             <div class="space-y-3">
-              <label class="block text-[10px] font-bold uppercase text-gray-400">
+              <label class="block text-[10px] font-bold text-gray-400">
                 카테고리명
                 <input
                   type="text"
@@ -426,14 +426,14 @@ const iconMap = {
                 />
               </label>
 
-              <label v-if="selectedCategory.level === '소분류'" class="block text-[10px] font-bold uppercase text-gray-400">
+              <label v-if="selectedCategory.level === '소분류'" class="block text-[10px] font-bold text-gray-400">
                 상위 분류
                 <select class="mt-1 w-full border border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#004D3C]">
                   <option v-for="cat in categories" :key="cat.id" :selected="cat.id === selectedCategory.parentId">{{ cat.name }}</option>
                 </select>
               </label>
 
-              <label class="block text-[10px] font-bold uppercase text-gray-400">
+              <label class="block text-[10px] font-bold text-gray-400">
                 상태
                 <select class="mt-1 w-full border border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#004D3C]">
                   <option :selected="selectedCategory.status === '사용중'">사용중</option>
@@ -444,12 +444,12 @@ const iconMap = {
             </div>
 
             <div v-if="selectedCategory.level === '대분류'" class="border border-gray-200 bg-gray-50 p-3">
-              <p class="text-[10px] font-bold uppercase text-gray-400">소분류 목록</p>
+              <p class="text-[10px] font-bold text-gray-400">소분류 목록</p>
               <div class="mt-2 flex flex-wrap gap-1.5">
                 <span
                   v-for="child in categories.find(c => c.id === selectedCategory.id)?.children"
                   :key="child.id"
-                  class="bg-[#EBF5F5] px-2 py-1 text-[11px] font-black text-[#004D3C]"
+                  class="bg-[#EBF5F5] px-2 py-1 text-[11px] font-bold text-[#004D3C]"
                 >
                   {{ child.name }}
                 </span>
@@ -457,8 +457,8 @@ const iconMap = {
             </div>
 
             <div class="flex gap-2 pt-1">
-              <button type="button" class="flex-1 border border-[#004D3C] bg-[#004D3C] py-2 text-xs font-black text-white hover:bg-[#003d30]">저장</button>
-              <button type="button" class="flex-1 border border-red-300 bg-red-50 py-2 text-xs font-black text-red-600 hover:bg-red-100">삭제</button>
+              <button type="button" class="flex-1 border border-[#004D3C] bg-[#004D3C] py-2 text-xs font-bold text-white hover:bg-[#003d30]">저장</button>
+              <button type="button" class="flex-1 border border-red-300 bg-red-50 py-2 text-xs font-bold text-red-600 hover:bg-red-100">삭제</button>
             </div>
           </div>
         </aside>

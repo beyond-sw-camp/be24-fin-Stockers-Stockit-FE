@@ -1,11 +1,12 @@
 <script setup>
-import { computed, h, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, h, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 
@@ -18,10 +19,18 @@ const brandColor = '#004D3C'
 const brandColorLight = '#E6F2F0'
 
 const activeTopMenu = computed(() => '인프라 관리')
-const activeSideMenu = ref('매장 정보 관리')
-const selectedStore = ref(null)
-const selectedWarehouse = ref(null)
-const selectedMapping = ref(null)
+const menuLabels = ['매장 정보 관리', '창고 정보 관리']
+const activeSideMenu = ref(
+  typeof route.query.menu === 'string' && menuLabels.includes(route.query.menu)
+    ? route.query.menu
+    : '매장 정보 관리',
+)
+const storeRegionFilter = ref(typeof route.query.region === 'string' ? route.query.region : '전체 지역')
+const storeStatusFilter = ref(typeof route.query.status === 'string' ? route.query.status : '전체')
+const storeSearchTerm = ref(typeof route.query.search === 'string' ? route.query.search : '')
+const warehouseRegionFilter = ref(typeof route.query.region === 'string' ? route.query.region : '전체 지역')
+const warehouseStatusFilter = ref(typeof route.query.status === 'string' ? route.query.status : '전체')
+const warehouseSearchTerm = ref(typeof route.query.search === 'string' ? route.query.search : '')
 
 const topMenus = [
   '대시보드',
@@ -44,7 +53,6 @@ const routeMap = {
 const infraSideMenus = [
   { label: '매장 정보 관리', icon: 'store', id: 'SO-036' },
   { label: '창고 정보 관리', icon: 'warehouse', id: 'SO-040' },
-  { label: '매장-창고 매핑 설정', icon: 'link2', id: 'SO-045' },
 ]
 
 const locations = ['서울', '경기', '인천', '부산', '대구']
@@ -54,6 +62,9 @@ const warehouses = ['인천 제1센터', '인천 제2센터', '용인 물류센�
 
 const storeData = Array.from({ length: 32 }).map((_, i) => {
   const isExpiring = i % 7 === 0
+  const stockCapacity = 1200 + (i % 5) * 300
+  const remainingStock = 240 + (i * 77) % 1200
+  const remainingRate = Math.min(100, Math.round((remainingStock / stockCapacity) * 100))
   return {
     id: `ST-${String(i + 1).padStart(3, '0')}`,
     name: `${names[i % names.length]}${i > 9 ? ` ${Math.floor(i / 10) + 1}관` : ''}`,
@@ -65,7 +76,36 @@ const storeData = Array.from({ length: 32 }).map((_, i) => {
     endDate: isExpiring ? '2024.05.15' : '2025.12.31',
     status: i === 15 ? '비활성' : '활성',
     isExpiring,
+    stockCapacity,
+    remainingStock,
+    remainingRate,
   }
+})
+
+const storeRegionOptions = computed(() => ['전체 지역', ...new Set(storeData.map((store) => store.region))])
+const storeStatusOptions = ['전체', '활성', '비활성']
+
+if (!storeRegionOptions.value.includes(storeRegionFilter.value)) {
+  storeRegionFilter.value = '전체 지역'
+}
+
+if (!storeStatusOptions.includes(storeStatusFilter.value)) {
+  storeStatusFilter.value = '전체'
+}
+
+const filteredStoreData = computed(() => {
+  const keyword = storeSearchTerm.value.trim().toLowerCase()
+
+  return storeData.filter((store) => {
+    const matchesRegion = storeRegionFilter.value === '전체 지역' || store.region === storeRegionFilter.value
+    const matchesStatus = storeStatusFilter.value === '전체' || store.status === storeStatusFilter.value
+    const matchesKeyword = !keyword || [store.id, store.name, store.manager, store.contact, store.warehouse]
+      .join(' ')
+      .toLowerCase()
+      .includes(keyword)
+
+    return matchesRegion && matchesStatus && matchesKeyword
+  })
 })
 
 const warehouseData = [
@@ -139,50 +179,46 @@ const warehouseData = [
   },
 ]
 
+const warehouseRegionOptions = computed(() => ['전체 지역', ...new Set(warehouseData.map((warehouse) => warehouse.address.split(' ')[0].replace('광역시', '').replace('특별시', '')))])
+const warehouseStatusOptions = ['전체', '활성', '비활성', '포화 임박']
+
+if (!warehouseRegionOptions.value.includes(warehouseRegionFilter.value)) {
+  warehouseRegionFilter.value = '전체 지역'
+}
+
+if (!warehouseStatusOptions.includes(warehouseStatusFilter.value)) {
+  warehouseStatusFilter.value = '전체'
+}
+
+const filteredWarehouseData = computed(() => {
+  const keyword = warehouseSearchTerm.value.trim().toLowerCase()
+
+  return warehouseData.filter((warehouse) => {
+    const region = warehouse.address.split(' ')[0].replace('광역시', '').replace('특별시', '')
+    const matchesRegion = warehouseRegionFilter.value === '전체 지역' || region === warehouseRegionFilter.value
+    const matchesStatus = warehouseStatusFilter.value === '전체' || warehouse.status === warehouseStatusFilter.value
+    const matchesKeyword = !keyword || [warehouse.id, warehouse.name, warehouse.manager, warehouse.contact, warehouse.address]
+      .join(' ')
+      .toLowerCase()
+      .includes(keyword)
+
+    return matchesRegion && matchesStatus && matchesKeyword
+  })
+})
+
 const isStoreMenu = computed(() => activeSideMenu.value === '매장 정보 관리')
 const isWarehouseMenu = computed(() => activeSideMenu.value === '창고 정보 관리')
-const isMappingMenu = computed(() => activeSideMenu.value === '매장-창고 매핑 설정')
-
-const mappingCoverageSets = [
-  ['전자제품', '문구/사무', '위생용품'],
-  ['전자제품', '주방잡화'],
-  ['문구/사무', '생활가전'],
-  ['전자제품', '취미/레저', '주방잡화'],
-  ['위생용품', '문구/사무'],
-  ['생활가전', '인테리어/가구'],
-]
-
-const mappingRuleSets = [
-  ['주 공급 창고 우선 배정', '재고 부족 시 백업 창고 자동 전환', '긴급 발주는 직송 검토'],
-  ['오전 11시 이전 주문 당일 출고', '프로모션 상품 별도 할당'],
-  ['주말 주문은 월요일 일괄 출고', '가전 품목은 별도 검수 후 이동'],
-  ['백업 전환 시 리드타임 1일 추가', '고가 품목은 이중 피킹 검수'],
-  ['매장 행사 기간 안전재고 20% 상향', '야간 출고 제한 규칙 적용'],
-  ['취약 매장은 주 2회 고정 보충', '계절 상품은 별도 슬롯 배정'],
-]
-
-const mappingData = storeData.map((store, index) => {
-  const primaryWarehouse = store.warehouse
-  const backupWarehouse = warehouses[(warehouses.indexOf(primaryWarehouse) + 1) % warehouses.length]
-  const highPriority = store.region === '서울' || store.region === '경기'
-  const priority = index % 9 === 0 ? 'P3' : highPriority ? 'P1' : 'P2'
-  const leadTime = priority === 'P1' ? (index % 4 === 0 ? '당일' : 'D+1') : priority === 'P2' ? 'D+1' : 'D+2'
-  const status = store.status === '비활성' ? '점검중' : index % 11 === 0 ? '점검중' : '운영중'
-
-  return {
-    id: `MAP-${String(index + 1).padStart(3, '0')}`,
-    storeId: store.id,
-    storeName: store.name,
-    region: store.region,
-    primaryWarehouse,
-    backupWarehouse,
-    priority,
-    leadTime,
-    status,
-    manager: store.manager,
-    coverage: mappingCoverageSets[index % mappingCoverageSets.length],
-    rules: mappingRuleSets[index % mappingRuleSets.length],
-  }
+const activeSearchTerm = computed({
+  get() {
+    return isWarehouseMenu.value ? warehouseSearchTerm.value : storeSearchTerm.value
+  },
+  set(value) {
+    if (isWarehouseMenu.value) {
+      warehouseSearchTerm.value = value
+      return
+    }
+    storeSearchTerm.value = value
+  },
 })
 
 const handleTopMenuClick = (menu) => {
@@ -192,16 +228,39 @@ const handleTopMenuClick = (menu) => {
   }
 }
 
-const closeDetail = () => {
-  selectedStore.value = null
-  selectedWarehouse.value = null
-  selectedMapping.value = null
+const goToStoreDetail = (store) => {
+  router.push({
+    name: 'hq-infrastructure-store-detail',
+    params: { storeId: store.id },
+    query: {
+      region: storeRegionFilter.value !== '전체 지역' ? storeRegionFilter.value : undefined,
+      status: storeStatusFilter.value !== '전체' ? storeStatusFilter.value : undefined,
+      search: storeSearchTerm.value || undefined,
+    },
+  })
 }
 
-const handleSideMenuClick = (menu) => {
-  activeSideMenu.value = menu
-  closeDetail()
+const goToWarehouseDetail = (warehouse) => {
+  router.push({
+    name: 'hq-infrastructure-warehouse-detail',
+    params: { warehouseId: warehouse.id },
+    query: {
+      menu: '창고 정보 관리',
+      region: warehouseRegionFilter.value !== '전체 지역' ? warehouseRegionFilter.value : undefined,
+      status: warehouseStatusFilter.value !== '전체' ? warehouseStatusFilter.value : undefined,
+      search: warehouseSearchTerm.value || undefined,
+    },
+  })
 }
+
+watch(
+  () => route.query.menu,
+  (menu) => {
+    if (typeof menu === 'string' && menuLabels.includes(menu)) {
+      activeSideMenu.value = menu
+    }
+  },
+)
 
 const IconBase = (paths) => ({
   props: {
@@ -242,66 +301,20 @@ const WarehouseIcon = IconBase([
   { tag: 'path', attrs: { d: 'M5 9.5V20h14V9.5' } },
   { tag: 'path', attrs: { d: 'M10 20v-5h4v5' } },
 ])
-const Link2Icon = IconBase([
-  { tag: 'path', attrs: { d: 'M10 13a5 5 0 0 0 7.07 0l1.41-1.41a5 5 0 0 0-7.07-7.07L10.5 5.44' } },
-  { tag: 'path', attrs: { d: 'M14 11a5 5 0 0 0-7.07 0L5.5 12.44a5 5 0 0 0 7.07 7.07L13.5 18.56' } },
-])
 const SearchIcon = IconBase([
   { tag: 'circle', attrs: { cx: '11', cy: '11', r: '7' } },
   { tag: 'path', attrs: { d: 'm20 20-3.5-3.5' } },
-])
-const PlusCircleIcon = IconBase([
-  { tag: 'circle', attrs: { cx: '12', cy: '12', r: '9' } },
-  { tag: 'path', attrs: { d: 'M12 8v8' } },
-  { tag: 'path', attrs: { d: 'M8 12h8' } },
 ])
 const MapPinIcon = IconBase([
   { tag: 'path', attrs: { d: 'M12 21s-6-4.35-6-11a6 6 0 1 1 12 0c0 6.65-6 11-6 11Z' } },
   { tag: 'circle', attrs: { cx: '12', cy: '10', r: '2.5' } },
 ])
-const DownloadIcon = IconBase([
-  { tag: 'path', attrs: { d: 'M12 3v12' } },
-  { tag: 'path', attrs: { d: 'm7 10 5 5 5-5' } },
-  { tag: 'path', attrs: { d: 'M5 21h14' } },
-])
 const ChevronLeftIcon = IconBase([{ tag: 'path', attrs: { d: 'm15 18-6-6 6-6' } }])
 const ChevronRightIcon = IconBase([{ tag: 'path', attrs: { d: 'm9 18 6-6-6-6' } }])
-const InfoIcon = IconBase([
-  { tag: 'circle', attrs: { cx: '12', cy: '12', r: '9' } },
-  { tag: 'path', attrs: { d: 'M12 10v6' } },
-  { tag: 'path', attrs: { d: 'M12 7h.01' } },
-])
-const XIcon = IconBase([
-  { tag: 'path', attrs: { d: 'M18 6 6 18' } },
-  { tag: 'path', attrs: { d: 'm6 6 12 12' } },
-])
-const Edit3Icon = IconBase([
-  { tag: 'path', attrs: { d: 'M12 20h9' } },
-  { tag: 'path', attrs: { d: 'M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z' } },
-])
-const HistoryIcon = IconBase([
-  { tag: 'path', attrs: { d: 'M3 12a9 9 0 1 0 3-6.7' } },
-  { tag: 'path', attrs: { d: 'M3 4v5h5' } },
-  { tag: 'path', attrs: { d: 'M12 7v5l3 2' } },
-])
-const PhoneIcon = IconBase([
-  { tag: 'path', attrs: { d: 'M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.34 1.78.66 2.62a2 2 0 0 1-.45 2.11L8 9.77a16 16 0 0 0 6.23 6.23l1.32-1.32a2 2 0 0 1 2.11-.45c.84.32 1.72.54 2.62.66A2 2 0 0 1 22 16.92Z' } },
-])
-const AlertTriangleIcon = IconBase([
-  { tag: 'path', attrs: { d: 'M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z' } },
-  { tag: 'path', attrs: { d: 'M12 9v4' } },
-  { tag: 'path', attrs: { d: 'M12 17h.01' } },
-])
-const AlertCircleIcon = IconBase([
-  { tag: 'circle', attrs: { cx: '12', cy: '12', r: '9' } },
-  { tag: 'path', attrs: { d: 'M12 8v5' } },
-  { tag: 'path', attrs: { d: 'M12 16h.01' } },
-])
 
 const iconMap = {
   store: StoreIcon,
   warehouse: WarehouseIcon,
-  link2: Link2Icon,
 }
 </script>
 
@@ -319,7 +332,17 @@ const iconMap = {
           <div class="filter-left">
             <div class="filter-item">
               <span>지역 분류</span>
-              <select>
+              <select v-if="isStoreMenu" v-model="storeRegionFilter">
+                <option v-for="region in storeRegionOptions" :key="region" :value="region">
+                  {{ region }}
+                </option>
+              </select>
+              <select v-else-if="isWarehouseMenu" v-model="warehouseRegionFilter">
+                <option v-for="region in warehouseRegionOptions" :key="region" :value="region">
+                  {{ region }}
+                </option>
+              </select>
+              <select v-else>
                 <option>전체 지역</option>
                 <option>서울권역</option>
                 <option>경기권역</option>
@@ -329,91 +352,92 @@ const iconMap = {
             </div>
             <div class="filter-item">
               <span>운영 상태</span>
-              <select>
+              <select v-if="isStoreMenu" v-model="storeStatusFilter">
+                <option>전체</option>
+                <option>활성</option>
+                <option>비활성</option>
+              </select>
+              <select v-else-if="isWarehouseMenu" v-model="warehouseStatusFilter">
+                <option v-for="status in warehouseStatusOptions" :key="status" :value="status">
+                  {{ status }}
+                </option>
+              </select>
+              <select v-else>
                 <option>전체</option>
                 <option>{{ isWarehouseMenu ? '활성 창고' : '활성 매장' }}</option>
                 <option>비활성</option>
               </select>
             </div>
             <div class="separator" />
-            <label class="search-box wide-search">
+              <label class="search-box wide-search">
               <SearchIcon :size="14" class="search-icon" />
                 <input
+                  v-model="activeSearchTerm"
                   type="text"
                   :placeholder="
                     isWarehouseMenu
                       ? '창고명, 창고 ID, 담당 책임자 통합 검색...'
-                      : isMappingMenu
-                        ? '매장명, 창고명, 매핑 ID 통합 검색...'
-                        : '매장명, 매장 ID, 담당자 통합 검색...'
+                      : '매장명, 매장 ID, 담당자 통합 검색...'
                   "
                 />
               </label>
           </div>
-          <button type="button" class="primary-button">
-            <PlusCircleIcon :size="14" />
-            {{
-              isWarehouseMenu
-                ? '신규 창고 등록 (SO-038)'
-                : isMappingMenu
-                  ? '신규 매핑 설정 (SO-045)'
-                  : '신규 매장 등록 (SO-036)'
-            }}
-          </button>
         </section>
 
-        <section v-if="activeSideMenu === '매장 정보 관리'" class="infra-split">
-          <div class="panel store-panel">
+        <section v-if="activeSideMenu === '매장 정보 관리'" class="panel store-panel">
             <div class="store-head">
               <div class="store-head-left">
-                <h3><MapPinIcon :size="14" /> 전사 매장 마스터 정보 (SO-036)</h3>
-                <span>Total: {{ storeData.length }} Locations</span>
+                <h3 class="text-[11px] font-black uppercase tracking-[0.08em] text-gray-700">
+                  <MapPinIcon :size="14" /> 전사 매장 마스터 정보 (SO-036)
+                </h3>
+                <span class="text-[10px] font-bold text-gray-400">Total: {{ filteredStoreData.length }} Locations</span>
               </div>
-              <button type="button" class="ghost-button">
-                <DownloadIcon :size="12" />
-                목록 다운로드
-              </button>
             </div>
 
-            <div class="table-wrap">
-              <table class="infra-table">
-                <thead>
-                  <tr>
-                    <th class="w-id center">매장 ID</th>
-                    <th>매장 명</th>
-                    <th class="w-region center">지역</th>
-                    <th class="w-type">타입</th>
-                    <th class="w-manager">담당자</th>
-                    <th class="w-contact">연락처</th>
-                    <th class="w-warehouse">주 공급 창고</th>
-                    <th class="w-end center">계약 종료일</th>
-                    <th class="w-status center">상태</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    v-for="store in storeData"
-                    :key="store.id"
-                    :class="{ selected: selectedStore?.id === store.id }"
-                    @click="selectedStore = store"
-                  >
-                    <td class="center muted strong-small">{{ store.id }}</td>
-                    <td class="strong truncate">{{ store.name }}</td>
-                    <td class="center">{{ store.region }}</td>
-                    <td class="semi-strong">{{ store.type }}</td>
-                    <td class="semi-strong">{{ store.manager }}</td>
-                    <td>{{ store.contact }}</td>
-                    <td class="warehouse-cell">{{ store.warehouse }}</td>
-                    <td class="center">
-                      <span class="end-date" :class="{ expiring: store.isExpiring }">{{ store.endDate }}</span>
-                      <AlertTriangleIcon v-if="store.isExpiring" :size="12" class="warn-icon" />
-                    </td>
-                    <td class="center">
-                      <span class="status-badge" :class="store.status">{{ store.status }}</span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+            <div class="store-card-grid">
+              <article
+                v-for="store in filteredStoreData"
+                :key="store.id"
+                class="store-card cursor-pointer hover:bg-[#EBF5F5]/40"
+                @click="goToStoreDetail(store)"
+              >
+                <div class="store-card-head">
+                  <div>
+                    <p class="text-[10px] font-bold text-gray-400">{{ store.id }}</p>
+                    <h4 class="mt-1 text-sm font-black text-gray-900">{{ store.name }}</h4>
+                  </div>
+                  <span class="status-badge" :class="store.status">{{ store.status }}</span>
+                </div>
+
+                <div class="flex items-center gap-1">
+                  <span class="inline-flex items-center bg-gray-100 px-2 py-1 text-[10px] font-bold text-gray-600">{{ store.region }}</span>
+                </div>
+
+                <p class="text-[11px] font-bold text-gray-600">
+                  담당 창고: <span class="text-gray-800">{{ store.warehouse }}</span>
+                </p>
+
+                <div class="store-stock-graph">
+                  <div class="store-stock-head">
+                    <span>남은 재고량</span>
+                    <strong :class="{ low: store.remainingRate < 30 }">{{ store.remainingRate }}%</strong>
+                  </div>
+                  <div class="store-stock-track">
+                    <div
+                      class="store-stock-fill"
+                      :class="{ low: store.remainingRate < 30, caution: store.remainingRate >= 30 && store.remainingRate < 60 }"
+                      :style="{ width: `${store.remainingRate}%` }"
+                    />
+                  </div>
+                  <p class="store-stock-meta">
+                    {{ store.remainingStock.toLocaleString() }} / {{ store.stockCapacity.toLocaleString() }} EA
+                  </p>
+                </div>
+              </article>
+
+              <div v-if="filteredStoreData.length === 0" class="store-empty">
+                조건에 맞는 매장 정보가 없습니다.
+              </div>
             </div>
 
             <div class="table-footer">
@@ -425,132 +449,67 @@ const iconMap = {
                 <button type="button"><ChevronRightIcon :size="14" /></button>
               </div>
             </div>
-          </div>
-
-          <aside v-if="selectedStore" class="panel detail-panel">
-            <div class="detail-head">
-              <h3>
-                <InfoIcon :size="14" />
-                매장 상세 정보 조회
-              </h3>
-              <button type="button" class="detail-close" @click="closeDetail">
-                <XIcon :size="16" />
-              </button>
-            </div>
-
-            <div class="detail-body">
-              <div>
-                <p class="caption">마스터 ID: {{ selectedStore.id }}</p>
-                <h4>{{ selectedStore.name }}</h4>
-                <div class="tag-row">
-                  <span>{{ selectedStore.region }} | {{ selectedStore.type }}</span>
-                </div>
-              </div>
-
-              <section class="detail-section">
-                <p class="section-title">거점 운영 정보</p>
-                <div class="info-grid">
-                  <div>
-                    <p class="label">매장 담당자</p>
-                    <p class="value">{{ selectedStore.manager }} 점장</p>
-                  </div>
-                  <div>
-                    <p class="label">대표 번호</p>
-                    <p class="value with-icon"><PhoneIcon :size="10" /> {{ selectedStore.contact }}</p>
-                  </div>
-                  <div class="full">
-                    <p class="label">공급망 배정 창고</p>
-                    <p class="value green"><WarehouseIcon :size="12" /> {{ selectedStore.warehouse }}</p>
-                  </div>
-                </div>
-              </section>
-
-              <section class="detail-section">
-                <p class="section-title">계약 유지 정보</p>
-                <div class="contract-box" :class="{ expiring: selectedStore.isExpiring }">
-                  <div class="contract-row">
-                    <span>계약 만료 일자</span>
-                    <strong :class="{ expiring: selectedStore.isExpiring }">{{ selectedStore.endDate }}</strong>
-                  </div>
-                  <p v-if="selectedStore.isExpiring" class="contract-alert">
-                    <AlertCircleIcon :size="10" />
-                    계약 종료가 임박했습니다. 담당자 협의가 필요합니다.
-                  </p>
-                </div>
-              </section>
-            </div>
-
-            <div class="detail-actions">
-              <button type="button" class="primary-button detail-action">
-                <Edit3Icon :size="14" />
-                정보 수정
-              </button>
-              <button type="button" class="ghost-button detail-action history">
-                <HistoryIcon :size="14" />
-                변경 이력
-              </button>
-            </div>
-          </aside>
         </section>
 
-        <section v-else-if="activeSideMenu === '창고 정보 관리'" class="infra-split">
-          <div class="panel store-panel">
+        <section v-else-if="activeSideMenu === '창고 정보 관리'" class="panel store-panel">
             <div class="store-head">
               <div class="store-head-left">
                 <h3><WarehouseIcon :size="14" /> 전사 창고 마스터 정보 (SO-041)</h3>
-                <span>Total: {{ warehouseData.length }} Warehouses</span>
+                <span>Total: {{ filteredWarehouseData.length }} Warehouses</span>
               </div>
-              <button type="button" class="ghost-button">
-                <DownloadIcon :size="12" />
-                목록 다운로드
-              </button>
             </div>
 
-            <div class="table-wrap">
-              <table class="infra-table">
-                <thead>
-                  <tr>
-                    <th class="w-id center">창고 ID</th>
-                    <th class="w-warehouse-name">창고명</th>
-                    <th class="w-address">주소</th>
-                    <th class="w-manager">담당 책임자</th>
-                    <th class="w-contact">연락처</th>
-                    <th class="w-stock right">현재 재고 수량</th>
-                    <th class="w-occupancy center">공간 점유율</th>
-                    <th class="w-status center">상태</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    v-for="warehouse in warehouseData"
-                    :key="warehouse.id"
-                    :class="{ selected: selectedWarehouse?.id === warehouse.id }"
-                    @click="selectedWarehouse = warehouse"
-                  >
-                    <td class="center muted strong-small">{{ warehouse.id }}</td>
-                    <td class="strong truncate">{{ warehouse.name }}</td>
-                    <td class="truncate">{{ warehouse.address }}</td>
-                    <td class="semi-strong">{{ warehouse.manager }}</td>
-                    <td>{{ warehouse.contact }}</td>
-                    <td class="right semi-strong">{{ warehouse.stockQty.toLocaleString() }} EA</td>
-                    <td class="center">
-                      <div class="occupancy-wrap">
-                        <span :class="{ danger: warehouse.occupancy >= 90 }">{{ warehouse.occupancy }}%</span>
-                        <div class="occupancy-bar">
-                          <div
-                            class="occupancy-fill"
-                            :class="{ warning: warehouse.occupancy >= 80, danger: warehouse.occupancy >= 90 }"
-                            :style="{ width: `${warehouse.occupancy}%` }"
-                          />
-                        </div>
-                      </div>
-                    </td>
-                    <td class="center">
-                      <span class="status-badge" :class="warehouse.status">{{ warehouse.status }}</span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+            <div class="store-card-grid">
+              <article
+                v-for="warehouse in filteredWarehouseData"
+                :key="warehouse.id"
+                class="store-card warehouse-card cursor-pointer hover:bg-[#EBF5F5]/40"
+                @click="goToWarehouseDetail(warehouse)"
+              >
+                <div class="store-card-head">
+                  <div>
+                    <p class="text-[10px] font-bold text-gray-400">{{ warehouse.id }}</p>
+                    <h4 class="mt-1 text-sm font-black text-gray-900">{{ warehouse.name }}</h4>
+                  </div>
+                  <span class="status-badge" :class="warehouse.status">{{ warehouse.status }}</span>
+                </div>
+
+                <p class="warehouse-address">{{ warehouse.address }}</p>
+
+                <div class="warehouse-meta-grid">
+                  <p class="warehouse-meta-row">
+                    <span>담당 책임자</span>
+                    <strong>{{ warehouse.manager }}</strong>
+                  </p>
+                  <p class="warehouse-meta-row">
+                    <span>연락처</span>
+                    <strong>{{ warehouse.contact }}</strong>
+                  </p>
+                  <p class="warehouse-meta-row full">
+                    <span>현재 재고 수량</span>
+                    <strong class="text-[#0f766e]">{{ warehouse.stockQty.toLocaleString() }} EA</strong>
+                  </p>
+                </div>
+
+                <div class="store-stock-graph">
+                  <div class="store-stock-head">
+                    <span>공간 점유율</span>
+                    <strong :class="{ low: warehouse.occupancy >= 90 }">{{ warehouse.occupancy }}%</strong>
+                  </div>
+                  <div class="store-stock-track">
+                    <div
+                      class="store-stock-fill"
+                      :class="{ caution: warehouse.occupancy >= 80 && warehouse.occupancy < 90, low: warehouse.occupancy >= 90 }"
+                      :style="{ width: `${warehouse.occupancy}%` }"
+                    />
+                  </div>
+                  <p class="store-stock-meta">{{ warehouse.capacity }}</p>
+                </div>
+              </article>
+
+              <div v-if="filteredWarehouseData.length === 0" class="store-empty">
+                조건에 맞는 창고 정보가 없습니다.
+              </div>
             </div>
 
             <div class="table-footer">
@@ -561,266 +520,6 @@ const iconMap = {
                 <button type="button"><ChevronRightIcon :size="14" /></button>
               </div>
             </div>
-          </div>
-
-          <aside v-if="selectedWarehouse" class="panel detail-panel">
-            <div class="detail-head">
-              <h3>
-                <InfoIcon :size="14" />
-                창고 상세 정보 조회
-              </h3>
-              <button type="button" class="detail-close" @click="closeDetail">
-                <XIcon :size="16" />
-              </button>
-            </div>
-
-            <div class="detail-body">
-              <div>
-                <p class="caption">마스터 ID: {{ selectedWarehouse.id }}</p>
-                <h4>{{ selectedWarehouse.name }}</h4>
-                <div class="tag-row">
-                  <span>{{ selectedWarehouse.status }} | {{ selectedWarehouse.capacity }}</span>
-                </div>
-              </div>
-
-              <section class="detail-section">
-                <p class="section-title">창고 기본 정보</p>
-                <div class="info-grid">
-                  <div class="full">
-                    <p class="label">창고 주소</p>
-                    <p class="value">{{ selectedWarehouse.address }}</p>
-                  </div>
-                  <div>
-                    <p class="label">담당 책임자</p>
-                    <p class="value">{{ selectedWarehouse.manager }}</p>
-                  </div>
-                  <div>
-                    <p class="label">연락처</p>
-                    <p class="value with-icon"><PhoneIcon :size="10" /> {{ selectedWarehouse.contact }}</p>
-                  </div>
-                  <div>
-                    <p class="label">창고 용량</p>
-                    <p class="value">{{ selectedWarehouse.capacity }}</p>
-                  </div>
-                  <div>
-                    <p class="label">현재 재고 수량</p>
-                    <p class="value green">{{ selectedWarehouse.stockQty.toLocaleString() }} EA</p>
-                  </div>
-                </div>
-              </section>
-
-              <section class="detail-section">
-                <p class="section-title">공간 운영 현황</p>
-                <div class="contract-box" :class="{ expiring: selectedWarehouse.occupancy >= 90 }">
-                  <div class="contract-row">
-                    <span>공간 점유율</span>
-                    <strong :class="{ expiring: selectedWarehouse.occupancy >= 90 }">{{ selectedWarehouse.occupancy }}%</strong>
-                  </div>
-                  <div class="detail-occupancy-bar">
-                    <div
-                      class="occupancy-fill"
-                      :class="{ warning: selectedWarehouse.occupancy >= 80, danger: selectedWarehouse.occupancy >= 90 }"
-                      :style="{ width: `${selectedWarehouse.occupancy}%` }"
-                    />
-                  </div>
-                  <p v-if="selectedWarehouse.occupancy >= 90" class="contract-alert">
-                    <AlertCircleIcon :size="10" />
-                    적재율이 높습니다. 입고 슬롯 재조정이 필요합니다.
-                  </p>
-                </div>
-              </section>
-
-              <section class="detail-section">
-                <p class="section-title">연결 매장</p>
-                <div class="list-box">
-                  <div
-                    v-for="storeName in selectedWarehouse.mappedStores"
-                    :key="storeName"
-                    class="list-row"
-                  >
-                    <span>{{ storeName }}</span>
-                    <ChevronRightIcon :size="12" />
-                  </div>
-                </div>
-              </section>
-
-              <section class="detail-section">
-                <p class="section-title">최근 입출고 이력</p>
-                <div class="list-box">
-                  <div
-                    v-for="flow in selectedWarehouse.recentFlows"
-                    :key="`${flow.time}-${flow.item}`"
-                    class="flow-row"
-                  >
-                    <div>
-                      <p class="flow-title">{{ flow.item }}</p>
-                      <p class="flow-meta">{{ flow.time }} · {{ flow.type }}</p>
-                    </div>
-                    <strong :class="{ out: String(flow.qty).startsWith('-') }">{{ flow.qty }}</strong>
-                  </div>
-                </div>
-              </section>
-            </div>
-
-            <div class="detail-actions">
-              <button type="button" class="primary-button detail-action">
-                <Edit3Icon :size="14" />
-                정보 수정
-              </button>
-              <button type="button" class="ghost-button detail-action history">
-                <HistoryIcon :size="14" />
-                변경 이력
-              </button>
-            </div>
-          </aside>
-        </section>
-
-        <section v-else-if="activeSideMenu === '매장-창고 매핑 설정'" class="infra-split">
-          <div class="panel store-panel">
-            <div class="store-head">
-              <div class="store-head-left">
-                <h3><Link2Icon :size="14" /> 매장-창고 매핑 운영 현황</h3>
-                <span>Total: {{ mappingData.length }} Active Rules</span>
-              </div>
-              <button type="button" class="ghost-button">
-                <DownloadIcon :size="12" />
-                설정 다운로드
-              </button>
-            </div>
-
-            <div class="table-wrap">
-              <table class="infra-table">
-                <thead>
-                  <tr>
-                    <th class="w-id center">매핑 ID</th>
-                    <th class="w-store-name">매장명</th>
-                    <th class="w-region center">지역</th>
-                    <th class="w-warehouse-name">주 공급 창고</th>
-                    <th class="w-warehouse-name">백업 창고</th>
-                    <th class="w-priority center">우선순위</th>
-                    <th class="w-lead center">리드타임</th>
-                    <th class="w-status center">상태</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    v-for="mapping in mappingData"
-                    :key="mapping.id"
-                    :class="{ selected: selectedMapping?.id === mapping.id }"
-                    @click="selectedMapping = mapping"
-                  >
-                    <td class="center muted strong-small">{{ mapping.id }}</td>
-                    <td class="strong truncate">{{ mapping.storeName }}</td>
-                    <td class="center">{{ mapping.region }}</td>
-                    <td class="semi-strong">{{ mapping.primaryWarehouse }}</td>
-                    <td>{{ mapping.backupWarehouse }}</td>
-                    <td class="center">
-                      <span class="priority-chip" :class="mapping.priority.toLowerCase()">{{ mapping.priority }}</span>
-                    </td>
-                    <td class="center semi-strong">{{ mapping.leadTime }}</td>
-                    <td class="center">
-                      <span class="status-badge" :class="mapping.status">{{ mapping.status }}</span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <div class="table-footer">
-              <span>Store-Warehouse Mapping Control Matrix</span>
-              <div class="pagination">
-                <button type="button"><ChevronLeftIcon :size="14" /></button>
-                <button type="button" class="active">1</button>
-                <button type="button"><ChevronRightIcon :size="14" /></button>
-              </div>
-            </div>
-          </div>
-
-          <aside v-if="selectedMapping" class="panel detail-panel">
-            <div class="detail-head">
-              <h3>
-                <InfoIcon :size="14" />
-                매핑 상세 설정
-              </h3>
-              <button type="button" class="detail-close" @click="closeDetail">
-                <XIcon :size="16" />
-              </button>
-            </div>
-
-            <div class="detail-body">
-              <div>
-                <p class="caption">매핑 ID: {{ selectedMapping.id }}</p>
-                <h4>{{ selectedMapping.storeName }}</h4>
-                <div class="tag-row">
-                  <span>{{ selectedMapping.storeId }} | {{ selectedMapping.region }}</span>
-                </div>
-              </div>
-
-              <section class="detail-section">
-                <p class="section-title">공급망 연결 정보</p>
-                <div class="info-grid">
-                  <div class="full">
-                    <p class="label">주 공급 창고</p>
-                    <p class="value green"><WarehouseIcon :size="12" /> {{ selectedMapping.primaryWarehouse }}</p>
-                  </div>
-                  <div class="full">
-                    <p class="label">백업 창고</p>
-                    <p class="value"><WarehouseIcon :size="12" /> {{ selectedMapping.backupWarehouse }}</p>
-                  </div>
-                  <div>
-                    <p class="label">우선순위</p>
-                    <p class="value">{{ selectedMapping.priority }}</p>
-                  </div>
-                  <div>
-                    <p class="label">기본 리드타임</p>
-                    <p class="value">{{ selectedMapping.leadTime }}</p>
-                  </div>
-                  <div>
-                    <p class="label">운영 담당자</p>
-                    <p class="value">{{ selectedMapping.manager }}</p>
-                  </div>
-                  <div>
-                    <p class="label">상태</p>
-                    <p class="value">{{ selectedMapping.status }}</p>
-                  </div>
-                </div>
-              </section>
-
-              <section class="detail-section">
-                <p class="section-title">적용 카테고리</p>
-                <div class="chip-wrap">
-                  <span v-for="category in selectedMapping.coverage" :key="category" class="coverage-chip">
-                    {{ category }}
-                  </span>
-                </div>
-              </section>
-
-              <section class="detail-section">
-                <p class="section-title">운영 규칙</p>
-                <div class="list-box">
-                  <div
-                    v-for="rule in selectedMapping.rules"
-                    :key="rule"
-                    class="list-row"
-                  >
-                    <span>{{ rule }}</span>
-                    <ChevronRightIcon :size="12" />
-                  </div>
-                </div>
-              </section>
-            </div>
-
-            <div class="detail-actions">
-              <button type="button" class="primary-button detail-action">
-                <Edit3Icon :size="14" />
-                설정 수정
-              </button>
-              <button type="button" class="ghost-button detail-action history">
-                <HistoryIcon :size="14" />
-                변경 이력
-              </button>
-            </div>
-          </aside>
         </section>
 
         <section v-else class="panel placeholder-panel">
@@ -1210,15 +909,139 @@ const iconMap = {
   align-items: center;
   gap: 8px;
   color: #374151;
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .store-head-left span {
   color: #9ca3af;
   font-size: 10px;
+  font-weight: 700;
+}
+
+.store-card-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  padding: 12px;
+  overflow: auto;
+}
+
+.store-card {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.warehouse-card {
+  gap: 12px;
+}
+
+.warehouse-address {
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.warehouse-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 12px;
+}
+
+.warehouse-meta-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.warehouse-meta-row.full {
+  grid-column: 1 / -1;
+}
+
+.warehouse-meta-row span {
+  color: #9ca3af;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.warehouse-meta-row strong {
+  color: #1f2937;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.store-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.store-stock-graph {
+  margin-top: 2px;
+}
+
+.store-stock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.store-stock-head strong {
+  color: #111827;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.store-stock-head strong.low {
+  color: #dc2626;
+}
+
+.store-stock-track {
+  margin-top: 6px;
+  height: 8px;
+  width: 100%;
+  background: #e5e7eb;
+  overflow: hidden;
+}
+
+.store-stock-fill {
+  height: 100%;
+  background: #0f766e;
+}
+
+.store-stock-fill.caution {
+  background: #d97706;
+}
+
+.store-stock-fill.low {
+  background: #dc2626;
+}
+
+.store-stock-meta {
+  margin-top: 6px;
+  color: #6b7280;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.store-empty {
+  grid-column: 1 / -1;
+  border: 1px dashed #d1d5db;
+  background: #f9fafb;
+  padding: 28px 12px;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -1349,8 +1172,8 @@ const iconMap = {
   justify-content: center;
   padding: 2px 6px;
   border: 1px solid #d1d5db;
-  font-size: 10px;
-  font-weight: 900;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .status-badge.활성 {

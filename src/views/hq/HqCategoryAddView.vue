@@ -84,7 +84,7 @@ function handleCancel() {
             <ArrowLeft :size="15" />
           </button>
           <div>
-            <h1 class="text-xl font-black text-gray-950">카테고리 추가</h1>
+            <h1 class="text-xl font-bold text-gray-900">카테고리 추가</h1>
             <p class="mt-0.5 text-xs font-bold text-gray-400">새 카테고리를 추가합니다. 대분류 또는 소분류를 선택하세요.</p>
           </div>
         </div>
@@ -94,13 +94,13 @@ function handleCancel() {
         <div class="border border-gray-200 bg-white shadow-sm">
           <div class="flex items-center gap-2 border-b border-gray-100 px-5 py-3">
             <Tags :size="15" class="text-[#004D3C]" />
-            <h2 class="text-sm font-black text-gray-900">카테고리 정보 입력</h2>
+            <h2 class="text-sm font-bold text-gray-900">카테고리 정보 입력</h2>
           </div>
 
           <div class="border-b border-gray-100 bg-[#F7FBFA] px-5 py-3">
             <div class="flex items-center justify-between gap-2">
-              <p class="text-[11px] font-black uppercase tracking-wide text-gray-500">입력 진행 안내</p>
-              <span class="text-[11px] font-black text-[#004D3C]">{{ requiredProgress }}/3 완료</span>
+              <p class="text-[11px] font-bold text-gray-500">입력 진행 안내</p>
+              <span class="text-[11px] font-bold text-[#004D3C]">{{ requiredProgress }}/3 완료</span>
             </div>
             <div class="mt-2 h-1.5 overflow-hidden bg-[#DCEDE8]">
               <div class="h-full bg-[#0E7A60] transition-all" :style="{ width: `${(requiredProgress / 3) * 100}%` }" />
@@ -114,7 +114,7 @@ function handleCancel() {
 
           <form class="space-y-6 p-5" @submit.prevent="handleSubmit">
             <div>
-              <p class="mb-2 text-[11px] font-black uppercase tracking-wide text-gray-500">단계 선택 <span class="text-red-500">*</span></p>
+              <p class="mb-2 text-[11px] font-bold text-gray-500">단계 선택 <span class="text-red-500">*</span></p>
               <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <button
                   type="button"
@@ -124,7 +124,7 @@ function handleCancel() {
                     : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'"
                   @click="level = '대분류'"
                 >
-                  <span class="text-sm font-black" :class="level === '대분류' ? 'text-[#004D3C]' : 'text-gray-700'">대분류</span>
+                  <span class="text-sm font-bold" :class="level === '대분류' ? 'text-[#004D3C]' : 'text-gray-700'">대분류</span>
                   <span class="mt-0.5 text-[11px] font-bold" :class="level === '대분류' ? 'text-[#004D3C]/70' : 'text-gray-400'">
                     최상위 카테고리 (예: 상의, 바지)
                   </span>
@@ -137,7 +137,7 @@ function handleCancel() {
                     : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'"
                   @click="level = '소분류'"
                 >
-                  <span class="text-sm font-black" :class="level === '소분류' ? 'text-[#004D3C]' : 'text-gray-700'">소분류</span>
+                  <span class="text-sm font-bold" :class="level === '소분류' ? 'text-[#004D3C]' : 'text-gray-700'">소분류</span>
                   <span class="mt-0.5 text-[11px] font-bold" :class="level === '소분류' ? 'text-[#004D3C]/70' : 'text-gray-400'">
                     하위 카테고리 (예: 반팔, 청바지)
                   </span>
@@ -146,7 +146,7 @@ function handleCancel() {
             </div>
 
             <div v-if="level === '소분류'">
-              <label class="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-gray-500">
+              <label class="mb-1.5 block text-[11px] font-bold text-gray-500">
                 상위 분류 <span class="text-red-500">*</span>
               </label>
               <select
@@ -158,7 +158,7 @@ function handleCancel() {
             </div>
 
             <div>
-              <label class="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-gray-500">
+              <label class="mb-1.5 block text-[11px] font-bold text-gray-500">
                 카테고리명 <span class="text-red-500">*</span>
               </label>
               <input
@@ -174,13 +174,13 @@ function handleCancel() {
             </div>
 
             <div>
-              <label class="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-gray-500">상태</label>
+              <label class="mb-1.5 block text-[11px] font-bold text-gray-500">상태</label>
               <div class="grid grid-cols-3 gap-2">
                 <button
                   v-for="s in ['사용중', '점검중', '미사용']"
                   :key="s"
                   type="button"
-                  class="border py-2 text-xs font-black transition"
+                  class="border py-2 text-xs font-bold transition"
                   :class="status === s
                     ? 'border-[#004D3C] bg-[#004D3C] text-white'
                     : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'"
@@ -192,14 +192,14 @@ function handleCancel() {
             </div>
 
             <div class="border border-[#BFDCD4] bg-gradient-to-r from-[#EFF8F5] to-white p-4">
-              <p class="mb-2 text-[10px] font-black uppercase tracking-wide text-[#0E7A60]">추가 미리보기</p>
+              <p class="mb-2 text-[10px] font-bold text-[#0E7A60]">추가 미리보기</p>
               <div class="flex flex-wrap items-center gap-2">
-                <span class="px-2 py-0.5 text-[10px] font-black" :class="level === '대분류' ? 'bg-[#DDF1EB] text-[#005746]' : 'bg-gray-100 text-gray-500'">{{ level }}</span>
+                <span class="px-2 py-0.5 text-[10px] font-bold" :class="level === '대분류' ? 'bg-[#DDF1EB] text-[#005746]' : 'bg-gray-100 text-gray-500'">{{ level }}</span>
                 <span v-if="level === '소분류'" class="text-[11px] font-bold text-gray-500">
                   {{ selectedParentCategory?.name }} &rsaquo;
                 </span>
-                <span class="font-black text-gray-800">{{ name || '카테고리명' }}</span>
-                <span class="ml-auto px-2 py-0.5 text-[10px] font-black" :class="{
+                <span class="font-bold text-gray-800">{{ name || '카테고리명' }}</span>
+                <span class="ml-auto px-2 py-0.5 text-[10px] font-bold" :class="{
                   'bg-emerald-50 text-emerald-700': status === '사용중',
                   'bg-amber-50 text-amber-700': status === '점검중',
                   'bg-gray-100 text-gray-500': status === '미사용',
@@ -211,14 +211,14 @@ function handleCancel() {
               <div class="flex gap-2">
                 <button
                   type="button"
-                  class="flex-1 border border-gray-300 bg-white py-2.5 text-sm font-black text-gray-700 hover:bg-gray-50"
+                  class="flex-1 border border-gray-300 bg-white py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50"
                   @click="handleCancel"
                 >
                   취소
                 </button>
                 <button
                   type="submit"
-                  class="flex-1 border border-[#004D3C] bg-[#004D3C] py-2.5 text-sm font-black text-white hover:bg-[#003d30] disabled:cursor-not-allowed disabled:opacity-40"
+                  class="flex-1 border border-[#004D3C] bg-[#004D3C] py-2.5 text-sm font-bold text-white hover:bg-[#003d30] disabled:cursor-not-allowed disabled:opacity-40"
                   :disabled="!name.trim()"
                 >
                   카테고리 추가
@@ -230,7 +230,7 @@ function handleCancel() {
 
         <aside class="space-y-4 xl:sticky xl:top-16">
           <section class="border border-gray-200 bg-white p-4 shadow-sm">
-            <h3 class="text-xs font-black uppercase tracking-wide text-gray-500">카테고리 작성 가이드</h3>
+            <h3 class="text-xs font-bold text-gray-500">카테고리 작성 가이드</h3>
             <div class="mt-3 space-y-2 text-[12px] font-bold text-gray-600">
               <p>대분류: 상품군을 대표하는 이름으로 2~5글자 권장</p>
               <p>소분류: 상위 분류 안에서 중복되지 않는 명칭 사용</p>
@@ -239,34 +239,34 @@ function handleCancel() {
           </section>
 
           <section class="border border-gray-200 bg-white p-4 shadow-sm">
-            <h3 class="text-xs font-black uppercase tracking-wide text-gray-500">현재 입력 요약</h3>
+            <h3 class="text-xs font-bold text-gray-500">현재 입력 요약</h3>
             <div class="mt-3 space-y-2 text-xs">
               <div class="flex items-center justify-between border border-gray-100 bg-gray-50 px-3 py-2">
-                <span class="font-black text-gray-500">단계</span>
-                <span class="font-black text-gray-800">{{ level }}</span>
+                <span class="font-bold text-gray-500">단계</span>
+                <span class="font-bold text-gray-800">{{ level }}</span>
               </div>
               <div class="flex items-center justify-between border border-gray-100 bg-gray-50 px-3 py-2">
-                <span class="font-black text-gray-500">상위 분류</span>
-                <span class="font-black text-gray-800">{{ level === '소분류' ? selectedParentCategory?.name : '-' }}</span>
+                <span class="font-bold text-gray-500">상위 분류</span>
+                <span class="font-bold text-gray-800">{{ level === '소분류' ? selectedParentCategory?.name : '-' }}</span>
               </div>
               <div class="flex items-center justify-between border border-gray-100 bg-gray-50 px-3 py-2">
-                <span class="font-black text-gray-500">카테고리명</span>
-                <span class="font-black text-gray-800">{{ name || '-' }}</span>
+                <span class="font-bold text-gray-500">카테고리명</span>
+                <span class="font-bold text-gray-800">{{ name || '-' }}</span>
               </div>
               <div class="flex items-center justify-between border border-gray-100 bg-gray-50 px-3 py-2">
-                <span class="font-black text-gray-500">상태</span>
-                <span class="font-black text-gray-800">{{ status }}</span>
+                <span class="font-bold text-gray-500">상태</span>
+                <span class="font-bold text-gray-800">{{ status }}</span>
               </div>
             </div>
           </section>
 
           <section class="border border-gray-200 bg-white p-4 shadow-sm">
-            <h3 class="text-xs font-black uppercase tracking-wide text-gray-500">기존 대분류 참고</h3>
+            <h3 class="text-xs font-bold text-gray-500">기존 대분류 참고</h3>
             <div class="mt-3 flex flex-wrap gap-2">
               <span
                 v-for="cat in parentCategories"
                 :key="cat.id"
-                class="inline-flex items-center gap-1 border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] font-black text-gray-600"
+                class="inline-flex items-center gap-1 border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] font-bold text-gray-600"
               >
                 <span class="text-gray-400">{{ cat.id }}</span>
                 <span>{{ cat.name }}</span>

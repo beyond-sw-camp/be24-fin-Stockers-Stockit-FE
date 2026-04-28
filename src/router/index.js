@@ -15,6 +15,7 @@ import StoreOrderHistoryView from '@/views/store/orders/StoreOrderHistoryView.vu
 import StoreOrderAnalysisView from '@/views/store/orders/StoreOrderAnalysisView.vue'
 import StoreOrderDetailView from '@/views/store/orders/StoreOrderDetailView.vue'
 import StoreInventoryView from '@/views/store/StoreInventoryView.vue'
+import StoreInventorySkuDetailView from '@/views/store/StoreInventorySkuDetailView.vue'
 import StoreInboundView from '@/views/store/StoreInboundView.vue'
 import StoreAiReportView from '@/views/store/StoreAiReportView.vue'
 
@@ -37,7 +38,8 @@ import HqCompanyWideInventorySkuDetailView from '@/views/hq/inventory/HqCompanyW
 import HqOrderManagementView from '@/views/hq/HqOrderManagementView.vue'
 import HqProductManagementView from '@/views/hq/HqProductManagementView.vue'
 import HqInfrastructureManagementView from '@/views/hq/HqInfrastructureManagementView.vue'
-import HqSettlementStatisticsView from '@/views/hq/HqSettlementStatisticsView.vue'
+import HqStoreDetailView from '@/views/hq/HqStoreDetailView.vue'
+import HqWarehouseDetailView from '@/views/hq/HqWarehouseDetailView.vue'
 import HqPurchaseOrderView from '@/views/hq/HqPurchaseOrderView.vue'
 import HqVendorManagementView from '@/views/hq/HqVendorManagementView.vue'
 import HqCategoryAddView from '@/views/hq/HqCategoryAddView.vue'
@@ -91,6 +93,18 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'hq' },
     },
     { path: '/hq/infrastructure', name: 'hq-infrastructure', component: HqInfrastructureManagementView, meta: { requiresAuth: true, role: 'hq' } },
+    {
+      path: '/hq/infrastructure/stores/:storeId',
+      name: 'hq-infrastructure-store-detail',
+      component: HqStoreDetailView,
+      meta: { requiresAuth: true, role: 'hq' },
+    },
+    {
+      path: '/hq/infrastructure/warehouses/:warehouseId',
+      name: 'hq-infrastructure-warehouse-detail',
+      component: HqWarehouseDetailView,
+      meta: { requiresAuth: true, role: 'hq' },
+    },
     { path: '/hq/analytics', name: 'hq-analytics', component: HqAnalyticsDashboardView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/analytics/order-stats', name: 'hq-analytics-order-stats', component: HqAnalyticsOrderStatsView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/analytics/seasonal', name: 'hq-analytics-seasonal', component: HqAnalyticsSeasonalView, meta: { requiresAuth: true, role: 'hq' } },
@@ -132,6 +146,12 @@ const router = createRouter({
     { path: '/store/orders/history/:id', name: 'store-order-detail', component: StoreOrderDetailView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/orders/analysis', name: 'store-order-analysis', component: StoreOrderAnalysisView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/inventory', name: 'store-inventory', component: StoreInventoryView, meta: { requiresAuth: true, role: 'store' } },
+    {
+      path: '/store/inventory/:itemCode/skus',
+      name: 'store-inventory-sku-detail',
+      component: StoreInventorySkuDetailView,
+      meta: { requiresAuth: true, role: 'store' },
+    },
     { path: '/store/inbound', name: 'store-inbound', component: StoreInboundView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/ai-report', name: 'store-ai-report', component: StoreAiReportView, meta: { requiresAuth: true, role: 'store' } },
 

@@ -18,6 +18,8 @@ import {
   RefreshCw,
 } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
+import DoughnutChart from '@/components/common/charts/DoughnutChart.vue'
+import BarChart from '@/components/common/charts/BarChart.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useEsgStore } from '@/stores/esg.js'
@@ -41,10 +43,10 @@ const emissionCompliance = {
   expectedSurplus: 1595,
   warnPct: 75,
   quarterly: [
-    { q: 'Q1', allocation: 1250, actual: 720 },
-    { q: 'Q2', allocation: 1250, actual: 415 },
-    { q: 'Q3', allocation: 1250, actual: 0 },
-    { q: 'Q4', allocation: 1250, actual: 0 },
+    { q: 'Q1', period: '1월~3월', allocation: 1250, actual: 720 },
+    { q: 'Q2', period: '4월~6월', allocation: 1250, actual: 415 },
+    { q: 'Q3', period: '7월~9월', allocation: 1250, actual: 0 },
+    { q: 'Q4', period: '10월~12월', allocation: 1250, actual: 0 },
   ],
 }
 
@@ -58,15 +60,198 @@ const marketVolume = {
     { m: '2월', tons: 95.0 },
     { m: '3월', tons: 86.4 },
     { m: '4월', tons: 27.2 },
+    { m: '5월', tons: 55.0 },
+    { m: '6월', tons: 68.0 },
+    { m: '7월', tons: 82.0 },
+    { m: '8월', tons: 74.0 },
+    { m: '9월', tons: 62.0 },
+    { m: '10월', tons: 78.0 },
+    { m: '11월', tons: 92.0 },
+    { m: '12월', tons: 88.0 },
   ],
 }
+
+// 배출 한도 vs 사용한 탄소배출권 도넛
+const emissionRemaining = computed(
+  () => emissionCompliance.allocation - emissionCompliance.ytdNet,
+)
+
+const emissionDoughnutData = computed(() => ({
+  labels: ['사용한 탄소배출권', '잔여 한도'],
+  datasets: [
+    {
+      data: [emissionCompliance.ytdNet, emissionRemaining.value],
+      backgroundColor: ['#2563eb', '#e5e7eb'],
+      borderColor: ['#1d4ed8', '#d1d5db'],
+      borderWidth: 1,
+      hoverBackgroundColor: ['#1d4ed8', '#9ca3af'],
+    },
+  ],
+}))
+
+const emissionDoughnutOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  cutout: '70%',
+  plugins: {
+    legend: {
+      display: true,
+      position: 'bottom',
+      labels: { font: { size: 11 }, boxWidth: 10, usePointStyle: true, padding: 12 },
+    },
+    tooltip: {
+      backgroundColor: 'rgba(17, 24, 39, 0.95)',
+      titleColor: '#93c5fd',
+      titleFont: { size: 11, weight: 'bold' },
+      bodyColor: '#fff',
+      padding: 10,
+      cornerRadius: 6,
+      displayColors: false,
+      callbacks: {
+        label: (ctx) => {
+          const total = emissionCompliance.allocation
+          const pct = ((ctx.parsed / total) * 100).toFixed(1)
+          return `${ctx.parsed.toLocaleString()} tCO₂ (${pct}%)`
+        },
+      },
+    },
+  },
+}
+
+// 분기별 배출 진행 BarChart (Q1~Q2 실적만, Q3~Q4 라벨만)
+const quarterlyChartData = computed(() => ({
+  labels: emissionCompliance.quarterly.map((q) => q.period),
+  datasets: [
+    {
+      label: '분기별 실적',
+      data: emissionCompliance.quarterly.map((q) => (q.actual > 0 ? q.actual : null)),
+      backgroundColor: 'rgba(59, 130, 246, 0.9)',
+      borderColor: '#1d4ed8',
+      borderWidth: 1,
+      borderRadius: 6,
+      borderSkipped: false,
+      maxBarThickness: 32,
+      hoverBackgroundColor: '#1d4ed8',
+    },
+  ],
+}))
+
+const quarterlyChartOptions = computed(() => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: 'rgba(17, 24, 39, 0.95)',
+      titleColor: '#93c5fd',
+      titleFont: { size: 11, weight: 'bold' },
+      bodyColor: '#fff',
+      padding: 10,
+      cornerRadius: 6,
+      displayColors: false,
+      callbacks: {
+        title: (items) => {
+          const q = emissionCompliance.quarterly[items[0].dataIndex]
+          return `${q.q} · ${q.period}`
+        },
+        label: (ctx) => {
+          const q = emissionCompliance.quarterly[ctx.dataIndex]
+          return [
+            `실적 ${q.actual.toLocaleString()} t`,
+            `할당 ${q.allocation.toLocaleString()} t`,
+            `사용률 ${((q.actual / q.allocation) * 100).toFixed(1)}%`,
+          ]
+        },
+      },
+    },
+  },
+  scales: {
+    x: {
+      grid: { display: false },
+      ticks: { font: { size: 10 }, color: '#6b7280', maxRotation: 0, minRotation: 0 },
+    },
+    y: {
+      grid: { color: '#f3f4f6', drawBorder: false },
+      ticks: {
+        font: { size: 9 },
+        color: '#9ca3af',
+        callback: (v) => v + 't',
+      },
+      beginAtZero: true,
+    },
+  },
+}))
+
+// 월별 환산 가치 추이 BarChart (1~4월 실적만 표시, 5~12월은 라벨만)
+const monthlyChartData = computed(() => ({
+  labels: marketVolume.monthlyTons.map((m) => m.m),
+  datasets: [
+    {
+      label: '월별 환산 가치',
+      data: marketVolume.monthlyTons.map((m, i) =>
+        i < 4 ? m.tons * kauPrice.value : null,
+      ),
+      backgroundColor: 'rgba(245, 158, 11, 0.9)',
+      borderColor: '#d97706',
+      borderWidth: 1,
+      borderRadius: 6,
+      borderSkipped: false,
+      maxBarThickness: 24,
+      hoverBackgroundColor: '#d97706',
+    },
+  ],
+}))
+
+const monthlyChartOptions = computed(() => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: 'rgba(17, 24, 39, 0.95)',
+      titleColor: '#fcd34d',
+      titleFont: { size: 11, weight: 'bold' },
+      bodyColor: '#fff',
+      padding: 10,
+      cornerRadius: 6,
+      displayColors: false,
+      callbacks: {
+        title: (items) => items[0].label,
+        label: (ctx) => {
+          const m = marketVolume.monthlyTons[ctx.dataIndex]
+          return [
+            `감축량 ${m.tons.toFixed(1)} tCO₂`,
+            `KAU ₩${kauPrice.value.toLocaleString()}/t`,
+            `환산 가치 ₩${Math.round(m.tons * kauPrice.value).toLocaleString()}`,
+            '✓ 실적',
+          ]
+        },
+      },
+    },
+  },
+  scales: {
+    x: {
+      grid: { display: false },
+      ticks: { font: { size: 10 }, color: '#6b7280', maxRotation: 0, minRotation: 0 },
+    },
+    y: {
+      grid: { color: '#f3f4f6', drawBorder: false },
+      min: 0,
+      max: 5000000,
+      ticks: {
+        font: { size: 9 },
+        color: '#9ca3af',
+        stepSize: 500000,
+        callback: (v) => '₩' + Math.round(v / 10000).toLocaleString() + '만',
+      },
+      beginAtZero: true,
+    },
+  },
+}))
 
 const reducedKrw = computed(() => marketVolume.reducedTons * kauPrice.value)
 const surplusKrw = computed(() => marketVolume.surplusTons * kauPrice.value)
 const yearlyKrw = computed(() => marketVolume.yearlyTonsProjected * kauPrice.value)
-const maxMonthlyTons = computed(() =>
-  Math.max(...marketVolume.monthlyTons.map((m) => m.tons)),
-)
 
 const kauUpdatedLabel = computed(() => {
   if (!kauPriceUpdatedAt.value) return '시세 미조회'
@@ -272,7 +457,7 @@ function handleLogout() {
       <section class="grid gap-3 xl:grid-cols-2">
 
         <!-- 배출 한도 vs 실적 (K-ETS) -->
-        <article class="border border-gray-300 bg-white shadow-sm">
+        <article class="flex flex-col border border-gray-300 bg-white shadow-sm">
           <div class="flex items-center justify-between border-b border-gray-200 px-3 py-2.5">
             <h3 class="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
               <Scale :size="15" class="text-blue-600" />
@@ -285,28 +470,22 @@ function handleLogout() {
             </span>
           </div>
 
-          <div class="space-y-3 px-3 py-3">
-            <!-- 사용률 게이지 -->
+          <div class="flex flex-1 flex-col gap-3 px-3 pt-3 pb-0">
+            <!-- 배출 한도 vs 사용한 탄소배출권 도넛 -->
             <div>
               <div class="mb-1.5 flex items-baseline justify-between">
                 <span class="text-[11px] font-medium text-gray-500">연간 할당량 사용률</span>
-                <div class="flex items-baseline gap-1">
-                  <span class="text-[20px] font-black text-blue-700">{{ emissionCompliance.utilizationPct }}</span>
-                  <span class="text-[11px] text-gray-400">%</span>
+                <span class="inline-flex items-center gap-1 border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                  사용 {{ emissionCompliance.ytdNet.toLocaleString() }} / 한도 {{ emissionCompliance.allocation.toLocaleString() }} tCO₂
+                </span>
+              </div>
+              <div class="relative">
+                <DoughnutChart :data="emissionDoughnutData" :options="emissionDoughnutOptions" :height="220" />
+                <div class="pointer-events-none absolute inset-x-0 top-[28%] flex flex-col items-center">
+                  <span class="text-[10px] font-medium text-gray-500">사용률</span>
+                  <span class="text-[26px] font-black text-blue-700 leading-none">{{ emissionCompliance.utilizationPct }}%</span>
+                  <span class="mt-1 text-[10px] text-gray-400">{{ emissionCompliance.ytdNet.toLocaleString() }} / {{ emissionCompliance.allocation.toLocaleString() }} tCO₂</span>
                 </div>
-              </div>
-              <div class="relative h-3 overflow-hidden rounded-full bg-gray-100">
-                <div
-                  class="h-3 bg-gradient-to-r from-emerald-400 to-emerald-500"
-                  :style="{ width: emissionCompliance.utilizationPct + '%' }"
-                />
-                <div class="absolute bottom-0 top-0 w-px bg-amber-400" :style="{ left: emissionCompliance.warnPct + '%' }" />
-                <div class="absolute bottom-0 top-0 right-0 w-px bg-red-400" />
-              </div>
-              <div class="mt-1 flex justify-between text-[9px] text-gray-400">
-                <span>0</span>
-                <span class="text-amber-600">경계 75%</span>
-                <span class="text-red-600">한도 100%</span>
               </div>
             </div>
 
@@ -335,36 +514,23 @@ function handleLogout() {
               </div>
             </div>
 
-            <!-- 분기별 진행 -->
-            <div>
-              <p class="mb-1.5 text-[10px] font-medium text-gray-500">분기별 배출 진행</p>
-              <div class="grid grid-cols-4 gap-2">
-                <div v-for="q in emissionCompliance.quarterly" :key="q.q" class="text-center">
-                  <div class="flex h-12 items-end overflow-hidden bg-gray-100">
-                    <div
-                      class="w-full bg-gradient-to-t from-blue-500 to-blue-400"
-                      :style="{ height: (q.actual / q.allocation * 100) + '%' }"
-                    />
-                  </div>
-                  <p class="mt-1 text-[10px] font-medium text-gray-600">{{ q.q }}</p>
-                  <p class="text-[9px] text-gray-400">{{ q.actual }}/{{ q.allocation }}t</p>
-                </div>
+            <!-- 분기별 진행 (BarChart, 카드 최하단) -->
+            <div class="mt-auto">
+              <div class="mb-1.5 flex items-center justify-between">
+                <p class="text-[10px] font-medium text-gray-500">분기별 배출 진행 (YTD 실적)</p>
+                <span class="inline-flex items-center gap-1 text-[9px] text-gray-500">
+                  <span class="inline-block h-2 w-2 rounded-sm bg-blue-500"></span>
+                  실적
+                </span>
               </div>
+              <BarChart :data="quarterlyChartData" :options="quarterlyChartOptions" :height="140" />
             </div>
 
-            <!-- 절감 효과 강조 -->
-            <div class="flex items-center justify-between border border-emerald-200 bg-emerald-50/50 px-2.5 py-2">
-              <div class="flex items-center gap-2">
-                <TrendingDown :size="13" class="text-emerald-600" />
-                <span class="text-[11px] font-medium text-emerald-800">탄소 감축 활동으로</span>
-              </div>
-              <span class="text-[12px] font-bold text-emerald-700">{{ emissionCompliance.ytdReduced }} tCO₂ 절감</span>
-            </div>
           </div>
         </article>
 
         <!-- 배출권 시장 가치 환산 -->
-        <article class="border border-gray-300 bg-white shadow-sm">
+        <article class="flex flex-col border border-gray-300 bg-white shadow-sm">
           <div class="flex items-center justify-between gap-2 border-b border-gray-200 px-3 py-2.5">
             <h3 class="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
               <Coins :size="15" class="text-amber-600" />
@@ -387,7 +553,7 @@ function handleLogout() {
             </div>
           </div>
 
-          <div class="space-y-3 px-3 py-3">
+          <div class="flex flex-1 flex-col gap-3 px-3 pt-3 pb-0">
             <!-- 메인 환산 가치 -->
             <div class="border border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 px-3 py-3">
               <p class="text-[10px] font-medium text-amber-700">절감 활동 시장 환산 가치 (YTD)</p>
@@ -421,30 +587,25 @@ function handleLogout() {
               </div>
             </div>
 
-            <!-- 월별 추이 -->
-            <div>
-              <p class="mb-1.5 text-[10px] font-medium text-gray-500">월별 환산 가치 추이</p>
-              <div class="grid grid-cols-4 gap-2">
-                <div v-for="mv in marketVolume.monthlyTons" :key="mv.m" class="text-center">
-                  <div class="flex h-12 items-end overflow-hidden bg-gray-100">
-                    <div
-                      class="w-full bg-gradient-to-t from-amber-500 to-amber-400"
-                      :style="{ height: (mv.tons / maxMonthlyTons * 100) + '%' }"
-                    />
-                  </div>
-                  <p class="mt-1 text-[10px] font-medium text-gray-600">{{ mv.m }}</p>
-                  <p class="text-[9px] text-gray-400">₩{{ Math.round(mv.tons * kauPrice / 10000).toLocaleString() }}만</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- YoY 강조 -->
-            <div class="flex items-center justify-between border border-violet-200 bg-violet-50/50 px-2.5 py-2">
+            <!-- YoY 강조 (월별 추이 위) -->
+            <div class="mt-auto flex items-center justify-between border border-violet-200 bg-violet-50/50 px-2.5 py-2">
               <div class="flex items-center gap-2">
                 <TrendingUp :size="13" class="text-violet-600" />
                 <span class="text-[11px] font-medium text-violet-800">전년 동기 대비 환산 가치</span>
               </div>
               <span class="text-[12px] font-bold text-violet-700">+{{ marketVolume.yoyPct }}%</span>
+            </div>
+
+            <!-- 월별 추이 (12개월 BarChart, 카드 최하단) -->
+            <div>
+              <div class="mb-1.5 flex items-center justify-between">
+                <p class="text-[10px] font-medium text-gray-500">월별 환산 가치 추이 (YTD 실적)</p>
+                <span class="inline-flex items-center gap-1 text-[9px] text-gray-500">
+                  <span class="inline-block h-2 w-2 rounded-sm bg-amber-500"></span>
+                  실적
+                </span>
+              </div>
+              <BarChart :data="monthlyChartData" :options="monthlyChartOptions" :height="220" />
             </div>
           </div>
         </article>
