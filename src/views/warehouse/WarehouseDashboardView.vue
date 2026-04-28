@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   BarChart3,
@@ -12,12 +12,12 @@ import {
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { usePurchaseOrderStore } from '@/stores/purchaseOrder.js'
+import { useWarehouseDashboardStore } from '@/stores/warehouseDashboard.js'
 import { useWarehouseSpaceStore } from '@/stores/warehouseSpace.js'
 
 const router = useRouter()
 const auth = useAuthStore()
-const poStore = usePurchaseOrderStore()
+const dashStore = useWarehouseDashboardStore()
 
 const topMenus = roleMenus.warehouse
 const sideMenus = roleMenus.warehouse.find((menu) => menu.label === '대시보드')?.children ?? []
@@ -71,56 +71,41 @@ function monthStartStr() {
   const m = String(d.getMonth() + 1).padStart(2, '0')
   return `${d.getFullYear()}-${m}-01`
 }
-function inRange(iso) {
-  if (!iso) return false
-  const date = iso.slice(0, 10)
+
+// range key → BE from/to 파라미터. all 은 둘 다 미지정.
+const rangeParams = computed(() => {
   switch (range.value) {
     case 'today':
-      return date === todayStr()
+      return { from: todayStr(), to: todayStr() }
     case 'week':
-      return date >= weekStartStr() && date <= todayStr()
+      return { from: weekStartStr(), to: todayStr() }
     case 'month':
-      return date >= monthStartStr() && date <= todayStr()
+      return { from: monthStartStr(), to: todayStr() }
     default:
-      return true
+      return {}
   }
-}
-
-// ─── computed ──────────────────────────────────────────────────────────────
-const filteredOrders = computed(() =>
-  poStore.purchaseOrders.filter(
-    (o) => inRange(o.createdAt) && (o.status === 'SHIPPING' || o.status === 'COMPLETED'),
-  ),
-)
-
-const shippingCount = computed(
-  () => filteredOrders.value.filter((o) => o.status === 'SHIPPING').length,
-)
-const completedCount = computed(
-  () => filteredOrders.value.filter((o) => o.status === 'COMPLETED').length,
-)
-
-const progressRate = computed(() => {
-  const total = shippingCount.value + completedCount.value
-  if (total === 0) return null
-  return Math.round((completedCount.value / total) * 100)
 })
 
-const avgProcessingDays = computed(() => {
-  const completed = filteredOrders.value.filter(
-    (o) => o.status === 'COMPLETED' && Array.isArray(o.statusHistory),
-  )
-  const diffs = []
-  for (const o of completed) {
-    const shipping = o.statusHistory.find((h) => h.status === 'SHIPPING')
-    const done = o.statusHistory.find((h) => h.status === 'COMPLETED')
-    if (!shipping?.at || !done?.at) continue
-    const ms = new Date(done.at).getTime() - new Date(shipping.at).getTime()
-    if (Number.isNaN(ms) || ms < 0) continue
-    diffs.push(ms / (1000 * 60 * 60 * 24))
-  }
-  if (diffs.length === 0) return null
-  return diffs.reduce((sum, v) => sum + v, 0) / diffs.length
+onMounted(() => {
+  dashStore.fetchInboundProgress(rangeParams.value)
+})
+
+watch(range, () => {
+  dashStore.fetchInboundProgress(rangeParams.value)
+})
+
+// ─── KPI / breakdown — store getter 직접 사용 ───────────────────────────────
+const shippingCount = computed(() => dashStore.shippingCount)
+const completedCount = computed(() => dashStore.completedCount)
+const stageTotal = computed(() => dashStore.stageTotal)
+const shippingPct = computed(() => dashStore.shippingPct)
+const completedPct = computed(() => dashStore.completedPct)
+const progressRate = computed(() => dashStore.progressPercent)
+
+const totalCount = computed(() => dashStore.kpi.totalCount ?? 0)
+const avgProcessingHours = computed(() => {
+  const v = dashStore.kpi.avgProcessingHours
+  return v === null || v === undefined ? null : v
 })
 
 // KPI 카드 — 본사 대시보드 패턴 (라벨 + 값/단위 + 우상단 점 + 캡션)
@@ -131,7 +116,7 @@ const kpiStats = computed(() => [
     unit: progressRate.value !== null ? '%' : '',
     caption:
       progressRate.value !== null
-        ? `총 ${shippingCount.value + completedCount.value}건 중 ${completedCount.value}건 완료`
+        ? `총 ${totalCount.value}건 중 ${completedCount.value}건 완료`
         : '데이터 없음',
     tone: 'green',
   },
@@ -151,9 +136,9 @@ const kpiStats = computed(() => [
   },
   {
     label: '평균 처리',
-    value: avgProcessingDays.value !== null ? avgProcessingDays.value.toFixed(1) : '—',
-    unit: avgProcessingDays.value !== null ? '일' : '',
-    caption: 'SHIPPING → COMPLETED',
+    value: avgProcessingHours.value !== null ? avgProcessingHours.value.toFixed(1) : '—',
+    unit: avgProcessingHours.value !== null ? '시간' : '',
+    caption: '발주 → 입고완료',
     tone: 'gray',
   },
 ])
@@ -169,23 +154,8 @@ function dotClass(tone) {
   )
 }
 
-// 입고 예정 SHIPPING 발주 (도착 임박 — 오래된 순)
-const shippingOrders = computed(() =>
-  filteredOrders.value
-    .filter((o) => o.status === 'SHIPPING')
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
-)
-
-// 단계 비율 (세그먼트 스택 막대용)
-const stageTotal = computed(() => shippingCount.value + completedCount.value)
-const shippingPct = computed(() => {
-  if (stageTotal.value === 0) return 0
-  return Math.round((shippingCount.value / stageTotal.value) * 100)
-})
-const completedPct = computed(() => {
-  if (stageTotal.value === 0) return 0
-  return 100 - shippingPct.value
-})
+// 입고 예정 SHIPPING 발주 — store 가 도착 임박(오래된 순) 으로 정렬해서 줌
+const shippingOrders = computed(() => dashStore.shippingOrders)
 
 function formatDate(iso) {
   if (!iso) return '-'
@@ -347,7 +317,7 @@ const thresholdBarClass = computed(
                     {{ formatDate(o.createdAt) }}
                   </td>
                   <td class="px-4 py-3 text-right font-black text-gray-900">
-                    {{ o.items.length }}품목 / ₩{{ o.totalPrice.toLocaleString() }}
+                    {{ o.itemCount }}품목 / ₩{{ o.totalPrice.toLocaleString() }}
                   </td>
                 </tr>
                 <tr v-if="shippingOrders.length === 0">
@@ -376,7 +346,7 @@ const thresholdBarClass = computed(
                   진행률
                 </p>
                 <p class="mt-1 text-xs font-bold text-gray-500">
-                  총 {{ stageTotal }}건 중 {{ completedCount }}건 완료
+                  총 {{ totalCount }}건 중 {{ completedCount }}건 완료
                 </p>
               </div>
               <p
