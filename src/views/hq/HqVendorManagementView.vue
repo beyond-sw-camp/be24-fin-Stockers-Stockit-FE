@@ -34,31 +34,11 @@ const displayedVendors = computed(() =>
   vendor.filteredVendors(vendorSearch.value, vendorStatusFilter.value),
 )
 
-// --- 계약 제품 목록 패널 ---
-// CEN-031: 거래처 패널과 동일 톤의 검색·상태 필터.
-// 거래처 전환 시 검색/필터를 초기화해 직전 거래처 컨텍스트가 새 거래처에 새지 않게 한다.
-const productSearch = ref('')
-const productStatusFilter = ref('all')
-
-const displayedVendorProducts = computed(() => {
-  const keyword = productSearch.value.trim().toLowerCase()
-  const status = productStatusFilter.value
-  return vendor.currentVendorProducts.filter((vp) => {
-    const matchStatus = status === 'all' || vp.status === status
-    const matchKeyword =
-      !keyword ||
-      vp.productCode.toLowerCase().includes(keyword) ||
-      vp.productName.toLowerCase().includes(keyword)
-    return matchStatus && matchKeyword
-  })
-})
-
 function handleSelectVendor(id) {
   vendor.selectVendor(id)
-  productSearch.value = ''
-  productStatusFilter.value = 'all'
 }
 
+// --- 계약 제품 목록 패널 ---
 function handleSelectProduct(id) {
   vendor.selectProduct(id)
 }
@@ -234,58 +214,14 @@ function cancelStatusChange() {
   pendingStatusChange.value = null
 }
 
-// --- 삭제 (CEN-030) ---
-// 네이티브 confirm 대신 커스텀 모달(파괴 동작이라 빨간 톤)로 통일.
-const showDeleteConfirm = ref(false)
-const pendingDelete = ref(null) // { productId, productName, productCode }
-
+// --- 삭제 ---
 function handleDeleteProduct() {
   const detail = vendor.selectedProductDetail
   if (!detail) return
-  pendingDelete.value = {
-    productId: detail.id,
-    productName: detail.productName,
-    productCode: detail.productCode,
+  if (confirm(`[${detail.productName}] 계약을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) {
+    vendor.deleteProduct(detail.id)
   }
-  showDeleteConfirm.value = true
 }
-
-function confirmDelete() {
-  const target = pendingDelete.value
-  if (!target) return
-  vendor.deleteProduct(target.productId)
-  triggerToast(`"${target.productName}" 계약이 삭제되었습니다`)
-  cancelDelete()
-}
-
-function cancelDelete() {
-  showDeleteConfirm.value = false
-  pendingDelete.value = null
-}
-
-// --- 계약 기간 파생 정보 (CEN-033) ---
-// 오늘 기준 잔여일 / 경과일 / 진행률을 계산해 단일 조회 패널에 D-Day·진행 표시로 노출.
-// contractStart, contractEnd 는 'YYYY-MM-DD' 문자열. 시간대 영향 없게 자정 기준으로 비교.
-function startOfDay(date) {
-  const d = new Date(date)
-  d.setHours(0, 0, 0, 0)
-  return d
-}
-
-const contractTermInfo = computed(() => {
-  const detail = vendor.selectedProductDetail
-  if (!detail) return null
-  const today = startOfDay(new Date())
-  const start = startOfDay(detail.contractStart)
-  const end = startOfDay(detail.contractEnd)
-  const msPerDay = 24 * 60 * 60 * 1000
-  const totalDays = Math.max(1, Math.round((end - start) / msPerDay) + 1)
-  const remainingDays = Math.round((end - today) / msPerDay)
-  const elapsedDays = Math.round((today - start) / msPerDay)
-  const progress =
-    today < start ? 0 : today > end ? 100 : Math.round(((today - start) / (end - start)) * 100)
-  return { totalDays, remainingDays, elapsedDays, progress }
-})
 
 // --- 상태 뱃지 헬퍼 ---
 function statusLabel(status) {
@@ -515,47 +451,15 @@ const InfoIcon = IconBase([
             <span v-if="vendor.selectedVendor"> {{ vendor.selectedVendor.name }} — 계약 제품 </span>
             <span v-else>계약 제품 목록</span>
           </h2>
-          <div v-if="vendor.selectedVendorId" class="flex items-center gap-2">
-            <span class="text-[10px] font-bold opacity-70">
-              {{ displayedVendorProducts.length }}건
-            </span>
-            <button
-              type="button"
-              class="inline-flex items-center gap-1 border border-white/30 px-2 py-1 text-[10px] font-black text-white hover:bg-white/10"
-              @click="openCreateModal"
-            >
-              <PlusIcon :size="12" />
-              계약 제품 추가
-            </button>
-          </div>
-        </div>
-
-        <!-- 검색 / 필터 (CEN-031) — 거래처 선택된 경우에만 노출 -->
-        <div
-          v-if="vendor.selectedVendorId"
-          class="flex items-center gap-2 border-b border-gray-200 bg-gray-50 p-2"
-        >
-          <label class="relative block flex-1">
-            <SearchIcon
-              :size="13"
-              class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
-            />
-            <input
-              v-model="productSearch"
-              type="text"
-              placeholder="제품 코드 / 제품명 검색..."
-              class="w-full border border-gray-300 bg-white py-1.5 pl-7 pr-2 text-[11px] outline-none focus:border-[#004D3C]"
-            />
-          </label>
-          <select
-            v-model="productStatusFilter"
-            class="w-32 shrink-0 appearance-none border border-gray-300 bg-white px-2 py-1.5 text-[11px] font-bold text-gray-700 outline-none focus:border-[#004D3C]"
+          <button
+            v-if="vendor.selectedVendorId"
+            type="button"
+            class="inline-flex items-center gap-1 border border-white/30 px-2 py-1 text-[10px] font-black text-white hover:bg-white/10"
+            @click="openCreateModal"
           >
-            <option value="all">전체 상태</option>
-            <option value="active">활성</option>
-            <option value="suspended">정지</option>
-            <option value="expired">만료</option>
-          </select>
+            <PlusIcon :size="12" />
+            계약 제품 추가
+          </button>
         </div>
 
         <!-- 거래처 미선택 상태 -->
@@ -589,25 +493,14 @@ const InfoIcon = IconBase([
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">
-                <tr
-                  v-if="
-                    vendor.currentVendorProducts.length === 0 &&
-                    displayedVendorProducts.length === 0
-                  "
-                >
+                <tr v-if="vendor.currentVendorProducts.length === 0">
                   <td colspan="6" class="py-12 text-center text-[11px] text-gray-400">
                     등록된 계약 제품이 없습니다.
                   </td>
                 </tr>
-                <tr
-                  v-else-if="displayedVendorProducts.length === 0"
-                  class="text-[11px] text-gray-400"
-                >
-                  <td colspan="6" class="py-12 text-center">검색 결과가 없습니다.</td>
-                </tr>
 
                 <tr
-                  v-for="vp in displayedVendorProducts"
+                  v-for="vp in vendor.currentVendorProducts"
                   :key="vp.id"
                   class="cursor-pointer transition-colors hover:bg-gray-50"
                   :class="vendor.selectedProductId === vp.id ? 'bg-[#E6F2F0]' : ''"
@@ -641,15 +534,7 @@ const InfoIcon = IconBase([
           <div
             class="border-t border-gray-200 bg-gray-50 px-3 py-2 text-[10px] font-bold text-gray-500"
           >
-            <template
-              v-if="displayedVendorProducts.length === vendor.currentVendorProducts.length"
-            >
-              총 {{ vendor.currentVendorProducts.length }}건의 계약 제품
-            </template>
-            <template v-else>
-              {{ vendor.currentVendorProducts.length }}건 중
-              {{ displayedVendorProducts.length }}건 표시
-            </template>
+            총 {{ vendor.currentVendorProducts.length }}건의 계약 제품
           </div>
         </template>
       </div>
@@ -660,22 +545,14 @@ const InfoIcon = IconBase([
       <div
         class="flex w-72 shrink-0 flex-col overflow-hidden border border-gray-300 bg-white shadow-sm"
       >
-        <!-- 패널 헤더 (CEN-033) — 선택 시 제품명/코드 노출 -->
-        <div class="flex items-center justify-between gap-2 bg-[#004D3C] px-3 py-2.5 text-white">
+        <!-- 패널 헤더 -->
+        <div class="flex items-center bg-[#004D3C] px-3 py-2.5 text-white">
           <h2
             class="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider"
           >
             <InfoIcon :size="13" />
             계약 조건 상세
           </h2>
-          <span
-            v-if="vendor.selectedProductDetail"
-            class="truncate text-[10px] font-bold opacity-80"
-            :title="vendor.selectedProductDetail.productName"
-          >
-            {{ vendor.selectedProductDetail.productCode }} ·
-            {{ vendor.selectedProductDetail.productName }}
-          </span>
         </div>
 
         <!-- 제품 미선택 상태 -->
@@ -695,20 +572,6 @@ const InfoIcon = IconBase([
         <!-- 상세 정보 -->
         <template v-else>
           <div class="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
-            <!-- 상태 안내 배너 (CEN-033) — suspended/expired 일 때만 -->
-            <div
-              v-if="vendor.selectedProductDetail.status === 'suspended'"
-              class="border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-700"
-            >
-              일시 정지 상태 — 본사 발주 생성이 차단됩니다. 활성화 시 즉시 재개됩니다.
-            </div>
-            <div
-              v-else-if="vendor.selectedProductDetail.status === 'expired'"
-              class="border border-red-200 bg-red-50 px-3 py-2 text-[10px] font-bold text-red-700"
-            >
-              계약 만료 — 수정·상태 변경이 불가합니다. 재계약은 신규 등록으로 진행하세요.
-            </div>
-
             <!-- 제품 기본 정보 -->
             <section class="space-y-2">
               <p class="text-[9px] font-black uppercase tracking-wider text-gray-400">제품 정보</p>
@@ -773,63 +636,13 @@ const InfoIcon = IconBase([
                   </span>
                 </div>
               </div>
-
-              <!-- D-Day / 진행률 (CEN-033) -->
-              <div v-if="contractTermInfo" class="space-y-1.5 pt-1">
-                <div class="flex items-center justify-between text-[10px] font-bold">
-                  <span class="text-gray-400">진행</span>
-                  <span
-                    v-if="vendor.selectedProductDetail.status === 'expired'"
-                    class="text-red-600"
-                  >
-                    만료 후 {{ contractTermInfo.elapsedDays - contractTermInfo.totalDays + 1 }}일
-                    경과
-                  </span>
-                  <span
-                    v-else-if="contractTermInfo.remainingDays >= 0"
-                    :class="contractTermInfo.remainingDays <= 30 ? 'text-amber-600' : 'text-[#004D3C]'"
-                  >
-                    D-{{ contractTermInfo.remainingDays }} (잔여
-                    {{ contractTermInfo.remainingDays }}일)
-                  </span>
-                </div>
-                <div class="h-1.5 w-full overflow-hidden bg-gray-100">
-                  <div
-                    class="h-full transition-all"
-                    :class="
-                      vendor.selectedProductDetail.status === 'expired'
-                        ? 'bg-red-400'
-                        : contractTermInfo.remainingDays <= 30
-                          ? 'bg-amber-400'
-                          : 'bg-[#004D3C]'
-                    "
-                    :style="{ width: contractTermInfo.progress + '%' }"
-                  ></div>
-                </div>
-                <p class="text-[10px] font-bold text-gray-400">
-                  총 {{ contractTermInfo.totalDays }}일 계약 ·
-                  <span v-if="contractTermInfo.elapsedDays >= 0">
-                    {{ Math.min(contractTermInfo.elapsedDays, contractTermInfo.totalDays) }}일 경과
-                  </span>
-                  <span v-else>아직 시작 전</span>
-                </p>
-              </div>
             </section>
 
             <!-- 거래처 담당자 정보 -->
             <section v-if="vendor.selectedVendor" class="space-y-2 border-t border-gray-100 pt-3">
-              <div class="flex items-center justify-between">
-                <p class="text-[9px] font-black uppercase tracking-wider text-gray-400">
-                  거래처 담당자
-                </p>
-                <span
-                  class="px-2 py-0.5 text-[9px] font-black"
-                  :class="vendorStatusClass(vendor.selectedVendor.status)"
-                >
-                  거래처 {{ vendorStatusLabel(vendor.selectedVendor.status) }}
-                </span>
-              </div>
-              <p class="text-[10px] font-bold text-gray-800">{{ vendor.selectedVendor.name }}</p>
+              <p class="text-[9px] font-black uppercase tracking-wider text-gray-400">
+                거래처 담당자
+              </p>
               <div class="space-y-1 text-xs font-bold">
                 <p class="text-gray-800">{{ vendor.selectedVendor.contactPerson }}</p>
                 <p class="text-gray-400">{{ vendor.selectedVendor.contactEmail }}</p>
@@ -1116,54 +929,7 @@ const InfoIcon = IconBase([
       </div>
     </div>
 
-    <!-- ====================================================
-         계약 제품 삭제 확인 모달 (CEN-030)
-         ==================================================== -->
-    <div
-      v-if="showDeleteConfirm"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-      @click.self="cancelDelete"
-    >
-      <div class="w-full max-w-sm border border-gray-300 bg-white shadow-xl">
-        <div class="flex items-center justify-between bg-red-700 px-4 py-3 text-white">
-          <h3 class="text-[11px] font-black uppercase tracking-wider">계약 제품 삭제 확인</h3>
-          <button type="button" class="p-1 hover:bg-white/10" @click="cancelDelete">
-            <XIcon :size="16" />
-          </button>
-        </div>
-
-        <div class="p-5 text-xs text-gray-700 space-y-2">
-          <p>
-            <strong class="font-black text-gray-900">{{ pendingDelete?.productName }}</strong>
-            <span class="ml-1 text-gray-400">({{ pendingDelete?.productCode }})</span>
-            계약을 삭제하시겠습니까?
-          </p>
-          <p class="font-bold text-red-700">이 작업은 되돌릴 수 없습니다.</p>
-          <p class="text-[10px] font-bold text-gray-400">
-            삭제 후 해당 거래처에 같은 제품 코드로 다시 등록할 수 있습니다.
-          </p>
-        </div>
-
-        <div class="flex justify-end gap-2 border-t border-gray-200 px-4 py-3">
-          <button
-            type="button"
-            class="border border-gray-300 bg-white px-4 py-2 text-[11px] font-black text-gray-700 hover:bg-gray-50"
-            @click="cancelDelete"
-          >
-            취소
-          </button>
-          <button
-            type="button"
-            class="border border-red-700 bg-red-700 px-4 py-2 text-[11px] font-black text-white hover:bg-red-800"
-            @click="confirmDelete"
-          >
-            삭제
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 토스트 (등록·수정·상태 변경·삭제 공통) -->
+    <!-- 토스트 (등록·수정·상태 변경 공통) -->
     <Transition
       enter-active-class="transition-opacity duration-200"
       enter-from-class="opacity-0"

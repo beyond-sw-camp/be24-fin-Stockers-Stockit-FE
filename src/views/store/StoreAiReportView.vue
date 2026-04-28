@@ -13,7 +13,7 @@ const auth = useAuthStore()
 const reportStore = useStoreAiReportStore()
 
 const storeMenus = roleMenus.store
-const sideMenus = roleMenus.store
+const sideMenus = roleMenus.store.find((menu) => menu.label === 'AI 리포트')?.children ?? []
 const activeTopMenu = computed(() => 'AI 리포트')
 const activeSideMenu = ref('AI 리포트')
 

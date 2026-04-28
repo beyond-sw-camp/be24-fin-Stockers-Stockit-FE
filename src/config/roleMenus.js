@@ -88,11 +88,48 @@ export const roleMenus = {
     },
   ],
   store: [
-    { label: 'POS / 판매', path: '/store/pos', icon: 'store' },
-    { label: '주문 관리', path: '/store/orders', icon: 'file' },
-    { label: '재고 관리', path: '/store/inventory', icon: 'warehouse' },
-    { label: '입고 관리', path: '/store/inbound', icon: 'check' },
-    { label: 'AI 리포트', path: '/store/ai-report', icon: 'chart' },
+    {
+      label: '대시보드',
+      path: '/store/dashboard',
+      icon: 'layout',
+      children: [
+        { label: '대시보드', path: '/store/dashboard' },
+      ],
+    },
+    {
+      label: '재고 관리',
+      path: '/store/inventory',
+      icon: 'warehouse',
+      children: [
+        { label: '내 재고 관리', path: '/store/inventory' },
+      ],
+    },
+    {
+      label: '판매 관리',
+      path: '/store/sales/register',
+      icon: 'store',
+      children: [
+        { label: '판매 등록', path: '/store/sales/register' },
+        { label: '판매 내역', path: '/store/sales/history' },
+        { label: '판매 분석', path: '/store/sales/analysis' },
+      ],
+    },
+    {
+      label: '발주 관리',
+      path: '/store/orders',
+      icon: 'file',
+      children: [
+        { label: '발주 관리', path: '/store/orders' },
+      ],
+    },
+    {
+      label: '입고 관리',
+      path: '/store/inbound',
+      icon: 'check',
+      children: [
+        { label: '입고 관리', path: '/store/inbound' },
+      ],
+    },
   ],
   warehouse: [
     {
@@ -121,7 +158,7 @@ export const roleMenus = {
 
 export const roleHomeMap = {
   hq: '/hq/dashboard',
-  store: '/store/pos',
+  store: '/store/sales/register',
   warehouse: '/warehouse/inventory',
 }
 

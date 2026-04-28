@@ -6,7 +6,10 @@ import DevLoginView from '@/views/DevLoginView.vue'
 import LoginView from '@/views/LoginView.vue'
 import SignupView from '@/views/SignupView.vue'
 
-import StorePosView from '@/views/store/StorePosView.vue'
+import StoreDashboardView from '@/views/store/StoreDashboardView.vue'
+import StorePosView from '@/views/store/sales/StorePosView.vue'
+import StoreSalesHistoryView from '@/views/store/sales/StoreSalesHistoryView.vue'
+import StoreSalesAnalysisView from '@/views/store/sales/StoreSalesAnalysisView.vue'
 import StoreOrdersView from '@/views/store/StoreOrdersView.vue'
 import StoreInventoryView from '@/views/store/StoreInventoryView.vue'
 import StoreInboundView from '@/views/store/StoreInboundView.vue'
@@ -19,6 +22,11 @@ import WarehouseInboundView from '@/views/warehouse/WarehouseInboundView.vue'
 import WarehouseOutboundView from '@/views/warehouse/WarehouseOutboundView.vue'
 
 import OperationStatusView from '@/views/hq/dashboard/OperationStatusView.vue'
+import InventoryRiskView from '@/views/hq/dashboard/InventoryRiskView.vue'
+import InboundOutboundFlowView from '@/views/hq/dashboard/InboundOutboundFlowView.vue'
+import AlertCenterView from '@/views/hq/dashboard/AlertCenterView.vue'
+import AllTransactionsView from '@/views/hq/dashboard/AllTransactionsView.vue'
+import AllFlowTransactionsView from '@/views/hq/dashboard/AllFlowTransactionsView.vue'
 
 import HqCompanyWideInventoryView from '@/views/hq/inventory/HqCompanyWideInventoryView.vue'
 import HqWarehouseInventoryComparisonView from '@/views/hq/inventory/HqWarehouseInventoryComparisonView.vue'
@@ -56,6 +64,11 @@ const router = createRouter({
     },
     { path: '/signup', name: 'signup', component: SignupView, meta: { requiresAuth: false } },
     { path: '/hq/dashboard', name: 'hq-dashboard', component: OperationStatusView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/dashboard/inventory-risk', name: 'hq-dashboard-inventory-risk', component: InventoryRiskView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/dashboard/flow', name: 'hq-dashboard-flow', component: InboundOutboundFlowView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/dashboard/flow/all', name: 'hq-dashboard-flow-all', component: AllFlowTransactionsView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/dashboard/alerts', name: 'hq-dashboard-alerts', component: AlertCenterView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/dashboard/transactions', name: 'hq-dashboard-transactions', component: AllTransactionsView, meta: { requiresAuth: true, role: 'hq' } },
 
     { path: '/hq/inventory', redirect: { name: 'hq-inventory-company-wide' } },
     { path: '/hq/inventory/company-wide', name: 'hq-inventory-company-wide', component: HqCompanyWideInventoryView, meta: { requiresAuth: true, role: 'hq' } },
@@ -117,7 +130,11 @@ const router = createRouter({
     { path: '/hq/ai-report', name: 'hq-ai-report', component: HqAiReportView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/esg', name: 'hq-esg', component: EsgDashBoardView, meta: { requiresAuth: true, role: 'hq' } },
 
-    { path: '/store/pos', name: 'store-pos', component: StorePosView, meta: { requiresAuth: true, role: 'store' } },
+    { path: '/store/dashboard', name: 'store-dashboard', component: StoreDashboardView, meta: { requiresAuth: true, role: 'store' } },
+    { path: '/store/pos', redirect: { name: 'store-sales-register' } },
+    { path: '/store/sales/register', name: 'store-sales-register', component: StorePosView, meta: { requiresAuth: true, role: 'store' } },
+    { path: '/store/sales/history', name: 'store-sales-history', component: StoreSalesHistoryView, meta: { requiresAuth: true, role: 'store' } },
+    { path: '/store/sales/analysis', name: 'store-sales-analysis', component: StoreSalesAnalysisView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/orders', name: 'store-orders', component: StoreOrdersView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/inventory', name: 'store-inventory', component: StoreInventoryView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/inbound', name: 'store-inbound', component: StoreInboundView, meta: { requiresAuth: true, role: 'store' } },
