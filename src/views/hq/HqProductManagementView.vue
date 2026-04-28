@@ -1,9 +1,10 @@
 <script setup>
-import { computed, h, ref, watch } from 'vue'
+import { computed, h, onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { deleteCategory, getCategories, getCategory, updateCategory } from '@/api/category.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -24,6 +25,8 @@ watch(() => route.query.tab, (tab) => {
 })
 const selectedProduct = ref(null)
 const selectedCategory = ref(null)
+const categoryEditForm = ref(null)
+const categorySubmitting = ref(false)
 
 const productSideMenus = [
   { label: '카테고리 관리', icon: 'tags', id: 'SO-006' },
@@ -48,59 +51,8 @@ const productMasterData = [
   { id: 'PD-O004', name: '브이넥 니트 가디건', parentCategory: '아우터', childCategory: '가디건', price: 48900, leadTime: '7일', vendor: '니트랩', status: '활성', regDate: '2024.03.25' },
 ]
 
-const categories = ref([
-  {
-    id: 'CAT-100',
-    name: '상의',
-    level: '대분류',
-    status: '사용중',
-    lastUpdated: '2024.04.01',
-    children: [
-      { id: 'CAT-101', name: '반팔', level: '소분류', parentId: 'CAT-100', parentName: '상의', status: '사용중', lastUpdated: '2024.04.01' },
-      { id: 'CAT-102', name: '긴팔', level: '소분류', parentId: 'CAT-100', parentName: '상의', status: '사용중', lastUpdated: '2024.04.01' },
-      { id: 'CAT-103', name: '셔츠', level: '소분류', parentId: 'CAT-100', parentName: '상의', status: '사용중', lastUpdated: '2024.04.01' },
-      { id: 'CAT-104', name: '니트', level: '소분류', parentId: 'CAT-100', parentName: '상의', status: '사용중', lastUpdated: '2024.04.01' },
-      { id: 'CAT-105', name: '후드티', level: '소분류', parentId: 'CAT-100', parentName: '상의', status: '사용중', lastUpdated: '2024.04.01' },
-    ],
-  },
-  {
-    id: 'CAT-200',
-    name: '바지',
-    level: '대분류',
-    status: '사용중',
-    lastUpdated: '2024.04.01',
-    children: [
-      { id: 'CAT-201', name: '청바지', level: '소분류', parentId: 'CAT-200', parentName: '바지', status: '사용중', lastUpdated: '2024.04.01' },
-      { id: 'CAT-202', name: '반바지', level: '소분류', parentId: 'CAT-200', parentName: '바지', status: '사용중', lastUpdated: '2024.04.01' },
-      { id: 'CAT-203', name: '긴바지', level: '소분류', parentId: 'CAT-200', parentName: '바지', status: '사용중', lastUpdated: '2024.04.01' },
-      { id: 'CAT-204', name: '츄리닝', level: '소분류', parentId: 'CAT-200', parentName: '바지', status: '사용중', lastUpdated: '2024.04.01' },
-    ],
-  },
-  {
-    id: 'CAT-300',
-    name: '치마',
-    level: '대분류',
-    status: '사용중',
-    lastUpdated: '2024.04.01',
-    children: [
-      { id: 'CAT-301', name: '미니 스커트', level: '소분류', parentId: 'CAT-300', parentName: '치마', status: '사용중', lastUpdated: '2024.04.01' },
-      { id: 'CAT-302', name: '롱스커트', level: '소분류', parentId: 'CAT-300', parentName: '치마', status: '사용중', lastUpdated: '2024.04.01' },
-    ],
-  },
-  {
-    id: 'CAT-400',
-    name: '아우터',
-    level: '대분류',
-    status: '사용중',
-    lastUpdated: '2024.04.01',
-    children: [
-      { id: 'CAT-401', name: '패딩', level: '소분류', parentId: 'CAT-400', parentName: '아우터', status: '사용중', lastUpdated: '2024.04.01' },
-      { id: 'CAT-402', name: '후드집업', level: '소분류', parentId: 'CAT-400', parentName: '아우터', status: '사용중', lastUpdated: '2024.04.01' },
-      { id: 'CAT-403', name: '자켓', level: '소분류', parentId: 'CAT-400', parentName: '아우터', status: '사용중', lastUpdated: '2024.04.01' },
-      { id: 'CAT-404', name: '가디건', level: '소분류', parentId: 'CAT-400', parentName: '아우터', status: '사용중', lastUpdated: '2024.04.01' },
-    ],
-  },
-])
+const categories = ref([])
+const categoryError = ref('')
 
 const expandedCategories = ref(new Set(['CAT-100']))
 
@@ -147,8 +99,126 @@ const toggleExpand = (id, event) => {
 }
 
 const closeDetail = () => { selectedProduct.value = null }
-const closeCategoryDetail = () => { selectedCategory.value = null }
+const closeCategoryDetail = () => {
+  selectedCategory.value = null
+  categoryEditForm.value = null
+}
 const productEditForm = ref(null)
+
+const statusLabelMap = {
+  ACTIVE: '사용중',
+  SUSPENDED: '점검중',
+  INACTIVE: '미사용',
+}
+
+const levelLabelMap = {
+  ROOT: '대분류',
+  CHILD: '소분류',
+}
+
+function formatDate(dateValue) {
+  if (!dateValue) return '-'
+  const date = new Date(dateValue)
+  if (Number.isNaN(date.getTime())) return '-'
+  return date.toISOString().slice(0, 10).replace(/-/g, '.')
+}
+
+function mapCategoryNode(node, parent = null) {
+  return {
+    id: node.code,
+    name: node.name,
+    level: levelLabelMap[node.level] ?? node.level,
+    status: statusLabelMap[node.status] ?? node.status,
+    lastUpdated: formatDate(node.updatedAt),
+    parentId: parent?.code ?? null,
+    parentName: parent?.name ?? null,
+    children: (node.children ?? []).map((child) => mapCategoryNode(child, node)),
+  }
+}
+
+async function loadCategories() {
+  try {
+    categoryError.value = ''
+    const list = await getCategories()
+    categories.value = list.map((node) => mapCategoryNode(node))
+    if (categories.value.length > 0 && expandedCategories.value.size === 0) {
+      expandedCategories.value = new Set([categories.value[0].id])
+    }
+  } catch (error) {
+    categoryError.value = error.message
+  }
+}
+
+async function selectCategory(code) {
+  try {
+    categoryError.value = ''
+    const detail = await getCategory(code)
+    const parent = categories.value.find((cat) => cat.id === detail.parentCode) ?? null
+    selectedCategory.value = {
+      id: detail.code,
+      name: detail.name,
+      level: levelLabelMap[detail.level] ?? detail.level,
+      status: statusLabelMap[detail.status] ?? detail.status,
+      parentId: parent?.id ?? null,
+      parentName: parent?.name ?? null,
+      lastUpdated: formatDate(detail.updatedAt),
+      children: [],
+    }
+    categoryEditForm.value = {
+      name: selectedCategory.value.name,
+      status: selectedCategory.value.status,
+    }
+  } catch (error) {
+    categoryError.value = error.message
+  }
+}
+
+const statusCodeMap = {
+  사용중: 'ACTIVE',
+  점검중: 'SUSPENDED',
+  미사용: 'INACTIVE',
+}
+
+async function handleSaveCategory() {
+  if (!selectedCategory.value || !categoryEditForm.value) return
+  if (!categoryEditForm.value.name?.trim()) {
+    categoryError.value = '카테고리명을 입력해주세요.'
+    return
+  }
+
+  try {
+    categorySubmitting.value = true
+    categoryError.value = ''
+    await updateCategory(selectedCategory.value.id, {
+      name: categoryEditForm.value.name.trim(),
+      status: statusCodeMap[categoryEditForm.value.status] ?? 'ACTIVE',
+    })
+    await loadCategories()
+    await selectCategory(selectedCategory.value.id)
+  } catch (error) {
+    categoryError.value = error.message
+  } finally {
+    categorySubmitting.value = false
+  }
+}
+
+async function handleDeleteCategory() {
+  if (!selectedCategory.value) return
+  const ok = confirm(`[${selectedCategory.value.name}] 카테고리를 삭제하시겠습니까?`)
+  if (!ok) return
+
+  try {
+    categorySubmitting.value = true
+    categoryError.value = ''
+    await deleteCategory(selectedCategory.value.id)
+    closeCategoryDetail()
+    await loadCategories()
+  } catch (error) {
+    categoryError.value = error.message
+  } finally {
+    categorySubmitting.value = false
+  }
+}
 
 const syncProductEditForm = (product) => {
   if (!product) {
@@ -253,6 +323,10 @@ const iconMap = {
   tags: TagsIcon,
   package: PackageIcon,
 }
+
+onMounted(() => {
+  loadCategories()
+})
 </script>
 
 <template>
@@ -312,6 +386,9 @@ const iconMap = {
           </button>
         </div>
       </section>
+      <p v-if="categoryError" class="border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600">
+        {{ categoryError }}
+      </p>
 
       <!-- 카테고리 관리 -->
       <section v-if="activeSideMenu === '카테고리 관리'" class="flex min-h-0 flex-col gap-4 xl:flex-row">
@@ -341,7 +418,7 @@ const iconMap = {
                   <tr
                     class="cursor-pointer hover:bg-gray-50"
                     :class="selectedCategory?.id === cat.id ? 'bg-[#E6F2F0]' : ''"
-                    @click="selectedCategory = cat"
+                    @click="selectCategory(cat.id)"
                   >
                     <td class="px-3 py-3 text-center font-bold text-gray-400">{{ cat.id }}</td>
                     <td class="px-3 py-3">
@@ -372,7 +449,7 @@ const iconMap = {
                       :key="child.id"
                       class="cursor-pointer bg-gray-50/40 hover:bg-gray-100/60"
                       :class="selectedCategory?.id === child.id ? 'bg-[#E6F2F0]' : ''"
-                      @click="selectedCategory = child"
+                      @click="selectCategory(child.id)"
                     >
                       <td class="px-3 py-2.5 text-center font-bold text-gray-400">{{ child.id }}</td>
                       <td class="px-3 py-2.5">
@@ -398,7 +475,7 @@ const iconMap = {
         </div>
 
         <!-- 카테고리 상세 패널 -->
-        <aside v-if="selectedCategory" class="w-full shrink-0 border border-gray-300 bg-white shadow-sm xl:w-80">
+        <aside v-if="selectedCategory && categoryEditForm" class="w-full shrink-0 border border-gray-300 bg-white shadow-sm xl:w-80">
           <div class="flex items-center justify-between bg-[#004D3C] px-4 py-3 text-white">
             <h3 class="inline-flex items-center gap-2 text-[11px] font-bold">
               <InfoIcon :size="14" /> 카테고리 상세
@@ -421,7 +498,7 @@ const iconMap = {
                 카테고리명
                 <input
                   type="text"
-                  :value="selectedCategory.name"
+                  v-model="categoryEditForm.name"
                   class="mt-1 w-full border border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#004D3C]"
                 />
               </label>
@@ -435,10 +512,10 @@ const iconMap = {
 
               <label class="block text-[10px] font-bold text-gray-400">
                 상태
-                <select class="mt-1 w-full border border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#004D3C]">
-                  <option :selected="selectedCategory.status === '사용중'">사용중</option>
-                  <option :selected="selectedCategory.status === '점검중'">점검중</option>
-                  <option :selected="selectedCategory.status === '미사용'">미사용</option>
+                <select v-model="categoryEditForm.status" class="mt-1 w-full border border-gray-300 bg-gray-50 px-3 py-2 text-xs text-gray-800 outline-none focus:border-[#004D3C]">
+                  <option>사용중</option>
+                  <option>점검중</option>
+                  <option>미사용</option>
                 </select>
               </label>
             </div>
@@ -457,8 +534,22 @@ const iconMap = {
             </div>
 
             <div class="flex gap-2 pt-1">
-              <button type="button" class="flex-1 border border-[#004D3C] bg-[#004D3C] py-2 text-xs font-bold text-white hover:bg-[#003d30]">저장</button>
-              <button type="button" class="flex-1 border border-red-300 bg-red-50 py-2 text-xs font-bold text-red-600 hover:bg-red-100">삭제</button>
+              <button
+                type="button"
+                class="flex-1 border border-[#004D3C] bg-[#004D3C] py-2 text-xs font-bold text-white hover:bg-[#003d30] disabled:opacity-50"
+                :disabled="categorySubmitting"
+                @click="handleSaveCategory"
+              >
+                저장
+              </button>
+              <button
+                type="button"
+                class="flex-1 border border-red-300 bg-red-50 py-2 text-xs font-bold text-red-600 hover:bg-red-100 disabled:opacity-50"
+                :disabled="categorySubmitting"
+                @click="handleDeleteCategory"
+              >
+                삭제
+              </button>
             </div>
           </div>
         </aside>

@@ -409,7 +409,7 @@ function handleLogout() {
                 <th class="px-3 py-3 font-black">품목 코드</th>
                 <th class="px-3 py-3 font-black">카테고리</th>
                 <th class="px-3 py-3 font-black">품목명</th>
-                <th class="px-3 py-3 text-right font-black">실제고</th>
+                <th class="px-3 py-3 text-right font-black">실재고</th>
                 <th class="px-3 py-3 text-right font-black">가용재고</th>
                 <th class="px-3 py-3 text-right font-black">안전재고</th>
                 <th class="px-3 py-3 text-center font-black">상태</th>

@@ -9,6 +9,8 @@ export const apiClient = axios.create({
   timeout: 10000,
 })
 
+export default apiClient
+
 /**
  * BaseResponse<T> 언랩 헬퍼.
  * BE 응답 형태: { success, code, message, result }.

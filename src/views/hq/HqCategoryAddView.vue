@@ -1,10 +1,11 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, ChevronRight, Tags } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { createCategory, getCategories } from '@/api/category.js'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -23,20 +24,18 @@ const productSideMenus = [
   { label: '제품 마스터', icon: 'package', id: 'SO-011', path: '/hq/products' },
 ]
 
-const parentCategories = [
-  { id: 'CAT-100', name: '상의' },
-  { id: 'CAT-200', name: '바지' },
-  { id: 'CAT-300', name: '치마' },
-  { id: 'CAT-400', name: '아우터' },
-]
+const parentCategories = ref([])
 
 const level = ref('대분류')
 const name = ref('')
-const parentId = ref('CAT-100')
+const parentId = ref('')
 const status = ref('사용중')
+const submitError = ref('')
+const isSubmitting = ref(false)
+const submitSuccess = ref('')
 
 const nameError = computed(() => name.value.trim() === '' ? '카테고리명을 입력해주세요.' : '')
-const selectedParentCategory = computed(() => parentCategories.find((cat) => cat.id === parentId.value))
+const selectedParentCategory = computed(() => parentCategories.value.find((cat) => cat.id === parentId.value))
 const requiredProgress = computed(() => {
   const requiredSteps = [
     Boolean(level.value),
@@ -47,13 +46,67 @@ const requiredProgress = computed(() => {
 })
 
 function handleSubmit() {
-  if (nameError.value) return
-  router.push('/hq/products')
+  submitCategory()
 }
 
 function handleCancel() {
   router.push('/hq/products')
 }
+
+const statusEnumMap = {
+  사용중: 'ACTIVE',
+  점검중: 'SUSPENDED',
+  미사용: 'INACTIVE',
+}
+
+const levelEnumMap = {
+  대분류: 'ROOT',
+  소분류: 'CHILD',
+}
+
+async function loadParentCategories() {
+  try {
+    const list = await getCategories()
+    parentCategories.value = list.map((item) => ({ id: item.code, name: item.name }))
+    if (!parentId.value && parentCategories.value.length > 0) {
+      parentId.value = parentCategories.value[0].id
+    }
+  } catch (error) {
+    submitError.value = error.message
+  }
+}
+
+async function submitCategory() {
+  if (nameError.value) return
+  if (level.value === '소분류' && !parentId.value) {
+    submitError.value = '상위 분류를 선택해주세요.'
+    return
+  }
+  try {
+    isSubmitting.value = true
+    submitError.value = ''
+    submitSuccess.value = ''
+    const payload = {
+      name: name.value.trim(),
+      level: levelEnumMap[level.value],
+      status: statusEnumMap[status.value],
+      parentCode: level.value === '소분류' ? parentId.value : null,
+    }
+    await createCategory(payload)
+    submitSuccess.value = '카테고리가 등록되었습니다.'
+    setTimeout(() => {
+      router.push('/hq/products?tab=categories')
+    }, 500)
+  } catch (error) {
+    submitError.value = error.message
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+onMounted(() => {
+  loadParentCategories()
+})
 </script>
 
 <template>
@@ -208,6 +261,12 @@ function handleCancel() {
             </div>
 
             <div class="-mx-5 border-t border-gray-100 bg-gray-50 px-5 pt-4">
+              <p v-if="submitError" class="mb-2 border border-red-200 bg-red-50 px-2 py-1 text-[11px] font-bold text-red-600">
+                {{ submitError }}
+              </p>
+              <p v-if="submitSuccess" class="mb-2 border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700">
+                {{ submitSuccess }}
+              </p>
               <div class="flex gap-2">
                 <button
                   type="button"
@@ -219,9 +278,9 @@ function handleCancel() {
                 <button
                   type="submit"
                   class="flex-1 border border-[#004D3C] bg-[#004D3C] py-2.5 text-sm font-bold text-white hover:bg-[#003d30] disabled:cursor-not-allowed disabled:opacity-40"
-                  :disabled="!name.trim()"
+                  :disabled="!name.trim() || isSubmitting"
                 >
-                  카테고리 추가
+                  {{ isSubmitting ? '등록 중...' : '카테고리 추가' }}
                 </button>
               </div>
             </div>
