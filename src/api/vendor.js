@@ -4,7 +4,8 @@
  * BE 엔드포인트:
  *   GET    /api/vendors                            (목록, 등록은 SQL 직접)
  *   GET    /api/vendors/{code}
- *   GET    /api/vendor-products?vendorCode=...     (CEN-031)
+ *   GET    /api/vendor-products?vendorCode=...     (CEN-031, 특정 거래처)
+ *   GET    /api/vendor-products?status=...         (CEN-035 발주 카탈로그, 전체 거래처)
  *   GET    /api/vendor-products/{code}             (CEN-033)
  *   POST   /api/vendor-products                    (CEN-027)
  *   PATCH  /api/vendor-products/{code}             (CEN-028)
@@ -24,6 +25,16 @@ export const vendorApi = {
   // ─── 거래처별 계약 제품 ─────────────────────────────────────────────────
   listVendorProducts: (vendorCode) =>
     apiClient.get('/api/vendor-products', { params: { vendorCode } }).then(unwrap),
+
+  /**
+   * 전체 거래처 제품 일괄 조회 (CEN-035 발주 작성 카탈로그용).
+   * @param {'ACTIVE'|'SUSPENDED'|'EXPIRED'|'DELETED'} [status] — 생략 시 DELETED 제외 전체
+   */
+  listAllVendorProducts: (status) =>
+    apiClient
+      .get('/api/vendor-products', { params: status ? { status } : {} })
+      .then(unwrap),
+
   getVendorProduct: (code) => apiClient.get(`/api/vendor-products/${code}`).then(unwrap),
 
   /**

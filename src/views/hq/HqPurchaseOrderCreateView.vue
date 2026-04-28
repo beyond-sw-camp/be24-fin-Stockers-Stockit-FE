@@ -64,11 +64,13 @@ function triggerToast(message) {
 
 // ─── computed ────────────────────────────────────────────────────────────────
 // 카탈로그: active 거래처 × active 계약 제품
+// 데이터 출처는 vendor.allVendorProducts (전체 거래처 제품 — onMounted 에서 fetch).
+// 기존 vendor.vendorProducts 는 한 거래처 전용이라 발주 카탈로그엔 부적합.
 const catalog = computed(() => {
   const activeVendorMap = new Map(
     vendor.vendors.filter((v) => v.status === 'active').map((v) => [v.id, v]),
   )
-  return vendor.vendorProducts
+  return vendor.allVendorProducts
     .filter((vp) => vp.status === 'active' && activeVendorMap.has(vp.vendorId))
     .map((vp) => ({
       ...vp,
@@ -383,6 +385,9 @@ function initEditMode() {
 
 // ─── mounted ────────────────────────────────────────────────────────────────
 onMounted(() => {
+  vendor.fetchAllVendorProducts('ACTIVE').catch((err) => {
+    console.error('[HqPurchaseOrderCreateView] fetchAllVendorProducts 실패', err)
+  })
   if (isEditMode.value) {
     initEditMode()
   } else {

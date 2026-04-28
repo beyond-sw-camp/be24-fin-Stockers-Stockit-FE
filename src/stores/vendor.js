@@ -35,7 +35,8 @@ function fromApiVendorProduct(vp) {
 export const useVendorStore = defineStore('vendor', () => {
   // --- state ---
   const vendors = ref([])
-  const vendorProducts = ref([]) // 현재 선택된 vendor 의 계약 제품만 보유
+  const vendorProducts = ref([]) // 현재 선택된 vendor 의 계약 제품만 보유 (거래처 관리 페이지용)
+  const allVendorProducts = ref([]) // 전체 거래처의 활성 제품 (CEN-035 발주 작성 카탈로그용)
   const selectedVendorId = ref(null)
   const selectedProductId = ref(null)
   const loading = ref(false)
@@ -89,6 +90,18 @@ export const useVendorStore = defineStore('vendor', () => {
     try {
       const list = await vendorApi.listVendors()
       vendors.value = (list ?? []).map(fromApiVendor)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // 전체 거래처 제품 fetch (CEN-035 발주 작성 카탈로그용)
+  // 기존 vendorProducts 와 분리된 별 state (allVendorProducts) 에 적재.
+  async function fetchAllVendorProducts(status = 'ACTIVE') {
+    loading.value = true
+    try {
+      const list = await vendorApi.listAllVendorProducts(status)
+      allVendorProducts.value = (list ?? []).map(fromApiVendorProduct)
     } finally {
       loading.value = false
     }
@@ -189,6 +202,7 @@ export const useVendorStore = defineStore('vendor', () => {
   return {
     vendors,
     vendorProducts,
+    allVendorProducts,
     selectedVendorId,
     selectedProductId,
     loading,
@@ -199,6 +213,7 @@ export const useVendorStore = defineStore('vendor', () => {
     isProductCodeDuplicate,
     fetchVendors,
     fetchProductsByVendor,
+    fetchAllVendorProducts,
     selectVendor,
     selectProduct,
     createProduct,
