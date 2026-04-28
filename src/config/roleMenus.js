@@ -4,9 +4,7 @@ export const roleMenus = {
       label: '대시보드',
       path: '/hq/dashboard',
       icon: 'layout',
-      children: [
-        { label: '운영 현황', path: '/hq/dashboard' },
-      ],
+      children: [{ label: '운영 현황', path: '/hq/dashboard' }],
     },
     {
       label: '재고 관리',
@@ -81,17 +79,13 @@ export const roleMenus = {
       label: 'AI 리포트',
       path: '/hq/ai-report',
       icon: 'chart',
-      children: [
-        { label: 'AI 리포트', path: '/hq/ai-report' },
-      ],
+      children: [{ label: 'AI 리포트', path: '/hq/ai-report' }],
     },
     {
       label: 'ESG 대시보드',
       path: '/hq/esg',
       icon: 'leaf',
-      children: [
-        { label: '친환경 발자국 현황판', path: '/hq/esg' },
-      ],
+      children: [{ label: '친환경 발자국 현황판', path: '/hq/esg' }],
     },
   ],
   store: [
@@ -102,10 +96,27 @@ export const roleMenus = {
     { label: 'AI 리포트', path: '/store/ai-report', icon: 'chart' },
   ],
   warehouse: [
-    { label: '대시보드', path: '/warehouse/dashboard', icon: 'layout' },
-    { label: '창고 재고 관리', path: '/warehouse/inventory', icon: 'warehouse' },
-    { label: '입고 관리', path: '/warehouse/inbound', icon: 'check' },
-    { label: '출고 관리', path: '/warehouse/outbound', icon: 'truck' },
+    {
+      label: '대시보드',
+      path: '/warehouse/dashboard',
+      icon: 'layout',
+      children: [{ label: '창고 대시보드', path: '/warehouse/dashboard' }],
+    },
+    {
+      label: '재고 관리',
+      path: '/warehouse/inventory',
+      icon: 'warehouse',
+      children: [{ label: '창고 재고 조회', path: '/warehouse/inventory' }],
+    },
+    {
+      label: '입/출고 관리',
+      path: '/warehouse/inbound',
+      icon: 'truck',
+      children: [
+        { label: '입고 관리', path: '/warehouse/inbound' },
+        { label: '출고 관리', path: '/warehouse/outbound' },
+      ],
+    },
   ],
 }
 

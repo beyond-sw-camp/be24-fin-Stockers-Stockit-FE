@@ -16,8 +16,10 @@ const router = useRouter()
 const auth = useAuthStore()
 const poStore = usePurchaseOrderStore()
 
-const sideMenus = roleMenus.warehouse
-const activeSideMenu = ref('대시보드')
+const topMenus = roleMenus.warehouse
+const sideMenus = roleMenus.warehouse.find((menu) => menu.label === '대시보드')?.children ?? []
+const activeTopMenu = computed(() => '대시보드')
+const activeSideMenu = ref('창고 대시보드')
 
 function handleLogout() {
   auth.logout()
@@ -190,7 +192,8 @@ function formatDate(iso) {
 
 <template>
   <AppLayout
-    active-top-menu="대시보드"
+    :active-top-menu="activeTopMenu"
+    :top-menus="topMenus"
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
     @logout="handleLogout"
