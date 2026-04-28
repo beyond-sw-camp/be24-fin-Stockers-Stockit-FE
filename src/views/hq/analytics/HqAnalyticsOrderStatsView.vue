@@ -3,8 +3,8 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Truck, Clock, Package, RefreshCw } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
-import ChartTooltip from '@/components/common/charts/ChartTooltip.vue'
 import LineChart from '@/components/common/charts/LineChart.vue'
+import BarChart from '@/components/common/charts/BarChart.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 
@@ -63,8 +63,6 @@ const avgCycleAll = computed(() =>
 const shortest = computed(() => orderCycleData.reduce((a, b) => (a.avgCycle < b.avgCycle ? a : b)))
 const longest = computed(() => orderCycleData.reduce((a, b) => (a.avgCycle > b.avgCycle ? a : b)))
 const totalOrdersSum = computed(() => orderCycleData.reduce((s, d) => s + d.totalOrders, 0))
-const maxCycle = computed(() => Math.max(...orderCycleData.map((d) => d.avgCycle)))
-const maxOrders = computed(() => Math.max(...monthlyTrend.map((m) => m.orders)))
 
 const kpiMetrics = computed(() => [
   { label: '관리 품목 수', value: totalItems, unit: '개', sub: '발주 이력 기준', icon: Package, valueCls: 'text-emerald-700', iconBg: 'bg-emerald-50', iconCls: 'text-emerald-600' },
@@ -72,6 +70,83 @@ const kpiMetrics = computed(() => [
   { label: '가장 짧은 주기', value: shortest.value.avgCycle, unit: '일', sub: shortest.value.item, icon: RefreshCw, valueCls: 'text-amber-700', iconBg: 'bg-amber-50', iconCls: 'text-amber-600' },
   { label: '누적 발주', value: totalOrdersSum.value, unit: '건', sub: '최근 6개월', icon: Truck, valueCls: 'text-violet-700', iconBg: 'bg-violet-50', iconCls: 'text-violet-600' },
 ])
+
+// 품목별 평균 발주 주기 BarChart
+const cycleChartData = computed(() => ({
+  labels: orderCycleData.map((d) => d.item),
+  datasets: [
+    {
+      label: '평균 발주 주기',
+      data: orderCycleData.map((d) => d.avgCycle),
+      backgroundColor: orderCycleData.map((d) =>
+        d.avgCycle === shortest.value.avgCycle ? 'rgba(245, 158, 11, 0.9)' : 'rgba(16, 185, 129, 0.85)',
+      ),
+      borderColor: orderCycleData.map((d) =>
+        d.avgCycle === shortest.value.avgCycle ? '#d97706' : '#059669',
+      ),
+      borderWidth: 1,
+      borderRadius: 8,
+      borderSkipped: false,
+      maxBarThickness: 36,
+      hoverBackgroundColor: orderCycleData.map((d) =>
+        d.avgCycle === shortest.value.avgCycle ? '#d97706' : '#047857',
+      ),
+    },
+  ],
+}))
+
+const cycleChartOptions = computed(() => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: 'rgba(17, 24, 39, 0.95)',
+      titleColor: '#6ee7b7',
+      titleFont: { size: 11, weight: 'bold' },
+      bodyColor: '#fff',
+      padding: 10,
+      cornerRadius: 6,
+      displayColors: false,
+      callbacks: {
+        title: (items) => items[0].label,
+        label: (ctx) => {
+          const d = orderCycleData[ctx.dataIndex]
+          const isShortest = d.avgCycle === shortest.value.avgCycle
+          const isLongest = d.avgCycle === longest.value.avgCycle
+          return [
+            `카테고리: ${d.category}`,
+            `평균 주기: ${d.avgCycle}일`,
+            `평균 수량: ${d.avgQty.toLocaleString()}개`,
+            `누적 발주: ${d.totalOrders}건`,
+            `최근 발주: ${d.lastOrderedAt}`,
+            isShortest ? '⚡ 최단 주기 (고회전)' : '',
+            isLongest ? '🐢 최장 주기' : '',
+          ].filter(Boolean)
+        },
+      },
+    },
+  },
+  scales: {
+    x: {
+      grid: { display: false },
+      ticks: {
+        font: { size: 10 },
+        color: '#4b5563',
+        maxRotation: 0,
+        minRotation: 0,
+        autoSkip: false,
+        padding: 4,
+      },
+    },
+    y: {
+      grid: { color: '#f3f4f6' },
+      ticks: { font: { size: 10 }, callback: (v) => v + '일' },
+      beginAtZero: true,
+    },
+  },
+  layout: { padding: { bottom: 4 } },
+}))
 
 const monthlyTrendChartData = computed(() => ({
   labels: monthlyTrend.map((m) => m.m),
@@ -161,7 +236,7 @@ const monthlyTrendChartOptions = {
             기준: {{ dateLabel }}
           </span>
         </div>
-        <span class="text-[11px] text-gray-500">품목별 평균 발주 주기 분석 (라인 차트)</span>
+        <span class="text-[11px] text-gray-500">품목별 평균 발주 주기 분석 (막대 차트)</span>
       </section>
 
       <section class="flex flex-wrap items-center gap-3 border border-gray-300 bg-white px-3 py-2.5 shadow-sm">
@@ -229,54 +304,28 @@ const monthlyTrendChartOptions = {
       </section>
 
       <section class="grid gap-3 xl:grid-cols-2">
-        <article class="border border-gray-300 bg-white shadow-sm">
+        <article class="flex flex-col border border-gray-300 bg-white shadow-sm">
           <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-3 py-2.5">
             <div>
               <h3 class="text-sm font-medium text-gray-800">품목별 평균 발주 주기</h3>
-              <p class="mt-0.5 text-[10px] text-gray-400">라인 차트 - 단위: 일 (기간: {{ periodUnit }})</p>
+              <p class="mt-0.5 text-[10px] text-gray-400">막대 차트 · 단위: 일 (기간: {{ periodUnit }})</p>
             </div>
-            <span class="text-[10px] text-gray-500">최단 {{ shortest.avgCycle }}일 ↔ 최장 {{ longest.avgCycle }}일</span>
+            <span class="inline-flex items-center gap-1 border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+              ⚡ 최단 {{ shortest.item }} {{ shortest.avgCycle }}일
+            </span>
           </div>
-          <div class="px-3 py-3">
-            <div class="flex h-28 items-end gap-1">
-              <div
-                v-for="d in orderCycleData"
-                :key="d.item"
-                class="group relative flex h-full flex-1 items-end"
-              >
-                <div
-                  class="w-full bg-gradient-to-t from-emerald-600 to-emerald-400 transition-all group-hover:from-emerald-700 group-hover:to-emerald-500 group-hover:shadow-lg"
-                  :style="{ height: (d.avgCycle / maxCycle * 100) + '%' }"
-                />
-                <ChartTooltip>
-                  <p class="text-[11px] font-bold text-emerald-300">{{ d.item }}</p>
-                  <p class="text-[9px] text-gray-300">{{ d.category }}</p>
-                  <div class="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5 border-t border-gray-700 pt-1 text-[10px]">
-                    <span class="text-gray-400">평균 주기</span>
-                    <span class="text-right font-bold text-emerald-300">{{ d.avgCycle }}일</span>
-                    <span class="text-gray-400">평균 수량</span>
-                    <span class="text-right font-semibold">{{ d.avgQty.toLocaleString() }}</span>
-                    <span class="text-gray-400">누적 발주</span>
-                    <span class="text-right font-semibold">{{ d.totalOrders }}건</span>
-                    <span class="text-gray-400">최근 발주</span>
-                    <span class="text-right font-semibold">{{ d.lastOrderedAt }}</span>
-                  </div>
-                </ChartTooltip>
-              </div>
-            </div>
-            <div class="mt-1 grid text-center text-[9px] text-gray-400" :style="{ gridTemplateColumns: `repeat(${orderCycleData.length}, 1fr)` }">
-              <span v-for="d in orderCycleData" :key="d.item" class="truncate px-1">{{ d.item }}</span>
-            </div>
+          <div class="flex flex-1 items-center px-3 py-3">
+            <BarChart :data="cycleChartData" :options="cycleChartOptions" :height="220" />
           </div>
         </article>
 
-        <article class="border border-gray-300 bg-white shadow-sm">
+        <article class="flex flex-col border border-gray-300 bg-white shadow-sm">
           <div class="border-b border-gray-200 px-3 py-2.5">
             <h3 class="text-sm font-medium text-gray-800">월별 발주 건수 추이</h3>
             <p class="mt-0.5 text-[10px] text-gray-400">최근 6개월</p>
           </div>
-          <div class="px-3 py-3">
-            <LineChart :data="monthlyTrendChartData" :options="monthlyTrendChartOptions" :height="180" />
+          <div class="flex flex-1 items-center px-3 py-3">
+            <LineChart :data="monthlyTrendChartData" :options="monthlyTrendChartOptions" :height="220" />
           </div>
         </article>
       </section>
