@@ -12,6 +12,7 @@ import StoreSalesHistoryView from '@/views/store/sales/StoreSalesHistoryView.vue
 import StoreSalesAnalysisView from '@/views/store/sales/StoreSalesAnalysisView.vue'
 import StoreOrdersView from '@/views/store/StoreOrdersView.vue'
 import StoreInventoryView from '@/views/store/StoreInventoryView.vue'
+import StoreInventorySkuDetailView from '@/views/store/StoreInventorySkuDetailView.vue'
 import StoreInboundView from '@/views/store/StoreInboundView.vue'
 import StoreAiReportView from '@/views/store/StoreAiReportView.vue'
 
@@ -137,6 +138,12 @@ const router = createRouter({
     { path: '/store/sales/analysis', name: 'store-sales-analysis', component: StoreSalesAnalysisView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/orders', name: 'store-orders', component: StoreOrdersView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/inventory', name: 'store-inventory', component: StoreInventoryView, meta: { requiresAuth: true, role: 'store' } },
+    {
+      path: '/store/inventory/:itemCode/skus',
+      name: 'store-inventory-sku-detail',
+      component: StoreInventorySkuDetailView,
+      meta: { requiresAuth: true, role: 'store' },
+    },
     { path: '/store/inbound', name: 'store-inbound', component: StoreInboundView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/ai-report', name: 'store-ai-report', component: StoreAiReportView, meta: { requiresAuth: true, role: 'store' } },
 

@@ -101,7 +101,7 @@ export const roleMenus = {
       path: '/store/inventory',
       icon: 'warehouse',
       children: [
-        { label: '내 재고 관리', path: '/store/inventory' },
+        { label: '매장 재고 조회', path: '/store/inventory' },
       ],
     },
     {
