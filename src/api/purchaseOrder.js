@@ -1,15 +1,17 @@
 /**
- * purchaseOrder.js — BE 연동 (CEN-035~040)
+ * purchaseOrder.js — BE 연동 (CEN-035~040 + SYS-001)
  *
  * BE 엔드포인트:
  *   GET    /api/hq/purchase-orders?vendorCode=&status=&from=&to=    (목록, 모든 필터 optional)
  *   GET    /api/hq/purchase-orders/{code}                            (상세 — items + statusHistory 포함)
  *   POST   /api/hq/purchase-orders                                   (CEN-035 신규 발주)
  *   PATCH  /api/hq/purchase-orders/{code}                            (CEN-037 수정 — PENDING 만)
- *   POST   /api/hq/purchase-orders/{code}/approve                    (PENDING → APPROVED, 거래처 승인 대리)
- *   POST   /api/hq/purchase-orders/{code}/start-shipping             (APPROVED → SHIPPING, 거래처 출고 시작 대리)
  *   POST   /api/hq/purchase-orders/{code}/complete                   (SHIPPING → COMPLETED, 창고 WHS-007)
  *   POST   /api/hq/purchase-orders/{code}/cancel                     (CEN-038 PENDING → REJECTED, with cancelReason)
+ *   POST   /api/hq/purchase-orders/batch/run                         (SYS-001 강제 트리거, 시연·QA용)
+ *
+ * SYS-001 자동화: PENDING → APPROVED, APPROVED → SHIPPING 두 단계는 5분 주기 배치가
+ *   30분 경과한 발주를 자동 전환. 본사는 작성·취소만, 단건 수동 트리거 엔드포인트 없음.
  *
  * 응답: BaseResponse<T>. unwrap() 으로 result 만 추출, 실패 시 throw.
  */
@@ -48,14 +50,15 @@ export const purchaseOrderApi = {
    */
   update: (code, req) => apiClient.patch(`${BASE}/${code}`, req).then(unwrap),
 
-  /** 거래처 승인 대리 (PENDING → APPROVED) */
-  approve: (code) => apiClient.post(`${BASE}/${code}/approve`).then(unwrap),
-
-  /** 거래처 출고 시작 대리 (APPROVED → SHIPPING) */
-  startShipping: (code) => apiClient.post(`${BASE}/${code}/start-shipping`).then(unwrap),
-
   /** 입고 확정 (SHIPPING → COMPLETED, 창고 WHS-007) */
   complete: (code) => apiClient.post(`${BASE}/${code}/complete`).then(unwrap),
+
+  /**
+   * SYS-001 강제 트리거 — 시연·QA·장애 대응용.
+   * 30분 대기 조건을 무시하고 PENDING/APPROVED 모두 즉시 다음 단계로 자동 전환.
+   * @returns {Promise<{approved: number, shipping: number}>}
+   */
+  runBatch: () => apiClient.post(`${BASE}/batch/run`).then(unwrap),
 
   /**
    * 취소 (CEN-038, PENDING → REJECTED)

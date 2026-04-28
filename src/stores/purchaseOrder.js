@@ -274,22 +274,6 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     return fe
   }
 
-  async function approveOrder(id) {
-    const updated = await purchaseOrderApi.approve(id)
-    const fe = toFeOrder(updated)
-    const idx = purchaseOrders.value.findIndex((o) => o.id === id)
-    if (idx >= 0) purchaseOrders.value.splice(idx, 1, fe)
-    return fe
-  }
-
-  async function markShipping(id) {
-    const updated = await purchaseOrderApi.startShipping(id)
-    const fe = toFeOrder(updated)
-    const idx = purchaseOrders.value.findIndex((o) => o.id === id)
-    if (idx >= 0) purchaseOrders.value.splice(idx, 1, fe)
-    return fe
-  }
-
   async function markCompleted(id) {
     const updated = await purchaseOrderApi.complete(id)
     const fe = toFeOrder(updated)
@@ -304,6 +288,28 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     const idx = purchaseOrders.value.findIndex((o) => o.id === id)
     if (idx >= 0) purchaseOrders.value.splice(idx, 1, fe)
     return fe
+  }
+
+  /**
+   * SYS-001 강제 트리거 — 시연·QA용.
+   * 배치 호출 후 처리된 건이 있으면 목록·선택 상세 재조회로 화면 동기화.
+   */
+  async function runBatch() {
+    try {
+      const result = await purchaseOrderApi.runBatch()
+      const changed = (result?.approved ?? 0) + (result?.shipping ?? 0)
+      if (changed > 0) {
+        await fetchOrders()
+        if (selectedOrderId.value) {
+          await fetchDetail(selectedOrderId.value).catch(() => {})
+        }
+      }
+      return result
+    } catch (e) {
+      error.value = e?.message ?? '배치 강제 실행에 실패했습니다.'
+      console.error('[purchaseOrder] runBatch 실패', e)
+      throw e
+    }
   }
 
   // 스토어 생성 시 자동 fetch (vendor store 패턴)
@@ -337,8 +343,7 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     createOrder,
     updateOrder,
     cancelOrder,
-    approveOrder,
-    markShipping,
     markCompleted,
+    runBatch,
   }
 })

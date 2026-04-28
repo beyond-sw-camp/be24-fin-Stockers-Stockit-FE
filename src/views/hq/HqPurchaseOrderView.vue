@@ -41,10 +41,9 @@ function selectOrder(id) {
   poStore.selectOrder(id)
 }
 
-// ─── 거래처 액션 대리 트리거 (옵션 A) ──────────────────────────────────────
-const showApproveConfirm = ref(false)
-const showShippingConfirm = ref(false)
-// 발주 취소 confirm
+// ─── 발주 취소 confirm ──────────────────────────────────────────────────────
+// 거래처 승인(PENDING→APPROVED)·출고 시작(APPROVED→SHIPPING) 두 단계는 SYS-001 배치가
+// 자동 처리한다 (5분 주기, 30분 경과 조건). 본사는 발주 작성·취소 + 시연용 강제 트리거만.
 const showCancelConfirm = ref(false)
 const cancelReason = ref('')
 
@@ -58,42 +57,25 @@ function triggerToast(message) {
   }, 3000)
 }
 
-function openApproveConfirm() {
-  if (poStore.selectedOrder?.status !== 'PENDING') return
-  showApproveConfirm.value = true
-}
-async function confirmApprove() {
-  const id = poStore.selectedOrder?.id
-  if (!id) return
-  showApproveConfirm.value = false
+// ─── SYS-001 배치 강제 트리거 (시연·QA용) ─────────────────────────────────
+// 30분 대기 조건을 무시하고 PENDING/APPROVED 모두 즉시 다음 단계로 넘긴다.
+const isRunningBatch = ref(false)
+async function runBatchTrigger() {
+  if (isRunningBatch.value) return
+  isRunningBatch.value = true
   try {
-    await poStore.approveOrder(id)
-    triggerToast('거래처 승인이 기록되었습니다')
+    const result = await poStore.runBatch()
+    const total = (result?.approved ?? 0) + (result?.shipping ?? 0)
+    if (total === 0) {
+      triggerToast('자동 전환 대상 발주가 없습니다')
+    } else {
+      triggerToast(`자동 전환 ${total}건 (승인 ${result.approved} · 출고 ${result.shipping})`)
+    }
   } catch (e) {
-    triggerToast(e?.message ?? '승인 처리에 실패했습니다')
+    triggerToast(e?.message ?? '배치 실행에 실패했습니다')
+  } finally {
+    isRunningBatch.value = false
   }
-}
-function cancelApprove() {
-  showApproveConfirm.value = false
-}
-
-function openShippingConfirm() {
-  if (poStore.selectedOrder?.status !== 'APPROVED') return
-  showShippingConfirm.value = true
-}
-async function confirmShipping() {
-  const id = poStore.selectedOrder?.id
-  if (!id) return
-  showShippingConfirm.value = false
-  try {
-    await poStore.markShipping(id)
-    triggerToast('거래처 출고가 기록되었습니다')
-  } catch (e) {
-    triggerToast(e?.message ?? '출고 처리에 실패했습니다')
-  }
-}
-function cancelShipping() {
-  showShippingConfirm.value = false
 }
 
 // ─── 발주 취소 (CEN-038) ────────────────────────────────────────────────────
@@ -260,8 +242,8 @@ const UserIcon = IconBase([
   { tag: 'circle', attrs: { cx: '12', cy: '8', r: '4' } },
 ])
 
-const CheckIcon = IconBase([
-  { tag: 'polyline', attrs: { points: '20 6 9 17 4 12' } },
+const ZapIcon = IconBase([
+  { tag: 'polygon', attrs: { points: '13 2 3 14 12 14 11 22 21 10 12 10 13 2' } },
 ])
 
 const TruckIcon = IconBase([
@@ -361,6 +343,16 @@ const TruckIcon = IconBase([
                   class="w-52 border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-xs outline-none focus:border-[#004D3C]"
                 />
               </label>
+              <button
+                type="button"
+                class="inline-flex items-center gap-1.5 border border-gray-300 bg-white px-3 py-1.5 text-xs font-black text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
+                :disabled="isRunningBatch"
+                title="SYS-001 배치를 즉시 한 번 돌립니다 (시연·QA용)"
+                @click="runBatchTrigger"
+              >
+                <ZapIcon :size="14" />
+                {{ isRunningBatch ? '실행 중...' : '배치 강제 실행' }}
+              </button>
               <button
                 type="button"
                 class="inline-flex items-center gap-1.5 border border-[#004D3C] bg-[#004D3C] px-3 py-1.5 text-xs font-black text-white transition-colors hover:bg-[#1f4b3a]"
@@ -609,15 +601,7 @@ const TruckIcon = IconBase([
           <!-- PENDING 단계에서만 본사 권한(수정/취소) 노출. 승인 이후 단계는 시스템 자동화(RQ-001/002) 및 창고관리자(PO-003/004) 영역이므로 조회만. -->
           <div class="space-y-4 px-4 pb-6 pt-2">
             <template v-if="poStore.selectedOrder.status === 'PENDING'">
-              <button
-                type="button"
-                class="inline-flex w-full items-center justify-center gap-1.5 border border-[#004D3C] bg-[#004D3C] px-2 py-3 text-[11px] font-black text-white hover:bg-[#1f4b3a]"
-                @click="openApproveConfirm"
-              >
-                <CheckIcon :size="12" />
-                거래처 승인 받음
-              </button>
-              <div class="grid grid-cols-2 gap-2 border-t border-gray-100 pt-3">
+              <div class="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   class="inline-flex items-center justify-center gap-1 border border-gray-400 bg-white px-2 py-2.5 text-[11px] font-black text-gray-700 hover:bg-gray-50"
@@ -635,22 +619,15 @@ const TruckIcon = IconBase([
                   취소
                 </button>
               </div>
-              <p class="pt-1 text-center text-[11px] leading-relaxed text-gray-400">
-                거래처와 확인 후 [거래처 승인 받음] 을 눌러 진행 단계로 넘기세요.
+              <p class="pt-1 text-center text-[11px] leading-relaxed text-gray-500">
+                30분 후 시스템(SYS-001) 이 자동으로 거래처 승인을 처리합니다.<br />
+                그 전에 [수정] 또는 [취소] 가능합니다.
               </p>
             </template>
 
             <template v-else-if="poStore.selectedOrder.status === 'APPROVED'">
-              <button
-                type="button"
-                class="inline-flex w-full items-center justify-center gap-1.5 border border-[#004D3C] bg-[#004D3C] px-2 py-3 text-[11px] font-black text-white hover:bg-[#1f4b3a]"
-                @click="openShippingConfirm"
-              >
-                <TruckIcon :size="12" />
-                거래처 출고 시작
-              </button>
-              <p class="pt-1 text-center text-xs leading-relaxed text-gray-500">
-                승인 완료 · 거래처 출고 통지 받으면 [거래처 출고 시작] 을 누르세요.
+              <p class="text-center text-xs leading-relaxed text-gray-500">
+                승인 완료 · 30분 후 시스템(SYS-001) 이 자동으로 거래처 출고 처리합니다.
               </p>
             </template>
 
@@ -689,90 +666,6 @@ const TruckIcon = IconBase([
           </div>
         </aside>
       </section>
-    </div>
-
-    <!-- ───────── 모달: 거래처 승인 received confirm ───────── -->
-    <div
-      v-if="showApproveConfirm && poStore.selectedOrder"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-      @click.self="cancelApprove"
-    >
-      <div class="w-full max-w-sm overflow-hidden bg-white shadow-xl">
-        <div class="bg-[#004D3C] px-5 py-3 text-white">
-          <h2 class="text-sm font-black">거래처 승인 기록</h2>
-        </div>
-        <div class="space-y-2 p-5 text-xs text-gray-700">
-          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">발주 정보</p>
-          <p>
-            <strong>{{ poStore.selectedOrder.id }}</strong> ·
-            {{ poStore.selectedOrder.vendorName }} ·
-            <span class="font-bold text-[#004D3C]">
-              ₩{{ poStore.selectedOrder.totalPrice.toLocaleString() }}
-            </span>
-          </p>
-          <p class="pt-2">
-            거래처 승인을 시스템에 기록합니다. 발주 상태가 <strong>승인 완료</strong>로 변경됩니다.
-          </p>
-        </div>
-        <div class="flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3">
-          <button
-            type="button"
-            class="border border-gray-300 bg-white px-4 py-2 text-xs font-black text-gray-700 hover:bg-gray-100"
-            @click="cancelApprove"
-          >
-            취소
-          </button>
-          <button
-            type="button"
-            class="border border-[#004D3C] bg-[#004D3C] px-4 py-2 text-xs font-black text-white hover:bg-[#1f4b3a]"
-            @click="confirmApprove"
-          >
-            승인 기록
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- ───────── 모달: 거래처 출고 시작 confirm ───────── -->
-    <div
-      v-if="showShippingConfirm && poStore.selectedOrder"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-      @click.self="cancelShipping"
-    >
-      <div class="w-full max-w-sm overflow-hidden bg-white shadow-xl">
-        <div class="bg-[#004D3C] px-5 py-3 text-white">
-          <h2 class="text-sm font-black">거래처 출고 기록</h2>
-        </div>
-        <div class="space-y-2 p-5 text-xs text-gray-700">
-          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">발주 정보</p>
-          <p>
-            <strong>{{ poStore.selectedOrder.id }}</strong> ·
-            {{ poStore.selectedOrder.vendorName }} ·
-            <span class="font-bold text-[#004D3C]">
-              ₩{{ poStore.selectedOrder.totalPrice.toLocaleString() }}
-            </span>
-          </p>
-          <p class="pt-2">
-            거래처 출고를 시스템에 기록합니다. 발주 상태가 <strong>배송 중</strong>으로 변경됩니다.
-          </p>
-        </div>
-        <div class="flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3">
-          <button
-            type="button"
-            class="border border-gray-300 bg-white px-4 py-2 text-xs font-black text-gray-700 hover:bg-gray-100"
-            @click="cancelShipping"
-          >
-            취소
-          </button>
-          <button
-            type="button"
-            class="border border-[#004D3C] bg-[#004D3C] px-4 py-2 text-xs font-black text-white hover:bg-[#1f4b3a]"
-            @click="confirmShipping"
-          >
-            출고 기록
-          </button>
-        </div>
-      </div>
     </div>
 
     <!-- ───────── 모달: 발주 취소 confirm (파괴, red) ───────── -->
