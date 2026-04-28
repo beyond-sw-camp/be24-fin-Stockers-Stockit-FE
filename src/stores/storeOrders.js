@@ -667,6 +667,28 @@ function normalizeInboundHistory(order) {
   return []
 }
 
+function plusDays(iso, days) {
+  if (!iso) return ''
+  const date = new Date(iso)
+  date.setDate(date.getDate() + days)
+  return date.toISOString()
+}
+
+function resolveInboundExpectedAt(order) {
+  if (order.inboundExpectedAt) return order.inboundExpectedAt
+
+  const arrivedHistory = Array.isArray(order.inboundStatusHistory)
+    ? order.inboundStatusHistory.find((history) => history.status === 'ARRIVED')
+    : null
+
+  if (arrivedHistory?.at) return arrivedHistory.at
+  if (order.inboundStatus === 'IN_TRANSIT') return plusDays(order.requestedAt, 1)
+  if (order.inboundStatus === 'READY_TO_SHIP') return plusDays(order.requestedAt, 2)
+  if (order.inboundStatus === 'RECEIVED') return order.inboundCompletedAt || plusDays(order.requestedAt, 2)
+  if (order.inboundStatus === 'ARRIVED') return plusDays(order.requestedAt, 1)
+  return ''
+}
+
 function normalizeOrder(order) {
   const items = (order.items ?? []).map((item) => {
     const currentStoreStock = Number(item.currentStoreStock ?? 0)
@@ -710,11 +732,13 @@ function normalizeOrder(order) {
       order.status === 'APPROVED' || order.status === 'COMPLETED'
         ? order.inboundStatus ?? 'READY_TO_SHIP'
         : null,
+    inboundExpectedAt: order.inboundExpectedAt ?? '',
     inboundCompletedAt: order.inboundCompletedAt ?? '',
     inboundConfirmedBy: order.inboundConfirmedBy ?? '',
   }
 
   normalized.inboundStatusHistory = normalizeInboundHistory(normalized)
+  normalized.inboundExpectedAt = resolveInboundExpectedAt(normalized)
   return normalized
 }
 

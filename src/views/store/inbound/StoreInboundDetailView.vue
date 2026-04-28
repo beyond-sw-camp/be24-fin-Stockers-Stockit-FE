@@ -27,6 +27,12 @@ const canConfirmInbound = computed(() =>
   && selectedOrder.value?.status === 'APPROVED'
   && selectedOrder.value?.inboundStatus === 'ARRIVED',
 )
+const highlightedInboundHistoryKey = computed(() => {
+  if (!selectedOrder.value || selectedOrder.value.inboundStatus === 'RECEIVED') return ''
+  const lastHistory = selectedOrder.value.inboundStatusHistory?.at(-1)
+  if (!lastHistory) return ''
+  return `${lastHistory.status}-${lastHistory.at}`
+})
 
 function formatDateTime(iso) {
   if (!iso) return '-'
@@ -69,6 +75,36 @@ function historyTextClass(status) {
     ARRIVED: 'text-amber-700',
     RECEIVED: 'text-emerald-700',
   }[status] ?? 'text-gray-700'
+}
+
+function shouldHighlightHistory(history) {
+  return highlightedInboundHistoryKey.value === `${history.status}-${history.at}`
+}
+
+function historyGlowStyle(status) {
+  const glowMap = {
+    READY_TO_SHIP: {
+      '--timeline-glow-rgb': '51, 65, 85',
+      '--timeline-glow-soft-rgb': '100, 116, 139',
+    },
+    IN_TRANSIT: {
+      '--timeline-glow-rgb': '29, 78, 216',
+      '--timeline-glow-soft-rgb': '96, 165, 250',
+    },
+    ARRIVED: {
+      '--timeline-glow-rgb': '180, 83, 9',
+      '--timeline-glow-soft-rgb': '251, 191, 36',
+    },
+    RECEIVED: {
+      '--timeline-glow-rgb': '22, 101, 52',
+      '--timeline-glow-soft-rgb': '74, 222, 128',
+    },
+  }
+
+  return glowMap[status] ?? {
+    '--timeline-glow-rgb': '75, 85, 99',
+    '--timeline-glow-soft-rgb': '156, 163, 175',
+  }
 }
 
 function openConfirmModal() {
@@ -135,9 +171,6 @@ function handleLogout() {
             </p>
           </div>
           <div class="flex items-center gap-2">
-            <span class="inline-flex px-2 py-1 text-[10px] font-black" :class="statusClass(selectedOrder.status)">
-              {{ storeOrders.statusLabelMap[selectedOrder.status] }}
-            </span>
             <span
               v-if="selectedOrder.inboundStatus"
               class="inline-flex px-2 py-1 text-[10px] font-black"
@@ -148,7 +181,25 @@ function handleLogout() {
           </div>
         </div>
 
-        <div class="grid gap-4 p-4 xl:grid-cols-[minmax(0,0.7fr)_minmax(0,0.3fr)]">
+        <div class="flex flex-col gap-4 p-4">
+          <section
+            v-if="canConfirmInbound"
+            class="border border-amber-200 bg-amber-50 px-4 py-3"
+          >
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p class="text-[10px] font-black uppercase tracking-[0.16em] text-amber-600">Inbound Check</p>
+                <p class="mt-1 text-sm font-black text-amber-900">
+                  실제 입고된 수량과 발주 수량을 먼저 확인한 뒤 입고 확정을 진행하세요.
+                </p>
+                <p class="mt-1 text-xs font-bold text-amber-700">
+                  입고 확정 버튼을 누르면 확인된 수량이 매장 재고에 즉시 반영됩니다.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <div class="grid gap-4 xl:grid-cols-[minmax(0,0.7fr)_minmax(0,0.3fr)]">
           <div class="flex flex-col gap-4">
             <section class="grid gap-3 sm:grid-cols-2">
               <div class="border border-gray-200 bg-gray-50 px-3 py-3">
@@ -180,8 +231,7 @@ function handleLogout() {
                     <th class="w-[17%] px-2 py-2.5 text-left font-black">옵션</th>
                     <th class="w-[18%] px-2 py-2.5 text-left font-black">카테고리</th>
                     <th class="w-[10%] px-2 py-2.5 text-center font-black">현재고</th>
-                    <th class="w-[10%] px-2 py-2.5 text-center font-black">요청</th>
-                    <th class="w-[12%] px-2 py-2.5 text-center font-black">입고 예정</th>
+                    <th class="w-[12%] px-2 py-2.5 text-center font-black">발주수량</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -193,7 +243,6 @@ function handleLogout() {
                     <td class="px-2 py-2.5 font-bold text-gray-700">{{ item.color }} / {{ item.size }}</td>
                     <td class="px-2 py-2.5 font-bold text-gray-500">{{ item.mainCategory }} &gt; {{ item.subCategory }}</td>
                     <td class="px-2 py-2.5 text-center font-black text-gray-800">{{ item.currentStoreStock }}</td>
-                    <td class="px-2 py-2.5 text-center font-black text-gray-700">{{ item.requestedQuantity }}</td>
                     <td class="px-3 py-2.5 text-center font-black text-gray-900">{{ item.expectedInboundQuantity }}</td>
                   </tr>
                 </tbody>
@@ -222,12 +271,20 @@ function handleLogout() {
                   :key="`${history.status}-${history.at}-${index}`"
                   class="relative pb-3 pl-5 last:pb-0"
                 >
-                  <span class="absolute left-0 top-1 block h-2.5 w-2.5" :class="historyDotClass(history.status)" />
+                  <span
+                    class="absolute left-0 top-1 block h-2.5 w-2.5"
+                    :class="[historyDotClass(history.status), shouldHighlightHistory(history) && 'timeline-highlight-glow-box']"
+                    :style="shouldHighlightHistory(history) ? historyGlowStyle(history.status) : undefined"
+                  />
                   <span
                     v-if="index < selectedOrder.inboundStatusHistory.length - 1"
                     class="absolute bottom-0 left-[4px] top-3.5 w-px bg-gray-300"
                   />
-                  <p class="text-[11px] font-black" :class="historyTextClass(history.status)">
+                  <p
+                    class="text-[11px] font-black"
+                    :class="[historyTextClass(history.status), shouldHighlightHistory(history) && 'timeline-highlight-glow']"
+                    :style="shouldHighlightHistory(history) ? historyGlowStyle(history.status) : undefined"
+                  >
                     {{ storeOrders.inboundStatusLabelMap[history.status] ?? history.status }}
                   </p>
                   <p class="text-[10px] text-gray-500">
@@ -267,6 +324,7 @@ function handleLogout() {
             </div>
           </div>
         </div>
+        </div>
       </section>
 
       <section
@@ -290,7 +348,9 @@ function handleLogout() {
               <strong>{{ selectedOrder.orderId }}</strong> 발주건을 매장 재고에 반영합니다.
             </p>
             <p>
-              입고 예정 수량 <strong>{{ selectedOrder.items.reduce((sum, item) => sum + item.expectedInboundQuantity, 0) }}개</strong>가 한 번에 반영됩니다.
+              입고 예정 수량
+              <strong>{{ selectedOrder.items.reduce((sum, item) => sum + item.expectedInboundQuantity, 0) }}개</strong>가
+              한 번에 반영됩니다.
             </p>
             <p class="text-gray-500">
               확정 후 입고 상태는 <strong>입고 완료</strong>로 변경되며 다시 되돌릴 수 없습니다.
@@ -317,3 +377,64 @@ function handleLogout() {
     </div>
   </AppLayout>
 </template>
+
+<style scoped>
+@keyframes timelineGlowBlink {
+  0%,
+  100% {
+    opacity: 1;
+    text-shadow: 0 0 0 rgba(var(--timeline-glow-rgb), 0);
+  }
+
+  20%,
+  70% {
+    opacity: 0.78;
+    text-shadow:
+      0 0 12px rgba(var(--timeline-glow-rgb), 0.58),
+      0 0 24px rgba(var(--timeline-glow-soft-rgb), 0.32);
+  }
+
+  35%,
+  85% {
+    opacity: 1;
+    text-shadow:
+      0 0 18px rgba(var(--timeline-glow-rgb), 0.8),
+      0 0 32px rgba(var(--timeline-glow-soft-rgb), 0.42);
+  }
+}
+
+.timeline-highlight-glow {
+  animation: timelineGlowBlink 3s ease-in-out 1;
+}
+
+@keyframes timelineBoxBlink {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(var(--timeline-glow-rgb), 0);
+  }
+
+  20%,
+  70% {
+    opacity: 0.86;
+    transform: scale(1.14);
+    box-shadow:
+      0 0 12px rgba(var(--timeline-glow-rgb), 0.58),
+      0 0 20px rgba(var(--timeline-glow-soft-rgb), 0.3);
+  }
+
+  35%,
+  85% {
+    opacity: 1;
+    transform: scale(1.2);
+    box-shadow:
+      0 0 18px rgba(var(--timeline-glow-rgb), 0.82),
+      0 0 30px rgba(var(--timeline-glow-soft-rgb), 0.44);
+  }
+}
+
+.timeline-highlight-glow-box {
+  animation: timelineBoxBlink 3s ease-in-out 1;
+}
+</style>
