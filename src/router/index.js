@@ -14,6 +14,7 @@ import StoreAiReportView from '@/views/store/StoreAiReportView.vue'
 
 import WarehouseDashboardView from '@/views/warehouse/WarehouseDashboardView.vue'
 import WarehouseInventoryView from '@/views/warehouse/WarehouseInventoryView.vue'
+import WarehouseInventorySkuDetailView from '@/views/warehouse/WarehouseInventorySkuDetailView.vue'
 import WarehouseInboundView from '@/views/warehouse/WarehouseInboundView.vue'
 import WarehouseOutboundView from '@/views/warehouse/WarehouseOutboundView.vue'
 
@@ -21,6 +22,7 @@ import OperationStatusView from '@/views/hq/dashboard/OperationStatusView.vue'
 
 import HqCompanyWideInventoryView from '@/views/hq/inventory/HqCompanyWideInventoryView.vue'
 import HqWarehouseInventoryComparisonView from '@/views/hq/inventory/HqWarehouseInventoryComparisonView.vue'
+import HqCompanyWideInventorySkuDetailView from '@/views/hq/inventory/HqCompanyWideInventorySkuDetailView.vue'
 import HqOrderManagementView from '@/views/hq/HqOrderManagementView.vue'
 import HqProductManagementView from '@/views/hq/HqProductManagementView.vue'
 import HqInfrastructureManagementView from '@/views/hq/HqInfrastructureManagementView.vue'
@@ -55,6 +57,12 @@ const router = createRouter({
 
     { path: '/hq/inventory', redirect: { name: 'hq-inventory-company-wide' } },
     { path: '/hq/inventory/company-wide', name: 'hq-inventory-company-wide', component: HqCompanyWideInventoryView, meta: { requiresAuth: true, role: 'hq' } },
+    {
+      path: '/hq/inventory/company-wide/:itemCode/skus',
+      name: 'hq-inventory-sku-detail',
+      component: HqCompanyWideInventorySkuDetailView,
+      meta: { requiresAuth: true, role: 'hq' },
+    },
     { path: '/hq/inventory/warehouse-comparison', name: 'hq-inventory-warehouse-comparison', component: HqWarehouseInventoryComparisonView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/orders', name: 'hq-orders', component: HqOrderManagementView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/products', name: 'hq-products', component: HqProductManagementView, meta: { requiresAuth: true, role: 'hq' } },
@@ -111,6 +119,12 @@ const router = createRouter({
       path: '/warehouse/inventory',
       name: 'wh-inventory',
       component: WarehouseInventoryView,
+      meta: { requiresAuth: true, role: 'warehouse' },
+    },
+    {
+      path: '/warehouse/inventory/:itemCode/skus',
+      name: 'wh-inventory-sku-detail',
+      component: WarehouseInventorySkuDetailView,
       meta: { requiresAuth: true, role: 'warehouse' },
     },
     {
