@@ -42,12 +42,16 @@ function openConfirmInbound() {
 function cancelConfirmInbound() {
   showConfirmInbound.value = false
 }
-function confirmInbound() {
+async function confirmInbound() {
   const id = inbound.selectedOrder?.id
   if (!id) return
-  inbound.confirmInbound(id)
   showConfirmInbound.value = false
-  triggerToast('입고가 확정되었습니다')
+  try {
+    await inbound.confirmInbound(id)
+    triggerToast('입고가 확정되었습니다')
+  } catch (e) {
+    triggerToast(e?.message ?? '입고 확정에 실패했습니다')
+  }
 }
 
 // ─── 토스트 ─────────────────────────────────────────────────────────────────

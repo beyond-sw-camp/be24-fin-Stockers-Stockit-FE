@@ -305,7 +305,7 @@ function cancelSubmitOrder() {
   showSubmitConfirm.value = false
 }
 
-function confirmSubmitOrder() {
+async function confirmSubmitOrder() {
   showSubmitConfirm.value = false
   const items = cart.value.map((i) => ({
     productId: i.productId,
@@ -316,38 +316,42 @@ function confirmSubmitOrder() {
     subtotal: i.unitPrice * i.quantity,
   }))
 
-  if (isEditMode.value) {
-    // 가드 재검증 — 다른 곳에서 상태 바뀌었을 수 있음
-    const order = poStore.purchaseOrders.find((o) => o.id === editingOrderId.value)
-    if (!order || order.status !== 'PENDING') {
-      triggerToast('상태가 변경되어 수정할 수 없습니다')
-      setTimeout(() => router.replace({ name: 'hq-purchase-orders' }), 900)
-      return
+  try {
+    if (isEditMode.value) {
+      // 가드 재검증 — 다른 곳에서 상태 바뀌었을 수 있음
+      const order = poStore.purchaseOrders.find((o) => o.id === editingOrderId.value)
+      if (!order || order.status !== 'PENDING') {
+        triggerToast('상태가 변경되어 수정할 수 없습니다')
+        setTimeout(() => router.replace({ name: 'hq-purchase-orders' }), 900)
+        return
+      }
+      await poStore.updateOrder(editingOrderId.value, {
+        warehouseId: selectedWarehouseId.value,
+        items,
+      })
+      poStore.selectOrder(editingOrderId.value)
+      triggerToast('발주가 수정되었습니다')
+    } else {
+      const newOrder = await poStore.createOrder({
+        warehouseId: selectedWarehouseId.value,
+        vendorId: cart.value[0].vendorId,
+        vendorName: cart.value[0].vendorName,
+        items,
+        memberId: auth.user?.memberId ?? 'MB-003',
+        memberName: auth.user?.name ?? '이선엽',
+      })
+      cart.value = []
+      clearDraftStorage()
+      poStore.selectOrder(newOrder.id)
+      triggerToast('발주가 요청되었습니다')
     }
-    poStore.updateOrder(editingOrderId.value, {
-      warehouseId: selectedWarehouseId.value,
-      items,
-    })
-    poStore.selectOrder(editingOrderId.value)
-    triggerToast('발주가 수정되었습니다')
-  } else {
-    const newOrder = poStore.createOrder({
-      warehouseId: selectedWarehouseId.value,
-      vendorId: cart.value[0].vendorId,
-      vendorName: cart.value[0].vendorName,
-      items,
-      memberId: auth.user?.memberId ?? 'MB-003',
-      memberName: auth.user?.name ?? '이선엽',
-    })
-    cart.value = []
-    clearDraftStorage()
-    poStore.selectOrder(newOrder.id)
-    triggerToast('발주가 요청되었습니다')
-  }
 
-  setTimeout(() => {
-    router.push({ name: 'hq-purchase-orders' })
-  }, 900)
+    setTimeout(() => {
+      router.push({ name: 'hq-purchase-orders' })
+    }, 900)
+  } catch (e) {
+    triggerToast(e?.message ?? '발주 처리에 실패했습니다')
+  }
 }
 
 // ─── 수정 모드 초기화 ────────────────────────────────────────────────────────

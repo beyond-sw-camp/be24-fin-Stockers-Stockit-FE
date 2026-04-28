@@ -1,107 +1,67 @@
 /**
- * purchaseOrder.js — BE 연동 지점 주석 스텁
+ * purchaseOrder.js — BE 연동 (CEN-035~040)
  *
- * BE에서 PURCHASE_ORDER 관련 Controller/Service/Repository가 완성되면
- * 이 파일의 각 함수를 실제 axios 호출로 채우고,
- * stores/purchaseOrder.js 및 stores/aiOrderRecommendation.js의
- * 각 action에서 이 파일을 import하여 호출하도록 교체한다.
+ * BE 엔드포인트:
+ *   GET    /api/hq/purchase-orders?vendorCode=&status=&from=&to=    (목록, 모든 필터 optional)
+ *   GET    /api/hq/purchase-orders/{code}                            (상세 — items + statusHistory 포함)
+ *   POST   /api/hq/purchase-orders                                   (CEN-035 신규 발주)
+ *   PATCH  /api/hq/purchase-orders/{code}                            (CEN-037 수정 — PENDING 만)
+ *   POST   /api/hq/purchase-orders/{code}/approve                    (PENDING → APPROVED, 거래처 승인 대리)
+ *   POST   /api/hq/purchase-orders/{code}/start-shipping             (APPROVED → SHIPPING, 거래처 출고 시작 대리)
+ *   POST   /api/hq/purchase-orders/{code}/complete                   (SHIPPING → COMPLETED, 창고 WHS-007)
+ *   POST   /api/hq/purchase-orders/{code}/cancel                     (CEN-038 PENDING → REJECTED, with cancelReason)
  *
- * 기본 axios 인스턴스: src/api/axios.js (BE 연동 시 신설 예정)
- * baseURL: http://localhost:8080
+ * 응답: BaseResponse<T>. unwrap() 으로 result 만 추출, 실패 시 throw.
  */
 
-// ─────────────────────────────────────────────
-// 발주(PURCHASE_ORDER) 관련 API
-// ─────────────────────────────────────────────
+import { apiClient, unwrap } from './axios.js'
 
-/**
- * 발주 목록 조회 (SO-031)
- * GET /api/v1/purchase-orders?status=&page=&size=
- *
- * @param {{ status?: string, page?: number, size?: number }} params
- * @returns {Promise<{ content: Array, totalElements: number }>}
- */
-// export async function getPurchaseOrders(params = {}) {
-//   const res = await axios.get('/api/v1/purchase-orders', { params })
-//   return res.data.result
-// }
+const BASE = '/api/hq/purchase-orders'
 
-/**
- * 발주 상세 조회 (SO-032)
- * GET /api/v1/purchase-orders/{id}
- *
- * @param {string} id — 발주 ID (예: 'PO-20260420-001')
- * @returns {Promise<object>}
- */
-// export async function getPurchaseOrderById(id) {
-//   const res = await axios.get(`/api/v1/purchase-orders/${id}`)
-//   return res.data.result
-// }
+export const purchaseOrderApi = {
+  /**
+   * 목록 조회. 모든 필터 optional. server-side 필터 미사용 시 인자 없이 호출.
+   * @param {{vendorCode?: string, status?: string, from?: string, to?: string}} params
+   */
+  list: (params = {}) => {
+    const query = {}
+    if (params.vendorCode) query.vendorCode = params.vendorCode
+    if (params.status) query.status = params.status
+    if (params.from) query.from = params.from
+    if (params.to) query.to = params.to
+    return apiClient.get(BASE, { params: query }).then(unwrap)
+  },
 
-/**
- * 발주 생성 (SO-027)
- * POST /api/v1/purchase-orders
- *
- * @param {{ warehouseId: string, vendorId: string, items: Array, recommendationId?: string }} payload
- * @returns {Promise<object>} 생성된 발주 객체
- */
-// export async function createPurchaseOrder(payload) {
-//   const res = await axios.post('/api/v1/purchase-orders', payload)
-//   return res.data.result
-// }
+  /** 상세 조회 (items + statusHistory 포함) */
+  detail: (code) => apiClient.get(`${BASE}/${code}`).then(unwrap),
 
-/**
- * 발주 수정 (SO-028) — PENDING 상태만 허용
- * PUT /api/v1/purchase-orders/{id}
- *
- * @param {string} id
- * @param {{ warehouseId?: string, items?: Array }} payload
- * @returns {Promise<object>}
- */
-// export async function updatePurchaseOrder(id, payload) {
-//   const res = await axios.put(`/api/v1/purchase-orders/${id}`, payload)
-//   return res.data.result
-// }
+  /**
+   * 신규 발주 (CEN-035, 036)
+   * @param {{vendorCode, warehouseId, warehouseName, memberId?, memberName?, items: [{vendorProductCode, quantity}]}} req
+   */
+  create: (req) => apiClient.post(BASE, req).then(unwrap),
 
-/**
- * 발주 취소 (SO-029) — PENDING 상태만 허용, status를 REJECTED로 전환
- * DELETE /api/v1/purchase-orders/{id}
- *
- * @param {string} id
- * @returns {Promise<void>}
- */
-// export async function cancelPurchaseOrder(id) {
-//   await axios.delete(`/api/v1/purchase-orders/${id}`)
-// }
+  /**
+   * 수정 (CEN-037, PENDING 만)
+   * @param {string} code
+   * @param {{warehouseId?, warehouseName?, items: [{vendorProductCode, quantity}]}} req
+   */
+  update: (code, req) => apiClient.patch(`${BASE}/${code}`, req).then(unwrap),
 
-// ─────────────────────────────────────────────
-// AI 발주 추천(AI_ORDER_RECOMMENDATION) 관련 API
-// ─────────────────────────────────────────────
+  /** 거래처 승인 대리 (PENDING → APPROVED) */
+  approve: (code) => apiClient.post(`${BASE}/${code}/approve`).then(unwrap),
 
-/**
- * AI 권장 발주량 조회 (SO-030)
- * GET /api/v1/ai-recommendations?warehouseId=&status=
- *
- * @param {{ warehouseId?: string, status?: string }} params
- * @returns {Promise<Array>}
- */
-// export async function getAiRecommendations(params = {}) {
-//   const res = await axios.get('/api/v1/ai-recommendations', { params })
-//   return res.data.result
-// }
+  /** 거래처 출고 시작 대리 (APPROVED → SHIPPING) */
+  startShipping: (code) => apiClient.post(`${BASE}/${code}/start-shipping`).then(unwrap),
 
-// ─────────────────────────────────────────────
-// 제품 검색 관련 API (발주 장바구니, SO-026)
-// ─────────────────────────────────────────────
+  /** 입고 확정 (SHIPPING → COMPLETED, 창고 WHS-007) */
+  complete: (code) => apiClient.post(`${BASE}/${code}/complete`).then(unwrap),
 
-/**
- * 제품 검색 — 거래처별 계약 제품 검색
- * GET /api/v1/products/search?keyword=&vendorId=
- *
- * @param {{ keyword: string, vendorId?: string }} params
- * @returns {Promise<Array>}
- */
-// export async function searchProducts(params = {}) {
-//   const res = await axios.get('/api/v1/products/search', { params })
-//   return res.data.result
-// }
+  /**
+   * 취소 (CEN-038, PENDING → REJECTED)
+   * @param {string} code
+   * @param {string} cancelReason — 필수 (BE 가 빈 문자열이면 거절)
+   */
+  cancel: (code, cancelReason) =>
+    apiClient.post(`${BASE}/${code}/cancel`, { cancelReason }).then(unwrap),
+}
