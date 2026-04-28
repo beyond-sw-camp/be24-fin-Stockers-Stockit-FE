@@ -18,6 +18,8 @@ import StoreInventoryView from '@/views/store/StoreInventoryView.vue'
 import StoreInventorySkuDetailView from '@/views/store/StoreInventorySkuDetailView.vue'
 import StoreInboundView from '@/views/store/StoreInboundView.vue'
 import StoreAiReportView from '@/views/store/StoreAiReportView.vue'
+import StoreStatsView from '@/views/store/stats/StoreStatsView.vue'
+import StoreSalesStatsView from '@/views/store/stats/StoreSalesStatsView.vue'
 
 import WarehouseDashboardView from '@/views/warehouse/WarehouseDashboardView.vue'
 import WarehouseInventoryView from '@/views/warehouse/WarehouseInventoryView.vue'
@@ -165,6 +167,8 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'store' },
     },
     { path: '/store/inbound', name: 'store-inbound', component: StoreInboundView, meta: { requiresAuth: true, role: 'store' } },
+    { path: '/store/stats', name: 'store-stats', component: StoreStatsView, meta: { requiresAuth: true, role: 'store' } },
+    { path: '/store/stats/sales', name: 'store-stats-sales', component: StoreSalesStatsView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/ai-report', name: 'store-ai-report', component: StoreAiReportView, meta: { requiresAuth: true, role: 'store' } },
 
     {
