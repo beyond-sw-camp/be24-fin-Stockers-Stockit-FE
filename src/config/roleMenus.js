@@ -4,12 +4,7 @@ export const roleMenus = {
       label: '대시보드',
       path: '/hq/dashboard',
       icon: 'layout',
-      children: [
-        { label: '운영 현황', path: '/hq/dashboard' },
-        { label: '재고 위험', path: '/hq/dashboard/inventory-risk' },
-        { label: '입출고 흐름', path: '/hq/dashboard/flow' },
-        { label: '알림 센터', path: '/hq/dashboard/alerts' },
-      ],
+      children: [{ label: '운영 현황', path: '/hq/dashboard' }],
     },
     {
       label: '재고 관리',
@@ -44,10 +39,8 @@ export const roleMenus = {
       path: '/hq/products',
       icon: 'file',
       children: [
-        { label: '카테고리 관리' },
-        { label: '제품 마스터' },
-        { label: '단가/계약 관리' },
-        { label: '거래처 정보 관리' },
+        { label: '카테고리 관리', path: '/hq/products?tab=categories' },
+        { label: '제품 마스터', path: '/hq/products?tab=products' },
       ],
     },
     {
@@ -65,12 +58,12 @@ export const roleMenus = {
       path: '/hq/analytics',
       icon: 'chart',
       children: [
-        { label: '통합 KPI 대시보드' },
-        { label: '매출 분석' },
-        { label: '상품/카테고리 분석' },
-        { label: '재고 회전율 분석' },
-        { label: '발주/수요 분석' },
-        { label: '예측 정확도 분석' },
+        { label: '통합 KPI 대시보드', path: '/hq/analytics' },
+        { label: '소재별 판매량 및 판매 비중', path: '/hq/analytics/menu-sales' },
+        { label: '시간대·요일 매출 패턴', path: '/hq/analytics/sales-pattern' },
+        { label: '재고 회전율 통계', path: '/hq/analytics/turnover' },
+        { label: '계절별 판매량 변화', path: '/hq/analytics/seasonal' },
+        { label: '발주량 통계', path: '/hq/analytics/order-stats' },
       ],
     },
     {
@@ -86,17 +79,13 @@ export const roleMenus = {
       label: 'AI 리포트',
       path: '/hq/ai-report',
       icon: 'chart',
-      children: [
-        { label: 'AI 리포트', path: '/hq/ai-report' },
-      ],
+      children: [{ label: 'AI 리포트', path: '/hq/ai-report' }],
     },
     {
       label: 'ESG 대시보드',
       path: '/hq/esg',
       icon: 'leaf',
-      children: [
-        { label: '친환경 발자국 현황판', path: '/hq/esg' },
-      ],
+      children: [{ label: '친환경 발자국 현황판', path: '/hq/esg' }],
     },
   ],
   store: [
@@ -144,9 +133,27 @@ export const roleMenus = {
     },
   ],
   warehouse: [
-    { label: '창고 재고 관리', path: '/warehouse/inventory', icon: 'warehouse' },
-    { label: '입고 관리', path: '/warehouse/inbound', icon: 'check' },
-    { label: '출고 관리', path: '/warehouse/outbound', icon: 'truck' },
+    {
+      label: '대시보드',
+      path: '/warehouse/dashboard',
+      icon: 'layout',
+      children: [{ label: '창고 대시보드', path: '/warehouse/dashboard' }],
+    },
+    {
+      label: '재고 관리',
+      path: '/warehouse/inventory',
+      icon: 'warehouse',
+      children: [{ label: '창고 재고 조회', path: '/warehouse/inventory' }],
+    },
+    {
+      label: '입/출고 관리',
+      path: '/warehouse/inbound',
+      icon: 'truck',
+      children: [
+        { label: '입고 관리', path: '/warehouse/inbound' },
+        { label: '출고 관리', path: '/warehouse/outbound' },
+      ],
+    },
   ],
 }
 
