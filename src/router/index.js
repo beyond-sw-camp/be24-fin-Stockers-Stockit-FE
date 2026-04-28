@@ -92,6 +92,18 @@ const router = createRouter({
       component: () => import('@/views/hq/HqProductCreateView.vue'),
       meta: { requiresAuth: true, role: 'hq' },
     },
+    {
+      path: '/hq/products/:productCode/skus',
+      name: 'hq-product-sku-detail',
+      component: () => import('@/views/hq/HqProductSkuDetailView.vue'),
+      meta: { requiresAuth: true, role: 'hq' },
+    },
+    {
+      path: '/hq/products/:productCode/edit',
+      name: 'hq-product-edit',
+      component: () => import('@/views/hq/HqProductCreateView.vue'),
+      meta: { requiresAuth: true, role: 'hq' },
+    },
     { path: '/hq/infrastructure', name: 'hq-infrastructure', component: HqInfrastructureManagementView, meta: { requiresAuth: true, role: 'hq' } },
     {
       path: '/hq/infrastructure/stores/:storeId',

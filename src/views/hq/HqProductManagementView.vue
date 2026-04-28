@@ -5,6 +5,9 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { deleteCategory, getCategories, getCategory, updateCategory } from '@/api/category.js'
+import {
+  getProducts,
+} from '@/api/productMaster.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -23,7 +26,6 @@ const activeSideMenu = ref(tabLabelMap[route.query.tab] ?? '카테고리 관리'
 watch(() => route.query.tab, (tab) => {
   activeSideMenu.value = tabLabelMap[tab] ?? '카테고리 관리'
 })
-const selectedProduct = ref(null)
 const selectedCategory = ref(null)
 const categoryEditForm = ref(null)
 const categorySubmitting = ref(false)
@@ -33,23 +35,7 @@ const productSideMenus = [
   { label: '제품 마스터', icon: 'package', id: 'SO-011' },
 ]
 
-const productMasterData = [
-  { id: 'PD-T001', name: '코튼 베이직 반팔 티셔츠', parentCategory: '상의', childCategory: '반팔', price: 12900, leadTime: '3일', vendor: '스타일텍스', status: '활성', regDate: '2024.01.12' },
-  { id: 'PD-T002', name: '슬림핏 긴팔 티셔츠', parentCategory: '상의', childCategory: '긴팔', price: 16900, leadTime: '4일', vendor: '스타일텍스', status: '활성', regDate: '2024.01.26' },
-  { id: 'PD-T003', name: '오버핏 옥스포드 셔츠', parentCategory: '상의', childCategory: '셔츠', price: 35900, leadTime: '5일', vendor: '어반클로스', status: '활성', regDate: '2024.02.14' },
-  { id: 'PD-T004', name: '라운드넥 소프트 니트', parentCategory: '상의', childCategory: '니트', price: 39900, leadTime: '6일', vendor: '니트랩', status: '점검중', regDate: '2024.03.02' },
-  { id: 'PD-T005', name: '헤비웨이트 로고 후드티', parentCategory: '상의', childCategory: '후드티', price: 45900, leadTime: '7일', vendor: '어반클로스', status: '활성', regDate: '2024.03.15' },
-  { id: 'PD-B001', name: '스트레이트 워싱 데님', parentCategory: '바지', childCategory: '청바지', price: 42900, leadTime: '5일', vendor: '데님하우스', status: '활성', regDate: '2024.01.19' },
-  { id: 'PD-B002', name: '라이트 코튼 쇼츠', parentCategory: '바지', childCategory: '반바지', price: 29900, leadTime: '4일', vendor: '데님하우스', status: '활성', regDate: '2024.02.08' },
-  { id: 'PD-B003', name: '와이드 밴딩 팬츠', parentCategory: '바지', childCategory: '긴바지', price: 37900, leadTime: '4일', vendor: '모션웨어', status: '활성', regDate: '2024.02.27' },
-  { id: 'PD-B004', name: '데일리 조거 트레이닝 팬츠', parentCategory: '바지', childCategory: '츄리닝', price: 33900, leadTime: '3일', vendor: '모션웨어', status: '비활성', regDate: '2024.03.11' },
-  { id: 'PD-S001', name: 'A라인 데님 미니스커트', parentCategory: '치마', childCategory: '미니 스커트', price: 31900, leadTime: '5일', vendor: '스커트스튜디오', status: '활성', regDate: '2024.01.30' },
-  { id: 'PD-S002', name: '플리츠 롱스커트', parentCategory: '치마', childCategory: '롱스커트', price: 38900, leadTime: '6일', vendor: '스커트스튜디오', status: '활성', regDate: '2024.03.05' },
-  { id: 'PD-O001', name: '라이트 숏 패딩', parentCategory: '아우터', childCategory: '패딩', price: 79900, leadTime: '8일', vendor: '윈터픽', status: '활성', regDate: '2024.02.21' },
-  { id: 'PD-O002', name: '스웨트 후드 집업', parentCategory: '아우터', childCategory: '후드집업', price: 54900, leadTime: '6일', vendor: '윈터픽', status: '점검중', regDate: '2024.03.09' },
-  { id: 'PD-O003', name: '싱글 브레스트 자켓', parentCategory: '아우터', childCategory: '자켓', price: 72900, leadTime: '9일', vendor: '테일러드원', status: '활성', regDate: '2024.03.18' },
-  { id: 'PD-O004', name: '브이넥 니트 가디건', parentCategory: '아우터', childCategory: '가디건', price: 48900, leadTime: '7일', vendor: '니트랩', status: '활성', regDate: '2024.03.25' },
-]
+const productMasterData = ref([])
 
 const categories = ref([])
 const categoryError = ref('')
@@ -72,7 +58,7 @@ const childCategoryOptions = computed(() => {
 })
 const filteredProductMasterData = computed(() => {
   const keyword = productKeyword.value.trim().toLowerCase()
-  return productMasterData.filter((prod) => {
+  return productMasterData.value.filter((prod) => {
     const matchParent = selectedParentFilter.value === 'all' || prod.parentCategory === selectedParentFilter.value
     const matchChild = selectedChildFilter.value === 'all' || prod.childCategory === selectedChildFilter.value
     const matchKeyword =
@@ -98,12 +84,10 @@ const toggleExpand = (id, event) => {
   expandedCategories.value = next
 }
 
-const closeDetail = () => { selectedProduct.value = null }
 const closeCategoryDetail = () => {
   selectedCategory.value = null
   categoryEditForm.value = null
 }
-const productEditForm = ref(null)
 
 const statusLabelMap = {
   ACTIVE: '사용중',
@@ -220,49 +204,6 @@ async function handleDeleteCategory() {
   }
 }
 
-const syncProductEditForm = (product) => {
-  if (!product) {
-    productEditForm.value = null
-    return
-  }
-  productEditForm.value = {
-    name: product.name,
-    parentCategory: product.parentCategory,
-    childCategory: product.childCategory,
-    price: product.price,
-    vendor: product.vendor,
-    status: product.status,
-    regDate: product.regDate,
-  }
-}
-
-watch(selectedProduct, (product) => {
-  syncProductEditForm(product)
-})
-
-const detailChildCategoryOptions = computed(() => {
-  if (!productEditForm.value?.parentCategory) return []
-  const target = categories.value.find((cat) => cat.name === productEditForm.value.parentCategory)
-  return target ? target.children.map((child) => child.name) : []
-})
-
-function handleDetailParentChange(event) {
-  if (!productEditForm.value) return
-  const nextParent = event.target.value
-  productEditForm.value.parentCategory = nextParent
-  const target = categories.value.find((cat) => cat.name === nextParent)
-  productEditForm.value.childCategory = target?.children?.[0]?.name ?? ''
-}
-
-function saveProductDetail() {
-  if (!selectedProduct.value || !productEditForm.value) return
-  Object.assign(selectedProduct.value, productEditForm.value)
-}
-
-function resetProductDetail() {
-  syncProductEditForm(selectedProduct.value)
-}
-
 const IconBase = (paths) => ({
   props: {
     size: { type: Number, default: 16 },
@@ -314,18 +255,60 @@ const PlusCircleIcon = IconBase([
 ])
 const ChevronDownIcon = IconBase([{ tag: 'path', attrs: { d: 'm6 9 6 6 6-6' } }])
 const ChevronRightIcon = IconBase([{ tag: 'path', attrs: { d: 'm9 18 6-6-6-6' } }])
-const XIcon = IconBase([
-  { tag: 'path', attrs: { d: 'M18 6 6 18' } },
-  { tag: 'path', attrs: { d: 'm6 6 12 12' } },
-])
-
 const iconMap = {
   tags: TagsIcon,
   package: PackageIcon,
 }
 
+const productStatusMap = {
+  ACTIVE: '활성',
+  INACTIVE: '비활성',
+  SUSPENDED: '점검중',
+}
+
+function resolveCategoryNames(categoryCode) {
+  for (const parent of categories.value) {
+    if (parent.id === categoryCode) {
+      return { parentCategory: parent.name, childCategory: '-' }
+    }
+    const child = parent.children.find((c) => c.id === categoryCode)
+    if (child) {
+      return { parentCategory: parent.name, childCategory: child.name }
+    }
+  }
+  return { parentCategory: categoryCode || '-', childCategory: '-' }
+}
+
+async function loadProducts() {
+  try {
+    const list = await getProducts({
+      keyword: productKeyword.value || undefined,
+      categoryCode: selectedParentFilter.value === 'all' ? undefined : selectedParentFilter.value,
+    })
+    productMasterData.value = list.map((p) => ({
+      ...resolveCategoryNames(p.categoryCode),
+      id: p.code,
+      name: p.name,
+      price: p.basePrice,
+      leadTime: `${p.leadTimeDays}일`,
+      vendor: p.mainVendorCode,
+      status: productStatusMap[p.status] ?? p.status,
+      regDate: formatDate(p.updatedAt),
+    }))
+  } catch (e) {
+    categoryError.value = e.message
+  }
+}
+
+watch(productKeyword, () => {
+  if (activeSideMenu.value !== '카테고리 관리') loadProducts()
+})
+watch([selectedParentFilter, selectedChildFilter], () => {
+  if (activeSideMenu.value !== '카테고리 관리') loadProducts()
+})
+
 onMounted(() => {
-  loadCategories()
+  loadCategories().then(loadProducts)
 })
 </script>
 
@@ -578,6 +561,7 @@ onMounted(() => {
                   <th class="w-32 px-3 py-2 text-left font-black">메인 거래처</th>
                   <th class="w-24 px-3 py-2 text-center font-black">상태</th>
                   <th class="w-28 px-3 py-2 text-center font-black">등록일</th>
+                  <th class="w-16 px-3 py-2 text-center font-black">관리</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">
@@ -585,8 +569,7 @@ onMounted(() => {
                   v-for="prod in filteredProductMasterData"
                   :key="prod.id"
                   class="cursor-pointer hover:bg-gray-50"
-                  :class="selectedProduct?.id === prod.id ? 'bg-[#E6F2F0]' : ''"
-                  @click="selectedProduct = prod"
+                  @click="router.push({ name: 'hq-product-sku-detail', params: { productCode: prod.id } })"
                 >
                   <td class="px-3 py-3 text-center font-bold text-gray-400">{{ prod.id }}</td>
                   <td class="px-3 py-3 font-black text-gray-800">{{ prod.name }}</td>
@@ -595,126 +578,21 @@ onMounted(() => {
                   <td class="px-3 py-3 text-gray-600">{{ prod.vendor }}</td>
                   <td class="px-3 py-3 text-center"><span class="bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">{{ prod.status }}</span></td>
                   <td class="px-3 py-3 text-center font-bold text-gray-400">{{ prod.regDate }}</td>
+                  <td class="px-3 py-3 text-center" @click.stop>
+                    <button
+                      type="button"
+                      class="border border-gray-300 bg-white px-2 py-1 text-[11px] font-bold text-gray-700 hover:bg-gray-50"
+                      @click="router.push({ name: 'hq-product-edit', params: { productCode: prod.id } })"
+                    >
+                      관리
+                    </button>
+                  </td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
 
-        <aside v-if="selectedProduct && productEditForm" class="w-full shrink-0 border border-gray-300 bg-white shadow-sm xl:w-80">
-          <div class="flex items-center justify-between bg-[#004D3C] px-4 py-3 text-white">
-            <h3 class="inline-flex items-center gap-2 text-[11px] font-black uppercase"><InfoIcon :size="14" /> 제품 상세</h3>
-            <button type="button" class="p-1 hover:bg-white/10" @click="closeDetail"><XIcon :size="16" /></button>
-          </div>
-          <div class="space-y-6 p-5">
-            <div>
-              <p class="text-[10px] font-bold uppercase text-gray-400">마스터 ID: {{ selectedProduct.id }}</p>
-              <h4 class="mt-2 text-base font-black leading-snug text-gray-900">제품 정보 수정</h4>
-              <div class="mt-3 flex flex-wrap gap-2">
-                <span class="border border-gray-200 bg-gray-100 px-2 py-1 text-[10px] font-bold text-gray-600">{{ productEditForm.parentCategory }} &gt; {{ productEditForm.childCategory }}</span>
-                <span class="border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700">{{ productEditForm.status }}</span>
-              </div>
-            </div>
-            <div class="space-y-4">
-              <label class="block text-[10px] font-bold uppercase text-gray-400">
-                제품명
-                <input
-                  v-model="productEditForm.name"
-                  type="text"
-                  class="mt-1.5 w-full border border-gray-300 bg-gray-50 px-3 py-2.5 text-xs font-bold text-gray-800 outline-none focus:border-[#004D3C]"
-                />
-              </label>
-              <div class="grid grid-cols-2 gap-3">
-                <label class="block text-[10px] font-bold uppercase text-gray-400">
-                  대분류
-                  <select
-                    :value="productEditForm.parentCategory"
-                    class="mt-1.5 w-full border border-gray-300 bg-gray-50 px-2 py-2.5 text-xs font-bold text-gray-800 outline-none focus:border-[#004D3C]"
-                    @change="handleDetailParentChange"
-                  >
-                    <option v-for="parent in parentCategoryOptions" :key="parent" :value="parent">{{ parent }}</option>
-                  </select>
-                </label>
-                <label class="block text-[10px] font-bold uppercase text-gray-400">
-                  소분류
-                  <select
-                    v-model="productEditForm.childCategory"
-                    class="mt-1.5 w-full border border-gray-300 bg-gray-50 px-2 py-2.5 text-xs font-bold text-gray-800 outline-none focus:border-[#004D3C]"
-                  >
-                    <option v-for="child in detailChildCategoryOptions" :key="child" :value="child">{{ child }}</option>
-                  </select>
-                </label>
-              </div>
-              <div class="grid grid-cols-2 gap-3">
-                <label class="block text-[10px] font-bold uppercase text-gray-400">
-                  단가
-                  <input
-                    v-model.number="productEditForm.price"
-                    type="number"
-                    min="0"
-                    class="mt-1.5 w-full border border-gray-300 bg-gray-50 px-3 py-2.5 text-xs font-bold text-gray-800 outline-none focus:border-[#004D3C]"
-                  />
-                </label>
-                <label class="block text-[10px] font-bold uppercase text-gray-400">
-                  상태
-                  <select
-                    v-model="productEditForm.status"
-                    class="mt-1.5 w-full border border-gray-300 bg-gray-50 px-2 py-2.5 text-xs font-bold text-gray-800 outline-none focus:border-[#004D3C]"
-                  >
-                    <option value="활성">활성</option>
-                    <option value="점검중">점검중</option>
-                    <option value="비활성">비활성</option>
-                  </select>
-                </label>
-              </div>
-              <div class="grid grid-cols-2 gap-3">
-                <label class="block text-[10px] font-bold uppercase text-gray-400">
-                  메인 거래처
-                  <input
-                    v-model="productEditForm.vendor"
-                    type="text"
-                    class="mt-1.5 w-full border border-gray-300 bg-gray-50 px-3 py-2.5 text-xs font-bold text-gray-800 outline-none focus:border-[#004D3C]"
-                  />
-                </label>
-                <label class="block text-[10px] font-bold uppercase text-gray-400">
-                  등록일
-                  <input
-                    v-model="productEditForm.regDate"
-                    type="text"
-                    class="mt-1.5 w-full border border-gray-300 bg-gray-50 px-3 py-2.5 text-xs font-bold text-gray-800 outline-none focus:border-[#004D3C]"
-                  />
-                </label>
-              </div>
-            </div>
-            <div class="border border-gray-200 bg-gray-50 p-4">
-              <p class="text-[10px] font-bold uppercase text-gray-400">메인 계약처</p>
-              <div class="mt-3 flex items-center justify-between gap-2 text-xs font-bold text-gray-700">
-                <span>{{ productEditForm.vendor }}</span>
-                <span class="bg-[#E6F2F0] px-2 py-1 text-[#004D3C]">메인 계약처</span>
-              </div>
-              <div class="mt-3 flex justify-between text-xs">
-                <span class="text-gray-500">계약가</span>
-                <strong class="text-[#004D3C]">₩{{ Math.round(productEditForm.price * 0.95).toLocaleString() }}</strong>
-              </div>
-            </div>
-            <div class="flex gap-2 pt-2">
-              <button
-                type="button"
-                class="flex-1 border border-[#004D3C] bg-[#004D3C] py-2 text-xs font-black text-white hover:bg-[#003d30]"
-                @click="saveProductDetail"
-              >
-                저장
-              </button>
-              <button
-                type="button"
-                class="flex-1 border border-gray-300 bg-white py-2 text-xs font-black text-gray-700 hover:bg-gray-50"
-                @click="resetProductDetail"
-              >
-                되돌리기
-              </button>
-            </div>
-          </div>
-        </aside>
       </section>
     </div>
   </AppLayout>

@@ -1,9 +1,17 @@
 <script setup>
-import { computed, h, ref, watch } from 'vue'
+import { computed, h, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
+import {
+  createStore,
+  createWarehouse,
+  getStores,
+  getWarehouses,
+  updateStore,
+  updateWarehouse,
+} from '@/api/infrastructure.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -55,34 +63,11 @@ const infraSideMenus = [
   { label: '창고 정보 관리', icon: 'warehouse', id: 'SO-040' },
 ]
 
-const locations = ['서울', '경기', '인천', '부산', '대구']
-const names = ['스톡잇 강남점', '홍대 문구센터', '판교 테크노잡화', '여의도 IFC몰점', '성수 리빙샵', '인천 터미널점', '분당 서현점', '부산 센텀점', '광교 갤러리아점', '대전 둔산점']
-const managers = ['김사라', '박범수', '이선엽', '이후경', '정유진', '최진혁']
-const warehouses = ['인천 제1센터', '인천 제2센터', '용인 물류센터', '부산 중앙창고']
+const storeData = ref([])
+const warehouseData = ref([])
+const infraError = ref('')
 
-const storeData = Array.from({ length: 32 }).map((_, i) => {
-  const isExpiring = i % 7 === 0
-  const stockCapacity = 1200 + (i % 5) * 300
-  const remainingStock = 240 + (i * 77) % 1200
-  const remainingRate = Math.min(100, Math.round((remainingStock / stockCapacity) * 100))
-  return {
-    id: `ST-${String(i + 1).padStart(3, '0')}`,
-    name: `${names[i % names.length]}${i > 9 ? ` ${Math.floor(i / 10) + 1}관` : ''}`,
-    region: locations[i % locations.length],
-    type: i % 3 === 0 ? '직영점' : '가맹점',
-    manager: managers[i % managers.length],
-    contact: `010-4821-${String(1000 + i)}`,
-    warehouse: warehouses[i % warehouses.length],
-    endDate: isExpiring ? '2024.05.15' : '2025.12.31',
-    status: i === 15 ? '비활성' : '활성',
-    isExpiring,
-    stockCapacity,
-    remainingStock,
-    remainingRate,
-  }
-})
-
-const storeRegionOptions = computed(() => ['전체 지역', ...new Set(storeData.map((store) => store.region))])
+const storeRegionOptions = computed(() => ['전체 지역', ...new Set(storeData.value.map((store) => store.region))])
 const storeStatusOptions = ['전체', '활성', '비활성']
 
 if (!storeRegionOptions.value.includes(storeRegionFilter.value)) {
@@ -93,94 +78,10 @@ if (!storeStatusOptions.includes(storeStatusFilter.value)) {
   storeStatusFilter.value = '전체'
 }
 
-const filteredStoreData = computed(() => {
-  const keyword = storeSearchTerm.value.trim().toLowerCase()
+const filteredStoreData = computed(() => storeData.value)
 
-  return storeData.filter((store) => {
-    const matchesRegion = storeRegionFilter.value === '전체 지역' || store.region === storeRegionFilter.value
-    const matchesStatus = storeStatusFilter.value === '전체' || store.status === storeStatusFilter.value
-    const matchesKeyword = !keyword || [store.id, store.name, store.manager, store.contact, store.warehouse]
-      .join(' ')
-      .toLowerCase()
-      .includes(keyword)
-
-    return matchesRegion && matchesStatus && matchesKeyword
-  })
-})
-
-const warehouseData = [
-  {
-    id: 'WH-001',
-    name: '인천 제1센터',
-    address: '인천광역시 서구 봉수대로 241',
-    manager: '박범수',
-    contact: '032-541-1201',
-    capacity: '12,000 PLT / 6,500㎡',
-    stockQty: 124582,
-    occupancy: 82,
-    status: '활성',
-    mappedStores: ['스톡잇 강남점', '홍대 문구센터', '여의도 IFC몰점', '성수 리빙샵'],
-    recentFlows: [
-      { time: '16:45', type: '입고', item: '고속 충전기 25W', qty: '+500' },
-      { time: '15:20', type: '출고', item: 'A4 복사용지 80g', qty: '-1,200' },
-      { time: '13:10', type: '이동', item: '무선 마우스 블랙', qty: '-240' },
-    ],
-  },
-  {
-    id: 'WH-002',
-    name: '인천 제2센터',
-    address: '인천광역시 중구 서해대로 98',
-    manager: '이후경',
-    contact: '032-541-1202',
-    capacity: '8,500 PLT / 4,100㎡',
-    stockQty: 84550,
-    occupancy: 68,
-    status: '활성',
-    mappedStores: ['판교 테크노잡화', '분당 서현점', '광교 갤러리아점'],
-    recentFlows: [
-      { time: '17:05', type: '입고', item: '절전형 멀티탭 3m', qty: '+300' },
-      { time: '14:30', type: '출고', item: '기계식 키보드 청축', qty: '-80' },
-      { time: '11:10', type: '출고', item: '손세정제 리필 500ml', qty: '-420' },
-    ],
-  },
-  {
-    id: 'WH-003',
-    name: '용인 물류센터',
-    address: '경기도 용인시 처인구 남사읍 물류로 75',
-    manager: '김사라',
-    contact: '031-338-4401',
-    capacity: '15,000 PLT / 8,300㎡',
-    stockQty: 142300,
-    occupancy: 91,
-    status: '포화 임박',
-    mappedStores: ['성수 리빙샵', '인천 터미널점', '대전 둔산점', '부산 센텀점'],
-    recentFlows: [
-      { time: '16:20', type: '입고', item: '종이컵 6.5온스', qty: '+4,500' },
-      { time: '15:05', type: '출고', item: '니트릴 고무장갑', qty: '-650' },
-      { time: '09:40', type: '출고', item: '휴대용 가글 250ml', qty: '-320' },
-    ],
-  },
-  {
-    id: 'WH-004',
-    name: '부산 중앙창고',
-    address: '부산광역시 강서구 유통단지1로 55',
-    manager: '이선엽',
-    contact: '051-923-7701',
-    capacity: '6,200 PLT / 3,200㎡',
-    stockQty: 46320,
-    occupancy: 44,
-    status: '비활성',
-    mappedStores: ['부산 센텀점'],
-    recentFlows: [
-      { time: '어제', type: '점검', item: '냉동 블루베리 1kg', qty: '보류' },
-      { time: '어제', type: '출고', item: '무선 이어폰', qty: '-45' },
-      { time: '2일 전', type: '입고', item: '유리제 머그컵 350ml', qty: '+220' },
-    ],
-  },
-]
-
-const warehouseRegionOptions = computed(() => ['전체 지역', ...new Set(warehouseData.map((warehouse) => warehouse.address.split(' ')[0].replace('광역시', '').replace('특별시', '')))])
-const warehouseStatusOptions = ['전체', '활성', '비활성', '포화 임박']
+const warehouseRegionOptions = computed(() => ['전체 지역', ...new Set(warehouseData.value.map((warehouse) => warehouse.region))])
+const warehouseStatusOptions = ['전체', '활성', '비활성', '점검중']
 
 if (!warehouseRegionOptions.value.includes(warehouseRegionFilter.value)) {
   warehouseRegionFilter.value = '전체 지역'
@@ -190,21 +91,7 @@ if (!warehouseStatusOptions.includes(warehouseStatusFilter.value)) {
   warehouseStatusFilter.value = '전체'
 }
 
-const filteredWarehouseData = computed(() => {
-  const keyword = warehouseSearchTerm.value.trim().toLowerCase()
-
-  return warehouseData.filter((warehouse) => {
-    const region = warehouse.address.split(' ')[0].replace('광역시', '').replace('특별시', '')
-    const matchesRegion = warehouseRegionFilter.value === '전체 지역' || region === warehouseRegionFilter.value
-    const matchesStatus = warehouseStatusFilter.value === '전체' || warehouse.status === warehouseStatusFilter.value
-    const matchesKeyword = !keyword || [warehouse.id, warehouse.name, warehouse.manager, warehouse.contact, warehouse.address]
-      .join(' ')
-      .toLowerCase()
-      .includes(keyword)
-
-    return matchesRegion && matchesStatus && matchesKeyword
-  })
-})
+const filteredWarehouseData = computed(() => warehouseData.value)
 
 const isStoreMenu = computed(() => activeSideMenu.value === '매장 정보 관리')
 const isWarehouseMenu = computed(() => activeSideMenu.value === '창고 정보 관리')
@@ -231,7 +118,7 @@ const handleTopMenuClick = (menu) => {
 const goToStoreDetail = (store) => {
   router.push({
     name: 'hq-infrastructure-store-detail',
-    params: { storeId: store.id },
+    params: { storeId: store.code },
     query: {
       region: storeRegionFilter.value !== '전체 지역' ? storeRegionFilter.value : undefined,
       status: storeStatusFilter.value !== '전체' ? storeStatusFilter.value : undefined,
@@ -243,7 +130,7 @@ const goToStoreDetail = (store) => {
 const goToWarehouseDetail = (warehouse) => {
   router.push({
     name: 'hq-infrastructure-warehouse-detail',
-    params: { warehouseId: warehouse.id },
+    params: { warehouseId: warehouse.code },
     query: {
       menu: '창고 정보 관리',
       region: warehouseRegionFilter.value !== '전체 지역' ? warehouseRegionFilter.value : undefined,
@@ -261,6 +148,118 @@ watch(
     }
   },
 )
+
+const statusToKor = {
+  ACTIVE: '활성',
+  INACTIVE: '비활성',
+  SUSPENDED: '점검중',
+}
+const korToStatus = {
+  활성: 'ACTIVE',
+  비활성: 'INACTIVE',
+  점검중: 'SUSPENDED',
+}
+
+async function loadStores() {
+  const status = storeStatusFilter.value === '전체' ? undefined : korToStatus[storeStatusFilter.value]
+  const region = storeRegionFilter.value === '전체 지역' ? undefined : storeRegionFilter.value
+  const list = await getStores({ keyword: storeSearchTerm.value || undefined, region, status })
+  storeData.value = list.map((s) => ({
+    code: s.code,
+    id: s.code,
+    name: s.name,
+    region: s.region,
+    type: s.type === 'DIRECT' ? '직영점' : '가맹점',
+    manager: s.managerName,
+    contact: s.contact,
+    address: s.address,
+    warehouse: s.warehouseCode,
+    status: statusToKor[s.status] ?? s.status,
+    stockCapacity: 1000,
+    remainingStock: 700,
+    remainingRate: 70,
+  }))
+}
+
+async function loadWarehouses() {
+  const status = warehouseStatusFilter.value === '전체' ? undefined : korToStatus[warehouseStatusFilter.value]
+  const region = warehouseRegionFilter.value === '전체 지역' ? undefined : warehouseRegionFilter.value
+  const list = await getWarehouses({ keyword: warehouseSearchTerm.value || undefined, region, status })
+  warehouseData.value = list.map((w) => ({
+    code: w.code,
+    id: w.code,
+    name: w.name,
+    region: w.region,
+    address: w.address,
+    manager: w.managerName,
+    contact: w.contact,
+    capacity: w.capacity,
+    stockQty: w.mappedStoreCount * 1000,
+    occupancy: Math.min(95, 20 + w.mappedStoreCount * 15),
+    status: statusToKor[w.status] ?? w.status,
+  }))
+}
+
+async function reloadActiveMenuData() {
+  try {
+    infraError.value = ''
+    if (isStoreMenu.value) await loadStores()
+    if (isWarehouseMenu.value) await loadWarehouses()
+  } catch (e) {
+    infraError.value = e.message
+  }
+}
+
+watch([storeRegionFilter, storeStatusFilter, storeSearchTerm], () => {
+  if (isStoreMenu.value) reloadActiveMenuData()
+})
+watch([warehouseRegionFilter, warehouseStatusFilter, warehouseSearchTerm], () => {
+  if (isWarehouseMenu.value) reloadActiveMenuData()
+})
+watch(activeSideMenu, () => reloadActiveMenuData())
+
+async function quickCreateStore() {
+  const name = prompt('매장명을 입력하세요')
+  if (!name) return
+  try {
+    await createStore({
+      name,
+      region: '서울',
+      type: 'DIRECT',
+      managerName: '담당자',
+      contact: '010-0000-0000',
+      address: '서울시 강남구',
+      warehouseCode: warehouseData.value[0]?.code || 'WH-0001',
+      status: 'ACTIVE',
+    })
+    await loadStores()
+  } catch (e) {
+    infraError.value = e.message
+  }
+}
+
+async function quickCreateWarehouse() {
+  const name = prompt('창고명을 입력하세요')
+  if (!name) return
+  try {
+    await createWarehouse({
+      name,
+      region: '서울',
+      managerName: '담당자',
+      contact: '02-0000-0000',
+      address: '서울시 강서구',
+      capacity: '10,000 PLT / 5,000㎡',
+      status: 'ACTIVE',
+    })
+    await loadWarehouses()
+  } catch (e) {
+    infraError.value = e.message
+  }
+}
+
+onMounted(() => {
+  reloadActiveMenuData()
+})
 
 const IconBase = (paths) => ({
   props: {
@@ -383,6 +382,7 @@ const iconMap = {
               </label>
           </div>
         </section>
+        <p v-if="infraError" class="text-xs font-bold text-red-600">{{ infraError }}</p>
 
         <section v-if="activeSideMenu === '매장 정보 관리'" class="panel store-panel">
             <div class="store-head">
@@ -392,6 +392,7 @@ const iconMap = {
                 </h3>
                 <span class="text-[10px] font-bold text-gray-400">Total: {{ filteredStoreData.length }} Locations</span>
               </div>
+              <button type="button" class="primary-button" @click="quickCreateStore">매장 등록</button>
             </div>
 
             <div class="store-card-grid">
@@ -457,6 +458,7 @@ const iconMap = {
                 <h3><WarehouseIcon :size="14" /> 전사 창고 마스터 정보 (SO-041)</h3>
                 <span>Total: {{ filteredWarehouseData.length }} Warehouses</span>
               </div>
+              <button type="button" class="primary-button" @click="quickCreateWarehouse">창고 등록</button>
             </div>
 
             <div class="store-card-grid">
