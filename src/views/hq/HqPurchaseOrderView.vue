@@ -620,14 +620,14 @@ const TruckIcon = IconBase([
                 </button>
               </div>
               <p class="pt-1 text-center text-[11px] leading-relaxed text-gray-500">
-                30분 후 시스템(SYS-001) 이 자동으로 거래처 승인을 처리합니다.<br />
+                30분 후 시스템이 자동으로 거래처 승인을 처리합니다.<br />
                 그 전에 [수정] 또는 [취소] 가능합니다.
               </p>
             </template>
 
             <template v-else-if="poStore.selectedOrder.status === 'APPROVED'">
               <p class="text-center text-xs leading-relaxed text-gray-500">
-                승인 완료 · 30분 후 시스템(SYS-001) 이 자동으로 거래처 출고 처리합니다.
+                승인 완료 · 30분 후 시스템이 자동으로 거래처 출고 처리합니다.
               </p>
             </template>
 
