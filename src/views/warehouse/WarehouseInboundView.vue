@@ -302,7 +302,7 @@ const CheckIcon = IconBase([{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12'
                   <td class="px-3 py-3 font-black text-gray-800">{{ order.vendorName }}</td>
                   <td class="px-3 py-3 font-bold text-gray-600">{{ order.warehouseName }}</td>
                   <td class="px-3 py-3 text-center font-bold text-gray-700">
-                    {{ order.items.length }}
+                    {{ order.itemCount }}
                   </td>
                   <td class="px-3 py-3 text-right font-black text-gray-800">
                     ₩{{ order.totalPrice.toLocaleString() }}

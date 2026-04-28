@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { usePurchaseOrderStore } from './purchaseOrder.js'
+import { inboundApi } from '@/api/inbound.js'
 
 export const useInboundStore = defineStore('inbound', () => {
   const poStore = usePurchaseOrderStore()
@@ -59,14 +60,27 @@ export const useInboundStore = defineStore('inbound', () => {
   }))
 
   // --- actions ---
+  // 발주 선택 — items/statusHistory 가 비어있으면(list 시점) detail 자동 fetch.
+  // purchaseOrder store 의 selectOrder 와 같은 패턴 — 단일 진실 원천(ADR-015).
   function selectOrder(id) {
     selectedOrderId.value = id
+    if (id) {
+      const order = poStore.purchaseOrders.find((o) => o.id === id)
+      if (order && (order.items.length === 0 || order.statusHistory.length === 0)) {
+        poStore.fetchDetail(id).catch(() => {
+          // fetchDetail 안에서 이미 처리
+        })
+      }
+    }
   }
 
-  // 입고 확정 — purchaseOrder store 의 markCompleted 위임
-  // (statusHistory push 는 markCompleted 안에서 자동 처리)
+  // 입고 확정 (WHS-007) — 창고 권한군 entry-point 로 갈아끼움.
+  // BE: POST /api/warehouse/inbound/{code}/confirm → 내부적으로 PurchaseOrderService.complete
+  // (SHIPPING→COMPLETED 검증 + statusHistory append).
+  // 단일 진실 원천(ADR-015) 정합을 위해 confirm 후 poStore.fetchDetail 로 단건 갱신.
   async function confirmInbound(id) {
-    return poStore.markCompleted(id)
+    await inboundApi.confirm(id)
+    return poStore.fetchDetail(id)
   }
 
   return {
