@@ -65,8 +65,8 @@ export const useInboundStore = defineStore('inbound', () => {
 
   // 입고 확정 — purchaseOrder store 의 markCompleted 위임
   // (statusHistory push 는 markCompleted 안에서 자동 처리)
-  function confirmInbound(id) {
-    poStore.markCompleted(id)
+  async function confirmInbound(id) {
+    return poStore.markCompleted(id)
   }
 
   return {

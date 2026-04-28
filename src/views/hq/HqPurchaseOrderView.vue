@@ -62,12 +62,16 @@ function openApproveConfirm() {
   if (poStore.selectedOrder?.status !== 'PENDING') return
   showApproveConfirm.value = true
 }
-function confirmApprove() {
+async function confirmApprove() {
   const id = poStore.selectedOrder?.id
   if (!id) return
-  poStore.approveOrder(id)
   showApproveConfirm.value = false
-  triggerToast('거래처 승인이 기록되었습니다')
+  try {
+    await poStore.approveOrder(id)
+    triggerToast('거래처 승인이 기록되었습니다')
+  } catch (e) {
+    triggerToast(e?.message ?? '승인 처리에 실패했습니다')
+  }
 }
 function cancelApprove() {
   showApproveConfirm.value = false
@@ -77,12 +81,16 @@ function openShippingConfirm() {
   if (poStore.selectedOrder?.status !== 'APPROVED') return
   showShippingConfirm.value = true
 }
-function confirmShipping() {
+async function confirmShipping() {
   const id = poStore.selectedOrder?.id
   if (!id) return
-  poStore.markShipping(id)
   showShippingConfirm.value = false
-  triggerToast('거래처 출고가 기록되었습니다')
+  try {
+    await poStore.markShipping(id)
+    triggerToast('거래처 출고가 기록되었습니다')
+  } catch (e) {
+    triggerToast(e?.message ?? '출고 처리에 실패했습니다')
+  }
 }
 function cancelShipping() {
   showShippingConfirm.value = false
@@ -99,12 +107,16 @@ function cancelCancelConfirm() {
   showCancelConfirm.value = false
 }
 
-function confirmCancelOrder() {
+async function confirmCancelOrder() {
   const id = poStore.selectedOrder?.id
   if (!id) return
-  poStore.cancelOrder(id, cancelReason.value.trim())
   showCancelConfirm.value = false
-  triggerToast('발주가 취소되었습니다')
+  try {
+    await poStore.cancelOrder(id, cancelReason.value.trim())
+    triggerToast('발주가 취소되었습니다')
+  } catch (e) {
+    triggerToast(e?.message ?? '취소 처리에 실패했습니다')
+  }
 }
 
 // 탭 변경 시 선택 클리어 — 좌측 목록과 우측 상세의 컨텍스트 일치 유지
