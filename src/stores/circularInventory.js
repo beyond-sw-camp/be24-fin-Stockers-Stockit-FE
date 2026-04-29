@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { useCircularInventoryBuyerStore } from '@/stores/circularInventoryBuyers.js'
 
 const INVENTORY_STORAGE_KEY = 'stockit_circular_inventory_inventory_v1'
 const SALES_STORAGE_KEY = 'stockit_circular_inventory_sales_v1'
@@ -7,26 +8,19 @@ const SALES_STORAGE_KEY = 'stockit_circular_inventory_sales_v1'
 const INITIAL_INVENTORY = [
   { id: 'CI-001', itemCode: 'SPA-TOP-001', parentCategory: '상의', childCategory: '반팔', itemName: '코튼 베이직 반팔 티셔츠', materials: [{ name: '면', ratio: 100 }], quantity: 184, weightKg: 92.0 },
   { id: 'CI-002', itemCode: 'SPA-TOP-002', parentCategory: '상의', childCategory: '긴팔', itemName: '슬림핏 긴팔 티셔츠', materials: [{ name: '면', ratio: 100 }], quantity: 52, weightKg: 31.2 },
-  { id: 'CI-003', itemCode: 'SPA-TOP-003', parentCategory: '상의', childCategory: '셔츠', itemName: '오버핏 옥스포드 셔츠', materials: [{ name: '면', ratio: 70 }, { name: '폴리에스터', ratio: 30 }], quantity: 76, weightKg: 53.2 },
-  { id: 'CI-004', itemCode: 'SPA-TOP-004', parentCategory: '상의', childCategory: '니트', itemName: '라운드넥 소프트 니트', materials: [{ name: '울', ratio: 50 }, { name: '아크릴', ratio: 50 }], quantity: 86, weightKg: 43.0 },
-  { id: 'CI-005', itemCode: 'SPA-TOP-005', parentCategory: '상의', childCategory: '후드티', itemName: '헤비웨이트 로고 후드티', materials: [{ name: '면', ratio: 80 }, { name: '폴리에스터', ratio: 20 }], quantity: 44, weightKg: 48.4 },
+  { id: 'CI-003', itemCode: 'SPA-TOP-003', parentCategory: '상의', childCategory: '셔츠', itemName: '오버핏 옥스퍼드 셔츠', materials: [{ name: '면', ratio: 70 }, { name: '폴리에스터', ratio: 30 }], quantity: 76, weightKg: 53.2 },
+  { id: 'CI-004', itemCode: 'SPA-TOP-004', parentCategory: '상의', childCategory: '니트', itemName: '라운드넥 하프 니트', materials: [{ name: '울', ratio: 50 }, { name: '아크릴', ratio: 50 }], quantity: 86, weightKg: 43.0 },
+  { id: 'CI-005', itemCode: 'SPA-TOP-005', parentCategory: '상의', childCategory: '후드티', itemName: '오버사이즈 로고 후드티', materials: [{ name: '면', ratio: 80 }, { name: '폴리에스터', ratio: 20 }], quantity: 44, weightKg: 48.4 },
   { id: 'CI-006', itemCode: 'SPA-PNT-001', parentCategory: '바지', childCategory: '청바지', itemName: '스트레이트 워싱 데님', materials: [{ name: '데님', ratio: 100 }], quantity: 39, weightKg: 42.9 },
-  { id: 'CI-007', itemCode: 'SPA-PNT-002', parentCategory: '바지', childCategory: '반바지', itemName: '라이트 코튼 쇼츠', materials: [{ name: '면', ratio: 100 }], quantity: 68, weightKg: 30.6 },
-  { id: 'CI-008', itemCode: 'SPA-PNT-003', parentCategory: '바지', childCategory: '긴바지', itemName: '와이드 밴딩 팬츠', materials: [{ name: '나일론', ratio: 100 }], quantity: 24, weightKg: 18.6 },
-  { id: 'CI-009', itemCode: 'SPA-PNT-004', parentCategory: '바지', childCategory: '츄리닝', itemName: '데일리 조거 트레이닝 팬츠', materials: [{ name: '폴리', ratio: 90 }, { name: '스판', ratio: 10 }], quantity: 57, weightKg: 39.9 },
+  { id: 'CI-007', itemCode: 'SPA-PNT-002', parentCategory: '바지', childCategory: '반바지', itemName: '와이드 코튼 쇼츠', materials: [{ name: '면', ratio: 100 }], quantity: 68, weightKg: 30.6 },
+  { id: 'CI-008', itemCode: 'SPA-PNT-003', parentCategory: '바지', childCategory: '긴바지', itemName: '사이드 밴딩 팬츠', materials: [{ name: '나일론', ratio: 100 }], quantity: 24, weightKg: 18.6 },
+  { id: 'CI-009', itemCode: 'SPA-PNT-004', parentCategory: '바지', childCategory: '트레이닝', itemName: '스트링 조거 트레이닝 팬츠', materials: [{ name: '폴리', ratio: 90 }, { name: '스판', ratio: 10 }], quantity: 57, weightKg: 39.9 },
   { id: 'CI-010', itemCode: 'SPA-SKT-001', parentCategory: '치마', childCategory: '미니스커트', itemName: 'A라인 데님 미니스커트', materials: [{ name: '폴리에스터', ratio: 100 }], quantity: 33, weightKg: 16.5 },
   { id: 'CI-011', itemCode: 'SPA-SKT-002', parentCategory: '치마', childCategory: '롱스커트', itemName: '플리츠 롱스커트', materials: [{ name: '폴리에스터', ratio: 100 }], quantity: 19, weightKg: 12.4 },
-  { id: 'CI-012', itemCode: 'SPA-OUT-001', parentCategory: '아우터', childCategory: '패딩', itemName: '라이트 숏 패딩', materials: [{ name: '나일론', ratio: 80 }, { name: '덕다운', ratio: 20 }], quantity: 21, weightKg: 29.4 },
+  { id: 'CI-012', itemCode: 'SPA-OUT-001', parentCategory: '아우터', childCategory: '패딩', itemName: '라이트 다운 패딩', materials: [{ name: '나일론', ratio: 80 }, { name: '충전재', ratio: 20 }], quantity: 21, weightKg: 29.4 },
   { id: 'CI-013', itemCode: 'SPA-OUT-002', parentCategory: '아우터', childCategory: '후드집업', itemName: '스웨트 후드 집업', materials: [{ name: '면', ratio: 70 }, { name: '폴리에스터', ratio: 30 }], quantity: 47, weightKg: 42.3 },
-  { id: 'CI-014', itemCode: 'SPA-OUT-003', parentCategory: '아우터', childCategory: '자켓', itemName: '싱글 브레스트 자켓', materials: [{ name: '합성피혁', ratio: 100 }], quantity: 18, weightKg: 23.4 },
+  { id: 'CI-014', itemCode: 'SPA-OUT-003', parentCategory: '아우터', childCategory: '자켓', itemName: '싱글 브레스티드 자켓', materials: [{ name: '합성섬유', ratio: 100 }], quantity: 18, weightKg: 23.4 },
   { id: 'CI-015', itemCode: 'SPA-OUT-004', parentCategory: '아우터', childCategory: '가디건', itemName: '브이넥 니트 가디건', materials: [{ name: '아크릴', ratio: 50 }, { name: '폴리', ratio: 30 }, { name: '나일론', ratio: 20 }], quantity: 37, weightKg: 29.6 },
-]
-
-const INITIAL_BUYERS = [
-  { id: 'RCV-001', code: 'RCV-001', name: '그린루프 리사이클링', managerName: '김서연', phone: '02-2100-4100', note: '면/폴리 혼방 회수 전문 거래처' },
-  { id: 'RCV-002', code: 'RCV-002', name: '에코웨어 파트너스', managerName: '박도윤', phone: '031-440-1288', note: '니트/아우터 순환 소재 매입' },
-  { id: 'RCV-003', code: 'RCV-003', name: '리뉴패브릭 센터', managerName: '정하은', phone: '051-720-3390', note: 'kg 단위 매입 및 소각 대체 처리' },
-  { id: 'RCV-004', code: 'RCV-004', name: '업사이클 허브 코리아', managerName: '최민재', phone: '032-880-7741', note: '소량 다품목 매입 가능' },
 ]
 
 const INITIAL_SALES = [
@@ -34,13 +28,18 @@ const INITIAL_SALES = [
     saleId: 'CIS-20260426-001',
     buyerId: 'RCV-001',
     buyerName: '그린루프 리사이클링',
+    buyerCode: 'RCV-001',
+    buyerManagerName: '김서연',
+    buyerPhone: '02-2100-4100',
+    buyerDescription: '면 중심 순환 재고를 고순도 원료사로 전환하는 재생 원사 전문 거래처',
+    buyerPrimaryMaterialFit: 'natural-single',
     soldAt: '2026-04-26T11:40:00',
     soldBy: '본사 관리자',
     totalItems: 2,
     totalEstimatedQuantity: 20.56,
     totalWeightKg: 10.28,
     totalAmount: 226160,
-    memo: '면 소재 중심 1차 테스트 판매',
+    memo: '면 소재 중단 1차 테스트 판매',
     items: [
       {
         saleId: 'CIS-20260426-001',
@@ -63,7 +62,7 @@ const INITIAL_SALES = [
         saleId: 'CIS-20260426-001',
         inventoryId: 'CI-007',
         itemCode: 'SPA-PNT-002',
-        itemName: '라이트 코튼 쇼츠',
+        itemName: '와이드 코튼 쇼츠',
         mainCategory: '바지',
         subCategory: '반바지',
         materials: [{ name: '면', ratio: 100 }],
@@ -122,7 +121,7 @@ function pad(value) {
 function generateSaleId(list) {
   const now = new Date()
   const prefix = `CIS-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`
-  const count = list.filter((sale) => sale.saleId.startsWith(prefix)).length + 1
+  const count = list.filter(sale => sale.saleId.startsWith(prefix)).length + 1
   return `${prefix}-${String(count).padStart(3, '0')}`
 }
 
@@ -150,8 +149,8 @@ function normalizeDraftField(item, updates = {}) {
 }
 
 export const useCircularInventoryStore = defineStore('circularInventory', () => {
+  const buyerStore = useCircularInventoryBuyerStore()
   const inventoryItems = ref(loadJson(INVENTORY_STORAGE_KEY, INITIAL_INVENTORY).map(enrichInventoryItem))
-  const buyers = ref(INITIAL_BUYERS)
   const sales = ref(loadJson(SALES_STORAGE_KEY, INITIAL_SALES))
   const draftBuyerId = ref('')
   const draftMemo = ref('')
@@ -166,7 +165,7 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
   )
 
   const selectedBuyer = computed(() =>
-    buyers.value.find((buyer) => buyer.id === draftBuyerId.value) ?? null,
+    buyerStore.getBuyerById(draftBuyerId.value) ?? null,
   )
 
   const sortedSales = computed(() =>
@@ -185,7 +184,7 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
     totalSalesCount: sales.value.length,
     totalWeightKg: roundTo(sales.value.reduce((sum, sale) => sum + sale.totalWeightKg, 0)),
     totalAmount: sales.value.reduce((sum, sale) => sum + sale.totalAmount, 0),
-    totalBuyerCount: new Set(sales.value.map((sale) => sale.buyerId)).size,
+    totalBuyerCount: new Set(sales.value.map(sale => sale.buyerId)).size,
   }))
 
   const salesAnalytics = computed(() => {
@@ -242,27 +241,19 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
   }
 
   function getInventoryById(inventoryId) {
-    return inventoryItems.value.find((item) => item.id === inventoryId) ?? null
+    return inventoryItems.value.find(item => item.id === inventoryId) ?? null
   }
 
   function getSaleById(saleId) {
-    return sales.value.find((sale) => sale.saleId === saleId) ?? null
+    return sales.value.find(sale => sale.saleId === saleId) ?? null
   }
 
   function getDraftItem(inventoryId) {
-    return draftItems.value.find((item) => item.inventoryId === inventoryId) ?? null
+    return draftItems.value.find(item => item.inventoryId === inventoryId) ?? null
   }
 
   function filteredBuyers(keyword = '') {
-    const normalized = keyword.trim().toLowerCase()
-    if (!normalized) return buyers.value
-
-    return buyers.value.filter((buyer) =>
-      [buyer.code, buyer.name, buyer.managerName]
-        .join(' ')
-        .toLowerCase()
-        .includes(normalized),
-    )
+    return buyerStore.filteredBuyers(keyword)
   }
 
   function selectBuyer(buyerId) {
@@ -306,9 +297,9 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
   }
 
   function updateSaleDraftItem(inventoryId, payload) {
-    const index = draftItems.value.findIndex((item) => item.inventoryId === inventoryId)
+    const index = draftItems.value.findIndex(item => item.inventoryId === inventoryId)
     if (index === -1) {
-      return { success: false, message: '판매 패널에서 품목을 찾을 수 없습니다.' }
+      return { success: false, message: '판매 패널에서 항목을 찾을 수 없습니다.' }
     }
 
     const next = [...draftItems.value]
@@ -318,7 +309,7 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
   }
 
   function removeSaleDraftItem(inventoryId) {
-    draftItems.value = draftItems.value.filter((item) => item.inventoryId !== inventoryId)
+    draftItems.value = draftItems.value.filter(item => item.inventoryId !== inventoryId)
   }
 
   function clearDraft() {
@@ -336,11 +327,10 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
       return { success: false, message: '판매할 순환 재고를 추가해주세요.' }
     }
 
-    const buyer = buyers.value.find((item) => item.id === draftBuyerId.value)
+    const buyer = buyerStore.getBuyerById(draftBuyerId.value)
     if (!buyer) {
       return { success: false, message: '선택한 거래처 정보를 찾을 수 없습니다.' }
     }
-
     for (const item of draftItems.value) {
       const soldWeightKg = Number(item.soldWeightKg)
       const unitPrice = Number(item.unitPrice)
@@ -350,10 +340,10 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
         return { success: false, message: `${item.itemName} 재고를 찾을 수 없습니다.` }
       }
       if (Number.isNaN(soldWeightKg) || soldWeightKg <= 0) {
-        return { success: false, message: `${item.itemName} 판매 kg를 입력해주세요.` }
+        return { success: false, message: `${item.itemName} 판매 kg을 입력해주세요.` }
       }
       if (soldWeightKg > inventory.weightKg) {
-        return { success: false, message: `${item.itemName} 환산 재고 kg를 초과할 수 없습니다.` }
+        return { success: false, message: `${item.itemName} 환산 재고 kg을 초과할 수 없습니다.` }
       }
       if (Number.isNaN(unitPrice) || unitPrice <= 0) {
         return { success: false, message: `${item.itemName} 단가를 입력해주세요.` }
@@ -369,7 +359,7 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
     const saleId = generateSaleId(sales.value)
     const soldAt = new Date().toISOString()
 
-    const saleItems = draftItems.value.map((item) => ({
+    const saleItems = draftItems.value.map(item => ({
       saleId,
       inventoryId: item.inventoryId,
       itemCode: item.itemCode,
@@ -399,7 +389,12 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
     const sale = {
       saleId,
       buyerId: buyer.id,
-      buyerName: buyer.name,
+      buyerName: buyer.companyName,
+      buyerCode: buyer.code,
+      buyerManagerName: buyer.managerName,
+      buyerPhone: buyer.phone,
+      buyerDescription: buyer.description,
+      buyerPrimaryMaterialFit: buyer.primaryMaterialFit,
       soldAt,
       soldBy,
       totalItems: saleItems.length,
@@ -417,7 +412,6 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
   }
 
   return {
-    buyers,
     inventoryRows,
     sortedSales,
     draftBuyerId,

@@ -5,10 +5,12 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import CircularInventoryBrowseSection from '@/components/hq/circular-inventory/CircularInventoryBrowseSection.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { useCircularInventoryBuyerStore } from '@/stores/circularInventoryBuyers.js'
 import { useCircularInventoryStore } from '@/stores/circularInventory.js'
 
 const router = useRouter()
 const auth = useAuthStore()
+const buyerStore = useCircularInventoryBuyerStore()
 const circularInventoryStore = useCircularInventoryStore()
 
 const hqMenus = roleMenus.hq
@@ -82,7 +84,7 @@ function removeDraftItem(inventoryId) {
 
 function selectBuyer(buyer) {
   circularInventoryStore.selectBuyer(buyer.id)
-  buyerSearchTerm.value = buyer.name
+  buyerSearchTerm.value = buyer.companyName
   isBuyerDropdownOpen.value = false
 }
 
@@ -124,6 +126,10 @@ function handleDocumentClick(event) {
 function handleLogout() {
   auth.logout()
   router.push('/login')
+}
+
+function materialFitLabel(value) {
+  return buyerStore.materialFitLabel(value)
 }
 
 onMounted(() => {
@@ -173,7 +179,7 @@ onBeforeUnmount(() => {
               v-model="buyerSearchTerm"
               type="search"
               class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#004D3C]"
-              placeholder="거래처명, 코드, 담당자명"
+              placeholder="업체명, 코드, 담당자명"
               @focus="isBuyerDropdownOpen = true"
             />
 
@@ -188,8 +194,9 @@ onBeforeUnmount(() => {
                 class="flex w-full flex-col items-start border-b border-gray-100 px-3 py-2 text-left hover:bg-[#EBF5F5]"
                 @click="selectBuyer(buyer)"
               >
-                <span class="text-xs font-black text-gray-900">{{ buyer.name }}</span>
+                <span class="text-xs font-black text-gray-900">{{ buyer.companyName }}</span>
                 <span class="mt-0.5 text-[11px] font-bold text-gray-500">{{ buyer.code }} · {{ buyer.managerName }} · {{ buyer.phone }}</span>
+                <span class="mt-1 text-[11px] font-bold text-gray-400">{{ buyer.industryGroup }} · {{ materialFitLabel(buyer.primaryMaterialFit) }}</span>
               </button>
               <div
                 v-if="filteredBuyers.length === 0"
@@ -203,9 +210,10 @@ onBeforeUnmount(() => {
           <div class="border border-gray-200 bg-gray-50 px-3 py-3">
             <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">선택 거래처</p>
             <template v-if="selectedBuyer">
-              <p class="mt-1 text-sm font-black text-gray-900">{{ selectedBuyer.name }}</p>
-              <p class="mt-1 text-[11px] font-bold text-gray-500">{{ selectedBuyer.code }} · {{ selectedBuyer.managerName }}</p>
-              <p class="mt-1 text-[11px] font-bold text-gray-400">{{ selectedBuyer.note }}</p>
+              <p class="mt-1 text-sm font-black text-gray-900">{{ selectedBuyer.companyName }}</p>
+              <p class="mt-1 text-[11px] font-bold text-gray-500">{{ selectedBuyer.code }} · {{ selectedBuyer.managerName }} · {{ selectedBuyer.phone }}</p>
+              <p class="mt-1 text-[11px] font-bold text-gray-500">{{ selectedBuyer.industryGroup }} · {{ materialFitLabel(selectedBuyer.primaryMaterialFit) }}</p>
+              <p class="mt-1 text-[11px] font-bold text-gray-400">{{ selectedBuyer.description || '설명 없음' }}</p>
             </template>
             <p v-else class="mt-2 text-xs font-bold text-gray-400">거래처를 검색해 1건 선택해주세요.</p>
           </div>
@@ -253,7 +261,7 @@ onBeforeUnmount(() => {
             <div class="flex flex-wrap items-center gap-3">
               <span class="text-sm font-black text-gray-900">판매 등록 패널</span>
               <span class="text-[11px] font-bold text-gray-500">
-                {{ selectedBuyer?.name ?? '거래처 미선택' }} · {{ drawerSummary.totalItems }}건 · {{ drawerSummary.totalWeightKg.toFixed(2) }}kg
+                {{ selectedBuyer?.companyName ?? '거래처 미선택' }} · {{ drawerSummary.totalItems }}건 · {{ drawerSummary.totalWeightKg.toFixed(2) }}kg
               </span>
             </div>
             <div class="flex items-center gap-3">
@@ -394,7 +402,7 @@ onBeforeUnmount(() => {
               <section class="w-full border border-gray-200 bg-white px-3 py-3">
                 <div class="flex items-center justify-between text-xs">
                   <span class="font-bold text-gray-500">거래처</span>
-                  <span class="font-black text-gray-900">{{ selectedBuyer?.name ?? '-' }}</span>
+                  <span class="font-black text-gray-900">{{ selectedBuyer?.companyName ?? '-' }}</span>
                 </div>
                 <div class="mt-3 flex items-center justify-between text-xs">
                   <span class="font-bold text-gray-500">담긴 품목</span>
@@ -452,7 +460,7 @@ onBeforeUnmount(() => {
                   <section class="grid gap-3 md:grid-cols-2">
                     <div class="border border-gray-200 bg-gray-50 px-4 py-3">
                       <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">거래처명</p>
-                      <p class="mt-1 text-sm font-black text-gray-900">{{ selectedBuyer?.name ?? '-' }}</p>
+                      <p class="mt-1 text-sm font-black text-gray-900">{{ selectedBuyer?.companyName ?? '-' }}</p>
                     </div>
                     <div class="border border-gray-200 bg-gray-50 px-4 py-3">
                       <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">거래처 코드</p>
@@ -466,11 +474,19 @@ onBeforeUnmount(() => {
                       <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">연락처</p>
                       <p class="mt-1 text-sm font-black text-gray-900">{{ selectedBuyer?.phone ?? '-' }}</p>
                     </div>
+                    <div class="border border-gray-200 bg-gray-50 px-4 py-3">
+                      <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">대표 소재 적합도</p>
+                      <p class="mt-1 text-sm font-black text-gray-900">{{ selectedBuyer ? materialFitLabel(selectedBuyer.primaryMaterialFit) : '-' }}</p>
+                    </div>
+                    <div class="border border-gray-200 bg-gray-50 px-4 py-3">
+                      <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">산업군</p>
+                      <p class="mt-1 text-sm font-black text-gray-900">{{ selectedBuyer?.industryGroup ?? '-' }}</p>
+                    </div>
                   </section>
 
                   <section class="border border-gray-200 bg-gray-50 px-4 py-3">
-                    <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">거래처 비고</p>
-                    <p class="mt-2 text-xs font-bold text-gray-700">{{ selectedBuyer?.note ?? '비고 없음' }}</p>
+                    <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">거래처 설명</p>
+                    <p class="mt-2 text-xs font-bold text-gray-700">{{ selectedBuyer?.description ?? '설명 없음' }}</p>
                   </section>
 
                   <section class="border border-gray-200 bg-gray-50 px-4 py-3">

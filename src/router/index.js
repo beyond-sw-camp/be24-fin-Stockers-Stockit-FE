@@ -49,6 +49,7 @@ import HqVendorManagementView from '@/views/hq/HqVendorManagementView.vue'
 import HqCategoryAddView from '@/views/hq/HqCategoryAddView.vue'
 import HqCircularInventoryCandidateView from '@/views/hq/circular-inventory/HqCircularInventoryCandidateView.vue'
 import HqCircularInventoryView from '@/views/hq/circular-inventory/HqCircularInventoryView.vue'
+import HqCircularInventoryBuyerManagementView from '@/views/hq/circular-inventory/HqCircularInventoryBuyerManagementView.vue'
 import HqCircularInventorySalesRegisterView from '@/views/hq/circular-inventory/HqCircularInventorySalesRegisterView.vue'
 import HqCircularInventorySalesHistoryView from '@/views/hq/circular-inventory/HqCircularInventorySalesHistoryView.vue'
 import HqCircularInventorySalesAnalysisView from '@/views/hq/circular-inventory/HqCircularInventorySalesAnalysisView.vue'
@@ -146,6 +147,7 @@ const router = createRouter({
     { path: '/hq/vendors', name: 'hq-vendors', component: HqVendorManagementView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/circular-inventory/candidates', name: 'hq-circular-inventory-candidates', component: HqCircularInventoryCandidateView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/circular-inventory', name: 'hq-circular-inventory', component: HqCircularInventoryView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/circular-inventory/buyers', name: 'hq-circular-inventory-buyers', component: HqCircularInventoryBuyerManagementView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/circular-inventory/sales/register', name: 'hq-circular-inventory-sales-register', component: HqCircularInventorySalesRegisterView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/circular-inventory/sales/history', name: 'hq-circular-inventory-sales-history', component: HqCircularInventorySalesHistoryView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/circular-inventory/sales/analysis', name: 'hq-circular-inventory-sales-analysis', component: HqCircularInventorySalesAnalysisView, meta: { requiresAuth: true, role: 'hq' } },
