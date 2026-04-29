@@ -112,10 +112,69 @@ export const useWarehouseStockStore = defineStore('warehouseStock', () => {
     return Math.ceil(need)
   }
 
+  /**
+   * 부족 품목 수 — 입력된 productCode 목록 중 안전재고 미달 (critical/warning) 행의 개수.
+   * 창고 대시보드 KPI / 발주 카탈로그 토글 헤더 카운트에서 활용.
+   */
+  function getShortageCount(warehouseId, productCodes = []) {
+    if (!warehouseId || !productCodes.length) return 0
+    let count = 0
+    for (const pc of productCodes) {
+      const level = getStockLevel(getStock(warehouseId, pc))
+      if (level === 'critical' || level === 'warning') count++
+    }
+    return count
+  }
+
+  /**
+   * 입고 확정 후 재고 변화 미리보기 — 한 발주의 items 배열을 받아 품목별 변화 산출.
+   * @returns {Array<{productCode, productName, quantity, before:{onHand,available,safetyStock},
+   *                  after:{onHand,available}, shortageAfter:boolean}>}
+   *   shortageAfter = 입고 후에도 onHand 가 safetyStock 미달인지.
+   */
+  function getInboundPreview(warehouseId, items = []) {
+    if (!warehouseId || !items.length) return []
+    return items.map((it) => {
+      const stock = getStock(warehouseId, it.productCode)
+      if (!stock) {
+        return {
+          productCode: it.productCode,
+          productName: it.productName,
+          quantity: it.quantity,
+          before: null,
+          after: null,
+          shortageAfter: false,
+        }
+      }
+      const qty = Number(it.quantity) || 0
+      const afterOnHand = stock.onHand + qty
+      // 입고 확정 = onHand 증가 + incoming 감소(이 발주분이 더 이상 SHIPPING 아님 — 단, 현재 시연 시드는
+      //   DELIVERED 상태에서 incoming 에서 빠졌을 수 있어 단순화)
+      const afterAvailable = stock.available + qty
+      return {
+        productCode: it.productCode,
+        productName: it.productName,
+        quantity: qty,
+        before: {
+          onHand: stock.onHand,
+          available: stock.available,
+          safetyStock: stock.safetyStock,
+        },
+        after: {
+          onHand: afterOnHand,
+          available: afterAvailable,
+        },
+        shortageAfter: afterOnHand < stock.safetyStock,
+      }
+    })
+  }
+
   return {
     getBaseStock,
     getStock,
     getStockLevel,
     getSuggestedQuantity,
+    getShortageCount,
+    getInboundPreview,
   }
 })

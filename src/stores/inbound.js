@@ -7,7 +7,9 @@ export const useInboundStore = defineStore('inbound', () => {
   const poStore = usePurchaseOrderStore()
 
   // --- view state (입고 화면 전용) ---
-  const activeStatusTab = ref('SHIPPING') // 'SHIPPING' | 'COMPLETED'
+  // 'DELIVERED' = 배송완료(도착됨, 입고 확정 대기) / 'COMPLETED' = 입고완료
+  // SHIPPING(배송중) 은 거래처 단계라 창고 화면에 노출 안 함 (BE InboundService 도 차단)
+  const activeStatusTab = ref('DELIVERED')
   const selectedOrderId = ref(null)
   const searchKeyword = ref('')
   const dateFrom = ref('')
@@ -55,7 +57,7 @@ export const useInboundStore = defineStore('inbound', () => {
 
   // 탭 카운트는 항상 전체 기준 (검색·기간 무관)
   const counts = computed(() => ({
-    SHIPPING: poStore.purchaseOrders.filter((o) => o.status === 'SHIPPING').length,
+    DELIVERED: poStore.purchaseOrders.filter((o) => o.status === 'DELIVERED').length,
     COMPLETED: poStore.purchaseOrders.filter((o) => o.status === 'COMPLETED').length,
   }))
 

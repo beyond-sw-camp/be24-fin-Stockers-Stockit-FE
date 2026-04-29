@@ -5,10 +5,23 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useInboundStore } from '@/stores/inbound.js'
+import { useWarehouseStockStore } from '@/stores/warehouseStock.js'
 
 const router = useRouter()
 const auth = useAuthStore()
 const inbound = useInboundStore()
+const stockStore = useWarehouseStockStore()
+
+// 입고 확정 시 재고 변화 미리보기 — 선택된 발주의 items 와 warehouseId 로 산출
+const inboundPreview = computed(() => {
+  const order = inbound.selectedOrder
+  if (!order || !order.warehouseId) return []
+  return stockStore.getInboundPreview(order.warehouseId, order.items ?? [])
+})
+
+const previewHasShortage = computed(() =>
+  inboundPreview.value.some((row) => row.shortageAfter),
+)
 
 // ─── 레이아웃 ────────────────────────────────────────────────────────────────
 const activeSideMenu = ref('입고 관리')
@@ -22,7 +35,7 @@ function handleLogout() {
 
 // ─── 상태 탭 ────────────────────────────────────────────────────────────────
 const STATUS_TABS = [
-  { key: 'SHIPPING', label: '입고 예정' },
+  { key: 'DELIVERED', label: '입고 예정' },
   { key: 'COMPLETED', label: '입고 완료' },
 ]
 
@@ -36,7 +49,8 @@ function changeTab(key) {
 const showConfirmInbound = ref(false)
 
 function openConfirmInbound() {
-  if (inbound.selectedOrder?.status !== 'SHIPPING') return
+  // DELIVERED(배송완료, 도착됨) 상태에서만 입고 확정 가능 — markCompleted 검증
+  if (inbound.selectedOrder?.status !== 'DELIVERED') return
   showConfirmInbound.value = true
 }
 function cancelConfirmInbound() {
@@ -71,6 +85,7 @@ function statusClass(status) {
     PENDING: 'bg-amber-50 text-amber-700',
     APPROVED: 'bg-emerald-50 text-emerald-700',
     SHIPPING: 'bg-blue-50 text-blue-600',
+    DELIVERED: 'bg-violet-50 text-violet-700',
     COMPLETED: 'bg-gray-100 text-gray-500',
     REJECTED: 'bg-red-50 text-red-600',
   }
@@ -82,7 +97,8 @@ function statusLabel(status) {
     PENDING: '승인 대기',
     APPROVED: '승인 완료',
     SHIPPING: '배송 중',
-    COMPLETED: '완료',
+    DELIVERED: '배송 완료',
+    COMPLETED: '입고 완료',
     REJECTED: '취소',
   }
   return map[status] ?? status
@@ -98,6 +114,7 @@ function historyDotClass(status) {
     PENDING: 'bg-amber-500',
     APPROVED: 'bg-emerald-500',
     SHIPPING: 'bg-blue-500',
+    DELIVERED: 'bg-violet-500',
     COMPLETED: 'bg-gray-700',
     REJECTED: 'bg-red-600',
   }
@@ -109,6 +126,7 @@ function historyTextClass(status) {
     PENDING: 'text-amber-700',
     APPROVED: 'text-emerald-700',
     SHIPPING: 'text-blue-600',
+    DELIVERED: 'text-violet-700',
     COMPLETED: 'text-gray-700',
     REJECTED: 'text-red-700',
   }
@@ -119,10 +137,10 @@ function selectOrder(id) {
   inbound.selectOrder(id)
 }
 
-// 창고 관점 진행 이력 — SHIPPING 부터만 (PENDING/APPROVED 는 본사·거래처 영역, 노이즈)
+// 창고 관점 진행 이력 — DELIVERED/COMPLETED 만 (PENDING/APPROVED/SHIPPING 은 거래처 영역, 노이즈)
 const visibleHistory = computed(() => {
   const list = inbound.selectedOrder?.statusHistory ?? []
-  return list.filter((h) => h.status === 'SHIPPING' || h.status === 'COMPLETED')
+  return list.filter((h) => h.status === 'DELIVERED' || h.status === 'COMPLETED')
 })
 
 // ─── ESC 키로 상세 패널 닫기 ────────────────────────────────────────────────
@@ -282,9 +300,9 @@ const CheckIcon = IconBase([{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12'
               <thead class="bg-gray-100 text-[10px] uppercase tracking-wider text-gray-500">
                 <tr>
                   <th class="w-32 px-3 py-2 text-left font-black">발주번호</th>
-                  <th class="px-3 py-2 text-left font-black">거래처</th>
+                  <th class="w-32 px-3 py-2 text-left font-black">거래처</th>
                   <th class="w-28 px-3 py-2 text-left font-black">입고 창고</th>
-                  <th class="w-14 px-3 py-2 text-center font-black">품목수</th>
+                  <th class="w-44 px-3 py-2 text-left font-black">품목</th>
                   <th class="w-28 px-3 py-2 text-right font-black">총금액</th>
                   <th class="w-20 px-3 py-2 text-center font-black">상태</th>
                   <th class="w-28 px-3 py-2 text-center font-black">입고 예정일</th>
@@ -301,8 +319,16 @@ const CheckIcon = IconBase([{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12'
                   <td class="px-3 py-3 font-bold text-gray-400">{{ order.id }}</td>
                   <td class="px-3 py-3 font-black text-gray-800">{{ order.vendorName }}</td>
                   <td class="px-3 py-3 font-bold text-gray-600">{{ order.warehouseName }}</td>
-                  <td class="px-3 py-3 text-center font-bold text-gray-700">
-                    {{ order.itemCount }}
+                  <td class="px-3 py-3 font-bold text-gray-700">
+                    <span class="block truncate" :title="(order.productNames ?? []).join(', ')">
+                      <template v-if="order.productNames && order.productNames.length > 0">
+                        {{ order.productNames[0]
+                        }}<template v-if="order.productNames.length > 1">
+                          외 {{ order.productNames.length - 1 }}건
+                        </template>
+                      </template>
+                      <template v-else>—</template>
+                    </span>
                   </td>
                   <td class="px-3 py-3 text-right font-black text-gray-800">
                     ₩{{ order.totalPrice.toLocaleString() }}
@@ -471,7 +497,7 @@ const CheckIcon = IconBase([{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12'
 
           <!-- 액션/안내 (상태별 분기) -->
           <div class="space-y-3 px-4 pb-6 pt-2">
-            <template v-if="inbound.selectedOrder.status === 'SHIPPING'">
+            <template v-if="inbound.selectedOrder.status === 'DELIVERED'">
               <button
                 type="button"
                 class="inline-flex w-full items-center justify-center gap-1.5 border border-[#004D3C] bg-[#004D3C] px-2 py-3 text-[11px] font-black text-white hover:bg-[#1f4b3a]"
@@ -481,7 +507,7 @@ const CheckIcon = IconBase([{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12'
                 입고 확정
               </button>
               <p class="pt-1 text-center text-[11px] leading-relaxed text-gray-400">
-                도착 확인 후 [입고 확정] 을 누르면 창고 자산으로 등록됩니다.
+                배송 완료된 발주입니다. [입고 확정] 을 누르면 창고 자산으로 등록됩니다.
               </p>
             </template>
 
@@ -510,21 +536,71 @@ const CheckIcon = IconBase([{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12'
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       @click.self="cancelConfirmInbound"
     >
-      <div class="w-full max-w-sm overflow-hidden bg-white shadow-xl">
+      <div class="w-full max-w-lg overflow-hidden bg-white shadow-xl">
         <div class="bg-[#004D3C] px-5 py-3 text-white">
           <h2 class="text-sm font-black">입고 확정</h2>
         </div>
-        <div class="space-y-2 p-5 text-xs text-gray-700">
-          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">발주 정보</p>
-          <p>
-            <strong>{{ inbound.selectedOrder.id }}</strong> ·
-            {{ inbound.selectedOrder.vendorName }} ·
-            <span class="font-bold text-[#004D3C]">
-              ₩{{ inbound.selectedOrder.totalPrice.toLocaleString() }}
-            </span>
-          </p>
-          <p class="pt-2">
-            창고 자산으로 등록되며 발주 상태가 <strong>완료</strong>로 변경됩니다.
+        <div class="space-y-3 p-5 text-xs text-gray-700">
+          <div>
+            <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">발주 정보</p>
+            <p class="mt-1">
+              <strong>{{ inbound.selectedOrder.id }}</strong> ·
+              {{ inbound.selectedOrder.vendorName }} ·
+              <span class="font-bold text-[#004D3C]">
+                ₩{{ inbound.selectedOrder.totalPrice.toLocaleString() }}
+              </span>
+            </p>
+          </div>
+
+          <!-- 입고 후 재고 변화 미리보기 -->
+          <div v-if="inboundPreview.length > 0">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+              입고 후 재고 변화 ({{ inbound.selectedOrder.warehouseName }})
+            </p>
+            <table class="mt-1 w-full table-fixed border-collapse text-[11px]">
+              <thead class="bg-gray-50 text-[9px] uppercase tracking-wider text-gray-500">
+                <tr>
+                  <th class="px-2 py-1.5 text-left font-black">품목</th>
+                  <th class="w-12 px-2 py-1.5 text-right font-black">입고</th>
+                  <th class="w-20 px-2 py-1.5 text-right font-black">실재고</th>
+                  <th class="w-12 px-2 py-1.5 text-right font-black">안전</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                <tr v-for="row in inboundPreview" :key="row.productCode">
+                  <td class="truncate px-2 py-1.5 font-bold text-gray-800">
+                    {{ row.productName }}
+                  </td>
+                  <td class="px-2 py-1.5 text-right font-black text-[#004D3C]">
+                    +{{ row.quantity }}
+                  </td>
+                  <td class="px-2 py-1.5 text-right font-bold">
+                    <template v-if="row.before">
+                      <span class="text-gray-400">{{ row.before.onHand }}</span>
+                      <span class="mx-1 text-gray-300">→</span>
+                      <span :class="row.shortageAfter ? 'text-red-600' : 'text-gray-800'">
+                        {{ row.after.onHand }}
+                      </span>
+                    </template>
+                    <span v-else class="text-gray-300">—</span>
+                  </td>
+                  <td class="px-2 py-1.5 text-right font-bold text-gray-500">
+                    <template v-if="row.before">{{ row.before.safetyStock }}</template>
+                    <span v-else class="text-gray-300">—</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p
+              v-if="previewHasShortage"
+              class="mt-2 border border-amber-300 bg-amber-50 px-2 py-1.5 text-[11px] font-bold text-amber-800"
+            >
+              ⚠ 입고 확정 후에도 안전재고 미달 품목이 있습니다 — 추가 발주 검토 필요.
+            </p>
+          </div>
+
+          <p class="pt-1 text-[11px] text-gray-500">
+            창고 자산으로 등록되며 발주 상태가 <strong>입고 완료</strong>로 변경됩니다.
           </p>
         </div>
         <div

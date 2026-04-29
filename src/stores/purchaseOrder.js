@@ -171,6 +171,7 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
       PENDING: all.filter((o) => o.status === 'PENDING').length,
       APPROVED: all.filter((o) => o.status === 'APPROVED').length,
       SHIPPING: all.filter((o) => o.status === 'SHIPPING').length,
+      DELIVERED: all.filter((o) => o.status === 'DELIVERED').length,
       COMPLETED: all.filter((o) => o.status === 'COMPLETED').length,
       REJECTED: all.filter((o) => o.status === 'REJECTED').length,
     }

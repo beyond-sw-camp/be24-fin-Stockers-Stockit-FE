@@ -41,6 +41,13 @@ function stockLevelClass(stock) {
 // "부족만 보기" 토글 — 가용재고 < safetyStock × 1.5 인 행만 노출
 const shortageOnly = ref(false)
 
+// 카탈로그 부족 카운트 — 토글 클릭 안 해도 헤더에서 즉시 인지
+const shortageCount = computed(() => {
+  if (!selectedWarehouseId.value) return 0
+  const codes = catalog.value.map((vp) => vp.productCode)
+  return stockStore.getShortageCount(selectedWarehouseId.value, codes)
+})
+
 const DRAFT_KEY = 'stockit:po-cart-draft'
 
 const isEditMode = computed(() => route.name === 'hq-purchase-order-edit')
@@ -614,13 +621,15 @@ const AlertTriangleIcon = IconBase([
               :class="
                 shortageOnly
                   ? 'border-red-400 bg-red-50 text-red-700'
-                  : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
+                  : shortageCount > 0
+                    ? 'border-red-300 bg-white text-red-600 hover:bg-red-50'
+                    : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
               "
-              :disabled="!selectedWarehouseId"
-              :title="!selectedWarehouseId ? '먼저 창고를 선택하세요' : '가용재고가 안전재고 1.5배 미만인 품목만 표시'"
+              :disabled="!selectedWarehouseId || shortageCount === 0"
+              :title="!selectedWarehouseId ? '먼저 창고를 선택하세요' : (shortageCount === 0 ? '재고 부족 품목 없음' : '가용재고가 안전재고 1.5배 미만인 품목만 표시')"
               @click="shortageOnly = !shortageOnly"
             >
-              {{ shortageOnly ? '✓ 부족만' : '부족만 보기' }}
+              {{ shortageOnly ? `✓ 부족만 (${shortageCount})` : (selectedWarehouseId && shortageCount > 0 ? `부족만 보기 (${shortageCount})` : '부족만 보기') }}
             </button>
             <span class="ml-auto text-[11px] font-bold text-gray-500">
               {{ displayedCatalog.length }}건

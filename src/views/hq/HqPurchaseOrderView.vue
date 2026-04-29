@@ -32,7 +32,8 @@ const STATUS_TABS = [
   { label: '승인 대기', key: 'PENDING' },
   { label: '승인 완료', key: 'APPROVED' },
   { label: '배송 중', key: 'SHIPPING' },
-  { label: '완료', key: 'COMPLETED' },
+  { label: '배송 완료', key: 'DELIVERED' },
+  { label: '입고 완료', key: 'COMPLETED' },
   { label: '취소', key: 'REJECTED' },
 ]
 
@@ -65,11 +66,13 @@ async function runBatchTrigger() {
   isRunningBatch.value = true
   try {
     const result = await poStore.runBatch()
-    const total = (result?.approved ?? 0) + (result?.shipping ?? 0)
+    const total = (result?.approved ?? 0) + (result?.shipping ?? 0) + (result?.delivered ?? 0)
     if (total === 0) {
       triggerToast('자동 전환 대상 발주가 없습니다')
     } else {
-      triggerToast(`자동 전환 ${total}건 (승인 ${result.approved} · 출고 ${result.shipping})`)
+      triggerToast(
+        `자동 전환 ${total}건 (승인 ${result.approved} · 출고 ${result.shipping} · 배송완료 ${result.delivered ?? 0})`,
+      )
     }
   } catch (e) {
     triggerToast(e?.message ?? '배치 실행에 실패했습니다')
@@ -113,6 +116,7 @@ function statusClass(status) {
     PENDING: 'bg-amber-50 text-amber-700',
     APPROVED: 'bg-emerald-50 text-emerald-700',
     SHIPPING: 'bg-blue-50 text-blue-600',
+    DELIVERED: 'bg-violet-50 text-violet-700',
     COMPLETED: 'bg-gray-100 text-gray-500',
     REJECTED: 'bg-red-50 text-red-600',
   }
@@ -125,7 +129,8 @@ function statusLabel(status) {
     PENDING: '승인 대기',
     APPROVED: '승인 완료',
     SHIPPING: '배송 중',
-    COMPLETED: '완료',
+    DELIVERED: '배송 완료',
+    COMPLETED: '입고 완료',
     REJECTED: '취소',
   }
   return map[status] ?? status
@@ -143,6 +148,7 @@ function historyDotClass(status) {
     PENDING: 'bg-amber-500',
     APPROVED: 'bg-emerald-500',
     SHIPPING: 'bg-blue-500',
+    DELIVERED: 'bg-violet-500',
     COMPLETED: 'bg-gray-700',
     REJECTED: 'bg-red-600',
   }
@@ -154,6 +160,7 @@ function historyTextClass(status) {
     PENDING: 'text-amber-700',
     APPROVED: 'text-emerald-700',
     SHIPPING: 'text-blue-600',
+    DELIVERED: 'text-violet-700',
     COMPLETED: 'text-gray-700',
     REJECTED: 'text-red-700',
   }
