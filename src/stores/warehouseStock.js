@@ -86,21 +86,36 @@ export const useWarehouseStockStore = defineStore('warehouseStock', () => {
   }
 
   /**
-   * 경고 임계 — onHand 기준 (안전재고 정의: 실재고가 이 밑으로 떨어지면 안 됨)
-   *   onHand < safetyStock        → 'critical' (위험, 빨강)
-   *   onHand < safetyStock × 1.5  → 'warning'  (주의, 주황)
-   *   그 외                        → 'normal'   (정상, 회색)
+   * 경고 임계 — 가용재고(available) 기준.
+   * 발주 결정은 "입고예정 합쳐도 부족인가" 가 핵심이라 available 로 통일 (직전 사이클의 onHand 기준에서 정련).
+   *   available < safetyStock        → 'critical' (위험, 빨강)
+   *   available < safetyStock × 1.5  → 'warning'  (주의, 주황)
+   *   그 외                           → 'normal'   (정상, 회색)
    */
   function getStockLevel(stock) {
     if (!stock) return 'unknown'
-    if (stock.onHand < stock.safetyStock) return 'critical'
-    if (stock.onHand < stock.safetyStock * 1.5) return 'warning'
+    if (stock.available < stock.safetyStock) return 'critical'
+    if (stock.available < stock.safetyStock * 1.5) return 'warning'
     return 'normal'
+  }
+
+  /**
+   * 권장 발주 수량 — 안전재고 × 1.5 까지 채우는 만큼.
+   * 부족 아닌 행(가용재고 ≥ safetyStock × 1.5) 은 0 반환. 음수 절대 0 으로 clamp.
+   * 셀 클릭 시 cart 수량을 이 값으로 덮어쓰기 (set 모드).
+   */
+  function getSuggestedQuantity(stock) {
+    if (!stock) return 0
+    const target = stock.safetyStock * 1.5
+    const need = target - stock.available
+    if (need <= 0) return 0
+    return Math.ceil(need)
   }
 
   return {
     getBaseStock,
     getStock,
     getStockLevel,
+    getSuggestedQuantity,
   }
 })
