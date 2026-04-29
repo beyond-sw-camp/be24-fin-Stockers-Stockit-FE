@@ -95,6 +95,82 @@ const kpiMetrics = computed(() => [
   { label: '주의 필요', value: worstTurnover.value.daysOnHand, unit: '일', sub: worstTurnover.value.name, icon: AlertTriangle, valueCls: 'text-red-700', iconBg: 'bg-red-50', iconCls: 'text-red-600' },
 ])
 
+// ─── 재고 건강도 진단 + 신호등 분포 ────────────────────────────────────
+const inventoryHealth = ref({
+  totalSku: 217,
+  healthy: 150,   // 🟢 회전율 4x+ (보유 90일 이내)
+  caution: 35,    // 🟡 회전율 2~4x (보유 90~180일)
+  warning: 20,    // 🟠 회전율 1~2x (보유 180~365일)
+  danger: 12,     // 🔴 회전율 1x 미만 (보유 365일 초과 = 악성)
+  totalValue: 412.5,    // 단위 M원
+  lockedValue: 22.4,    // 악성재고 묶인 금액 M원
+})
+
+const overallDiagnosis = computed(() => {
+  const dangerRatio = (inventoryHealth.value.danger / inventoryHealth.value.totalSku) * 100
+  if (dangerRatio > 10) return {
+    emoji: '😱', status: '위험', borderColor: 'border-red-300', bgColor: 'bg-gradient-to-br from-red-50 to-white',
+    textColor: 'text-red-700', message: '즉시 조치가 필요합니다',
+  }
+  if (dangerRatio > 5) return {
+    emoji: '😟', status: '주의', borderColor: 'border-amber-300', bgColor: 'bg-gradient-to-br from-amber-50 to-white',
+    textColor: 'text-amber-700', message: '악성 재고 관리가 필요합니다',
+  }
+  if (dangerRatio > 2) return {
+    emoji: '🙂', status: '양호', borderColor: 'border-blue-300', bgColor: 'bg-gradient-to-br from-blue-50 to-white',
+    textColor: 'text-blue-700', message: '대체로 건강합니다',
+  }
+  return {
+    emoji: '😊', status: '건강', borderColor: 'border-emerald-300', bgColor: 'bg-gradient-to-br from-emerald-50 to-white',
+    textColor: 'text-emerald-700', message: '재고가 잘 회전되고 있어요',
+  }
+})
+
+const healthSegments = computed(() => [
+  { key: 'healthy', label: '🟢 정상', count: inventoryHealth.value.healthy, desc: '잘 팔리고 있어요',         range: '회전율 4x+ · 90일 이내', cls: 'bg-emerald-50 border-emerald-200 text-emerald-700' },
+  { key: 'caution', label: '🟡 주의', count: inventoryHealth.value.caution, desc: '살짝 느려요',              range: '회전율 2~4x · 90~180일', cls: 'bg-amber-50 border-amber-200 text-amber-700' },
+  { key: 'warning', label: '🟠 경고', count: inventoryHealth.value.warning, desc: '6개월 이상 보유',           range: '회전율 1~2x · 180~365일', cls: 'bg-orange-50 border-orange-300 text-orange-700' },
+  { key: 'danger',  label: '🔴 위험', count: inventoryHealth.value.danger,  desc: '1년 넘게 안 팔림',          range: '회전율 1x 미만 · 악성', cls: 'bg-red-50 border-red-300 text-red-700' },
+])
+
+// ─── 악성 재고 리스트 (순환재고 전환 워크플로우) ──────────────────────
+const deadStockList = ref([
+  { rank: 1, sku: 'SKU-OUT-001', name: '롱 패딩 (블랙, L)',     category: '아우터', location: '강남점',    daysHeld: 245, units: 120, value: 9.6, turnover: 0.5, selected: true },
+  { rank: 2, sku: 'SKU-OUT-088', name: '캐시미어 가디건 (베이지)', category: '아우터', location: '부산 센텀점', daysHeld: 198, units: 85,  value: 4.2, turnover: 0.8, selected: true },
+  { rank: 3, sku: 'SKU-SKR-012', name: '미니 스커트 (네이비)',    category: '치마',    location: '여의도점',  daysHeld: 178, units: 60,  value: 1.8, turnover: 1.0, selected: true },
+  { rank: 4, sku: 'SKU-OUT-042', name: '울 자켓 (그레이, M)',     category: '아우터', location: '판교점',    daysHeld: 165, units: 38,  value: 2.5, turnover: 1.1, selected: false },
+  { rank: 5, sku: 'SKU-SKR-007', name: '플레어 롱스커트 (블랙)',  category: '치마',    location: '성수점',    daysHeld: 152, units: 45,  value: 1.4, turnover: 1.3, selected: false },
+])
+
+const selectedDeadStock = computed(() => deadStockList.value.filter((d) => d.selected))
+const selectedTotalValue = computed(() =>
+  selectedDeadStock.value.reduce((s, d) => s + d.value, 0).toFixed(1),
+)
+const selectedTotalUnits = computed(() =>
+  selectedDeadStock.value.reduce((s, d) => s + d.units, 0),
+)
+
+const allSelected = computed({
+  get: () => deadStockList.value.every((d) => d.selected),
+  set: (v) => deadStockList.value.forEach((d) => { d.selected = v }),
+})
+
+function transferToCirculation(items) {
+  const list = Array.isArray(items) ? items : [items]
+  if (!list.length) {
+    alert('전환할 품목을 선택해주세요.')
+    return
+  }
+  const totalValue = list.reduce((s, d) => s + d.value, 0).toFixed(1)
+  const totalUnits = list.reduce((s, d) => s + d.units, 0)
+  alert(
+    `🔄 ${list.length}개 품목을 순환재고로 전환합니다\n` +
+    `총 ${totalUnits}개 / ₩${totalValue}M\n\n` +
+    `→ 순환재고 후보 목록으로 이동합니다.`,
+  )
+  router.push('/hq/circular-inventory/candidates')
+}
+
 const statusCls = {
   우수: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   정상: 'bg-blue-50 text-blue-700 border-blue-200',
@@ -270,6 +346,150 @@ const turnoverTrendChartOptions = {
             <p class="mt-1 truncate text-[10px] text-gray-400">{{ m.sub }}</p>
           </div>
         </article>
+      </section>
+
+      <!-- ━━━━━━━ 재고 건강 진단 배너 + 회전율 의미 ━━━━━━━ -->
+      <section
+        :class="[overallDiagnosis.borderColor, overallDiagnosis.bgColor]"
+        class="border-2 px-5 py-4 shadow-sm"
+      >
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div class="flex items-center gap-4">
+            <span class="text-5xl">{{ overallDiagnosis.emoji }}</span>
+            <div>
+              <p class="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">재고 건강 진단</p>
+              <h2 class="mt-0.5 text-lg font-black text-gray-900">
+                현재 재고 상태:
+                <span :class="overallDiagnosis.textColor">{{ overallDiagnosis.status }}</span>
+              </h2>
+              <p class="mt-1 text-xs text-gray-600">
+                💡 평균 <span class="font-bold">{{ avgDaysOnHand }}일</span>에 한 번 다 팔리고 새 재고가 들어와요
+                ({{ overallDiagnosis.message }})
+              </p>
+              <p class="mt-1 text-[11px] text-gray-500">
+                ⚠️ 단, <span class="font-bold text-red-600">{{ inventoryHealth.danger }}개 품목</span>이
+                1년 넘게 안 팔리고 있어요 (묶인 자금 <span class="font-bold text-red-600">₩{{ inventoryHealth.lockedValue }}M</span>)
+              </p>
+            </div>
+          </div>
+          <div class="rounded border border-gray-200 bg-white/70 px-4 py-3 text-[10px] text-gray-600">
+            <p class="font-bold text-gray-700">📚 회전율이란?</p>
+            <p class="mt-1">1년에 같은 재고가 <b>몇 번 팔리고 다시 채워지는지</b></p>
+            <p class="mt-1.5 grid grid-cols-2 gap-x-3">
+              <span>6x =</span><span class="font-bold text-emerald-600">60일 보유 (빠름)</span>
+              <span>4x =</span><span class="font-bold text-blue-600">90일 보유 (정상)</span>
+              <span>2x =</span><span class="font-bold text-amber-600">180일 보유 (느림)</span>
+              <span>1x↓ =</span><span class="font-bold text-red-600">악성 재고</span>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ━━━━━━━ 신호등 분포 4구간 (한눈에 어디에 뭐가 많은지) ━━━━━━━ -->
+      <section class="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <article
+          v-for="seg in healthSegments"
+          :key="seg.key"
+          :class="[seg.cls]"
+          class="border-2 px-4 py-4 shadow-sm transition-transform hover:-translate-y-0.5"
+        >
+          <p class="text-[11px] font-black uppercase tracking-wider">{{ seg.label }}</p>
+          <p class="mt-2 text-3xl font-black">{{ seg.count }}<span class="ml-1 text-xs font-bold opacity-70">품목</span></p>
+          <p class="mt-1 text-[11px] font-bold opacity-90">{{ seg.desc }}</p>
+          <p class="mt-2 border-t border-current/20 pt-2 text-[10px] opacity-60">{{ seg.range }}</p>
+        </article>
+      </section>
+
+      <!-- ━━━━━━━ 악성 재고 TOP 5 → 순환재고 전환 워크플로우 ━━━━━━━ -->
+      <section class="border border-red-300 bg-white shadow-sm">
+        <header class="flex flex-wrap items-center justify-between gap-3 border-b border-red-200 bg-red-50/50 px-4 py-3">
+          <div>
+            <h3 class="flex items-center gap-2 text-sm font-black text-red-700">
+              🚨 악성 재고 TOP 5 → 순환재고 전환
+            </h3>
+            <p class="mt-0.5 text-[10px] text-gray-500">
+              1년 이상 묶인 재고를 <b>순환재고</b>로 전환해 매장 간 재배치/특별 채널로 처분합니다 ·
+              묶인 자금 <span class="font-bold text-red-600">₩{{ inventoryHealth.lockedValue }}M</span>
+            </p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] font-bold text-gray-500">
+              선택 {{ selectedDeadStock.length }}건 · {{ selectedTotalUnits }}개 ·
+              <span class="text-red-600">₩{{ selectedTotalValue }}M</span>
+            </span>
+            <button
+              class="border border-[#004D3C] bg-[#004D3C] px-3 py-2 text-[11px] font-black text-white shadow-sm transition-colors hover:bg-[#003d30] disabled:cursor-not-allowed disabled:bg-gray-300 disabled:border-gray-300"
+              :disabled="!selectedDeadStock.length"
+              @click="transferToCirculation(selectedDeadStock)"
+            >
+              🔄 선택 항목 순환재고 전환
+            </button>
+          </div>
+        </header>
+        <div class="overflow-auto">
+          <table class="w-full min-w-[820px] text-xs">
+            <thead class="bg-gray-100 text-[10px] text-gray-500">
+              <tr>
+                <th class="w-10 px-2 py-2 text-center font-bold">
+                  <input type="checkbox" v-model="allSelected" class="cursor-pointer accent-[#004D3C]" />
+                </th>
+                <th class="w-12 px-3 py-2 text-center font-bold">순위</th>
+                <th class="w-28 px-3 py-2 text-left font-bold">SKU</th>
+                <th class="px-3 py-2 text-left font-bold">품명</th>
+                <th class="w-20 px-3 py-2 text-center font-bold">카테고리</th>
+                <th class="w-24 px-3 py-2 text-left font-bold">위치</th>
+                <th class="w-20 px-3 py-2 text-right font-bold">보유일</th>
+                <th class="w-20 px-3 py-2 text-right font-bold">회전율</th>
+                <th class="w-20 px-3 py-2 text-right font-bold">수량</th>
+                <th class="w-24 px-3 py-2 text-right font-bold">묶인 금액</th>
+                <th class="w-32 px-3 py-2 text-center font-bold">전환</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr
+                v-for="d in deadStockList"
+                :key="d.sku"
+                class="hover:bg-red-50/30"
+                :class="d.selected ? 'bg-emerald-50/40' : ''"
+              >
+                <td class="px-2 py-2 text-center">
+                  <input type="checkbox" v-model="d.selected" class="cursor-pointer accent-[#004D3C]" />
+                </td>
+                <td class="px-3 py-2 text-center font-black text-red-600">{{ d.rank }}</td>
+                <td class="px-3 py-2 font-mono text-[10px] text-gray-600">{{ d.sku }}</td>
+                <td class="px-3 py-2 font-bold text-gray-800">{{ d.name }}</td>
+                <td class="px-3 py-2 text-center text-gray-600">{{ d.category }}</td>
+                <td class="px-3 py-2 text-gray-700">{{ d.location }}</td>
+                <td class="px-3 py-2 text-right font-mono">
+                  <span class="font-bold text-red-600">{{ d.daysHeld }}</span>
+                  <span class="text-gray-400">일</span>
+                </td>
+                <td class="px-3 py-2 text-right font-mono">
+                  <span class="font-bold text-red-600">{{ d.turnover }}x</span>
+                </td>
+                <td class="px-3 py-2 text-right font-mono text-gray-700">{{ d.units }}개</td>
+                <td class="px-3 py-2 text-right font-mono font-bold text-red-700">₩{{ d.value }}M</td>
+                <td class="px-3 py-2 text-center">
+                  <button
+                    class="inline-flex items-center gap-1 border border-[#004D3C] bg-white px-2 py-1 text-[10px] font-bold text-[#004D3C] transition-colors hover:bg-[#004D3C] hover:text-white"
+                    @click="transferToCirculation(d)"
+                  >
+                    🔄 순환재고 전환
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <footer class="flex items-center justify-between border-t border-gray-100 bg-gray-50/50 px-4 py-2 text-[10px] text-gray-500">
+          <span>💡 순환재고로 전환된 품목은 <b>순환 재고 후보 조회</b>에서 매장 재배치/특별 처분 정책을 결정합니다.</span>
+          <button
+            class="font-bold text-[#004D3C] hover:underline"
+            @click="router.push('/hq/circular-inventory')"
+          >
+            전체 순환재고 보기 →
+          </button>
+        </footer>
       </section>
 
       <section class="grid gap-3 xl:grid-cols-3">

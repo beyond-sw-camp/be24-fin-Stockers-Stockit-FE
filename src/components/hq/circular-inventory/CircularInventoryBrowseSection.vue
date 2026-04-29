@@ -35,6 +35,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  showCircularSalePriceColumn: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 const emit = defineEmits(['row-click', 'toggle-all-visible'])
@@ -46,23 +50,28 @@ const isMaterialDropdownOpen = ref(false)
 const materialDropdownRef = ref(null)
 const sortKey = ref('')
 const sortDirection = ref('asc')
+const visibleColumns = ref({
+  color: true,
+  size: true,
+  perItemWeight: true,
+})
 
 const circularInventoryData = [
-  { id: 'CI-001', itemCode: 'SPA-TOP-001', parentCategory: '상의', childCategory: '반팔', itemName: '코튼 베이직 반팔 티셔츠', materials: [{ name: '면', ratio: 100 }], quantity: 184, weight: '92.0kg' },
-  { id: 'CI-002', itemCode: 'SPA-TOP-002', parentCategory: '상의', childCategory: '긴팔', itemName: '슬림핏 긴팔 티셔츠', materials: [{ name: '면', ratio: 100 }], quantity: 52, weight: '31.2kg' },
-  { id: 'CI-003', itemCode: 'SPA-TOP-003', parentCategory: '상의', childCategory: '셔츠', itemName: '오버핏 옥스퍼드 셔츠', materials: [{ name: '면', ratio: 70 }, { name: '폴리에스터', ratio: 30 }], quantity: 76, weight: '53.2kg' },
-  { id: 'CI-004', itemCode: 'SPA-TOP-004', parentCategory: '상의', childCategory: '니트', itemName: '라운드넥 하프 니트', materials: [{ name: '울', ratio: 50 }, { name: '아크릴', ratio: 50 }], quantity: 86, weight: '43.0kg' },
-  { id: 'CI-005', itemCode: 'SPA-TOP-005', parentCategory: '상의', childCategory: '후드티', itemName: '오버사이즈 로고 후드티', materials: [{ name: '면', ratio: 80 }, { name: '폴리에스터', ratio: 20 }], quantity: 44, weight: '48.4kg' },
-  { id: 'CI-006', itemCode: 'SPA-PNT-001', parentCategory: '바지', childCategory: '청바지', itemName: '스트레이트 워싱 데님', materials: [{ name: '데님', ratio: 100 }], quantity: 39, weight: '42.9kg' },
-  { id: 'CI-007', itemCode: 'SPA-PNT-002', parentCategory: '바지', childCategory: '반바지', itemName: '와이드 코튼 쇼츠', materials: [{ name: '면', ratio: 100 }], quantity: 68, weight: '30.6kg' },
-  { id: 'CI-008', itemCode: 'SPA-PNT-003', parentCategory: '바지', childCategory: '긴바지', itemName: '사이드 밴딩 팬츠', materials: [{ name: '나일론', ratio: 100 }], quantity: 24, weight: '18.6kg' },
-  { id: 'CI-009', itemCode: 'SPA-PNT-004', parentCategory: '바지', childCategory: '트레이닝', itemName: '스트링 조거 트레이닝 팬츠', materials: [{ name: '폴리', ratio: 90 }, { name: '스판', ratio: 10 }], quantity: 57, weight: '39.9kg' },
-  { id: 'CI-010', itemCode: 'SPA-SKT-001', parentCategory: '치마', childCategory: '미니스커트', itemName: 'A라인 데님 미니스커트', materials: [{ name: '폴리에스터', ratio: 100 }], quantity: 33, weight: '16.5kg' },
-  { id: 'CI-011', itemCode: 'SPA-SKT-002', parentCategory: '치마', childCategory: '롱스커트', itemName: '플리츠 롱스커트', materials: [{ name: '폴리에스터', ratio: 100 }], quantity: 19, weight: '12.4kg' },
-  { id: 'CI-012', itemCode: 'SPA-OUT-001', parentCategory: '아우터', childCategory: '패딩', itemName: '라이트 다운 패딩', materials: [{ name: '나일론', ratio: 80 }, { name: '충전재', ratio: 20 }], quantity: 21, weight: '29.4kg' },
-  { id: 'CI-013', itemCode: 'SPA-OUT-002', parentCategory: '아우터', childCategory: '후드집업', itemName: '스웨트 후드 집업', materials: [{ name: '면', ratio: 70 }, { name: '폴리에스터', ratio: 30 }], quantity: 47, weight: '42.3kg' },
-  { id: 'CI-014', itemCode: 'SPA-OUT-003', parentCategory: '아우터', childCategory: '자켓', itemName: '싱글 브레스티드 자켓', materials: [{ name: '합성섬유', ratio: 100 }], quantity: 18, weight: '23.4kg' },
-  { id: 'CI-015', itemCode: 'SPA-OUT-004', parentCategory: '아우터', childCategory: '가디건', itemName: '브이넥 니트 가디건', materials: [{ name: '아크릴', ratio: 50 }, { name: '폴리', ratio: 30 }, { name: '나일론', ratio: 20 }], quantity: 37, weight: '29.6kg' },
+  { id: 'CI-001', itemCode: 'SPA-TOP-001', productCode: 'PRD-TOP-SS-001', parentCategory: '상의', childCategory: '반팔', itemName: '코튼 베이직 반팔 티셔츠', unitPrice: 29000, materials: [{ name: '면', ratio: 100 }], quantity: 184, weight: '92.0kg' },
+  { id: 'CI-002', itemCode: 'SPA-TOP-002', productCode: 'PRD-TOP-LS-002', parentCategory: '상의', childCategory: '긴팔', itemName: '슬림핏 긴팔 티셔츠', unitPrice: 35000, materials: [{ name: '면', ratio: 100 }], quantity: 52, weight: '31.2kg' },
+  { id: 'CI-003', itemCode: 'SPA-TOP-003', productCode: 'PRD-TOP-SH-003', parentCategory: '상의', childCategory: '셔츠', itemName: '오버핏 옥스퍼드 셔츠', unitPrice: 59000, materials: [{ name: '면', ratio: 70 }, { name: '폴리에스터', ratio: 30 }], quantity: 76, weight: '53.2kg' },
+  { id: 'CI-004', itemCode: 'SPA-TOP-004', productCode: 'PRD-TOP-KN-004', parentCategory: '상의', childCategory: '니트', itemName: '라운드넥 하프 니트', unitPrice: 49000, materials: [{ name: '울', ratio: 50 }, { name: '아크릴', ratio: 50 }], quantity: 86, weight: '43.0kg' },
+  { id: 'CI-005', itemCode: 'SPA-TOP-005', productCode: 'PRD-TOP-HD-005', parentCategory: '상의', childCategory: '후드티', itemName: '오버사이즈 로고 후드티', unitPrice: 62000, materials: [{ name: '면', ratio: 80 }, { name: '폴리에스터', ratio: 20 }], quantity: 44, weight: '48.4kg' },
+  { id: 'CI-006', itemCode: 'SPA-PNT-001', productCode: 'PRD-PNT-DN-001', parentCategory: '바지', childCategory: '청바지', itemName: '스트레이트 워싱 데님', unitPrice: 69000, materials: [{ name: '데님', ratio: 100 }], quantity: 39, weight: '42.9kg' },
+  { id: 'CI-007', itemCode: 'SPA-PNT-002', productCode: 'PRD-PNT-ST-002', parentCategory: '바지', childCategory: '반바지', itemName: '와이드 코튼 쇼츠', unitPrice: 42000, materials: [{ name: '면', ratio: 100 }], quantity: 68, weight: '30.6kg' },
+  { id: 'CI-008', itemCode: 'SPA-PNT-003', productCode: 'PRD-PNT-LG-003', parentCategory: '바지', childCategory: '긴바지', itemName: '사이드 밴딩 팬츠', unitPrice: 54000, materials: [{ name: '나일론', ratio: 100 }], quantity: 24, weight: '18.6kg' },
+  { id: 'CI-009', itemCode: 'SPA-PNT-004', productCode: 'PRD-PNT-TR-004', parentCategory: '바지', childCategory: '트레이닝', itemName: '스트링 조거 트레이닝 팬츠', unitPrice: 45000, materials: [{ name: '폴리', ratio: 90 }, { name: '스판', ratio: 10 }], quantity: 57, weight: '39.9kg' },
+  { id: 'CI-010', itemCode: 'SPA-SKT-001', productCode: 'PRD-SKT-MN-001', parentCategory: '치마', childCategory: '미니스커트', itemName: 'A라인 데님 미니스커트', unitPrice: 43000, materials: [{ name: '폴리에스터', ratio: 100 }], quantity: 33, weight: '16.5kg' },
+  { id: 'CI-011', itemCode: 'SPA-SKT-002', productCode: 'PRD-SKT-LG-002', parentCategory: '치마', childCategory: '롱스커트', itemName: '플리츠 롱스커트', unitPrice: 52000, materials: [{ name: '폴리에스터', ratio: 100 }], quantity: 19, weight: '12.4kg' },
+  { id: 'CI-012', itemCode: 'SPA-OUT-001', productCode: 'PRD-OUT-PD-001', parentCategory: '아우터', childCategory: '패딩', itemName: '라이트 다운 패딩', unitPrice: 99000, materials: [{ name: '나일론', ratio: 80 }, { name: '충전재', ratio: 20 }], quantity: 21, weight: '29.4kg' },
+  { id: 'CI-013', itemCode: 'SPA-OUT-002', productCode: 'PRD-OUT-HZ-002', parentCategory: '아우터', childCategory: '후드집업', itemName: '스웨트 후드 집업', unitPrice: 65000, materials: [{ name: '면', ratio: 70 }, { name: '폴리에스터', ratio: 30 }], quantity: 47, weight: '42.3kg' },
+  { id: 'CI-014', itemCode: 'SPA-OUT-003', productCode: 'PRD-OUT-JK-003', parentCategory: '아우터', childCategory: '자켓', itemName: '싱글 브레스티드 자켓', unitPrice: 89000, materials: [{ name: '합성섬유', ratio: 100 }], quantity: 18, weight: '23.4kg' },
+  { id: 'CI-015', itemCode: 'SPA-OUT-004', productCode: 'PRD-OUT-CD-004', parentCategory: '아우터', childCategory: '가디건', itemName: '브이넥 니트 가디건', unitPrice: 57000, materials: [{ name: '아크릴', ratio: 50 }, { name: '폴리', ratio: 30 }, { name: '나일론', ratio: 20 }], quantity: 37, weight: '29.6kg' },
 ]
 
 const naturalSingleMaterials = ['면', '울', '캐시미어', '실크', '리넨']
@@ -90,8 +99,20 @@ const materialOptionsByGroup = {
   '합성 섬유': syntheticMaterials,
   혼방: [...naturalSingleMaterials, ...syntheticMaterials],
 }
-const colorOptions = ['검정', '흰색', '그레이', '아이보리']
-const colorCodeMap = { 검정: 'BLK', 흰색: 'WHT', 그레이: 'GRY', 아이보리: 'IVR' }
+const materialKgPriceMap = {
+  면: 5000,
+  울: 10000,
+  캐시미어: 35000,
+  실크: 20000,
+  리넨: 5000,
+  폴리에스터: 3000,
+  아크릴: 2000,
+  나일론: 4000,
+  스판덱스: 2000,
+}
+const blendKgPrice = 1000
+const colorOptions = ['검정', '흰색', '네이비', '그레이']
+const colorCodeMap = { 검정: 'BLK', 흰색: 'WHT', 네이비: 'NVY', 그레이: 'GRY' }
 const sizeOptions = ['XS', 'S', 'M', 'L', 'XL']
 
 const hasActionColumn = computed(() => Boolean(slots['header-action'] || slots['row-action']))
@@ -146,12 +167,14 @@ const skuInventoryData = computed(() => {
         return {
           id: `${item.id}-${color}-${size}`,
           inventoryId: item.id,
-          skuCode: `${item.itemCode}-${colorCodeMap[color]}-${size}`,
+          skuCode: `${item.productCode}-${colorCodeMap[color]}-${size}`,
+          productCode: item.productCode,
           itemCode: item.itemCode,
           itemName: item.itemName,
           color,
           size,
           materials: item.materials,
+          unitPrice: item.unitPrice,
           quantity,
           weight: `${skuWeight.toFixed(1)}kg`,
         }
@@ -168,6 +191,8 @@ const filteredRowsBase = computed(() => {
       ...item,
       materialType: deriveMaterialType(item.materials),
       materialDetail: formatMaterialDetail(item.materials),
+      materialKgPrice: resolveMaterialKgPrice(item.materials),
+      circularSalePrice: resolveCircularSalePrice(item),
     }))
     .filter((item) => {
       const matchesMaterial = activeMaterialFilters.value.every((filter) => {
@@ -203,11 +228,23 @@ const filteredRows = computed(() => {
   return rows.sort((a, b) => {
     const aValue = sortKey.value === 'weight'
       ? parseWeight(a.weight)
+      : sortKey.value === 'materialKgPrice'
+        ? a.materialKgPrice
+      : sortKey.value === 'circularSalePrice'
+        ? a.circularSalePrice
+      : sortKey.value === 'unitPrice'
+        ? a.unitPrice
       : sortKey.value === 'skuCode'
         ? a.skuCode
         : a[sortKey.value]
     const bValue = sortKey.value === 'weight'
       ? parseWeight(b.weight)
+      : sortKey.value === 'materialKgPrice'
+        ? b.materialKgPrice
+      : sortKey.value === 'circularSalePrice'
+        ? b.circularSalePrice
+      : sortKey.value === 'unitPrice'
+        ? b.unitPrice
       : sortKey.value === 'skuCode'
         ? b.skuCode
         : b[sortKey.value]
@@ -229,6 +266,16 @@ const isAllVisibleSelected = computed(() =>
   filteredRows.value.length > 0
   && filteredRows.value.every(item => props.selectedRowIds.includes(item.id)),
 )
+
+const visibleDataColumnCount = computed(() => {
+  let count = 4 // SKU, 품목명, 소재 구분, 수량
+  if (props.showCircularSalePriceColumn) count += 1
+  if (visibleColumns.value.color) count += 1
+  if (visibleColumns.value.size) count += 1
+  if (visibleColumns.value.perItemWeight) count += 1
+  count += 3 // 소재 상세, 단가, 무게 (항상 표시)
+  return count
+})
 
 function normalizeMaterialName(name) {
   const normalized = String(name ?? '').trim()
@@ -265,10 +312,29 @@ function parseWeight(weight) {
   return Number(String(weight).replace('kg', '')) || 0
 }
 
+function formatCurrency(value) {
+  return `₩${Number(value || 0).toLocaleString()}`
+}
+
 function formatPerItemWeight(weight, quantity) {
   if (!quantity || quantity <= 0) return '0kg'
   const perItemWeight = parseWeight(weight) / quantity
   return `${perItemWeight.toFixed(2)}kg`
+}
+
+function resolveMaterialKgPrice(materials) {
+  const materialType = deriveMaterialType(materials)
+  if (materialType === '혼방') return blendKgPrice
+
+  const [single] = Array.isArray(materials) ? materials : []
+  if (!single) return blendKgPrice
+  return materialKgPriceMap[single.name] ?? blendKgPrice
+}
+
+function resolveCircularSalePrice(item) {
+  const kgPrice = resolveMaterialKgPrice(item.materials)
+  const weight = parseWeight(item.weight)
+  return Math.round(weight * kgPrice)
 }
 
 function isMaterialDisabled(material, index) {
@@ -475,22 +541,39 @@ onBeforeUnmount(() => {
             <template v-if="summaryText"> · {{ summaryText }}</template>
           </p>
         </div>
+        <div class="flex flex-wrap items-center gap-3 text-[11px] font-bold text-gray-500">
+          <span class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">열 표시</span>
+          <label class="inline-flex items-center gap-1.5">
+            <input v-model="visibleColumns.color" type="checkbox" class="h-3.5 w-3.5 accent-[#004D3C]">
+            색상
+          </label>
+          <label class="inline-flex items-center gap-1.5">
+            <input v-model="visibleColumns.size" type="checkbox" class="h-3.5 w-3.5 accent-[#004D3C]">
+            사이즈
+          </label>
+          <label class="inline-flex items-center gap-1.5">
+            <input v-model="visibleColumns.perItemWeight" type="checkbox" class="h-3.5 w-3.5 accent-[#004D3C]">
+            개당 무게
+          </label>
+        </div>
       </div>
 
       <div class="overflow-x-auto">
         <table class="w-full min-w-[980px] table-fixed border-collapse text-left text-xs">
           <colgroup>
             <col v-if="hasActionColumn && actionColumnPosition === 'start'" class="w-[4%]" />
-            <col class="w-[13%]" />
-            <col class="w-[13%]" />
-            <col class="w-[5%]" />
-            <col class="w-[8%]" />
+            <col class="w-[14%]" />
+            <col class="w-[14%]" />
+            <col v-if="visibleColumns.color" class="w-[5%]" />
+            <col v-if="visibleColumns.size" class="w-[6%]" />
             <col class="w-[10%]" />
-            <col class="w-[10%]" />
+            <col class="w-[11%]" />
+            <col class="w-[7%]" />
+            <col v-if="props.showCircularSalePriceColumn" class="w-[9%]" />
             <col class="w-[7%]" />
             <col class="w-[7%]" />
-            <col class="w-[7%]" />
-            <col v-if="hasActionColumn && actionColumnPosition === 'end'" class="w-[14%]" />
+            <col v-if="visibleColumns.perItemWeight" class="w-[8%]" />
+            <col v-if="hasActionColumn && actionColumnPosition === 'end'" class="w-[9%]" />
           </colgroup>
           <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
             <tr>
@@ -503,15 +586,15 @@ onBeforeUnmount(() => {
                   {{ actionColumnLabel }}
                 </slot>
               </th>
-              <th class="px-3 py-3 font-black">
+              <th class="sticky left-0 z-20 bg-gray-50 px-3 py-3 font-black">
                 <button type="button" class="inline-flex items-center gap-1 hover:text-gray-900" @click="toggleSort('skuCode')">
                   SKU 코드
                   <span class="text-[9px]">{{ sortIcon('skuCode') }}</span>
                 </button>
               </th>
-              <th class="px-3 py-3 font-black">품목명</th>
-              <th class="px-3 py-3 text-center font-black">색상</th>
-              <th class="px-3 py-3 text-center font-black">사이즈</th>
+              <th class="sticky left-[170px] z-20 bg-gray-50 px-3 py-3 font-black">품목명</th>
+              <th v-if="visibleColumns.color" class="px-3 py-3 text-center font-black">색상</th>
+              <th v-if="visibleColumns.size" class="px-3 py-3 text-center font-black">사이즈</th>
               <th class="px-3 py-3 font-black">소재 구분</th>
               <th class="px-3 py-3 font-black">소재 상세</th>
               <th class="px-3 py-3 text-right font-black">
@@ -521,12 +604,24 @@ onBeforeUnmount(() => {
                 </button>
               </th>
               <th class="px-3 py-3 text-right font-black">
+                <button type="button" class="flex w-full items-center justify-end gap-1 hover:text-gray-900" @click="toggleSort('materialKgPrice')">
+                  kg 단가
+                  <span class="text-[9px]">{{ sortIcon('materialKgPrice') }}</span>
+                </button>
+              </th>
+              <th v-if="props.showCircularSalePriceColumn" class="px-3 py-3 text-right font-black">
+                <button type="button" class="flex w-full items-center justify-end gap-1 hover:text-gray-900" @click="toggleSort('circularSalePrice')">
+                  순환 단가
+                  <span class="text-[9px]">{{ sortIcon('circularSalePrice') }}</span>
+                </button>
+              </th>
+              <th class="px-3 py-3 text-right font-black">
                 <button type="button" class="flex w-full items-center justify-end gap-1 hover:text-gray-900" @click="toggleSort('weight')">
                   무게
                   <span class="text-[9px]">{{ sortIcon('weight') }}</span>
                 </button>
               </th>
-              <th class="px-3 py-3 text-right font-black">개당 무게</th>
+              <th v-if="visibleColumns.perItemWeight" class="px-3 py-3 text-right font-black">개당 무게</th>
               <th v-if="hasActionColumn && actionColumnPosition === 'end'" class="px-3 py-3 text-center font-black">
                 <slot name="header-action" :rows="filteredRows" :is-all-visible-selected="isAllVisibleSelected">
                   {{ actionColumnLabel }}
@@ -553,15 +648,19 @@ onBeforeUnmount(() => {
                   :highlighted="highlightedRowIds.includes(item.id)"
                 />
               </td>
-              <td class="whitespace-nowrap px-3 py-3 font-mono font-bold text-gray-600">{{ item.skuCode }}</td>
-              <td class="truncate px-3 py-3 font-black text-gray-900">{{ item.itemName }}</td>
-              <td class="px-3 py-3 text-center font-black text-gray-900">{{ item.color }}</td>
-              <td class="px-3 py-3 text-center font-black text-gray-900">{{ item.size }}</td>
+              <td class="sticky left-0 z-10 whitespace-nowrap bg-white px-3 py-3 font-mono font-bold text-gray-600">{{ item.skuCode }}</td>
+              <td class="sticky left-[170px] z-10 truncate bg-white px-3 py-3 font-black text-gray-900">{{ item.itemName }}</td>
+              <td v-if="visibleColumns.color" class="px-3 py-3 text-center font-black text-gray-900">{{ item.color }}</td>
+              <td v-if="visibleColumns.size" class="px-3 py-3 text-center font-black text-gray-900">{{ item.size }}</td>
               <td class="px-3 py-3 font-black text-gray-900">{{ item.materialType }}</td>
               <td class="truncate px-3 py-3 font-black text-gray-900">{{ item.materialDetail }}</td>
               <td class="px-3 py-3 text-right font-black text-gray-900">{{ item.quantity.toLocaleString() }}</td>
+              <td class="px-3 py-3 text-right font-black text-gray-900">{{ formatCurrency(item.materialKgPrice) }}</td>
+              <td v-if="props.showCircularSalePriceColumn" class="px-3 py-3 text-right font-black text-gray-900">
+                {{ formatCurrency(item.circularSalePrice) }}
+              </td>
               <td class="px-3 py-3 text-right font-black text-gray-900">{{ item.weight }}</td>
-              <td class="px-3 py-3 text-right font-black text-gray-900">{{ formatPerItemWeight(item.weight, item.quantity) }}</td>
+              <td v-if="visibleColumns.perItemWeight" class="px-3 py-3 text-right font-black text-gray-900">{{ formatPerItemWeight(item.weight, item.quantity) }}</td>
               <td v-if="hasActionColumn && actionColumnPosition === 'end'" class="px-3 py-3 text-center">
                 <slot
                   name="row-action"
@@ -572,7 +671,7 @@ onBeforeUnmount(() => {
               </td>
             </tr>
             <tr v-if="filteredRows.length === 0">
-              <td :colspan="hasActionColumn ? 11 : 10" class="px-3 py-14 text-center text-sm font-bold text-gray-400">
+              <td :colspan="visibleDataColumnCount + (hasActionColumn ? 1 : 0)" class="px-3 py-14 text-center text-sm font-bold text-gray-400">
                 조건에 맞는 순환 재고가 없습니다.
               </td>
             </tr>

@@ -57,11 +57,10 @@ import EsgDashBoardView from '@/views/hq/esg/EsgDashBoardView.vue'
 import AccountListView from '@/views/hq/account/AccountListView.vue'
 import AccountApprovalView from '@/views/hq/account/AccountApprovalView.vue'
 import HqAnalyticsOrderStatsView from '@/views/hq/analytics/HqAnalyticsOrderStatsView.vue'
-import HqAnalyticsSeasonalView from '@/views/hq/analytics/HqAnalyticsSeasonalView.vue'
 import HqAnalyticsTurnoverView from '@/views/hq/analytics/HqAnalyticsTurnoverView.vue'
-import HqAnalyticsSalesPatternView from '@/views/hq/analytics/HqAnalyticsSalesPatternView.vue'
-import HqAnalyticsMenuSalesView from '@/views/hq/analytics/HqAnalyticsMenuSalesView.vue'
 import HqAnalyticsDashboardView from '@/views/hq/analytics/HqAnalyticsDashboardView.vue'
+import HqAnalyticsSalesView from '@/views/hq/analytics/HqAnalyticsSalesView.vue'
+import HqAnalyticsVendorView from '@/views/hq/analytics/HqAnalyticsVendorView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -125,11 +124,13 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'hq' },
     },
     { path: '/hq/analytics', name: 'hq-analytics', component: HqAnalyticsDashboardView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/analytics/sales', name: 'hq-analytics-sales', component: HqAnalyticsSalesView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/analytics/vendors', name: 'hq-analytics-vendors', component: HqAnalyticsVendorView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/analytics/order-stats', name: 'hq-analytics-order-stats', component: HqAnalyticsOrderStatsView, meta: { requiresAuth: true, role: 'hq' } },
-    { path: '/hq/analytics/seasonal', name: 'hq-analytics-seasonal', component: HqAnalyticsSeasonalView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/analytics/seasonal', redirect: '/hq/analytics/sales?tab=seasonal' },
     { path: '/hq/analytics/turnover', name: 'hq-analytics-turnover', component: HqAnalyticsTurnoverView, meta: { requiresAuth: true, role: 'hq' } },
-    { path: '/hq/analytics/sales-pattern', name: 'hq-analytics-sales-pattern', component: HqAnalyticsSalesPatternView, meta: { requiresAuth: true, role: 'hq' } },
-    { path: '/hq/analytics/menu-sales', name: 'hq-analytics-menu-sales', component: HqAnalyticsMenuSalesView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/analytics/sales-pattern', redirect: '/hq/analytics/sales?tab=time' },
+    { path: '/hq/analytics/menu-sales', redirect: '/hq/analytics/sales?tab=item' },
     { path: '/hq/purchase-orders', name: 'hq-purchase-orders', component: HqPurchaseOrderView, meta: { requiresAuth: true, role: 'hq' } },
     {
       path: '/hq/purchase-orders/new',

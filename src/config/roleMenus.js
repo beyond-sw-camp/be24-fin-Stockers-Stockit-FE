@@ -61,11 +61,10 @@ export const roleMenus = {
       icon: 'chart',
       children: [
         { label: '통합 KPI 대시보드', path: '/hq/analytics' },
-        { label: '소재별 판매량 및 판매 비중', path: '/hq/analytics/menu-sales' },
-        { label: '시간대·요일 매출 패턴', path: '/hq/analytics/sales-pattern' },
+        { label: '판매량 통계', path: '/hq/analytics/sales' },
         { label: '재고 회전율 통계', path: '/hq/analytics/turnover' },
-        { label: '계절별 판매량 변화', path: '/hq/analytics/seasonal' },
         { label: '발주량 통계', path: '/hq/analytics/order-stats' },
+        { label: '순환재고 거래처 통계', path: '/hq/analytics/vendors' },
       ],
     },
     {
