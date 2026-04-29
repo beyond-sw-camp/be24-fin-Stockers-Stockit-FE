@@ -8,14 +8,13 @@ import {
   ShieldCheck,
   TrendingDown,
   TrendingUp,
-  ArrowLeftRight,
-  Navigation,
   Award,
   ChevronDown,
   Scale,
   Coins,
   CheckCircle2,
   RefreshCw,
+  Heart,
 } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import DoughnutChart from '@/components/common/charts/DoughnutChart.vue'
@@ -284,77 +283,81 @@ const kpiMetrics = [
 
 const scoreCategories = [
   {
-    id: 'circular',
-    label: '순환재고 전환',
-    points: 6300,
-    pct: 46.7,
+    id: 'productionAvoid',
+    label: '신규 생산 회피',
+    points: 9226,
+    pct: 42.6,
     icon: Recycle,
-    badge: '최고 점수',
+    badge: '글로벌 표준',
     barCls: 'bg-emerald-500',
     badgeCls: 'bg-emerald-100 text-emerald-700',
     iconCls: 'text-emerald-600',
-    desc: '소각·덤핑·보관 대신 리사이클링 처리',
-    formula: '순환재고 KG × 소재별 탄소환산계수',
+    desc: '재판매 → 다른 회사 신규 소재 생산 회피 (Higg MSI 표준)',
+    formula: '처리 무게(kg) × Higg MSI 신규 생산 회피량 (kg CO₂/kg)',
     rows: [
-      { label: '면 (Cotton)', detail: '480 kg × 1.8', points: 864 },
-      { label: '폴리에스터', detail: '320 kg × 2.3', points: 736 },
-      { label: '나일론', detail: '210 kg × 2.1', points: 441 },
-      { label: '데님', detail: '150 kg × 1.9', points: 285 },
-      { label: '울 (Wool)', detail: '90 kg × 2.5', points: 225 },
+      { label: '면 (Cotton)', detail: '480kg × 6.5', points: 3120 },
+      { label: '폴리에스터', detail: '320kg × 6.8', points: 2176 },
+      { label: '나일론', detail: '210kg × 5.5', points: 1155 },
+      { label: '데님', detail: '150kg × 6.5', points: 975 },
+      { label: '울 (Wool)', detail: '90kg × 20.0', points: 1800 },
     ],
   },
   {
-    id: 'transfer',
-    label: '창고 간 재고 이동',
-    points: 4400,
-    pct: 32.6,
-    icon: ArrowLeftRight,
-    badge: null,
-    barCls: 'bg-blue-500',
-    badgeCls: '',
-    iconCls: 'text-blue-600',
-    desc: '신규 발주 대신 재고 이동으로 탄소 절감',
-    formula: '차단 발주 수량 × 10kg/벌 − 이동거리 × 0.1kg/km',
-    rows: [
-      { label: '인천→수원', detail: '180벌 차단 | 50km 이동', points: 1791 },
-      { label: '부산→대구', detail: '95벌 차단 | 60km 이동', points: 944 },
-      { label: '광주→전주', detail: '140벌 차단 | 40km 이동', points: 1396 },
-    ],
-  },
-  {
-    id: 'route',
-    label: '이동 경로 최적화',
-    points: 1500,
-    pct: 11.1,
-    icon: Navigation,
-    badge: null,
-    barCls: 'bg-violet-500',
-    badgeCls: '',
-    iconCls: 'text-violet-600',
-    desc: '최적 경로 선택 시에만 추가 점수 부여',
-    formula: '표준 경로 대비 추가 절감 CO₂량 (kg) = 점수',
-    rows: [
-      { label: '인천→수원 최적화', detail: 'CO₂ 42kg 추가 절감', points: 420 },
-      { label: '부산→대구 최적화', detail: 'CO₂ 38kg 추가 절감', points: 380 },
-      { label: '광주→전주 최적화', detail: 'CO₂ 48kg 추가 절감', points: 480 },
-    ],
-  },
-  {
-    id: 'illegal',
-    label: '불법 폐기 방지',
-    points: 1300,
-    pct: 9.6,
+    id: 'disposalAvoid',
+    label: '폐기 회피',
+    points: 3459,
+    pct: 16.0,
     icon: ShieldCheck,
-    badge: null,
-    barCls: 'bg-orange-500',
-    badgeCls: '',
-    iconCls: 'text-orange-600',
-    desc: '제3국 투기 예정 재고를 국내 수요처에 투명 연결',
-    formula: '회수 재고 × 탄소계수 + 투명 연결 보너스 점수',
+    badge: 'K-ETS 정합',
+    barCls: 'bg-teal-500',
+    badgeCls: 'bg-teal-100 text-teal-700',
+    iconCls: 'text-teal-600',
+    desc: '악성재고를 소각·매립·덤핑하지 않음 (폐기 배출 회피)',
+    formula: '처리 무게(kg) × 소재별 폐기 회피 계수 (kg CO₂/kg)',
     rows: [
-      { label: '잡화류 → 건축재 공장 (안산)', detail: '85kg 투명 연결', points: 420 },
-      { label: '구형 아우터 → 재활용 업체 (인천)', detail: '62kg 처리 완료', points: 350 },
-      { label: '불량 섬유류 → 산업 흡음재', detail: '48kg 처리 완료', points: 350 },
+      { label: '면 (Cotton)', detail: '480kg × 2.5', points: 1200 },
+      { label: '폴리에스터', detail: '320kg × 3.0', points: 960 },
+      { label: '나일론', detail: '210kg × 3.2', points: 672 },
+      { label: '데님', detail: '150kg × 2.5', points: 375 },
+      { label: '울 (Wool)', detail: '90kg × 2.8', points: 252 },
+    ],
+  },
+  {
+    id: 'method',
+    label: '처리 방식',
+    points: 6300,
+    pct: 29.1,
+    icon: RefreshCw,
+    badge: '가중 적용',
+    barCls: 'bg-blue-500',
+    badgeCls: 'bg-blue-100 text-blue-700',
+    iconCls: 'text-blue-600',
+    desc: '업사이클 ×1.5 / 재활용 ×1.2 / 재판매 ×1.0 / 다운사이클 ×0.6',
+    formula: '처리량(kg) × Higg MSI 평균 회피량 × 처리 방식별 가중치',
+    rows: [
+      { label: '업사이클링', target: '가치 향상 재제품화 (가방/패치워크)', detail: '280kg × 가중치 1.5', points: 1575 },
+      { label: '재활용', target: '분쇄/재방사 → 신소재 원료', detail: '700kg × 가중치 1.2', points: 3150 },
+      { label: '중고 재판매', target: '정상 재고 → 아울렛/구제몰', detail: '420kg × 가중치 1.0', points: 945 },
+      { label: '다운사이클링', target: '산업용 흡음재/충전재', detail: '285kg × 가중치 0.6', points: 630 },
+    ],
+  },
+  {
+    id: 'donation',
+    label: '기부',
+    points: 2655,
+    pct: 12.3,
+    icon: Heart,
+    badge: '사회적 가치 최고',
+    barCls: 'bg-pink-500',
+    badgeCls: 'bg-pink-100 text-pink-700',
+    iconCls: 'text-pink-600',
+    desc: '재해구호 ×2.0 / 취약계층 ×1.5 / 개도국 ×1.3 / 교육기관 ×1.1',
+    formula: '기부 무게(kg) × 소재별 탄소환산계수 × 기부 유형별 가중치',
+    rows: [
+      { label: '재해 구호', target: '지진/홍수/한파 긴급 지원', detail: '면 코트 95kg × 6.5 × 2.0', points: 1235 },
+      { label: '취약 계층 지원', target: '노숙인/저소득/복지시설', detail: '면 80kg × 6.5 × 1.5', points: 780 },
+      { label: '개도국 의류 지원', target: '해외 구호 단체', detail: '폴리에스터 50kg × 6.8 × 1.3', points: 442 },
+      { label: '교육 기관 지원', target: '직업학교/기술학원 (재단 실습용)', detail: '다양 소재 30kg × 6.0 × 1.1', points: 198 },
     ],
   },
 ]
@@ -365,27 +368,70 @@ function toggleExpand(id) {
 }
 
 const materialData = [
-  { name: '면 (Cotton)', total: 720, recycled: 480, rate: 66.7, factor: 1.8, saved: 864 },
-  { name: '폴리에스터', total: 450, recycled: 320, rate: 71.1, factor: 2.3, saved: 736 },
-  { name: '나일론', total: 310, recycled: 210, rate: 67.7, factor: 2.1, saved: 441 },
-  { name: '데님', total: 200, recycled: 150, rate: 75.0, factor: 1.9, saved: 285 },
-  { name: '울 (Wool)', total: 120, recycled: 90, rate: 75.0, factor: 2.5, saved: 225 },
+  // 천연 단일
+  { name: '면 (Cotton)', type: '천연', total: 720, recycled: 480, rate: 66.7, factor: 1.8, saved: 864 },
+  { name: '울 (Wool)', type: '천연', total: 120, recycled: 90, rate: 75.0, factor: 2.5, saved: 225 },
+  { name: '캐시미어 (Cashmere)', type: '천연', total: 60, recycled: 38, rate: 63.3, factor: 2.8, saved: 106 },
+  { name: '실크 (Silk)', type: '천연', total: 45, recycled: 28, rate: 62.2, factor: 2.4, saved: 67 },
+  { name: '린넨 (Linen)', type: '천연', total: 80, recycled: 55, rate: 68.8, factor: 1.6, saved: 88 },
+  // 합성
+  { name: '폴리에스터 (Polyester)', type: '합성', total: 450, recycled: 320, rate: 71.1, factor: 2.3, saved: 736 },
+  { name: '나일론 (Polyamide)', type: '합성', total: 310, recycled: 210, rate: 67.7, factor: 2.1, saved: 441 },
+  { name: '아크릴 (Acrylic)', type: '합성', total: 180, recycled: 110, rate: 61.1, factor: 2.0, saved: 220 },
+  { name: '스판덱스 (Elastane)', type: '합성', total: 50, recycled: 24, rate: 48.0, factor: 1.7, saved: 41 },
+  // 혼방
+  { name: '데님 (면/스판)', type: '혼방', total: 200, recycled: 150, rate: 75.0, factor: 1.9, saved: 285 },
+  { name: '면/폴리 혼방', type: '혼방', total: 220, recycled: 130, rate: 59.1, factor: 1.9, saved: 247 },
+  { name: '울/아크릴 혼방', type: '혼방', total: 90, recycled: 50, rate: 55.6, factor: 2.2, saved: 110 },
 ]
+
+const TYPE_BADGE_CLS = {
+  '천연': 'bg-green-50 text-green-700 border border-green-200',
+  '합성': 'bg-blue-50 text-blue-700 border border-blue-200',
+  '혼방': 'bg-amber-50 text-amber-700 border border-amber-200',
+}
+
+const materialSummary = computed(() => {
+  const groups = ['천연', '합성', '혼방']
+  return groups.map((g) => {
+    const items = materialData.filter((m) => m.type === g)
+    const total = items.reduce((s, m) => s + m.total, 0)
+    const recycled = items.reduce((s, m) => s + m.recycled, 0)
+    const saved = items.reduce((s, m) => s + m.saved, 0)
+    const rate = total > 0 ? +((recycled / total) * 100).toFixed(1) : 0
+    return { type: g, count: items.length, total, recycled, rate, saved }
+  })
+})
+
+const materialTotals = computed(() => {
+  const total = materialData.reduce((s, m) => s + m.total, 0)
+  const recycled = materialData.reduce((s, m) => s + m.recycled, 0)
+  const saved = materialData.reduce((s, m) => s + m.saved, 0)
+  const rate = total > 0 ? +((recycled / total) * 100).toFixed(1) : 0
+  return { total, recycled, saved, rate }
+})
 
 const activityLog = [
-  { date: '04.23', type: 'circular', label: '폴리에스터 순환재고 전환', points: 460, detail: '200kg 처리' },
-  { date: '04.22', type: 'transfer', label: '인천→수원 재고 이동', points: 895, detail: '90벌 이동' },
-  { date: '04.21', type: 'route', label: '부산→대구 최적 경로', points: 380, detail: 'CO₂ 38kg 절감' },
-  { date: '04.20', type: 'circular', label: '면 소재 순환재고 전환', points: 540, detail: '300kg 처리' },
-  { date: '04.19', type: 'illegal', label: '건축재 공장 투명 연결', points: 420, detail: '아우터 85kg' },
-  { date: '04.18', type: 'transfer', label: '광주→전주 재고 이동', points: 1396, detail: '140벌 이동' },
+  { date: '04.28', type: 'donation', label: '재해 구호 - 포항 한파 면 코트 기부', points: 1235, detail: '95kg × 6.5 × 2.0' },
+  { date: '04.27', type: 'productionAvoid', label: '면 재판매 (신규 생산 회피)', points: 3120, detail: '480kg × Higg 6.5' },
+  { date: '04.26', type: 'method', label: '재활용 처리 (분쇄/재방사)', points: 3150, detail: '700kg × 가중치 1.2' },
+  { date: '04.25', type: 'disposalAvoid', label: '면 소각 폐기 회피', points: 1200, detail: '480kg × 2.5' },
+  { date: '04.23', type: 'productionAvoid', label: '폴리에스터 재판매 (신규 생산 회피)', points: 2176, detail: '320kg × Higg 6.8' },
+  { date: '04.22', type: 'donation', label: '취약 계층 의류 지원 (사회복지시설)', points: 780, detail: '80kg × 6.5 × 1.5' },
+  { date: '04.20', type: 'method', label: '업사이클링 처리 (가방/패치워크)', points: 1575, detail: '280kg × 가중치 1.5' },
+  { date: '04.18', type: 'disposalAvoid', label: '폴리에스터 매립 폐기 회피', points: 960, detail: '320kg × 3.0' },
+  { date: '04.16', type: 'productionAvoid', label: '울 재판매 (신규 생산 회피)', points: 1800, detail: '90kg × Higg 20.0' },
+  { date: '04.14', type: 'donation', label: '개도국 의류 지원 (해외 구호 단체)', points: 442, detail: '50kg × 6.8 × 1.3' },
+  { date: '04.12', type: 'method', label: '중고 재판매 (아울렛 출고)', points: 945, detail: '420kg × 가중치 1.0' },
+  { date: '04.10', type: 'disposalAvoid', label: '나일론 소각 폐기 회피', points: 672, detail: '210kg × 3.2' },
 ]
 
+
 const typeCfg = {
-  circular: { label: '순환전환', cls: 'bg-emerald-50 text-emerald-700' },
-  transfer: { label: '재고이동', cls: 'bg-blue-50 text-blue-700' },
-  route: { label: '경로최적', cls: 'bg-violet-50 text-violet-700' },
-  illegal: { label: '폐기방지', cls: 'bg-orange-50 text-orange-700' },
+  productionAvoid: { label: '생산회피', cls: 'bg-emerald-50 text-emerald-700' },
+  disposalAvoid: { label: '폐기회피', cls: 'bg-teal-50 text-teal-700' },
+  method: { label: '처리방식', cls: 'bg-blue-50 text-blue-700' },
+  donation: { label: '기부', cls: 'bg-pink-50 text-pink-700' },
 }
 
 const dateLabel = computed(() =>
@@ -672,6 +718,7 @@ function handleLogout() {
                     <tr class="text-[10px] uppercase text-gray-400">
                       <th class="pb-1.5 text-left font-medium">항목</th>
                       <th class="pb-1.5 text-center font-medium">상세</th>
+                      <th class="pb-1.5 text-center font-medium">대상</th>
                       <th class="pb-1.5 text-right font-medium">점수</th>
                     </tr>
                   </thead>
@@ -679,10 +726,11 @@ function handleLogout() {
                     <tr v-for="row in cat.rows" :key="row.label" class="text-[12px]">
                       <td class="py-1.5 font-medium text-gray-700">{{ row.label }}</td>
                       <td class="py-1.5 text-center text-gray-400">{{ row.detail }}</td>
+                      <td class="py-1.5 text-center text-gray-500">{{ row.target || '-' }}</td>
                       <td class="py-1.5 text-right font-bold text-emerald-700">+{{ row.points.toLocaleString() }}</td>
                     </tr>
                     <tr class="border-t border-gray-200 text-[12px]">
-                      <td colspan="2" class="py-1.5 text-right font-semibold text-gray-600">소계</td>
+                      <td colspan="3" class="py-1.5 text-right font-semibold text-gray-600">소계</td>
                       <td class="py-1.5 text-right text-[13px] font-bold text-gray-900">
                         {{ cat.points.toLocaleString() }} pt
                       </td>
@@ -717,42 +765,78 @@ function handleLogout() {
               소재별 재활용 전환율
             </h3>
           </div>
+
+          <!-- 소재 분류 체계 요약 (3계층: 천연/합성/혼방) -->
+          <div class="grid grid-cols-3 gap-2 border-b border-gray-100 bg-gray-50/50 px-3 py-2.5">
+            <div
+              v-for="g in materialSummary"
+              :key="g.type"
+              class="rounded border bg-white px-2 py-1.5"
+              :class="{
+                'border-green-200': g.type === '천연',
+                'border-blue-200': g.type === '합성',
+                'border-amber-200': g.type === '혼방',
+              }"
+            >
+              <div class="flex items-center justify-between">
+                <span
+                  class="rounded px-1.5 py-0.5 text-[9px] font-bold"
+                  :class="TYPE_BADGE_CLS[g.type]"
+                >
+                  {{ g.type }} 소재
+                </span>
+                <span class="text-[9px] text-gray-400">{{ g.count }}종</span>
+              </div>
+              <div class="mt-1 flex items-baseline gap-1">
+                <span class="text-[14px] font-bold text-gray-800">{{ g.rate }}%</span>
+                <span class="text-[9px] text-gray-400">전환율</span>
+              </div>
+              <div class="text-[9px] text-gray-500">
+                {{ g.recycled }}/{{ g.total }}kg · +{{ g.saved }}pt
+              </div>
+            </div>
+          </div>
+
           <div class="overflow-auto">
-            <table class="w-full min-w-[480px] text-[12px]">
+            <table class="w-full min-w-[520px] text-[12px]">
               <thead class="bg-gray-50 text-[10px] uppercase text-gray-500">
                 <tr>
-                  <th class="px-3 py-2 text-left font-semibold">소재</th>
-                  <th class="px-3 py-2 text-right font-semibold">전체 (kg)</th>
-                  <th class="px-3 py-2 text-right font-semibold">재활용 (kg)</th>
-                  <th class="px-3 py-2 font-semibold">전환율</th>
-                  <th class="px-3 py-2 text-right font-semibold">CO₂ 절감 (pt)</th>
+                  <th class="px-2 py-2 text-left font-semibold">분류</th>
+                  <th class="px-2 py-2 text-left font-semibold">소재</th>
+                  <th class="px-2 py-2 text-right font-semibold">보유 (kg)</th>
+                  <th class="px-2 py-2 text-right font-semibold">재활용 (kg)</th>
+                  <th class="px-2 py-2 text-right font-semibold">전환율</th>
+                  <th class="px-2 py-2 text-right font-semibold">CO₂ (pt)</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100 border-t border-gray-200">
                 <tr v-for="m in materialData" :key="m.name" class="hover:bg-gray-50/60">
-                  <td class="px-3 py-2.5 font-medium text-gray-800">{{ m.name }}</td>
-                  <td class="px-3 py-2.5 text-right text-gray-500">{{ m.total }}</td>
-                  <td class="px-3 py-2.5 text-right font-medium text-green-700">{{ m.recycled }}</td>
-                  <td class="px-3 py-2.5">
-                    <div class="flex items-center gap-2">
-                      <div class="h-1.5 w-20 overflow-hidden rounded-full bg-gray-100">
-                        <div class="h-1.5 rounded-full bg-green-500" :style="{ width: m.rate + '%' }" />
-                      </div>
-                      <span class="text-[11px] font-semibold text-green-700">{{ m.rate }}%</span>
-                    </div>
+                  <td class="px-2 py-2">
+                    <span
+                      class="rounded px-1.5 py-0.5 text-[9px] font-bold"
+                      :class="TYPE_BADGE_CLS[m.type]"
+                    >
+                      {{ m.type }}
+                    </span>
                   </td>
-                  <td class="px-3 py-2.5 text-right font-bold text-emerald-700">+{{ m.saved }}</td>
+                  <td class="px-2 py-2 font-medium text-gray-800">{{ m.name }}</td>
+                  <td class="px-2 py-2 text-right text-gray-500">{{ m.total }}</td>
+                  <td class="px-2 py-2 text-right font-medium text-green-700">{{ m.recycled }}</td>
+                  <td class="px-2 py-2 text-right">
+                    <span class="text-[11px] font-semibold text-green-700">{{ m.rate }}%</span>
+                  </td>
+                  <td class="px-2 py-2 text-right font-bold text-emerald-700">+{{ m.saved }}</td>
                 </tr>
               </tbody>
               <tfoot class="border-t-2 border-gray-200 bg-gray-50">
                 <tr class="text-[11px]">
-                  <td class="px-3 py-2 font-semibold text-gray-600">합계</td>
-                  <td class="px-3 py-2 text-right font-semibold text-gray-600">1,800</td>
-                  <td class="px-3 py-2 text-right font-semibold text-green-700">1,250</td>
-                  <td class="px-3 py-2">
-                    <span class="font-bold text-green-700">68.4%</span>
+                  <td class="px-2 py-2 font-semibold text-gray-600" colspan="2">합계</td>
+                  <td class="px-2 py-2 text-right font-semibold text-gray-600">{{ materialTotals.total.toLocaleString() }}</td>
+                  <td class="px-2 py-2 text-right font-semibold text-green-700">{{ materialTotals.recycled.toLocaleString() }}</td>
+                  <td class="px-2 py-2 text-right">
+                    <span class="font-bold text-green-700">{{ materialTotals.rate }}%</span>
                   </td>
-                  <td class="px-3 py-2 text-right font-bold text-emerald-700">+2,551</td>
+                  <td class="px-2 py-2 text-right font-bold text-emerald-700">+{{ materialTotals.saved.toLocaleString() }}</td>
                 </tr>
               </tfoot>
             </table>
