@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/auth.js'
 import { useVendorStore } from '@/stores/vendor.js'
 import { usePurchaseOrderStore } from '@/stores/purchaseOrder.js'
 import { useWarehouseStockStore } from '@/stores/warehouseStock.js'
+import { getProductSkus } from '@/api/productMaster.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -17,8 +18,8 @@ const stockStore = useWarehouseStockStore()
 
 // 카탈로그 행마다 호출 — 선택된 창고 + 행 productCode 의 재고 정보. 창고 미선택이면 null.
 function rowStock(productCode) {
-  if (!selectedWarehouseId.value) return null
-  return stockStore.getStock(selectedWarehouseId.value, productCode)
+  if (!selectedWarehouseCode.value) return null
+  return stockStore.getStock(selectedWarehouseCode.value, productCode)
 }
 
 function rowStockLevel(stock) {
@@ -43,9 +44,9 @@ const shortageOnly = ref(false)
 
 // 카탈로그 부족 카운트 — 토글 클릭 안 해도 헤더에서 즉시 인지
 const shortageCount = computed(() => {
-  if (!selectedWarehouseId.value) return 0
+  if (!selectedWarehouseCode.value) return 0
   const codes = catalog.value.map((vp) => vp.productCode)
-  return stockStore.getShortageCount(selectedWarehouseId.value, codes)
+  return stockStore.getShortageCount(selectedWarehouseCode.value, codes)
 })
 
 const DRAFT_KEY = 'stockit:po-cart-draft'
@@ -69,7 +70,7 @@ function handleLogout() {
 }
 
 // ─── state ───────────────────────────────────────────────────────────────────
-const selectedWarehouseId = ref('')
+const selectedWarehouseCode = ref('')
 const keyword = ref('')
 const vendorFilter = ref('all')
 const sortBy = ref('default')
@@ -85,6 +86,55 @@ const pendingNewVendorProduct = ref(null)
 const showClearCartConfirm = ref(false)
 // 발주 요청 최종 확인
 const showSubmitConfirm = ref(false)
+
+// SKU 옵션 선택 모달 — Master 카드 클릭 시 그 master 의 SKU 옵션 목록 fetch.
+// 슬래시 합성 컨벤션 (optionName="색상/사이즈", optionValue="화이트/L") 자동 분기:
+//   - matrix: rowName/colName 분리, 행×열 그리드
+//   - list: 1차원 옵션 리스트
+const showSkuModal = ref(false)
+const skuModalVp = ref(null)        // 클릭한 vendor product (master)
+const skuModalSkus = ref([])         // 그 master 의 SKU 목록 (ACTIVE만)
+const skuModalQuantities = ref({})   // { [skuCode]: quantity }
+const skuModalLoading = ref(false)
+
+const skuParsed = computed(() => {
+  const active = skuModalSkus.value.filter((s) => s.status === 'ACTIVE')
+  if (active.length === 0) return { kind: 'empty' }
+  const sample = active[0]
+  const isMulti = (sample.optionName || '').includes('/')
+  if (isMulti) {
+    const [rowName, colName] = sample.optionName.split('/')
+    const cells = {}
+    const rowSet = new Set()
+    const colSet = new Set()
+    for (const sku of active) {
+      const parts = (sku.optionValue || '').split('/')
+      const rowVal = parts[0] ?? ''
+      const colVal = parts[1] ?? ''
+      rowSet.add(rowVal)
+      colSet.add(colVal)
+      if (!cells[rowVal]) cells[rowVal] = {}
+      cells[rowVal][colVal] = sku
+    }
+    return {
+      kind: 'matrix',
+      rowName,
+      colName,
+      rows: [...rowSet],
+      cols: [...colSet],
+      cells,
+    }
+  }
+  return {
+    kind: 'list',
+    name: sample.optionName,
+    items: active.map((s) => ({ value: s.optionValue, sku: s })),
+  }
+})
+
+const skuModalTotalQty = computed(() =>
+  Object.values(skuModalQuantities.value).reduce((sum, q) => sum + (Number(q) || 0), 0),
+)
 
 // 토스트
 const toast = ref({ show: false, message: '' })
@@ -125,7 +175,7 @@ const displayedCatalog = computed(() => {
     return matchVendor && matchKw
   })
   // "부족만 보기" 토글 — 창고 선택된 상태에서만 적용
-  if (shortageOnly.value && selectedWarehouseId.value) {
+  if (shortageOnly.value && selectedWarehouseCode.value) {
     list = list.filter((vp) => {
       const level = rowStockLevel(rowStock(vp.productCode))
       return level === 'critical' || level === 'warning'
@@ -153,7 +203,7 @@ const cartTotal = computed(() =>
   cart.value.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0),
 )
 
-const canSubmit = computed(() => !!selectedWarehouseId.value && cart.value.length > 0)
+const canSubmit = computed(() => !!selectedWarehouseCode.value && cart.value.length > 0)
 
 const currentCartVendorId = computed(() =>
   cart.value.length > 0 ? cart.value[0].vendorId : null,
@@ -165,13 +215,13 @@ const currentCartVendorName = computed(() =>
 
 const pendingWarehouseName = computed(() => {
   if (!pendingWarehouseId.value) return ''
-  return poStore.warehouses.find((w) => w.id === pendingWarehouseId.value)?.name ?? ''
+  return poStore.warehouses.find((w) => w.code === pendingWarehouseId.value)?.name ?? ''
 })
 
 const pendingNewVendorName = computed(() => pendingNewVendorProduct.value?.vendorName ?? '')
 
 const selectedWarehouseName = computed(
-  () => poStore.warehouses.find((w) => w.id === selectedWarehouseId.value)?.name ?? '',
+  () => poStore.warehouses.find((w) => w.code === selectedWarehouseCode.value)?.name ?? '',
 )
 
 // ─── localStorage 영속화 ──────────────────────────────────────────────────────
@@ -181,7 +231,7 @@ function loadDraft() {
     if (!saved) return
     const data = JSON.parse(saved)
     if (data && typeof data === 'object') {
-      selectedWarehouseId.value = data.warehouseId ?? ''
+      selectedWarehouseCode.value = data.warehouseCode ?? data.warehouseId ?? ''
       cart.value = Array.isArray(data.items) ? data.items : []
     }
   } catch {
@@ -193,7 +243,7 @@ function saveDraft() {
   if (isEditMode.value) return // edit 모드는 localStorage 영속화 안 함
   try {
     const payload = {
-      warehouseId: selectedWarehouseId.value,
+      warehouseCode: selectedWarehouseCode.value,
       items: cart.value,
     }
     localStorage.setItem(DRAFT_KEY, JSON.stringify(payload))
@@ -211,73 +261,88 @@ function clearDraftStorage() {
 }
 
 // ─── 장바구니 액션 ───────────────────────────────────────────────────────────
-function addToCart(vp) {
-  if (!selectedWarehouseId.value) return
+// Master 카드 클릭 → SKU 옵션 선택 모달 오픈 (즉시 cart 추가 X, SKU 단위 발주).
+async function addToCart(vp) {
+  if (!selectedWarehouseCode.value) return
   // 한 발주서 = 한 거래처 정책
   if (currentCartVendorId.value && vp.vendorId !== currentCartVendorId.value) {
     pendingNewVendorProduct.value = vp
     showVendorSwitchConfirm.value = true
     return
   }
-  const existing = cart.value.find((item) => item.productCode === vp.productCode)
-  if (existing) {
-    existing.quantity += 1
-  } else {
-    cart.value.push({
-      productId: vp.id,
-      productCode: vp.productCode,
-      productName: vp.productName,
-      vendorId: vp.vendorId,
-      vendorName: vp.vendorName,
-      unitPrice: vp.unitPrice,
-      quantity: 1,
-    })
-  }
-  saveDraft()
+  await openSkuModal(vp)
 }
 
-// 권장 발주 수량으로 cart 채우기 (set 모드 — 기존 수량 덮어쓰기, +1 add 와 다름).
-// 표시된 권장값과 cart 수량 일치 보장.
-function addRecommendedToCart(vp) {
-  if (!selectedWarehouseId.value) return
-  const recommended = rowSuggested(vp.productCode)
-  if (recommended <= 0) return
-  // 한 발주서 = 한 거래처 정책 — 기존 vendorSwitch confirm 흐름 재사용
-  if (currentCartVendorId.value && vp.vendorId !== currentCartVendorId.value) {
-    pendingNewVendorProduct.value = vp
-    showVendorSwitchConfirm.value = true
+async function openSkuModal(vp) {
+  skuModalVp.value = vp
+  skuModalQuantities.value = {}
+  skuModalLoading.value = true
+  showSkuModal.value = true
+  try {
+    const list = await getProductSkus(vp.productCode)
+    skuModalSkus.value = Array.isArray(list) ? list : []
+  } catch (e) {
+    console.error('[HqPurchaseOrderCreateView] getProductSkus 실패', e)
+    skuModalSkus.value = []
+    triggerToast('SKU 옵션을 불러오지 못했습니다.')
+  } finally {
+    skuModalLoading.value = false
+  }
+}
+
+function closeSkuModal() {
+  showSkuModal.value = false
+  skuModalVp.value = null
+  skuModalSkus.value = []
+  skuModalQuantities.value = {}
+}
+
+function addSkusFromModal() {
+  const vp = skuModalVp.value
+  if (!vp) return
+  let added = 0
+  for (const sku of skuModalSkus.value) {
+    const qty = Number(skuModalQuantities.value[sku.skuCode]) || 0
+    if (qty <= 0) continue
+    const existing = cart.value.find((item) => item.skuCode === sku.skuCode)
+    if (existing) {
+      existing.quantity += qty
+    } else {
+      cart.value.push({
+        productId: vp.id,
+        productCode: vp.productCode,
+        productName: vp.productName,
+        vendorId: vp.vendorId,
+        vendorName: vp.vendorName,
+        skuCode: sku.skuCode,
+        optionName: sku.optionName,
+        optionValue: sku.optionValue,
+        unitPrice: sku.unitPrice,
+        quantity: qty,
+      })
+    }
+    added++
+  }
+  if (added === 0) {
+    triggerToast('수량을 입력한 옵션이 없습니다.')
     return
   }
-  const existing = cart.value.find((item) => item.productCode === vp.productCode)
-  if (existing) {
-    existing.quantity = recommended
-  } else {
-    cart.value.push({
-      productId: vp.id,
-      productCode: vp.productCode,
-      productName: vp.productName,
-      vendorId: vp.vendorId,
-      vendorName: vp.vendorName,
-      unitPrice: vp.unitPrice,
-      quantity: recommended,
-    })
-  }
   saveDraft()
+  closeSkuModal()
+}
+
+// 권장 발주 수량 — SKU 단위가 아니라 master 단위 정보라 일단 SKU 모달을 열어준다.
+// 사용자가 옵션별 수량을 직접 분배. (추후 SKU별 안전재고 도입 시 자동 분배 가능)
+function addRecommendedToCart(vp) {
+  addToCart(vp)
 }
 
 function confirmVendorSwitch() {
   const vp = pendingNewVendorProduct.value
   cart.value = []
   if (vp) {
-    cart.value.push({
-      productId: vp.id,
-      productCode: vp.productCode,
-      productName: vp.productName,
-      vendorId: vp.vendorId,
-      vendorName: vp.vendorName,
-      unitPrice: vp.unitPrice,
-      quantity: 1,
-    })
+    // 거래처 전환 후 SKU 모달 열기 (cart 가 비었으니 vendor 정책 통과)
+    openSkuModal(vp)
   }
   pendingNewVendorProduct.value = null
   showVendorSwitchConfirm.value = false
@@ -329,25 +394,25 @@ function cancelClearCart() {
 
 // ─── 창고 변경 ────────────────────────────────────────────────────────────────
 function handleWarehouseChange(newId) {
-  if (newId === selectedWarehouseId.value) return
+  if (newId === selectedWarehouseCode.value) return
   if (cart.value.length === 0) {
-    selectedWarehouseId.value = newId
+    selectedWarehouseCode.value = newId
     saveDraft()
     return
   }
   // cart 가 비어있지 않으면 confirm
   pendingWarehouseId.value = newId
   showWarehouseChangeConfirm.value = true
-  // select DOM 값을 selectedWarehouseId 로 강제 원복 (취소 시 어색하지 않게)
+  // select DOM 값을 selectedWarehouseCode 로 강제 원복 (취소 시 어색하지 않게)
   nextTick(() => {
     if (warehouseSelectRef.value) {
-      warehouseSelectRef.value.value = selectedWarehouseId.value
+      warehouseSelectRef.value.value = selectedWarehouseCode.value
     }
   })
 }
 
 function confirmWarehouseChange() {
-  selectedWarehouseId.value = pendingWarehouseId.value
+  selectedWarehouseCode.value = pendingWarehouseId.value
   cart.value = []
   pendingWarehouseId.value = null
   showWarehouseChangeConfirm.value = false
@@ -384,6 +449,9 @@ async function confirmSubmitOrder() {
     productId: i.productId,
     productCode: i.productCode,
     productName: i.productName,
+    skuCode: i.skuCode,
+    optionName: i.optionName,
+    optionValue: i.optionValue,
     unitPrice: i.unitPrice,
     quantity: i.quantity,
     subtotal: i.unitPrice * i.quantity,
@@ -399,14 +467,14 @@ async function confirmSubmitOrder() {
         return
       }
       await poStore.updateOrder(editingOrderId.value, {
-        warehouseId: selectedWarehouseId.value,
+        warehouseCode: selectedWarehouseCode.value,
         items,
       })
       poStore.selectOrder(editingOrderId.value)
       triggerToast('발주가 수정되었습니다')
     } else {
       const newOrder = await poStore.createOrder({
-        warehouseId: selectedWarehouseId.value,
+        warehouseCode: selectedWarehouseCode.value,
         vendorId: cart.value[0].vendorId,
         vendorName: cart.value[0].vendorName,
         items,
@@ -441,12 +509,15 @@ function initEditMode() {
     setTimeout(() => router.replace({ name: 'hq-purchase-orders' }), 900)
     return
   }
-  selectedWarehouseId.value = order.warehouseId
+  selectedWarehouseCode.value = order.warehouseCode || ''
   vendorFilter.value = order.vendorId // 거래처 잠금
   cart.value = order.items.map((i) => ({
     productId: i.productId,
     productCode: i.productCode,
     productName: i.productName,
+    skuCode: i.skuCode ?? '',
+    optionName: i.optionName ?? '',
+    optionValue: i.optionValue ?? '',
     vendorId: order.vendorId,
     vendorName: order.vendorName,
     unitPrice: i.unitPrice,
@@ -529,7 +600,7 @@ const AlertTriangleIcon = IconBase([
     v-model:active-side-menu="activeSideMenu"
     @logout="handleLogout"
   >
-    <div class="flex flex-col gap-4">
+    <div class="flex h-[calc(100vh-100px)] min-w-0 flex-col gap-4 overflow-hidden">
       <!-- 상단 바 -->
       <section
         class="flex flex-wrap items-center gap-3 border border-gray-300 bg-white p-3 shadow-sm"
@@ -549,12 +620,12 @@ const AlertTriangleIcon = IconBase([
           </label>
           <select
             ref="warehouseSelectRef"
-            :value="selectedWarehouseId"
+            :value="selectedWarehouseCode"
             class="border border-gray-300 bg-white px-3 py-1.5 text-xs outline-none focus:border-[#004D3C]"
             @change="handleWarehouseChange($event.target.value)"
           >
             <option value="">창고 선택</option>
-            <option v-for="wh in poStore.warehouses" :key="wh.id" :value="wh.id">
+            <option v-for="wh in poStore.warehouses" :key="wh.code" :value="wh.code">
               {{ wh.name }}
             </option>
           </select>
@@ -574,8 +645,8 @@ const AlertTriangleIcon = IconBase([
         </span>
       </section>
 
-      <!-- 본문: 좌(카탈로그) + 우(장바구니) -->
-      <section class="flex min-h-0 flex-col gap-4 xl:flex-row">
+      <!-- 본문: 좌(카탈로그) + 우(장바구니) — viewport 높이 기준 자체 스크롤 -->
+      <section class="flex min-h-0 flex-1 flex-col gap-4 xl:flex-row">
         <!-- ── 좌측: 카탈로그 ── -->
         <div
           class="flex min-w-0 flex-1 flex-col overflow-hidden border border-gray-300 bg-white shadow-sm"
@@ -625,11 +696,11 @@ const AlertTriangleIcon = IconBase([
                     ? 'border-red-300 bg-white text-red-600 hover:bg-red-50'
                     : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
               "
-              :disabled="!selectedWarehouseId || shortageCount === 0"
-              :title="!selectedWarehouseId ? '먼저 창고를 선택하세요' : (shortageCount === 0 ? '재고 부족 품목 없음' : '가용재고가 안전재고 1.5배 미만인 품목만 표시')"
+              :disabled="!selectedWarehouseCode || shortageCount === 0"
+              :title="!selectedWarehouseCode ? '먼저 창고를 선택하세요' : (shortageCount === 0 ? '재고 부족 품목 없음' : '가용재고가 안전재고 1.5배 미만인 품목만 표시')"
               @click="shortageOnly = !shortageOnly"
             >
-              {{ shortageOnly ? `✓ 부족만 (${shortageCount})` : (selectedWarehouseId && shortageCount > 0 ? `부족만 보기 (${shortageCount})` : '부족만 보기') }}
+              {{ shortageOnly ? `✓ 부족만 (${shortageCount})` : (selectedWarehouseCode && shortageCount > 0 ? `부족만 보기 (${shortageCount})` : '부족만 보기') }}
             </button>
             <span class="ml-auto text-[11px] font-bold text-gray-500">
               {{ displayedCatalog.length }}건
@@ -638,31 +709,31 @@ const AlertTriangleIcon = IconBase([
 
           <!-- 창고 미선택 안내 -->
           <div
-            v-if="!selectedWarehouseId"
+            v-if="!selectedWarehouseCode"
             class="border-b border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-700"
           >
             입고 창고를 먼저 선택해주세요. 창고가 정해져야 발주서를 만들 수 있습니다.
           </div>
 
-          <!-- 카탈로그 테이블 -->
-          <div class="overflow-auto">
-            <table class="w-full min-w-[900px] table-fixed border-collapse text-xs">
+          <!-- 카탈로그 테이블 — 카드 내부 자체 스크롤 (가로/세로 모두) -->
+          <div class="min-h-0 flex-1 overflow-auto">
+            <table class="w-full table-fixed border-collapse text-xs">
               <thead class="bg-gray-100 text-[10px] uppercase tracking-wider text-gray-500">
                 <tr>
-                  <th class="w-32 px-3 py-2 text-left font-black">거래처</th>
-                  <th class="w-24 px-3 py-2 text-left font-black">제품코드</th>
-                  <th class="px-3 py-2 text-left font-black">제품명</th>
-                  <th class="w-20 px-3 py-2 text-right font-black">단가</th>
-                  <th class="w-16 px-3 py-2 text-right font-black" title="실재고 + 입고예정 - 출고예정">가용</th>
-                  <th class="w-16 px-3 py-2 text-right font-black" title="실재고 (현재 보유)">실재고</th>
-                  <th class="w-14 px-3 py-2 text-right font-black" title="안전재고 (이 밑으로 떨어지면 안 됨)">안전</th>
-                  <th class="w-16 px-3 py-2 text-right font-black" title="안전재고 × 1.5 까지 채우는 권장 발주 수량 — 클릭 시 cart 에 그 수량으로 담김">권장</th>
-                  <th class="w-16 px-3 py-2 text-center font-black"></th>
+                  <th class="w-24 px-2 py-2 text-left font-black">거래처</th>
+                  <th class="w-20 px-2 py-2 text-left font-black">제품코드</th>
+                  <th class="w-56 px-2 py-2 text-left font-black">제품명</th>
+                  <th class="w-24 px-2 py-2 text-right font-black">단가</th>
+                  <th class="hidden w-14 px-2 py-2 text-right font-black 2xl:table-cell" title="실재고 + 입고예정 - 출고예정">가용</th>
+                  <th class="hidden w-14 px-2 py-2 text-right font-black 2xl:table-cell" title="실재고 (현재 보유)">실재고</th>
+                  <th class="hidden w-12 px-2 py-2 text-right font-black 2xl:table-cell" title="안전재고 (이 밑으로 떨어지면 안 됨)">안전</th>
+                  <th class="hidden w-14 px-2 py-2 text-right font-black 2xl:table-cell" title="안전재고 × 1.5 까지 채우는 권장 발주 수량">권장</th>
+                  <th class="w-12 px-2 py-2 text-center font-black"></th>
                 </tr>
               </thead>
               <tbody
                 class="divide-y divide-gray-100"
-                :class="!selectedWarehouseId ? 'pointer-events-none opacity-50' : ''"
+                :class="!selectedWarehouseCode ? 'pointer-events-none opacity-50' : ''"
               >
                 <tr
                   v-for="vp in displayedCatalog"
@@ -670,35 +741,32 @@ const AlertTriangleIcon = IconBase([
                   class="cursor-pointer transition-colors hover:bg-[#E6F2F0]"
                   @click="addToCart(vp)"
                 >
-                  <td class="px-3 py-2.5 font-bold text-gray-700">{{ vp.vendorName }}</td>
-                  <td class="px-3 py-2.5 text-gray-500">{{ vp.productCode }}</td>
-                  <td class="px-3 py-2.5 font-black text-gray-800">{{ vp.productName }}</td>
-                  <td class="px-3 py-2.5 text-right font-bold text-[#004D3C]">
+                  <td class="px-2 py-2.5 font-bold text-gray-700 truncate">{{ vp.vendorName }}</td>
+                  <td class="px-2 py-2.5 text-gray-500">{{ vp.productCode }}</td>
+                  <td class="px-2 py-2.5 font-black text-gray-800 truncate">{{ vp.productName }}</td>
+                  <td class="px-2 py-2.5 text-right font-bold text-[#004D3C]">
                     ₩{{ vp.unitPrice.toLocaleString() }}
                   </td>
-                  <!-- 가용재고 (가용 < 안전 임계 시 색 강조 — 발주 결정 핵심 지표) -->
-                  <td class="px-3 py-2.5 text-right font-black" :class="stockLevelClass(rowStock(vp.productCode))">
+                  <!-- 가용재고 (2xl 이상에서만 표시) -->
+                  <td class="hidden px-2 py-2.5 text-right font-black 2xl:table-cell" :class="stockLevelClass(rowStock(vp.productCode))">
                     <template v-if="rowStock(vp.productCode)">
                       {{ rowStock(vp.productCode).available }}
                     </template>
                     <span v-else class="text-gray-300">—</span>
                   </td>
-                  <!-- 실재고 (참고) -->
-                  <td class="px-3 py-2.5 text-right font-bold text-gray-500">
+                  <td class="hidden px-2 py-2.5 text-right font-bold text-gray-500 2xl:table-cell">
                     <template v-if="rowStock(vp.productCode)">
                       {{ rowStock(vp.productCode).onHand }}
                     </template>
                     <span v-else class="text-gray-300">—</span>
                   </td>
-                  <!-- 안전 -->
-                  <td class="px-3 py-2.5 text-right font-bold text-gray-500">
+                  <td class="hidden px-2 py-2.5 text-right font-bold text-gray-500 2xl:table-cell">
                     <template v-if="rowStock(vp.productCode)">
                       {{ rowStock(vp.productCode).safetyStock }}
                     </template>
                     <span v-else class="text-gray-300">—</span>
                   </td>
-                  <!-- 권장 발주 수량 (셀 클릭 시 cart 수량 = 권장값으로 set) -->
-                  <td class="px-3 py-2.5 text-right">
+                  <td class="hidden px-2 py-2.5 text-right 2xl:table-cell">
                     <template v-if="rowStock(vp.productCode)">
                       <button
                         v-if="rowSuggested(vp.productCode) > 0"
@@ -713,14 +781,14 @@ const AlertTriangleIcon = IconBase([
                     </template>
                     <span v-else class="text-gray-300">—</span>
                   </td>
-                  <td class="px-3 py-2.5 text-center">
+                  <td class="px-2 py-2.5 text-center">
                     <button
                       type="button"
-                      class="inline-flex items-center justify-center gap-1 whitespace-nowrap border border-[#004D3C] bg-white px-2 py-1 text-[10px] font-black text-[#004D3C] hover:bg-[#E6F2F0]"
+                      class="inline-flex items-center justify-center whitespace-nowrap border border-[#004D3C] bg-white p-1 text-[#004D3C] hover:bg-[#E6F2F0]"
+                      :title="'담기'"
                       @click.stop="addToCart(vp)"
                     >
-                      <PlusIcon :size="10" />
-                      담기
+                      <PlusIcon :size="12" />
                     </button>
                   </td>
                 </tr>
@@ -772,14 +840,17 @@ const AlertTriangleIcon = IconBase([
             <ul v-else class="space-y-2">
               <li
                 v-for="(item, idx) in cart"
-                :key="item.productCode + '-' + idx"
+                :key="(item.skuCode || item.productCode) + '-' + idx"
                 class="border border-gray-200 bg-white p-2"
               >
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0 flex-1">
                     <p class="text-xs font-black text-gray-800">{{ item.productName }}</p>
+                    <p v-if="item.optionValue" class="text-[10px] font-bold text-[#004D3C]">
+                      {{ item.optionValue }}
+                    </p>
                     <p class="text-[10px] text-gray-400">
-                      {{ item.productCode }} · ₩{{ item.unitPrice.toLocaleString() }}
+                      {{ item.skuCode || item.productCode }} · ₩{{ item.unitPrice.toLocaleString() }}
                     </p>
                   </div>
                   <button
@@ -1018,6 +1089,125 @@ const AlertTriangleIcon = IconBase([
           >
             {{ isEditMode ? '수정 저장' : '발주 요청' }}
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ───────── 모달: SKU 옵션 선택 ───────── -->
+    <div
+      v-if="showSkuModal"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      @click.self="closeSkuModal"
+    >
+      <div class="w-full max-w-2xl border border-gray-300 bg-white shadow-2xl">
+        <div class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3">
+          <div>
+            <h2 class="text-sm font-black text-gray-800">옵션 선택</h2>
+            <p class="text-[11px] text-gray-500 mt-0.5">
+              {{ skuModalVp?.productName }} · {{ skuModalVp?.productCode }}
+            </p>
+          </div>
+          <button type="button" class="text-gray-500 hover:text-gray-700" @click="closeSkuModal">
+            ✕
+          </button>
+        </div>
+        <div class="max-h-[60vh] overflow-auto p-4">
+          <div v-if="skuModalLoading" class="py-12 text-center text-xs text-gray-400">
+            옵션을 불러오는 중...
+          </div>
+          <div v-else-if="skuParsed.kind === 'empty'" class="py-12 text-center text-xs text-gray-400">
+            등록된 옵션이 없습니다.
+          </div>
+
+          <!-- 다차원 매트릭스 (색상 × 사이즈 등) -->
+          <table v-else-if="skuParsed.kind === 'matrix'" class="w-full border-collapse text-xs">
+            <thead>
+              <tr class="bg-gray-100 text-gray-700">
+                <th class="border border-gray-200 px-2 py-1.5 text-left font-black">
+                  {{ skuParsed.rowName }} \ {{ skuParsed.colName }}
+                </th>
+                <th
+                  v-for="col in skuParsed.cols"
+                  :key="col"
+                  class="border border-gray-200 px-2 py-1.5 text-center font-black"
+                >
+                  {{ col }}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in skuParsed.rows" :key="row">
+                <th class="border border-gray-200 bg-gray-50 px-2 py-1.5 text-left font-black text-gray-700">
+                  {{ row }}
+                </th>
+                <td
+                  v-for="col in skuParsed.cols"
+                  :key="col"
+                  class="border border-gray-200 px-1.5 py-1 text-center"
+                >
+                  <input
+                    v-if="skuParsed.cells[row]?.[col]"
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    class="w-16 border border-gray-300 px-1 py-0.5 text-center text-xs outline-none focus:border-[#004D3C]"
+                    :value="skuModalQuantities[skuParsed.cells[row][col].skuCode] ?? ''"
+                    @input="skuModalQuantities[skuParsed.cells[row][col].skuCode] = Number($event.target.value) || 0"
+                  />
+                  <span v-else class="text-gray-300">-</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- 1차원 리스트 (단일 옵션 차원) -->
+          <ul v-else-if="skuParsed.kind === 'list'" class="space-y-2">
+            <li class="border-b border-gray-200 pb-1 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+              {{ skuParsed.name }}
+            </li>
+            <li
+              v-for="opt in skuParsed.items"
+              :key="opt.sku.skuCode"
+              class="flex items-center justify-between border border-gray-200 px-3 py-2"
+            >
+              <div>
+                <p class="text-xs font-black text-gray-800">{{ opt.value }}</p>
+                <p class="text-[10px] text-gray-400">
+                  {{ opt.sku.skuCode }} · ₩{{ opt.sku.unitPrice.toLocaleString() }}
+                </p>
+              </div>
+              <input
+                type="number"
+                min="0"
+                placeholder="0"
+                class="w-20 border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:border-[#004D3C]"
+                :value="skuModalQuantities[opt.sku.skuCode] ?? ''"
+                @input="skuModalQuantities[opt.sku.skuCode] = Number($event.target.value) || 0"
+              />
+            </li>
+          </ul>
+        </div>
+        <div class="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-3">
+          <span class="text-[11px] font-bold text-gray-600">
+            총 수량: <strong class="text-[#004D3C]">{{ skuModalTotalQty }}</strong>
+          </span>
+          <div class="flex gap-2">
+            <button
+              type="button"
+              class="border border-gray-300 bg-white px-4 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-50"
+              @click="closeSkuModal"
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              class="bg-[#004D3C] px-4 py-1.5 text-xs font-bold text-white hover:bg-[#003828] disabled:bg-gray-300"
+              :disabled="skuModalTotalQty <= 0"
+              @click="addSkusFromModal"
+            >
+              장바구니 담기
+            </button>
+          </div>
         </div>
       </div>
     </div>

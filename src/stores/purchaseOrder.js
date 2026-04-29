@@ -1,15 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { purchaseOrderApi } from '@/api/purchaseOrder.js'
-
-// 창고 더미 목록 (창고 BE 미구현 — logical reference)
-const WAREHOUSES = [
-  { id: 'WH-001', name: '서울 1센터' },
-  { id: 'WH-002', name: '인천 제1센터' },
-  { id: 'WH-003', name: '경기 남부센터' },
-  { id: 'WH-004', name: '부산 물류센터' },
-  { id: 'WH-005', name: '대구 통합센터' },
-]
+import { getWarehouses } from '@/api/infrastructure.js'
 
 // ─── BE ↔ FE 매핑 헬퍼 ─────────────────────────────────────────────────────
 // BE (PurchaseOrder DetailRes/ListRes) ↔ FE store 형식 변환.
@@ -36,6 +28,7 @@ function toFeOrder(beOrder) {
   return {
     id: beOrder.code,
     warehouseId: beOrder.warehouseId ?? '',
+    warehouseCode: beOrder.warehouseCode ?? '',
     warehouseName: beOrder.warehouseName ?? '',
     vendorId: beOrder.vendorCode,
     vendorName: beOrder.vendorName ?? '',
@@ -60,6 +53,9 @@ function toFeItem(beItem) {
     productId: beItem.vendorProductCode,
     productCode: beItem.productCode,
     productName: beItem.productName,
+    skuCode: beItem.skuCode ?? '',
+    optionName: beItem.optionName ?? '',
+    optionValue: beItem.optionValue ?? '',
     quantity: beItem.quantity,
     unitPrice: beItem.unitPrice,
     subtotal: beItem.subtotal,
@@ -76,26 +72,29 @@ function toFeHistory(beHistory) {
 }
 
 // FE createOrder/updateOrder payload → BE 요청 변환
-function toBeCreateReq({ vendorId, warehouseId, warehouseName, memberId, memberName, items }) {
+// warehouseCode: vendor 패턴 일관 — code 로 식별, BE 가 findByCode 후 Long ID 박음.
+// warehouseName 은 BE 가 lookupWarehouse 후 자동 박음 — FE 가 안 보냄.
+// items: SKU 단위 — skuCode 필수.
+function toBeCreateReq({ vendorId, warehouseCode, memberId, memberName, items }) {
   return {
     vendorCode: vendorId,
-    warehouseId: warehouseId ?? '',
-    warehouseName: warehouseName ?? '',
+    warehouseCode: warehouseCode ?? '',
     memberId: memberId ?? '',
     memberName: memberName ?? '',
     items: items.map((item) => ({
       vendorProductCode: item.productId,
+      skuCode: item.skuCode,
       quantity: item.quantity,
     })),
   }
 }
 
-function toBeUpdateReq({ warehouseId, warehouseName, items }) {
+function toBeUpdateReq({ warehouseCode, items }) {
   return {
-    warehouseId: warehouseId ?? '',
-    warehouseName: warehouseName ?? '',
+    warehouseCode: warehouseCode ?? '',
     items: items.map((item) => ({
       vendorProductCode: item.productId,
+      skuCode: item.skuCode,
       quantity: item.quantity,
     })),
   }
@@ -205,7 +204,20 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     }
   })
 
-  const warehouses = computed(() => WAREHOUSES)
+  // 창고 목록 — BE 에서 fetch (Warehouse 테이블, Long ID)
+  const warehouseList = ref([])
+  const warehouses = computed(() =>
+    warehouseList.value.map((w) => ({ id: w.id, name: w.name, code: w.code })),
+  )
+
+  async function fetchWarehouses() {
+    try {
+      const list = await getWarehouses()
+      warehouseList.value = Array.isArray(list) ? list : []
+    } catch (e) {
+      console.error('[purchaseOrder] fetchWarehouses 실패', e)
+    }
+  }
 
   // --- 액션(actions) ---
 
@@ -276,13 +288,8 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     return fe
   }
 
-  async function updateOrder(id, { warehouseId, items }) {
-    const warehouse = WAREHOUSES.find((w) => w.id === warehouseId)
-    const req = toBeUpdateReq({
-      warehouseId,
-      warehouseName: warehouse?.name ?? '',
-      items,
-    })
+  async function updateOrder(id, { warehouseCode, items }) {
+    const req = toBeUpdateReq({ warehouseCode, items })
     const updated = await purchaseOrderApi.update(id, req)
     const fe = toFeOrder(updated)
     const idx = purchaseOrders.value.findIndex((o) => o.id === id)
@@ -332,6 +339,9 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
   fetchOrders().catch(() => {
     // fetchOrders 안에서 이미 처리
   })
+  fetchWarehouses().catch(() => {
+    // fetchWarehouses 안에서 이미 처리
+  })
 
   return {
     // state
@@ -356,6 +366,7 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     selectOrder,
     fetchOrders,
     fetchDetail,
+    fetchWarehouses,
     createOrder,
     updateOrder,
     cancelOrder,
