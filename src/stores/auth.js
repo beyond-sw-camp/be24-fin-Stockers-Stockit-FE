@@ -4,7 +4,7 @@ import { roleHomeMap } from '@/config/roleMenus.js'
 
 const DUMMY_USERS = [
   { email: 'hq@stockit.com',        password: 'hq1234',    role: 'hq',        name: '본사 관리자', memberId: 'MB-900', storeId: 'HQ-001', storeName: '본사' },
-  { email: 'store@stockit.com',     password: 'store1234', role: 'store',     name: '김도현', memberId: 'MB-003', storeId: 'STORE-GANGNAM-01', storeName: '강남 서초점' },
+  { email: 'store@stockit.com',     password: 'store1234', role: 'store',     name: '매장 관리자', memberId: 'MB-003', storeId: 'STORE-GANGNAM-01', storeName: '강남 서초점' },
   { email: 'warehouse@stockit.com', password: 'wh1234',    role: 'warehouse', name: '창고 관리자', memberId: 'MB-700', storeId: 'WH-001', storeName: '서울 1센터' },
 ]
 
