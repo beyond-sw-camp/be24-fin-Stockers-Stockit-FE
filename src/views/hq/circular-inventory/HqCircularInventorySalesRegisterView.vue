@@ -216,6 +216,7 @@ onBeforeUnmount(() => {
         title="판매 대상 순환 재고 리스트"
         description="순환 재고 조회 화면과 동일한 기준으로 SKU를 탐색하고, 판매 패널로 보낼 항목을 선택합니다."
         :summary-text="browseSummaryText"
+        :show-circular-sale-price-column="true"
         action-column-label="추가"
         action-column-position="end"
         :highlighted-row-ids="[]"
@@ -235,7 +236,7 @@ onBeforeUnmount(() => {
             >
               {{ isItemAdded(row.inventoryId) ? '✓' : '+' }}
             </span>
-            <span>{{ isItemAdded(row.inventoryId) ? '패널에서 수정' : '판매 패널에 추가' }}</span>
+            <span>{{ isItemAdded(row.inventoryId) ? '패널에서 수정' : '선택' }}</span>
           </button>
         </template>
       </CircularInventoryBrowseSection>

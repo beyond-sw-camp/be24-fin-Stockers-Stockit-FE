@@ -42,6 +42,7 @@ function handleLogout() {
       <CircularInventoryBrowseSection
         title="순환 재고 리스트"
         description="소재와 SKU 기준으로 순환 재고를 탐색하고 판매 대상 SKU를 확인합니다."
+        :show-circular-sale-price-column="true"
       />
     </div>
   </AppLayout>
