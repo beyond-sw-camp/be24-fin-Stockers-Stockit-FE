@@ -249,7 +249,7 @@ const orderCycleSummary = {
         <div class="grid gap-px bg-gray-200 md:grid-cols-2 xl:grid-cols-3">
           <!-- 소재별 판매량 -->
           <router-link
-            to="/hq/analytics/menu-sales"
+            to="/hq/analytics/sales?tab=item"
             class="group flex flex-col gap-2 bg-white p-3 transition-colors hover:bg-emerald-50/30"
           >
             <div class="flex items-start justify-between">
@@ -278,7 +278,7 @@ const orderCycleSummary = {
 
           <!-- 시간대 매출 패턴 -->
           <router-link
-            to="/hq/analytics/sales-pattern"
+            to="/hq/analytics/sales?tab=time"
             class="group flex flex-col gap-2 bg-white p-3 transition-colors hover:bg-emerald-50/30"
           >
             <div class="flex items-start justify-between">
@@ -357,7 +357,7 @@ const orderCycleSummary = {
 
           <!-- 계절별 판매 변화 -->
           <router-link
-            to="/hq/analytics/seasonal"
+            to="/hq/analytics/sales?tab=seasonal"
             class="group flex flex-col gap-2 bg-white p-3 transition-colors hover:bg-emerald-50/30"
           >
             <div class="flex items-start justify-between">
