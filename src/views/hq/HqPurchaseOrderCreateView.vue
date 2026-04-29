@@ -6,12 +6,32 @@ import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useVendorStore } from '@/stores/vendor.js'
 import { usePurchaseOrderStore } from '@/stores/purchaseOrder.js'
+import { useWarehouseStockStore } from '@/stores/warehouseStock.js'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 const vendor = useVendorStore()
 const poStore = usePurchaseOrderStore()
+const stockStore = useWarehouseStockStore()
+
+// 카탈로그 행마다 호출 — 선택된 창고 + 행 productCode 의 재고 정보. 창고 미선택이면 null.
+function rowStock(productCode) {
+  if (!selectedWarehouseId.value) return null
+  return stockStore.getStock(selectedWarehouseId.value, productCode)
+}
+
+function rowStockLevel(stock) {
+  return stockStore.getStockLevel(stock)
+}
+
+// onHand 컬럼 색 — 안전재고 임계 기반
+function onHandClass(stock) {
+  const level = rowStockLevel(stock)
+  if (level === 'critical') return 'text-red-600'
+  if (level === 'warning') return 'text-amber-600'
+  return 'text-gray-700'
+}
 
 const DRAFT_KEY = 'stockit:po-cart-draft'
 
@@ -559,14 +579,17 @@ const AlertTriangleIcon = IconBase([
 
           <!-- 카탈로그 테이블 -->
           <div class="overflow-auto">
-            <table class="w-full min-w-[640px] table-fixed border-collapse text-xs">
+            <table class="w-full min-w-[820px] table-fixed border-collapse text-xs">
               <thead class="bg-gray-100 text-[10px] uppercase tracking-wider text-gray-500">
                 <tr>
-                  <th class="w-40 px-3 py-2 text-left font-black">거래처</th>
-                  <th class="w-28 px-3 py-2 text-left font-black">제품코드</th>
+                  <th class="w-36 px-3 py-2 text-left font-black">거래처</th>
+                  <th class="w-24 px-3 py-2 text-left font-black">제품코드</th>
                   <th class="px-3 py-2 text-left font-black">제품명</th>
-                  <th class="w-24 px-3 py-2 text-right font-black">단가</th>
-                  <th class="w-20 px-3 py-2 text-center font-black"></th>
+                  <th class="w-20 px-3 py-2 text-right font-black">단가</th>
+                  <th class="w-16 px-3 py-2 text-right font-black" title="실재고 + 입고예정 - 출고예정">가용</th>
+                  <th class="w-16 px-3 py-2 text-right font-black" title="실재고 (현재 보유)">실재고</th>
+                  <th class="w-16 px-3 py-2 text-right font-black" title="안전재고 (이 밑으로 떨어지면 안 됨)">안전</th>
+                  <th class="w-16 px-3 py-2 text-center font-black"></th>
                 </tr>
               </thead>
               <tbody
@@ -585,6 +608,27 @@ const AlertTriangleIcon = IconBase([
                   <td class="px-3 py-2.5 text-right font-bold text-[#004D3C]">
                     ₩{{ vp.unitPrice.toLocaleString() }}
                   </td>
+                  <!-- 가용 -->
+                  <td class="px-3 py-2.5 text-right font-black text-gray-800">
+                    <template v-if="rowStock(vp.productCode)">
+                      {{ rowStock(vp.productCode).available }}
+                    </template>
+                    <span v-else class="text-gray-300">—</span>
+                  </td>
+                  <!-- 실재고 (안전재고 미달 시 색 강조) -->
+                  <td class="px-3 py-2.5 text-right font-bold" :class="onHandClass(rowStock(vp.productCode))">
+                    <template v-if="rowStock(vp.productCode)">
+                      {{ rowStock(vp.productCode).onHand }}
+                    </template>
+                    <span v-else class="text-gray-300">—</span>
+                  </td>
+                  <!-- 안전 -->
+                  <td class="px-3 py-2.5 text-right font-bold text-gray-500">
+                    <template v-if="rowStock(vp.productCode)">
+                      {{ rowStock(vp.productCode).safetyStock }}
+                    </template>
+                    <span v-else class="text-gray-300">—</span>
+                  </td>
                   <td class="px-3 py-2.5 text-center">
                     <button
                       type="button"
@@ -597,12 +641,12 @@ const AlertTriangleIcon = IconBase([
                   </td>
                 </tr>
                 <tr v-if="catalog.length === 0">
-                  <td colspan="5" class="px-3 py-8 text-center text-xs text-gray-400">
+                  <td colspan="8" class="px-3 py-8 text-center text-xs text-gray-400">
                     노출 가능한 계약 제품이 없습니다.
                   </td>
                 </tr>
                 <tr v-else-if="displayedCatalog.length === 0">
-                  <td colspan="5" class="px-3 py-8 text-center text-xs text-gray-400">
+                  <td colspan="8" class="px-3 py-8 text-center text-xs text-gray-400">
                     검색 결과가 없습니다.
                   </td>
                 </tr>

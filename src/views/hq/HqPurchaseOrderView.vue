@@ -339,7 +339,7 @@ const TruckIcon = IconBase([
                 <input
                   v-model="poStore.searchKeyword"
                   type="text"
-                  placeholder="발주번호/거래처명 검색"
+                  placeholder="발주번호/거래처/품목명 검색"
                   class="w-52 border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-xs outline-none focus:border-[#004D3C]"
                 />
               </label>
@@ -408,7 +408,7 @@ const TruckIcon = IconBase([
                   <th class="w-32 px-3 py-2 text-left font-black">발주번호</th>
                   <th class="px-3 py-2 text-left font-black">거래처</th>
                   <th class="w-28 px-3 py-2 text-left font-black">입고 창고</th>
-                  <th class="w-14 px-3 py-2 text-center font-black">품목수</th>
+                  <th class="w-44 px-3 py-2 text-left font-black">품목</th>
                   <th class="w-28 px-3 py-2 text-right font-black">총금액</th>
                   <th class="w-20 px-3 py-2 text-center font-black">상태</th>
                   <th class="w-28 px-3 py-2 text-center font-black">생성일</th>
@@ -425,8 +425,16 @@ const TruckIcon = IconBase([
                   <td class="px-3 py-3 font-bold text-gray-400">{{ order.id }}</td>
                   <td class="px-3 py-3 font-black text-gray-800">{{ order.vendorName }}</td>
                   <td class="px-3 py-3 font-bold text-gray-600">{{ order.warehouseName }}</td>
-                  <td class="px-3 py-3 text-center font-bold text-gray-700">
-                    {{ order.itemCount }}
+                  <td class="px-3 py-3 font-bold text-gray-700">
+                    <span class="block truncate" :title="(order.productNames ?? []).join(', ')">
+                      <template v-if="order.productNames && order.productNames.length > 0">
+                        {{ order.productNames[0]
+                        }}<template v-if="order.productNames.length > 1">
+                          외 {{ order.productNames.length - 1 }}건
+                        </template>
+                      </template>
+                      <template v-else>—</template>
+                    </span>
                   </td>
                   <td class="px-3 py-3 text-right font-black text-gray-800">
                     ₩{{ order.totalPrice.toLocaleString() }}
