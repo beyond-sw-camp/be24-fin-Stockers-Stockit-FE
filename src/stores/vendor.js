@@ -37,9 +37,12 @@ export const useVendorStore = defineStore('vendor', () => {
   const vendors = ref([])
   const vendorProducts = ref([]) // 현재 선택된 vendor 의 계약 제품만 보유 (거래처 관리 페이지용)
   const allVendorProducts = ref([]) // 전체 거래처의 활성 제품 (CEN-035 발주 작성 카탈로그용)
+  const contracts = ref([]) // E 안 — ContractRow[] (ProductMaster 매칭 + VendorProduct join)
   const selectedVendorId = ref(null)
   const selectedProductId = ref(null)
   const loading = ref(false)
+  const contractsLoading = ref(false)
+  const contractsError = ref(null)
 
   // --- getters ---
   const currentVendorProducts = computed(() => {
@@ -122,75 +125,73 @@ export const useVendorStore = defineStore('vendor', () => {
     }
   }
 
-  // 거래처 선택 + 그 거래처의 제품 자동 fetch
+  // 거래처 계약 표 fetch (E 안 — ContractRow[])
+  async function fetchContracts(vendorCode) {
+    if (!vendorCode) {
+      contracts.value = []
+      return
+    }
+    contractsLoading.value = true
+    contractsError.value = null
+    try {
+      const list = await vendorApi.getContracts(vendorCode)
+      contracts.value = list ?? []
+    } catch (e) {
+      contractsError.value = e?.message ?? '계약 표 조회 실패'
+      contracts.value = []
+    } finally {
+      contractsLoading.value = false
+    }
+  }
+
+  // 거래처 선택 + 그 거래처의 계약 표 자동 fetch (E 안)
   async function selectVendor(id) {
     selectedVendorId.value = id
     selectedProductId.value = null
-    await fetchProductsByVendor(id)
+    await fetchContracts(id)
   }
 
   function selectProduct(id) {
     selectedProductId.value = id
   }
 
-  // 계약 제품 등록 (CEN-027)
+  // 계약 등록 (E 안). productName 은 BE 가 ProductMaster.name 자동 복사 — 요청에 포함 안 함.
   async function createProduct(data) {
-    const created = await vendorApi.createVendorProduct({
+    await vendorApi.createVendorProduct({
       vendorCode: selectedVendorId.value,
       productCode: data.productCode,
-      productName: data.productName,
       unitPrice: Number(data.unitPrice),
       moq: data.moq != null ? Number(data.moq) : null,
       leadTimeDays: data.leadTimeDays != null ? Number(data.leadTimeDays) : null,
       contractStart: data.contractStart || null,
       contractEnd: data.contractEnd || null,
     })
-    const mapped = fromApiVendorProduct(created)
-    vendorProducts.value = [...vendorProducts.value, mapped]
-    return mapped
+    await fetchContracts(selectedVendorId.value)
   }
 
-  // 계약 제품 수정 (CEN-028) — id 는 BE 의 code 와 동일
+  // 계약 수정 (CEN-028) — id 는 BE 의 vendorProductCode (VP-XXX-NNN). productName 폐기.
   async function updateProduct(id, data) {
-    const updated = await vendorApi.updateVendorProduct(id, {
-      productName: data.productName,
+    await vendorApi.updateVendorProduct(id, {
       unitPrice: Number(data.unitPrice),
       moq: data.moq != null ? Number(data.moq) : null,
       leadTimeDays: data.leadTimeDays != null ? Number(data.leadTimeDays) : null,
       contractStart: data.contractStart || null,
       contractEnd: data.contractEnd || null,
     })
-    const mapped = fromApiVendorProduct(updated)
-    const idx = vendorProducts.value.findIndex((vp) => vp.id === id)
-    if (idx !== -1) {
-      const next = [...vendorProducts.value]
-      next[idx] = mapped
-      vendorProducts.value = next
-    }
-    return mapped
+    await fetchContracts(selectedVendorId.value)
   }
 
-  // 계약 제품 상태 변경 (CEN-029): active ↔ suspended
+  // 계약 상태 변경 (CEN-029): ACTIVE / SUSPENDED / EXPIRED
   async function updateStatus(id, newStatus) {
     const beStatus = String(newStatus).toUpperCase()
-    const updated = await vendorApi.updateVendorProductStatus(id, beStatus)
-    const mapped = fromApiVendorProduct(updated)
-    const idx = vendorProducts.value.findIndex((vp) => vp.id === id)
-    if (idx !== -1) {
-      const next = [...vendorProducts.value]
-      next[idx] = mapped
-      vendorProducts.value = next
-    }
-    return mapped
+    await vendorApi.updateVendorProductStatus(id, beStatus)
+    await fetchContracts(selectedVendorId.value)
   }
 
-  // 계약 제품 삭제 (CEN-030, SOFT DELETE) — 로컬 배열에서 제거
+  // 계약 삭제 (CEN-030, SOFT DELETE) — fetchContracts 후 contracted=false 로 돌아감
   async function deleteProduct(id) {
     await vendorApi.deleteVendorProduct(id)
-    vendorProducts.value = vendorProducts.value.filter((vp) => vp.id !== id)
-    if (selectedProductId.value === id) {
-      selectedProductId.value = null
-    }
+    await fetchContracts(selectedVendorId.value)
     return true
   }
 
@@ -203,9 +204,12 @@ export const useVendorStore = defineStore('vendor', () => {
     vendors,
     vendorProducts,
     allVendorProducts,
+    contracts,
     selectedVendorId,
     selectedProductId,
     loading,
+    contractsLoading,
+    contractsError,
     currentVendorProducts,
     selectedProductDetail,
     selectedVendor,
@@ -214,6 +218,7 @@ export const useVendorStore = defineStore('vendor', () => {
     fetchVendors,
     fetchProductsByVendor,
     fetchAllVendorProducts,
+    fetchContracts,
     selectVendor,
     selectProduct,
     createProduct,
