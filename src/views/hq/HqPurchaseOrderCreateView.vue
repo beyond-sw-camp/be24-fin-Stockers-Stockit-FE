@@ -25,13 +25,21 @@ function rowStockLevel(stock) {
   return stockStore.getStockLevel(stock)
 }
 
-// onHand 컬럼 색 — 안전재고 임계 기반
-function onHandClass(stock) {
+// 권장 발주 수량 — 안전재고 × 1.5 까지 채우는 만큼. 부족 아닌 행은 0.
+function rowSuggested(productCode) {
+  return stockStore.getSuggestedQuantity(rowStock(productCode))
+}
+
+// 재고 셀 색 — 가용재고 기준 안전재고 임계
+function stockLevelClass(stock) {
   const level = rowStockLevel(stock)
   if (level === 'critical') return 'text-red-600'
   if (level === 'warning') return 'text-amber-600'
   return 'text-gray-700'
 }
+
+// "부족만 보기" 토글 — 가용재고 < safetyStock × 1.5 인 행만 노출
+const shortageOnly = ref(false)
 
 const DRAFT_KEY = 'stockit:po-cart-draft'
 
@@ -109,6 +117,13 @@ const displayedCatalog = computed(() => {
       vp.productName.toLowerCase().includes(kw)
     return matchVendor && matchKw
   })
+  // "부족만 보기" 토글 — 창고 선택된 상태에서만 적용
+  if (shortageOnly.value && selectedWarehouseId.value) {
+    list = list.filter((vp) => {
+      const level = rowStockLevel(rowStock(vp.productCode))
+      return level === 'critical' || level === 'warning'
+    })
+  }
   switch (sortBy.value) {
     case 'priceAsc':
       list = [...list].sort((a, b) => a.unitPrice - b.unitPrice)
@@ -209,6 +224,35 @@ function addToCart(vp) {
       vendorName: vp.vendorName,
       unitPrice: vp.unitPrice,
       quantity: 1,
+    })
+  }
+  saveDraft()
+}
+
+// 권장 발주 수량으로 cart 채우기 (set 모드 — 기존 수량 덮어쓰기, +1 add 와 다름).
+// 표시된 권장값과 cart 수량 일치 보장.
+function addRecommendedToCart(vp) {
+  if (!selectedWarehouseId.value) return
+  const recommended = rowSuggested(vp.productCode)
+  if (recommended <= 0) return
+  // 한 발주서 = 한 거래처 정책 — 기존 vendorSwitch confirm 흐름 재사용
+  if (currentCartVendorId.value && vp.vendorId !== currentCartVendorId.value) {
+    pendingNewVendorProduct.value = vp
+    showVendorSwitchConfirm.value = true
+    return
+  }
+  const existing = cart.value.find((item) => item.productCode === vp.productCode)
+  if (existing) {
+    existing.quantity = recommended
+  } else {
+    cart.value.push({
+      productId: vp.id,
+      productCode: vp.productCode,
+      productName: vp.productName,
+      vendorId: vp.vendorId,
+      vendorName: vp.vendorName,
+      unitPrice: vp.unitPrice,
+      quantity: recommended,
     })
   }
   saveDraft()
@@ -564,6 +608,20 @@ const AlertTriangleIcon = IconBase([
               <option value="priceDesc">단가 ↓</option>
               <option value="nameAsc">제품명 ㄱ-ㄴ</option>
             </select>
+            <button
+              type="button"
+              class="border px-3 py-1.5 text-[11px] font-black transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              :class="
+                shortageOnly
+                  ? 'border-red-400 bg-red-50 text-red-700'
+                  : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
+              "
+              :disabled="!selectedWarehouseId"
+              :title="!selectedWarehouseId ? '먼저 창고를 선택하세요' : '가용재고가 안전재고 1.5배 미만인 품목만 표시'"
+              @click="shortageOnly = !shortageOnly"
+            >
+              {{ shortageOnly ? '✓ 부족만' : '부족만 보기' }}
+            </button>
             <span class="ml-auto text-[11px] font-bold text-gray-500">
               {{ displayedCatalog.length }}건
             </span>
@@ -579,16 +637,17 @@ const AlertTriangleIcon = IconBase([
 
           <!-- 카탈로그 테이블 -->
           <div class="overflow-auto">
-            <table class="w-full min-w-[820px] table-fixed border-collapse text-xs">
+            <table class="w-full min-w-[900px] table-fixed border-collapse text-xs">
               <thead class="bg-gray-100 text-[10px] uppercase tracking-wider text-gray-500">
                 <tr>
-                  <th class="w-36 px-3 py-2 text-left font-black">거래처</th>
+                  <th class="w-32 px-3 py-2 text-left font-black">거래처</th>
                   <th class="w-24 px-3 py-2 text-left font-black">제품코드</th>
                   <th class="px-3 py-2 text-left font-black">제품명</th>
                   <th class="w-20 px-3 py-2 text-right font-black">단가</th>
                   <th class="w-16 px-3 py-2 text-right font-black" title="실재고 + 입고예정 - 출고예정">가용</th>
                   <th class="w-16 px-3 py-2 text-right font-black" title="실재고 (현재 보유)">실재고</th>
-                  <th class="w-16 px-3 py-2 text-right font-black" title="안전재고 (이 밑으로 떨어지면 안 됨)">안전</th>
+                  <th class="w-14 px-3 py-2 text-right font-black" title="안전재고 (이 밑으로 떨어지면 안 됨)">안전</th>
+                  <th class="w-16 px-3 py-2 text-right font-black" title="안전재고 × 1.5 까지 채우는 권장 발주 수량 — 클릭 시 cart 에 그 수량으로 담김">권장</th>
                   <th class="w-16 px-3 py-2 text-center font-black"></th>
                 </tr>
               </thead>
@@ -608,15 +667,15 @@ const AlertTriangleIcon = IconBase([
                   <td class="px-3 py-2.5 text-right font-bold text-[#004D3C]">
                     ₩{{ vp.unitPrice.toLocaleString() }}
                   </td>
-                  <!-- 가용 -->
-                  <td class="px-3 py-2.5 text-right font-black text-gray-800">
+                  <!-- 가용재고 (가용 < 안전 임계 시 색 강조 — 발주 결정 핵심 지표) -->
+                  <td class="px-3 py-2.5 text-right font-black" :class="stockLevelClass(rowStock(vp.productCode))">
                     <template v-if="rowStock(vp.productCode)">
                       {{ rowStock(vp.productCode).available }}
                     </template>
                     <span v-else class="text-gray-300">—</span>
                   </td>
-                  <!-- 실재고 (안전재고 미달 시 색 강조) -->
-                  <td class="px-3 py-2.5 text-right font-bold" :class="onHandClass(rowStock(vp.productCode))">
+                  <!-- 실재고 (참고) -->
+                  <td class="px-3 py-2.5 text-right font-bold text-gray-500">
                     <template v-if="rowStock(vp.productCode)">
                       {{ rowStock(vp.productCode).onHand }}
                     </template>
@@ -626,6 +685,22 @@ const AlertTriangleIcon = IconBase([
                   <td class="px-3 py-2.5 text-right font-bold text-gray-500">
                     <template v-if="rowStock(vp.productCode)">
                       {{ rowStock(vp.productCode).safetyStock }}
+                    </template>
+                    <span v-else class="text-gray-300">—</span>
+                  </td>
+                  <!-- 권장 발주 수량 (셀 클릭 시 cart 수량 = 권장값으로 set) -->
+                  <td class="px-3 py-2.5 text-right">
+                    <template v-if="rowStock(vp.productCode)">
+                      <button
+                        v-if="rowSuggested(vp.productCode) > 0"
+                        type="button"
+                        class="border border-red-300 bg-red-50 px-2 py-0.5 text-[10px] font-black text-red-700 hover:bg-red-100"
+                        :title="`클릭하여 ${rowSuggested(vp.productCode)}개로 담기`"
+                        @click.stop="addRecommendedToCart(vp)"
+                      >
+                        {{ rowSuggested(vp.productCode) }}
+                      </button>
+                      <span v-else class="text-gray-300">—</span>
                     </template>
                     <span v-else class="text-gray-300">—</span>
                   </td>
@@ -641,13 +716,13 @@ const AlertTriangleIcon = IconBase([
                   </td>
                 </tr>
                 <tr v-if="catalog.length === 0">
-                  <td colspan="8" class="px-3 py-8 text-center text-xs text-gray-400">
+                  <td colspan="9" class="px-3 py-8 text-center text-xs text-gray-400">
                     노출 가능한 계약 제품이 없습니다.
                   </td>
                 </tr>
                 <tr v-else-if="displayedCatalog.length === 0">
-                  <td colspan="8" class="px-3 py-8 text-center text-xs text-gray-400">
-                    검색 결과가 없습니다.
+                  <td colspan="9" class="px-3 py-8 text-center text-xs text-gray-400">
+                    {{ shortageOnly ? '재고 부족 품목이 없습니다.' : '검색 결과가 없습니다.' }}
                   </td>
                 </tr>
               </tbody>
