@@ -32,7 +32,8 @@ const STATUS_TABS = [
   { label: '승인 대기', key: 'PENDING' },
   { label: '승인 완료', key: 'APPROVED' },
   { label: '배송 중', key: 'SHIPPING' },
-  { label: '완료', key: 'COMPLETED' },
+  { label: '배송 완료', key: 'DELIVERED' },
+  { label: '입고 완료', key: 'COMPLETED' },
   { label: '취소', key: 'REJECTED' },
 ]
 
@@ -65,11 +66,13 @@ async function runBatchTrigger() {
   isRunningBatch.value = true
   try {
     const result = await poStore.runBatch()
-    const total = (result?.approved ?? 0) + (result?.shipping ?? 0)
+    const total = (result?.approved ?? 0) + (result?.shipping ?? 0) + (result?.delivered ?? 0)
     if (total === 0) {
       triggerToast('자동 전환 대상 발주가 없습니다')
     } else {
-      triggerToast(`자동 전환 ${total}건 (승인 ${result.approved} · 출고 ${result.shipping})`)
+      triggerToast(
+        `자동 전환 ${total}건 (승인 ${result.approved} · 출고 ${result.shipping} · 배송완료 ${result.delivered ?? 0})`,
+      )
     }
   } catch (e) {
     triggerToast(e?.message ?? '배치 실행에 실패했습니다')
@@ -113,6 +116,7 @@ function statusClass(status) {
     PENDING: 'bg-amber-50 text-amber-700',
     APPROVED: 'bg-emerald-50 text-emerald-700',
     SHIPPING: 'bg-blue-50 text-blue-600',
+    DELIVERED: 'bg-violet-50 text-violet-700',
     COMPLETED: 'bg-gray-100 text-gray-500',
     REJECTED: 'bg-red-50 text-red-600',
   }
@@ -125,7 +129,8 @@ function statusLabel(status) {
     PENDING: '승인 대기',
     APPROVED: '승인 완료',
     SHIPPING: '배송 중',
-    COMPLETED: '완료',
+    DELIVERED: '배송 완료',
+    COMPLETED: '입고 완료',
     REJECTED: '취소',
   }
   return map[status] ?? status
@@ -143,6 +148,7 @@ function historyDotClass(status) {
     PENDING: 'bg-amber-500',
     APPROVED: 'bg-emerald-500',
     SHIPPING: 'bg-blue-500',
+    DELIVERED: 'bg-violet-500',
     COMPLETED: 'bg-gray-700',
     REJECTED: 'bg-red-600',
   }
@@ -154,6 +160,7 @@ function historyTextClass(status) {
     PENDING: 'text-amber-700',
     APPROVED: 'text-emerald-700',
     SHIPPING: 'text-blue-600',
+    DELIVERED: 'text-violet-700',
     COMPLETED: 'text-gray-700',
     REJECTED: 'text-red-700',
   }
@@ -339,7 +346,7 @@ const TruckIcon = IconBase([
                 <input
                   v-model="poStore.searchKeyword"
                   type="text"
-                  placeholder="발주번호/거래처명 검색"
+                  placeholder="발주번호/거래처/품목명 검색"
                   class="w-52 border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-xs outline-none focus:border-[#004D3C]"
                 />
               </label>
@@ -408,7 +415,7 @@ const TruckIcon = IconBase([
                   <th class="w-32 px-3 py-2 text-left font-black">발주번호</th>
                   <th class="px-3 py-2 text-left font-black">거래처</th>
                   <th class="w-28 px-3 py-2 text-left font-black">입고 창고</th>
-                  <th class="w-14 px-3 py-2 text-center font-black">품목수</th>
+                  <th class="w-44 px-3 py-2 text-left font-black">품목</th>
                   <th class="w-28 px-3 py-2 text-right font-black">총금액</th>
                   <th class="w-20 px-3 py-2 text-center font-black">상태</th>
                   <th class="w-28 px-3 py-2 text-center font-black">생성일</th>
@@ -425,8 +432,16 @@ const TruckIcon = IconBase([
                   <td class="px-3 py-3 font-bold text-gray-400">{{ order.id }}</td>
                   <td class="px-3 py-3 font-black text-gray-800">{{ order.vendorName }}</td>
                   <td class="px-3 py-3 font-bold text-gray-600">{{ order.warehouseName }}</td>
-                  <td class="px-3 py-3 text-center font-bold text-gray-700">
-                    {{ order.itemCount }}
+                  <td class="px-3 py-3 font-bold text-gray-700">
+                    <span class="block truncate" :title="(order.productNames ?? []).join(', ')">
+                      <template v-if="order.productNames && order.productNames.length > 0">
+                        {{ order.productNames[0]
+                        }}<template v-if="order.productNames.length > 1">
+                          외 {{ order.productNames.length - 1 }}건
+                        </template>
+                      </template>
+                      <template v-else>—</template>
+                    </span>
                   </td>
                   <td class="px-3 py-3 text-right font-black text-gray-800">
                     ₩{{ order.totalPrice.toLocaleString() }}

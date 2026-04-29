@@ -14,10 +14,14 @@ import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useWarehouseDashboardStore } from '@/stores/warehouseDashboard.js'
 import { useWarehouseSpaceStore } from '@/stores/warehouseSpace.js'
+import { useVendorStore } from '@/stores/vendor.js'
+import { useWarehouseStockStore } from '@/stores/warehouseStock.js'
 
 const router = useRouter()
 const auth = useAuthStore()
 const dashStore = useWarehouseDashboardStore()
+const vendorStore = useVendorStore()
+const stockStore = useWarehouseStockStore()
 
 const topMenus = roleMenus.warehouse
 const sideMenus = roleMenus.warehouse.find((menu) => menu.label === '대시보드')?.children ?? []
@@ -88,10 +92,21 @@ const rangeParams = computed(() => {
 
 onMounted(() => {
   dashStore.fetchInboundProgress(rangeParams.value)
+  // 안전재고 미달 KPI 산출용 — vendor_product 카탈로그 fetch (이미 있으면 no-op)
+  vendorStore.fetchAllVendorProducts('ACTIVE').catch(() => {})
 })
 
 watch(range, () => {
   dashStore.fetchInboundProgress(rangeParams.value)
+})
+
+// ─── 단일 창고 컨텍스트 (창고관리자가 본인 창고 1개 담당, 인증 도입 시 me.warehouseId 로 교체) ──
+const space = useWarehouseSpaceStore()
+
+// 안전재고 미달 카운트 — 이 창고의 vendor_product 중 가용재고 < safetyStock × 1.5 행 개수
+const shortageCount = computed(() => {
+  const codes = (vendorStore.allVendorProducts ?? []).map((vp) => vp.productCode)
+  return stockStore.getShortageCount(space.warehouseId, codes)
 })
 
 // ─── KPI / breakdown — store getter 직접 사용 ───────────────────────────────
@@ -107,6 +122,10 @@ const avgProcessingHours = computed(() => {
   const v = dashStore.kpi.avgProcessingHours
   return v === null || v === undefined ? null : v
 })
+
+// 안전재고 미달 카운트 — 이 창고의 vendor_product 중 가용재고 < safetyStock × 1.5 행 개수
+// (space.warehouseId 가 단일 창고 시드 — 인증 도입 후 me.warehouseId 로 마이그레이션)
+// 주: useWarehouseSpaceStore 인스턴스는 아래 공간 점유율 섹션에서 const space 로 선언됨
 
 // KPI 카드 — 본사 대시보드 패턴 (라벨 + 값/단위 + 우상단 점 + 캡션)
 const kpiStats = computed(() => [
@@ -141,6 +160,13 @@ const kpiStats = computed(() => [
     caption: '발주 → 입고완료',
     tone: 'gray',
   },
+  {
+    label: '안전재고 미달',
+    value: String(shortageCount.value),
+    unit: '품목',
+    caption: shortageCount.value > 0 ? '추가 발주 검토 필요' : '재고 충분',
+    tone: shortageCount.value > 0 ? 'red' : 'gray',
+  },
 ])
 
 function dotClass(tone) {
@@ -150,6 +176,7 @@ function dotClass(tone) {
       blue: 'bg-sky-400',
       emerald: 'bg-emerald-400',
       gray: 'bg-gray-300',
+      red: 'bg-red-500',
     }[tone] ?? 'bg-gray-300'
   )
 }
@@ -163,8 +190,6 @@ function formatDate(iso) {
 }
 
 // ─── 공간 점유율 (WHS-003) ──────────────────────────────────────────────────
-const space = useWarehouseSpaceStore()
-
 const thresholdLabel = computed(
   () =>
     ({
@@ -257,7 +282,7 @@ const thresholdBarClass = computed(
       </section>
 
       <!-- KPI 카드 -->
-      <section class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <section class="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <article
           v-for="stat in kpiStats"
           :key="stat.label"

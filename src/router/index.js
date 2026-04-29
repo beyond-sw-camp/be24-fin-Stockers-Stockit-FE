@@ -181,6 +181,8 @@ const router = createRouter({
     { path: '/store/inbound/history/:id', redirect: (to) => ({ name: 'store-inbound-detail', params: { id: to.params.id } }) },
     { path: '/store/inbound/analysis', name: 'store-inbound-analysis', component: StoreInboundAnalysisView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/ai-report', name: 'store-ai-report', component: StoreAiReportView, meta: { requiresAuth: true, role: 'store' } },
+    { path: '/store/stats', name: 'store-stats', component: StoreStatsView, meta: { requiresAuth: true, role: 'store' } },
+    { path: '/store/stats/sales', name: 'store-stats-sales', component: StoreSalesStatsView, meta: { requiresAuth: true, role: 'store' } },
 
     {
       path: '/warehouse/dashboard',
