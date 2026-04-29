@@ -27,7 +27,10 @@ export const useInboundStore = defineStore('inbound', () => {
     if (searchKeyword.value.trim()) {
       const k = searchKeyword.value.trim().toLowerCase()
       list = list.filter(
-        (o) => o.id.toLowerCase().includes(k) || o.vendorName.toLowerCase().includes(k),
+        (o) =>
+          o.id.toLowerCase().includes(k)
+          || o.vendorName.toLowerCase().includes(k)
+          || (o.productNames ?? []).some((name) => (name ?? '').toLowerCase().includes(k)),
       )
     }
 

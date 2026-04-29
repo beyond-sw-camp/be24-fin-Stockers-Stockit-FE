@@ -23,6 +23,27 @@ const previewHasShortage = computed(() =>
   inboundPreview.value.some((row) => row.shortageAfter),
 )
 
+// 우측 상세 품목 표 — 행마다 현재 실재고/안전재고 표시용 캐시
+const itemStocks = computed(() => {
+  const order = inbound.selectedOrder
+  if (!order || !order.warehouseId) return new Map()
+  const map = new Map()
+  for (const item of order.items ?? []) {
+    if (!item.productCode) continue
+    map.set(item.id, stockStore.getStock(order.warehouseId, item.productCode))
+  }
+  return map
+})
+
+function getItemStock(item) {
+  return itemStocks.value.get(item.id) ?? null
+}
+
+function isItemShortage(item) {
+  const s = getItemStock(item)
+  return !!(s && s.onHand < s.safetyStock)
+}
+
 // ─── 레이아웃 ────────────────────────────────────────────────────────────────
 const activeSideMenu = ref('입고 관리')
 const topMenus = roleMenus.warehouse
@@ -289,7 +310,7 @@ const CheckIcon = IconBase([{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12'
               <input
                 v-model="inbound.searchKeyword"
                 type="text"
-                placeholder="발주번호/거래처명 검색"
+                placeholder="발주번호/거래처/품목 검색"
                 class="w-52 border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-xs outline-none focus:border-[#004D3C]"
               />
             </label>
@@ -438,8 +459,10 @@ const CheckIcon = IconBase([{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12'
                   <tr>
                     <th class="px-2 py-2 text-left font-black">제품명</th>
                     <th class="w-10 px-2 py-2 text-right font-black">수량</th>
-                    <th class="w-20 px-2 py-2 text-right font-black">단가</th>
-                    <th class="w-20 px-2 py-2 text-right font-black">소계</th>
+                    <th class="w-12 px-2 py-2 text-right font-black">실재고</th>
+                    <th class="w-10 px-2 py-2 text-right font-black">안전</th>
+                    <th class="w-16 px-2 py-2 text-right font-black">단가</th>
+                    <th class="w-16 px-2 py-2 text-right font-black">소계</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -447,6 +470,21 @@ const CheckIcon = IconBase([{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12'
                     <td class="px-2 py-2 font-bold text-gray-800">{{ item.productName }}</td>
                     <td class="px-2 py-2 text-right font-bold text-gray-700">
                       {{ item.quantity }}
+                    </td>
+                    <td
+                      class="px-2 py-2 text-right font-black"
+                      :class="isItemShortage(item) ? 'text-red-600' : 'text-gray-800'"
+                    >
+                      <template v-if="getItemStock(item)">
+                        {{ getItemStock(item).onHand }}
+                      </template>
+                      <span v-else class="text-gray-300">—</span>
+                    </td>
+                    <td class="px-2 py-2 text-right font-bold text-gray-500">
+                      <template v-if="getItemStock(item)">
+                        {{ getItemStock(item).safetyStock }}
+                      </template>
+                      <span v-else class="text-gray-300">—</span>
                     </td>
                     <td class="px-2 py-2 text-right text-gray-500">
                       ₩{{ item.unitPrice.toLocaleString() }}
@@ -458,7 +496,7 @@ const CheckIcon = IconBase([{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12'
                 </tbody>
                 <tfoot class="border-t border-gray-300 bg-gray-50 font-black text-gray-900">
                   <tr>
-                    <td colspan="3" class="px-2 py-2">총계</td>
+                    <td colspan="5" class="px-2 py-2">총계</td>
                     <td class="px-2 py-2 text-right text-[#004D3C]">
                       ₩{{ inbound.selectedOrder.totalPrice.toLocaleString() }}
                     </td>
