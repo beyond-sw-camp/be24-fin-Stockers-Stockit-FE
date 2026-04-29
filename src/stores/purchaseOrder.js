@@ -24,9 +24,15 @@ const WAREHOUSES = [
 
 function toFeOrder(beOrder) {
   if (!beOrder) return null
-  // BE ListRes 는 itemCount 만, DetailRes 는 items 배열만 보내므로 둘 중 하나로 fallback.
+  // BE ListRes 는 itemCount + productNames, DetailRes 는 items 배열만 보내므로 fallback 처리.
   const itemCount =
     beOrder.itemCount ?? (Array.isArray(beOrder.items) ? beOrder.items.length : 0)
+  // ListRes 의 productNames 우선, DetailRes 면 items.productName 으로 fallback (목록 검색·표시 일관성).
+  const productNames = Array.isArray(beOrder.productNames)
+    ? beOrder.productNames
+    : Array.isArray(beOrder.items)
+      ? beOrder.items.map((it) => it.productName).filter(Boolean)
+      : []
   return {
     id: beOrder.code,
     warehouseId: beOrder.warehouseId ?? '',
@@ -41,6 +47,7 @@ function toFeOrder(beOrder) {
     createdAt: beOrder.createdAt ?? '',
     updatedAt: beOrder.updatedAt ?? '',
     itemCount,
+    productNames,
     items: Array.isArray(beOrder.items) ? beOrder.items.map(toFeItem) : [],
     statusHistory: Array.isArray(beOrder.statusHistory)
       ? beOrder.statusHistory.map(toFeHistory)
@@ -122,7 +129,10 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     if (searchKeyword.value.trim()) {
       const kw = searchKeyword.value.trim().toLowerCase()
       list = list.filter(
-        (o) => o.id.toLowerCase().includes(kw) || o.vendorName.toLowerCase().includes(kw),
+        (o) =>
+          o.id.toLowerCase().includes(kw) ||
+          o.vendorName.toLowerCase().includes(kw) ||
+          (o.productNames ?? []).some((name) => (name ?? '').toLowerCase().includes(kw)),
       )
     }
 
