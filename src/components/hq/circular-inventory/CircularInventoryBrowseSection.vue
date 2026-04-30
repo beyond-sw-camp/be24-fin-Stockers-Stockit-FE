@@ -31,6 +31,10 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  highlightedInventoryIds: {
+    type: Array,
+    default: () => [],
+  },
   enableRowClick: {
     type: Boolean,
     default: false,
@@ -38,6 +42,10 @@ const props = defineProps({
   showCircularSalePriceColumn: {
     type: Boolean,
     default: false,
+  },
+  inventoryRows: {
+    type: Array,
+    default: () => [],
   },
 })
 
@@ -55,24 +63,6 @@ const visibleColumns = ref({
   size: true,
   perItemWeight: true,
 })
-
-const circularInventoryData = [
-  { id: 'CI-001', itemCode: 'SPA-TOP-001', productCode: 'PRD-TOP-SS-001', parentCategory: '상의', childCategory: '반팔', itemName: '코튼 베이직 반팔 티셔츠', unitPrice: 29000, materials: [{ name: '면', ratio: 100 }], quantity: 184, weight: '92.0kg' },
-  { id: 'CI-002', itemCode: 'SPA-TOP-002', productCode: 'PRD-TOP-LS-002', parentCategory: '상의', childCategory: '긴팔', itemName: '슬림핏 긴팔 티셔츠', unitPrice: 35000, materials: [{ name: '면', ratio: 100 }], quantity: 52, weight: '31.2kg' },
-  { id: 'CI-003', itemCode: 'SPA-TOP-003', productCode: 'PRD-TOP-SH-003', parentCategory: '상의', childCategory: '셔츠', itemName: '오버핏 옥스퍼드 셔츠', unitPrice: 59000, materials: [{ name: '면', ratio: 70 }, { name: '폴리에스터', ratio: 30 }], quantity: 76, weight: '53.2kg' },
-  { id: 'CI-004', itemCode: 'SPA-TOP-004', productCode: 'PRD-TOP-KN-004', parentCategory: '상의', childCategory: '니트', itemName: '라운드넥 하프 니트', unitPrice: 49000, materials: [{ name: '울', ratio: 50 }, { name: '아크릴', ratio: 50 }], quantity: 86, weight: '43.0kg' },
-  { id: 'CI-005', itemCode: 'SPA-TOP-005', productCode: 'PRD-TOP-HD-005', parentCategory: '상의', childCategory: '후드티', itemName: '오버사이즈 로고 후드티', unitPrice: 62000, materials: [{ name: '면', ratio: 80 }, { name: '폴리에스터', ratio: 20 }], quantity: 44, weight: '48.4kg' },
-  { id: 'CI-006', itemCode: 'SPA-PNT-001', productCode: 'PRD-PNT-DN-001', parentCategory: '바지', childCategory: '청바지', itemName: '스트레이트 워싱 데님', unitPrice: 69000, materials: [{ name: '데님', ratio: 100 }], quantity: 39, weight: '42.9kg' },
-  { id: 'CI-007', itemCode: 'SPA-PNT-002', productCode: 'PRD-PNT-ST-002', parentCategory: '바지', childCategory: '반바지', itemName: '와이드 코튼 쇼츠', unitPrice: 42000, materials: [{ name: '면', ratio: 100 }], quantity: 68, weight: '30.6kg' },
-  { id: 'CI-008', itemCode: 'SPA-PNT-003', productCode: 'PRD-PNT-LG-003', parentCategory: '바지', childCategory: '긴바지', itemName: '사이드 밴딩 팬츠', unitPrice: 54000, materials: [{ name: '나일론', ratio: 100 }], quantity: 24, weight: '18.6kg' },
-  { id: 'CI-009', itemCode: 'SPA-PNT-004', productCode: 'PRD-PNT-TR-004', parentCategory: '바지', childCategory: '트레이닝', itemName: '스트링 조거 트레이닝 팬츠', unitPrice: 45000, materials: [{ name: '폴리', ratio: 90 }, { name: '스판', ratio: 10 }], quantity: 57, weight: '39.9kg' },
-  { id: 'CI-010', itemCode: 'SPA-SKT-001', productCode: 'PRD-SKT-MN-001', parentCategory: '치마', childCategory: '미니스커트', itemName: 'A라인 데님 미니스커트', unitPrice: 43000, materials: [{ name: '폴리에스터', ratio: 100 }], quantity: 33, weight: '16.5kg' },
-  { id: 'CI-011', itemCode: 'SPA-SKT-002', productCode: 'PRD-SKT-LG-002', parentCategory: '치마', childCategory: '롱스커트', itemName: '플리츠 롱스커트', unitPrice: 52000, materials: [{ name: '폴리에스터', ratio: 100 }], quantity: 19, weight: '12.4kg' },
-  { id: 'CI-012', itemCode: 'SPA-OUT-001', productCode: 'PRD-OUT-PD-001', parentCategory: '아우터', childCategory: '패딩', itemName: '라이트 다운 패딩', unitPrice: 99000, materials: [{ name: '나일론', ratio: 80 }, { name: '충전재', ratio: 20 }], quantity: 21, weight: '29.4kg' },
-  { id: 'CI-013', itemCode: 'SPA-OUT-002', productCode: 'PRD-OUT-HZ-002', parentCategory: '아우터', childCategory: '후드집업', itemName: '스웨트 후드 집업', unitPrice: 65000, materials: [{ name: '면', ratio: 70 }, { name: '폴리에스터', ratio: 30 }], quantity: 47, weight: '42.3kg' },
-  { id: 'CI-014', itemCode: 'SPA-OUT-003', productCode: 'PRD-OUT-JK-003', parentCategory: '아우터', childCategory: '자켓', itemName: '싱글 브레스티드 자켓', unitPrice: 89000, materials: [{ name: '합성섬유', ratio: 100 }], quantity: 18, weight: '23.4kg' },
-  { id: 'CI-015', itemCode: 'SPA-OUT-004', productCode: 'PRD-OUT-CD-004', parentCategory: '아우터', childCategory: '가디건', itemName: '브이넥 니트 가디건', unitPrice: 57000, materials: [{ name: '아크릴', ratio: 50 }, { name: '폴리', ratio: 30 }, { name: '나일론', ratio: 20 }], quantity: 37, weight: '29.6kg' },
-]
 
 const naturalSingleMaterials = ['면', '울', '캐시미어', '실크', '리넨']
 const syntheticMaterials = ['폴리에스터', '아크릴', '나일론', '스판덱스']
@@ -121,8 +111,23 @@ const activeMaterialFilters = computed(() =>
   materialFilters.value.filter(filter => filter.materialGroup),
 )
 
+const circularInventoryData = computed(() =>
+  props.inventoryRows.map((item) => ({
+    id: item.id,
+    itemCode: item.itemCode,
+    productCode: buildProductCode(item),
+    parentCategory: item.parentCategory,
+    childCategory: item.childCategory,
+    itemName: item.itemName,
+    unitPrice: resolveEstimatedUnitPrice(item),
+    materials: Array.isArray(item.materials) ? item.materials : [],
+    quantity: Number(item.quantity) || 0,
+    weight: `${Number(item.weightKg || 0).toFixed(1)}kg`,
+  })),
+)
+
 const normalizedInventoryData = computed(() =>
-  circularInventoryData.map(item => ({
+  circularInventoryData.value.map(item => ({
     ...item,
     materials: item.materials.map(material => ({
       ...material,
@@ -156,12 +161,20 @@ const skuInventoryData = computed(() => {
 
   return normalizedInventoryData.value.flatMap((item) => {
     const totalWeight = parseWeight(item.weight)
-    const perUnitWeight = item.quantity > 0 ? totalWeight / item.quantity : 0
+    const sourceQuantity = Math.max(1, Number(item.quantity) || 1)
+    const perUnitWeight = totalWeight / sourceQuantity
+    // 재고 총량이 너무 작아 전 SKU가 저수량으로 보이는 것을 방지하되,
+    // SKU별 분산은 유지해 일부는 10~20대 수량도 나오도록 한다.
+    const boostedTotalQuantity = Math.max(
+      sourceQuantity,
+      760 + (String(item.id).split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) % 520),
+    )
 
     return colorOptions.flatMap((color, colorIndex) =>
       sizeOptions.map((size, sizeIndex) => {
         const partitionIndex = colorIndex * sizeOptions.length + sizeIndex
-        const quantity = Math.max(1, Math.round(item.quantity * partitionRatios[partitionIndex]))
+        const variance = 0.8 + ((colorIndex * 13 + sizeIndex * 7 + String(item.id).length) % 6) * 0.1
+        const quantity = Math.max(6, Math.round(boostedTotalQuantity * partitionRatios[partitionIndex] * variance))
         const skuWeight = quantity * perUnitWeight
 
         return {
@@ -281,6 +294,45 @@ function normalizeMaterialName(name) {
   const normalized = String(name ?? '').trim()
   const lower = normalized.toLowerCase()
   return materialNameAliasMap[lower] ?? materialNameAliasMap[normalized] ?? normalized
+}
+
+function buildProductCode(item) {
+  const categoryCodeMap = {
+    상의: 'TOP',
+    바지: 'PNT',
+    치마: 'SKT',
+    아우터: 'OUT',
+  }
+  const childCategoryCodeMap = {
+    반팔: 'SS',
+    긴팔: 'LS',
+    셔츠: 'SH',
+    니트: 'KN',
+    후드티: 'HD',
+    청바지: 'DN',
+    반바지: 'ST',
+    긴바지: 'LG',
+    트레이닝: 'TR',
+    미니스커트: 'MN',
+    롱스커트: 'LG',
+    패딩: 'PD',
+    후드집업: 'HZ',
+    자켓: 'JK',
+    가디건: 'CD',
+  }
+
+  const categoryCode = categoryCodeMap[item.parentCategory] ?? 'ETC'
+  const childCode = childCategoryCodeMap[item.childCategory] ?? 'GEN'
+  const numericPart = String(item.id ?? '').replace(/\D/g, '').padStart(3, '0').slice(-3)
+  return `PRD-${categoryCode}-${childCode}-${numericPart}`
+}
+
+function resolveEstimatedUnitPrice(item) {
+  const baseWeight = Number(item.weightKg) || 0
+  const quantity = Number(item.quantity) || 0
+  const materialPrice = resolveMaterialKgPrice(item.materials)
+  const perItemWeight = quantity > 0 ? baseWeight / quantity : 0
+  return Math.round(perItemWeight * materialPrice * 5)
 }
 
 function deriveMaterialType(materials) {
@@ -567,10 +619,10 @@ onBeforeUnmount(() => {
             <col v-if="visibleColumns.color" class="w-[5%]" />
             <col v-if="visibleColumns.size" class="w-[6%]" />
             <col class="w-[10%]" />
-            <col class="w-[11%]" />
+            <col class="w-[17%]" />
             <col class="w-[7%]" />
             <col v-if="props.showCircularSalePriceColumn" class="w-[9%]" />
-            <col class="w-[7%]" />
+            <col class="w-[9%]" />
             <col class="w-[7%]" />
             <col v-if="visibleColumns.perItemWeight" class="w-[8%]" />
             <col v-if="hasActionColumn && actionColumnPosition === 'end'" class="w-[9%]" />
@@ -605,19 +657,19 @@ onBeforeUnmount(() => {
               </th>
               <th class="px-3 py-3 text-right font-black">
                 <button type="button" class="flex w-full items-center justify-end gap-1 hover:text-gray-900" @click="toggleSort('materialKgPrice')">
-                  kg 단가
+                  kg 당 단가
                   <span class="text-[9px]">{{ sortIcon('materialKgPrice') }}</span>
                 </button>
               </th>
               <th v-if="props.showCircularSalePriceColumn" class="px-3 py-3 text-right font-black">
                 <button type="button" class="flex w-full items-center justify-end gap-1 hover:text-gray-900" @click="toggleSort('circularSalePrice')">
-                  순환 단가
+                  환산 금액
                   <span class="text-[9px]">{{ sortIcon('circularSalePrice') }}</span>
                 </button>
               </th>
               <th class="px-3 py-3 text-right font-black">
                 <button type="button" class="flex w-full items-center justify-end gap-1 hover:text-gray-900" @click="toggleSort('weight')">
-                  무게
+                  총 무게
                   <span class="text-[9px]">{{ sortIcon('weight') }}</span>
                 </button>
               </th>
@@ -635,7 +687,9 @@ onBeforeUnmount(() => {
               :key="item.id"
               class="transition"
               :class="[
-                highlightedRowIds.includes(item.id) ? 'bg-[#EBF5F5] font-bold' : 'hover:bg-[#EBF5F5]/60',
+                highlightedRowIds.includes(item.id) || highlightedInventoryIds.includes(item.inventoryId)
+                  ? 'bg-[#EBF5F5] font-bold'
+                  : 'hover:bg-[#EBF5F5]/60',
                 enableRowClick ? 'cursor-pointer' : '',
               ]"
               @click="handleRowClick(item)"
@@ -645,7 +699,7 @@ onBeforeUnmount(() => {
                   name="row-action"
                   :row="item"
                   :selected="selectedRowIds.includes(item.id)"
-                  :highlighted="highlightedRowIds.includes(item.id)"
+                  :highlighted="highlightedRowIds.includes(item.id) || highlightedInventoryIds.includes(item.inventoryId)"
                 />
               </td>
               <td class="sticky left-0 z-10 whitespace-nowrap bg-white px-3 py-3 font-mono font-bold text-gray-600">{{ item.skuCode }}</td>
@@ -666,7 +720,7 @@ onBeforeUnmount(() => {
                   name="row-action"
                   :row="item"
                   :selected="selectedRowIds.includes(item.id)"
-                  :highlighted="highlightedRowIds.includes(item.id)"
+                  :highlighted="highlightedRowIds.includes(item.id) || highlightedInventoryIds.includes(item.inventoryId)"
                 />
               </td>
             </tr>

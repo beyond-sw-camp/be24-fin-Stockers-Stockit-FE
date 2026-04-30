@@ -148,6 +148,55 @@ function normalizeDraftField(item, updates = {}) {
   }
 }
 
+function parseWeightLabel(weight) {
+  return Number(String(weight ?? '').replace('kg', '')) || 0
+}
+
+const NATURAL_SINGLE_MATERIALS = ['면', '울', '캐시미어', '실크', '리넨']
+const SYNTHETIC_MATERIALS = ['폴리에스터', '아크릴', '나일론', '스판덱스']
+
+function normalizeMaterialName(name) {
+  const normalized = String(name ?? '').trim().toLowerCase()
+  const aliasMap = {
+    코튼: '면',
+    cotton: '면',
+    폴리: '폴리에스터',
+    polyester: '폴리에스터',
+    acrylic: '아크릴',
+    polyamide: '나일론',
+    nylon: '나일론',
+    elastane: '스판덱스',
+    스판: '스판덱스',
+    spandex: '스판덱스',
+    wool: '울',
+    cashmere: '캐시미어',
+    silk: '실크',
+    linen: '리넨',
+  }
+  return aliasMap[normalized] ?? String(name ?? '').trim()
+}
+
+function deriveMaterialType(materials) {
+  if (!Array.isArray(materials) || materials.length === 0) return '혼방'
+  const normalized = materials.map(material => ({
+    ...material,
+    name: normalizeMaterialName(material.name),
+  }))
+  if (normalized.length >= 2) return '혼방'
+
+  const [single] = normalized
+  if (Number(single.ratio) !== 100) return '혼방'
+  if (NATURAL_SINGLE_MATERIALS.includes(single.name)) return '천연 단일 섬유'
+  if (SYNTHETIC_MATERIALS.includes(single.name)) return '합성 섬유'
+  return '혼방'
+}
+
+function buyerMaterialFitValue(materialType) {
+  if (materialType === '천연 단일 섬유') return 'natural-single'
+  if (materialType === '합성 섬유') return 'synthetic'
+  return 'blended'
+}
+
 export const useCircularInventoryStore = defineStore('circularInventory', () => {
   const buyerStore = useCircularInventoryBuyerStore()
   const inventoryItems = ref(loadJson(INVENTORY_STORAGE_KEY, INITIAL_INVENTORY).map(enrichInventoryItem))
@@ -155,6 +204,8 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
   const draftBuyerId = ref('')
   const draftMemo = ref('')
   const draftItems = ref([])
+  const saleStep = ref(1)
+  const lockedMaterialType = ref('')
 
   const inventoryRows = computed(() =>
     [...inventoryItems.value].sort((a, b) => (
@@ -179,6 +230,13 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
     ),
     totalAmount: draftItems.value.reduce((sum, item) => sum + (Number(item.lineAmount) || 0), 0),
   }))
+
+  const matchedBuyerCandidates = computed(() => {
+    if (!lockedMaterialType.value) return buyerStore.sortedBuyers
+    return buyerStore.filteredBuyers('', {
+      primaryMaterialFit: buyerMaterialFitValue(lockedMaterialType.value),
+    })
+  })
 
   const salesSummary = computed(() => ({
     totalSalesCount: sales.value.length,
@@ -248,12 +306,15 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
     return sales.value.find(sale => sale.saleId === saleId) ?? null
   }
 
-  function getDraftItem(inventoryId) {
-    return draftItems.value.find(item => item.inventoryId === inventoryId) ?? null
+  function getDraftItem(draftId) {
+    return draftItems.value.find(item => item.draftId === draftId) ?? null
   }
 
   function filteredBuyers(keyword = '') {
-    return buyerStore.filteredBuyers(keyword)
+    if (!lockedMaterialType.value) return buyerStore.filteredBuyers(keyword)
+    return buyerStore.filteredBuyers(keyword, {
+      primaryMaterialFit: buyerMaterialFitValue(lockedMaterialType.value),
+    })
   }
 
   function selectBuyer(buyerId) {
@@ -264,31 +325,56 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
     draftMemo.value = memo
   }
 
-  function addSaleDraftItem(inventoryId) {
+  function addSaleDraftItem(skuRow) {
+    const draftId = String(skuRow?.id ?? '')
+    const inventoryId = String(skuRow?.inventoryId ?? '')
     const inventory = getInventoryById(inventoryId)
     if (!inventory) {
       return { success: false, message: '순환 재고 품목을 찾을 수 없습니다.' }
     }
 
-    const existing = getDraftItem(inventoryId)
+    const existing = getDraftItem(draftId)
     if (existing) {
       return { success: true, item: existing, alreadyExists: true }
     }
 
+    const materialType = skuRow?.materialType ?? deriveMaterialType(inventory.materials)
+    if (lockedMaterialType.value && lockedMaterialType.value !== materialType) {
+      return {
+        success: false,
+        message: `현재 요청서는 ${lockedMaterialType.value}만 선택할 수 있습니다.`,
+      }
+    }
+    if (!lockedMaterialType.value) {
+      lockedMaterialType.value = materialType
+    }
+
+    const availableQuantity = Number(skuRow?.quantity) || 0
+    const availableWeightKg = roundTo(parseWeightLabel(skuRow?.weight))
+    const unitWeightKg = availableQuantity > 0 ? roundTo(availableWeightKg / availableQuantity, 4) : 0
+    const defaultKgUnitPrice = Number(skuRow?.materialKgPrice) || 0
+
     const draftItem = normalizeDraftField({
+      draftId,
+      skuCode: skuRow?.skuCode ?? '',
+      color: skuRow?.color ?? '',
+      size: skuRow?.size ?? '',
+      materialType,
+      defaultKgUnitPrice,
+      resolvedUnitPrice: defaultKgUnitPrice,
       inventoryId: inventory.id,
       itemCode: inventory.itemCode,
       itemName: inventory.itemName,
       mainCategory: inventory.parentCategory,
       subCategory: inventory.childCategory,
       materials: inventory.materials,
-      availableQuantity: inventory.quantity,
-      availableWeightKg: inventory.weightKg,
-      unitWeightKg: inventory.unitWeightKg,
+      availableQuantity,
+      availableWeightKg,
+      unitWeightKg,
       soldWeightKg: '',
       estimatedQuantity: 0,
       deductedQuantity: 0,
-      unitPrice: '',
+      unitPrice: defaultKgUnitPrice,
       lineAmount: 0,
     })
 
@@ -296,8 +382,8 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
     return { success: true, item: draftItem }
   }
 
-  function updateSaleDraftItem(inventoryId, payload) {
-    const index = draftItems.value.findIndex(item => item.inventoryId === inventoryId)
+  function updateSaleDraftItem(draftId, payload) {
+    const index = draftItems.value.findIndex(item => item.draftId === draftId)
     if (index === -1) {
       return { success: false, message: '판매 패널에서 항목을 찾을 수 없습니다.' }
     }
@@ -308,14 +394,29 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
     return { success: true, item: next[index] }
   }
 
-  function removeSaleDraftItem(inventoryId) {
-    draftItems.value = draftItems.value.filter(item => item.inventoryId !== inventoryId)
+  function removeSaleDraftItem(draftId) {
+    draftItems.value = draftItems.value.filter(item => item.draftId !== draftId)
+    if (draftItems.value.length === 0) {
+      lockedMaterialType.value = ''
+      draftBuyerId.value = ''
+      saleStep.value = 1
+    }
   }
 
   function clearDraft() {
     draftBuyerId.value = ''
     draftMemo.value = ''
     draftItems.value = []
+    lockedMaterialType.value = ''
+    saleStep.value = 1
+  }
+
+  function setSaleStep(nextStep) {
+    const parsed = Number(nextStep)
+    if (![1, 2, 3].includes(parsed)) return
+    if (parsed === 2 && draftItems.value.length === 0) return
+    if (parsed === 3 && (!draftBuyerId.value || draftItems.value.length === 0)) return
+    saleStep.value = parsed
   }
 
   function submitCircularInventorySale(soldBy = '본사 관리자') {
@@ -326,33 +427,61 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
     if (draftItems.value.length === 0) {
       return { success: false, message: '판매할 순환 재고를 추가해주세요.' }
     }
+    if (!lockedMaterialType.value) {
+      return { success: false, message: '요청서 소재 구분이 확정되지 않았습니다.' }
+    }
 
     const buyer = buyerStore.getBuyerById(draftBuyerId.value)
     if (!buyer) {
       return { success: false, message: '선택한 거래처 정보를 찾을 수 없습니다.' }
     }
+    const expectedBuyerFit = buyerMaterialFitValue(lockedMaterialType.value)
+    if (buyer.primaryMaterialFit !== expectedBuyerFit) {
+      return { success: false, message: `선택한 거래처는 ${lockedMaterialType.value} 요청서와 맞지 않습니다.` }
+    }
+
+    const inventoryAggregate = new Map()
     for (const item of draftItems.value) {
       const soldWeightKg = Number(item.soldWeightKg)
       const unitPrice = Number(item.unitPrice)
       const inventory = getInventoryById(item.inventoryId)
 
       if (!inventory) {
-        return { success: false, message: `${item.itemName} 재고를 찾을 수 없습니다.` }
+        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) 재고를 찾을 수 없습니다.` }
       }
       if (Number.isNaN(soldWeightKg) || soldWeightKg <= 0) {
-        return { success: false, message: `${item.itemName} 판매 kg을 입력해주세요.` }
+        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) 판매 kg을 입력해주세요.` }
       }
-      if (soldWeightKg > inventory.weightKg) {
-        return { success: false, message: `${item.itemName} 환산 재고 kg을 초과할 수 없습니다.` }
+      if (soldWeightKg > item.availableWeightKg) {
+        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) SKU 재고 kg을 초과할 수 없습니다.` }
       }
       if (Number.isNaN(unitPrice) || unitPrice <= 0) {
-        return { success: false, message: `${item.itemName} 단가를 입력해주세요.` }
+        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) 단가를 입력해주세요.` }
       }
       if (item.deductedQuantity <= 0) {
-        return { success: false, message: `${item.itemName} 차감 수량을 계산할 수 없습니다.` }
+        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) 차감 수량을 계산할 수 없습니다.` }
       }
-      if (item.deductedQuantity > inventory.quantity) {
-        return { success: false, message: `${item.itemName} 재고 수량을 초과할 수 없습니다.` }
+      if (item.deductedQuantity > item.availableQuantity) {
+        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) SKU 재고 수량을 초과할 수 없습니다.` }
+      }
+      if (item.materialType !== lockedMaterialType.value) {
+        return { success: false, message: '요청서 내 소재 구분은 한 종류만 허용됩니다.' }
+      }
+
+      const aggregate = inventoryAggregate.get(item.inventoryId) ?? { soldWeightKg: 0, deductedQuantity: 0 }
+      aggregate.soldWeightKg += soldWeightKg
+      aggregate.deductedQuantity += item.deductedQuantity
+      inventoryAggregate.set(item.inventoryId, aggregate)
+    }
+
+    for (const [inventoryId, aggregate] of inventoryAggregate.entries()) {
+      const inventory = getInventoryById(inventoryId)
+      if (!inventory) continue
+      if (aggregate.soldWeightKg > inventory.weightKg) {
+        return { success: false, message: `${inventory.itemName} 품목 총 판매 kg이 재고 kg을 초과할 수 없습니다.` }
+      }
+      if (aggregate.deductedQuantity > inventory.quantity) {
+        return { success: false, message: `${inventory.itemName} 품목 총 차감 수량이 재고 수량을 초과할 수 없습니다.` }
       }
     }
 
@@ -361,6 +490,10 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
 
     const saleItems = draftItems.value.map(item => ({
       saleId,
+      draftId: item.draftId,
+      skuCode: item.skuCode,
+      color: item.color,
+      size: item.size,
       inventoryId: item.inventoryId,
       itemCode: item.itemCode,
       itemName: item.itemName,
@@ -417,7 +550,10 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
     draftBuyerId,
     draftMemo,
     draftItems,
+    saleStep,
+    lockedMaterialType,
     selectedBuyer,
+    matchedBuyerCandidates,
     draftSummary,
     salesSummary,
     salesAnalytics,
@@ -428,6 +564,7 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
     getDraftItem,
     selectBuyer,
     setDraftMemo,
+    setSaleStep,
     addSaleDraftItem,
     updateSaleDraftItem,
     removeSaleDraftItem,

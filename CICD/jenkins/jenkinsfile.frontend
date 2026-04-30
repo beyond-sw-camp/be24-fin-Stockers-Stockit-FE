@@ -51,6 +51,8 @@ spec:
     DOCKERHUB_ID = 'saralove20'
     IMAGE_NAME = "${DOCKERHUB_ID}/stockit-front"
     IMAGE_TAG  = "v${env.BUILD_NUMBER}"
+    DEPLOY_ENABLED = 'false'
+    DEPLOY_REASON = 'not-evaluated'
   }
 
   stages {
@@ -59,6 +61,45 @@ spec:
         container('node') {
           // GitHub 소스 가져오기
           checkout scm
+        }
+      }
+    }
+
+    stage('Determine Deploy Trigger') {
+      steps {
+        container('node') {
+          script {
+            def branchName = env.BRANCH_NAME ?: ''
+            def isPrBuild = !!(env.CHANGE_ID?.trim())
+            def isMainBranch = (branchName == 'main')
+            def shouldDeploy = isMainBranch && !isPrBuild
+            def deployReason = ''
+
+            if (!isMainBranch) {
+              deployReason = "branch-mismatch:${branchName}"
+            } else if (isPrBuild) {
+              deployReason = "pr-build:CHANGE_ID=${env.CHANGE_ID},TARGET=${env.CHANGE_TARGET ?: 'unknown'}"
+            } else {
+              def parentCount = sh(
+                script: "git rev-list --parents -n 1 HEAD | awk '{print NF-1}'",
+                returnStdout: true
+              ).trim()
+              def lastSubject = sh(
+                script: "git log -1 --pretty=%s",
+                returnStdout: true
+              ).trim()
+              def mergeKeywords = ['Merge pull request', 'merge pull request', '(#']
+              def looksLikeMerge = parentCount == '2' || mergeKeywords.any { lastSubject.contains(it) }
+              deployReason = looksLikeMerge
+                ? "main-merge-detected:parents=${parentCount},subject=${lastSubject}"
+                : "main-direct-push-or-rebase-merge:parents=${parentCount},subject=${lastSubject}"
+            }
+
+            env.DEPLOY_ENABLED = shouldDeploy ? 'true' : 'false'
+            env.DEPLOY_REASON = deployReason
+
+            echo "Deploy decision => enabled=${env.DEPLOY_ENABLED}, reason=${env.DEPLOY_REASON}"
+          }
         }
       }
     }
@@ -76,6 +117,9 @@ spec:
     }
 
     stage('Kaniko Build & Push') {
+      when {
+        expression { env.DEPLOY_ENABLED == 'true' }
+      }
       steps {
         container('kaniko') {
           // Docker 엔진 없이 이미지 빌드 및 푸시
@@ -91,6 +135,9 @@ spec:
     }
 
     stage('K8s Deployment') {
+      when {
+        expression { env.DEPLOY_ENABLED == 'true' }
+      }
       steps {
         // jnlp(기본컨테이너)에서 실행
         container('kubectl') {
@@ -105,6 +152,9 @@ spec:
   }
 
   post {
+    always {
+      echo "Final deploy gate => enabled=${env.DEPLOY_ENABLED}, reason=${env.DEPLOY_REASON}"
+    }
     success { echo 'StockIt 프론트엔드 배포 성공!' }
     failure { echo '배포 실패... 젠킨스 로그와 메모리 상태를 확인하세요.' }
   }
