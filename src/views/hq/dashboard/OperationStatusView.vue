@@ -214,7 +214,7 @@ const alertTypeBadgeClass = (type) =>
             <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">
               HQ Operation Dashboard
             </p>
-            <h1 class="mt-1 text-xl font-black text-gray-950">중앙관리자 운영 현황</h1>
+            <h1 class="mt-1 text-xl font-black text-gray-950">중앙관리자 운영 현황t</h1>
             <p class="mt-1 text-xs font-bold text-gray-500">
               전사 재고, 주문/발주, 알림을 한 화면에서 확인합니다.
             </p>
