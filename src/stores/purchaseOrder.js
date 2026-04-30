@@ -71,6 +71,37 @@ function toFeHistory(beHistory) {
   }
 }
 
+// ─── 카탈로그 매핑 헬퍼 (BE → FE) ────────────────────────────────────────
+// BE 키 ↔ FE 키 동일 유지 (이름 변환 0). 각 SKU 행에 그룹 컨텍스트 첨부해서
+// view 가 그룹 lookup 없이 자체 표시 가능하게.
+
+function toFeCatalogMaster(beMaster) {
+  return {
+    masterKey: beMaster.vendorProductCode,
+    vendorCode: beMaster.vendorCode,
+    vendorName: beMaster.vendorName,
+    vendorProductCode: beMaster.vendorProductCode,
+    productCode: beMaster.productCode,
+    productName: beMaster.productName,
+    contractUnitPrice: beMaster.contractUnitPrice,
+    minSkuUnitPrice: beMaster.minSkuUnitPrice,
+    maxSkuUnitPrice: beMaster.maxSkuUnitPrice,
+    skus: Array.isArray(beMaster.skus) ? beMaster.skus.map((s) => ({
+      skuCode: s.skuCode,
+      optionName: s.optionName ?? '',
+      optionValue: s.optionValue ?? '',
+      unitPrice: s.unitPrice,
+    })) : [],
+  }
+}
+
+function toFeCatalogFacet(beFacet) {
+  return {
+    name: beFacet.name,
+    values: Array.isArray(beFacet.values) ? [...beFacet.values] : [],
+  }
+}
+
 // FE createOrder/updateOrder payload → BE 요청 변환
 // warehouseCode: vendor 패턴 일관 — code 로 식별, BE 가 findByCode 후 Long ID 박음.
 // warehouseName 은 BE 가 lookupWarehouse 후 자동 박음 — FE 가 안 보냄.
@@ -209,6 +240,82 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
   const warehouses = computed(() =>
     warehouseList.value.map((w) => ({ id: w.id, name: w.name, code: w.code })),
   )
+
+  // ─── 카탈로그 (새 발주 페이지) ──────────────────────────────────────────
+  // BE GET /api/hq/purchase-orders/catalog 응답을 매핑해 보관.
+  // catalogSkuRows getter 가 view 가 v-for 한 번에 돌릴 평탄 row 배열 반환.
+  const catalogMasters = ref([])
+  const catalogFacets = ref([])
+  const catalogLoading = ref(false)
+  const catalogError = ref(null)
+
+  // view 가 그룹 헤더 + SKU 행을 한 v-for 로 렌더 가능하도록 평탄 row 배열 반환
+  // row 형식:
+  //   { type: 'header', masterKey, vendorCode, vendorName, vendorProductCode, productCode,
+  //     productName, contractUnitPrice, minSkuUnitPrice, maxSkuUnitPrice, skuCount }
+  //   { type: 'sku',    masterKey, skuCode, optionName, optionValue, unitPrice,
+  //     vendorCode, vendorName, vendorProductCode, productCode, productName }
+  // 정렬 — vendorName 가나다 → productName 가나다 → SKU 는 BE id asc 순서 그대로
+  const catalogSkuRows = computed(() => {
+    const sorted = [...catalogMasters.value].sort((a, b) => {
+      const v = a.vendorName.localeCompare(b.vendorName, 'ko')
+      if (v !== 0) return v
+      return a.productName.localeCompare(b.productName, 'ko')
+    })
+    const rows = []
+    for (const m of sorted) {
+      rows.push({
+        type: 'header',
+        masterKey: m.masterKey,
+        vendorCode: m.vendorCode,
+        vendorName: m.vendorName,
+        vendorProductCode: m.vendorProductCode,
+        productCode: m.productCode,
+        productName: m.productName,
+        contractUnitPrice: m.contractUnitPrice,
+        minSkuUnitPrice: m.minSkuUnitPrice,
+        maxSkuUnitPrice: m.maxSkuUnitPrice,
+        skuCount: m.skus.length,
+      })
+      for (const s of m.skus) {
+        rows.push({
+          type: 'sku',
+          masterKey: m.masterKey,
+          skuCode: s.skuCode,
+          optionName: s.optionName,
+          optionValue: s.optionValue,
+          unitPrice: s.unitPrice,
+          vendorCode: m.vendorCode,
+          vendorName: m.vendorName,
+          vendorProductCode: m.vendorProductCode,
+          productCode: m.productCode,
+          productName: m.productName,
+        })
+      }
+    }
+    return rows
+  })
+
+  async function fetchCatalog({ vendorCode = '', warehouseCode = '' } = {}) {
+    catalogLoading.value = true
+    catalogError.value = null
+    try {
+      const res = await purchaseOrderApi.getCatalog({ vendorCode, warehouseCode })
+      catalogMasters.value = Array.isArray(res?.masters)
+        ? res.masters.map(toFeCatalogMaster)
+        : []
+      catalogFacets.value = Array.isArray(res?.optionFacets)
+        ? res.optionFacets.map(toFeCatalogFacet)
+        : []
+    } catch (e) {
+      catalogError.value = e?.message ?? '카탈로그를 불러오지 못했습니다.'
+      catalogMasters.value = []
+      catalogFacets.value = []
+      console.error('[purchaseOrder] fetchCatalog 실패', e)
+    } finally {
+      catalogLoading.value = false
+    }
+  }
 
   async function fetchWarehouses() {
     try {
@@ -355,6 +462,10 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     sortBy,
     loading,
     error,
+    catalogMasters,
+    catalogFacets,
+    catalogLoading,
+    catalogError,
     // getters
     selectedOrder,
     filteredOrders,
@@ -362,6 +473,7 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     vendorOptions,
     summary,
     warehouses,
+    catalogSkuRows,
     // actions
     selectOrder,
     fetchOrders,
@@ -372,5 +484,6 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     cancelOrder,
     markCompleted,
     runBatch,
+    fetchCatalog,
   }
 })

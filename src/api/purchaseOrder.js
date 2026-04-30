@@ -67,4 +67,23 @@ export const purchaseOrderApi = {
    */
   cancel: (code, cancelReason) =>
     apiClient.post(`${BASE}/${code}/cancel`, { cancelReason }).then(unwrap),
+
+  /**
+   * 새 발주 페이지 카탈로그 — vendor_product → ProductMaster → ProductSku 묶음 응답.
+   * GET /api/hq/purchase-orders/catalog?vendorCode=&warehouseId=
+   *
+   * vendorCode 미지정: 모든 ACTIVE 거래처 펼침. 지정 시 그 거래처만.
+   * warehouseCode 는 본 사이클 BE 가 사용하지 않음 (인벤토리 합류 후 stock 필터링용).
+   * 응답: { masters: [{ vendorCode, vendorName, vendorProductCode, productCode, productName,
+   *                     contractUnitPrice, minSkuUnitPrice, maxSkuUnitPrice,
+   *                     skus: [{ skuCode, optionName, optionValue, unitPrice }] }],
+   *         optionFacets: [{ name, values: [string] }] }
+   */
+  getCatalog: ({ vendorCode = '', warehouseCode = '' } = {}) => {
+    const query = {}
+    if (vendorCode) query.vendorCode = vendorCode
+    // warehouseCode 는 BE 가 warehouseId(Long) 로 받지만 본 사이클은 placeholder — 보내지 않음
+    void warehouseCode
+    return apiClient.get(`${BASE}/catalog`, { params: query }).then(unwrap)
+  },
 }

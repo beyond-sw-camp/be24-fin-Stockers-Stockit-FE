@@ -169,6 +169,61 @@ export const useWarehouseStockStore = defineStore('warehouseStock', () => {
     })
   }
 
+  // ─── SKU 단위 시뮬레이션 (인벤토리 SKU BE 합류 전 임시) ────────────────────────
+  // 같은 패턴 — onHand/safetyStock 은 (warehouseId, skuCode) 해시 기반 deterministic.
+  // incoming 은 SHIPPING 발주 items 중 skuCode 매칭 합산. items.skuCode 가 빈 문자열이면 매칭 X (옛 발주 가드).
+  function defaultSkuStock(warehouseId, skuCode) {
+    const seed = hashSeed(`SKU|${warehouseId}|${skuCode}`)
+    const factor = WAREHOUSE_FACTORS[warehouseId] ?? 1.0
+    const onHand = Math.round(((seed % 60) + 3) * factor)
+    const safetyStock = 3 + ((seed >> 8) % 8) // 3~10
+    return { onHand, safetyStock }
+  }
+
+  function getSkuStock(warehouseId, skuCode) {
+    if (!warehouseId || !skuCode) return null
+    const base = defaultSkuStock(warehouseId, skuCode)
+    const incoming = poStore.purchaseOrders
+      .filter((o) => o.status === 'SHIPPING' && o.warehouseId === warehouseId)
+      .flatMap((o) => o.items ?? [])
+      .filter((it) => it.skuCode && it.skuCode === skuCode)
+      .reduce((sum, it) => sum + (Number(it.quantity) || 0), 0)
+    const outgoing = 0
+    const available = base.onHand + incoming - outgoing
+    return {
+      onHand: base.onHand,
+      safetyStock: base.safetyStock,
+      incoming,
+      outgoing,
+      available,
+    }
+  }
+
+  function getSkuStockLevel(stock) {
+    if (!stock) return 'unknown'
+    if (stock.available < stock.safetyStock) return 'critical'
+    if (stock.available < stock.safetyStock * 1.5) return 'warning'
+    return 'normal'
+  }
+
+  function getSkuSuggestedQuantity(stock) {
+    if (!stock) return 0
+    const target = stock.safetyStock * 1.5
+    const need = target - stock.available
+    if (need <= 0) return 0
+    return Math.ceil(need)
+  }
+
+  function getSkuShortageCount(warehouseId, skuCodes = []) {
+    if (!warehouseId || !skuCodes.length) return 0
+    let count = 0
+    for (const sc of skuCodes) {
+      const level = getSkuStockLevel(getSkuStock(warehouseId, sc))
+      if (level === 'critical' || level === 'warning') count++
+    }
+    return count
+  }
+
   return {
     getBaseStock,
     getStock,
@@ -176,5 +231,10 @@ export const useWarehouseStockStore = defineStore('warehouseStock', () => {
     getSuggestedQuantity,
     getShortageCount,
     getInboundPreview,
+    // SKU 단위
+    getSkuStock,
+    getSkuStockLevel,
+    getSkuSuggestedQuantity,
+    getSkuShortageCount,
   }
 })
