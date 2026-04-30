@@ -38,6 +38,9 @@ import AllFlowTransactionsView from '@/views/hq/dashboard/AllFlowTransactionsVie
 
 import HqCompanyWideInventoryView from '@/views/hq/inventory/HqCompanyWideInventoryView.vue'
 import HqWarehouseInventoryComparisonView from '@/views/hq/inventory/HqWarehouseInventoryComparisonView.vue'
+import HqWarehouseSkuTransferDetailView from '@/views/hq/inventory/HqWarehouseSkuTransferDetailView.vue'
+import HqWarehouseTransferHistoryView from '@/views/hq/inventory/HqWarehouseTransferHistoryView.vue'
+import HqWarehouseTransferHistoryDetailView from '@/views/hq/inventory/HqWarehouseTransferHistoryDetailView.vue'
 import HqCompanyWideInventorySkuDetailView from '@/views/hq/inventory/HqCompanyWideInventorySkuDetailView.vue'
 import HqProductManagementView from '@/views/hq/HqProductManagementView.vue'
 import HqInfrastructureManagementView from '@/views/hq/HqInfrastructureManagementView.vue'
@@ -89,6 +92,24 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'hq' },
     },
     { path: '/hq/inventory/warehouse-comparison', name: 'hq-inventory-warehouse-comparison', component: HqWarehouseInventoryComparisonView, meta: { requiresAuth: true, role: 'hq' } },
+    {
+      path: '/hq/inventory/warehouse-comparison/:skuCode',
+      name: 'hq-inventory-warehouse-transfer-detail',
+      component: HqWarehouseSkuTransferDetailView,
+      meta: { requiresAuth: true, role: 'hq' },
+    },
+    {
+      path: '/hq/inventory/warehouse-transfer-history',
+      name: 'hq-inventory-warehouse-transfer-history',
+      component: HqWarehouseTransferHistoryView,
+      meta: { requiresAuth: true, role: 'hq' },
+    },
+    {
+      path: '/hq/inventory/warehouse-transfer-history/:transferNo',
+      name: 'hq-inventory-warehouse-transfer-history-detail',
+      component: HqWarehouseTransferHistoryDetailView,
+      meta: { requiresAuth: true, role: 'hq' },
+    },
     { path: '/hq/products', name: 'hq-products', component: HqProductManagementView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/products/categories/add', name: 'hq-category-add', component: HqCategoryAddView, meta: { requiresAuth: true, role: 'hq' } },
     {
