@@ -5,6 +5,11 @@ export async function getStores(params = {}) {
   return unwrap(res)
 }
 
+export async function getStoreByCode(code) {
+  const res = await api.get(`/api/hq/stores/${code}`)
+  return unwrap(res)
+}
+
 export async function createStore(payload) {
   const res = await api.post('/api/hq/stores', payload)
   return unwrap(res)
@@ -17,6 +22,11 @@ export async function updateStore(storeCode, payload) {
 
 export async function getWarehouses(params = {}) {
   const res = await api.get('/api/hq/warehouses', { params })
+  return unwrap(res)
+}
+
+export async function getWarehouseByCode(code) {
+  const res = await api.get(`/api/hq/warehouses/${code}`)
   return unwrap(res)
 }
 

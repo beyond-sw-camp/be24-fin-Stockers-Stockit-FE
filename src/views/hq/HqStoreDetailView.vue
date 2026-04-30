@@ -1,9 +1,10 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { getStoreByCode, updateStore } from '@/api/infrastructure.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -17,40 +18,117 @@ const infraSideMenus = [
   { label: '창고 정보 관리', icon: 'warehouse' },
 ]
 
-const locations = ['서울', '경기', '인천', '부산', '대구']
-const names = ['스톡잇 강남점', '홍대 문구센터', '판교 테크노잡화', '여의도 IFC몰점', '성수 리빙샵', '인천 터미널점', '분당 서현점', '부산 센텀점', '광교 갤러리아점', '대전 둔산점']
-const managers = ['김사라', '박범수', '이선엽', '이후경', '정유진', '최진혁']
-const warehouses = ['인천 제1센터', '인천 제2센터', '용인 물류센터', '부산 중앙창고']
+const store = ref(null)
+const isLoading = ref(false)
+const loadError = ref('')
 
-const storeData = Array.from({ length: 32 }).map((_, i) => {
-  const isExpiring = i % 7 === 0
-  const stockCapacity = 1200 + (i % 5) * 300
-  const remainingStock = 240 + (i * 77) % 1200
-  const remainingRate = Math.min(100, Math.round((remainingStock / stockCapacity) * 100))
-  return {
-    id: `ST-${String(i + 1).padStart(3, '0')}`,
-    name: `${names[i % names.length]}${i > 9 ? ` ${Math.floor(i / 10) + 1}관` : ''}`,
-    region: locations[i % locations.length],
-    manager: managers[i % managers.length],
-    contact: `010-4821-${String(1000 + i)}`,
-    warehouse: warehouses[i % warehouses.length],
-    endDate: isExpiring ? '2024.05.15' : '2025.12.31',
-    status: i === 15 ? '비활성' : '활성',
-    stockCapacity,
-    remainingStock,
-    remainingRate,
-  }
+const isEditMode = ref(false)
+const isSaving = ref(false)
+const saveError = ref('')
+const saveSuccess = ref('')
+const editForm = ref({
+  managerName: '',
+  contact: '',
+  status: 'ACTIVE',
 })
 
-const selectedStore = computed(() =>
-  storeData.find((store) => store.id === String(route.params.storeId ?? '')),
-)
+const statusToKor = {
+  ACTIVE: '활성',
+  INACTIVE: '비활성',
+  SUSPENDED: '점검중',
+}
+
+const typeToKor = {
+  DIRECT: '직영점',
+  FRANCHISE: '가맹점',
+}
+
+const statusOptions = [
+  { value: 'ACTIVE', label: '활성' },
+  { value: 'INACTIVE', label: '비활성' },
+  { value: 'SUSPENDED', label: '점검중' },
+]
+
+const storeCode = computed(() => String(route.params.storeId ?? '').trim())
 
 const backQuery = computed(() => ({
   region: typeof route.query.region === 'string' ? route.query.region : undefined,
   status: typeof route.query.status === 'string' ? route.query.status : undefined,
   search: typeof route.query.search === 'string' ? route.query.search : undefined,
 }))
+
+function resetEditForm() {
+  if (!store.value) return
+  editForm.value = {
+    managerName: store.value.managerName || '',
+    contact: store.value.contact || '',
+    status: store.value.status || 'ACTIVE',
+  }
+}
+
+function startEdit() {
+  resetEditForm()
+  saveError.value = ''
+  saveSuccess.value = ''
+  isEditMode.value = true
+}
+
+function cancelEdit() {
+  resetEditForm()
+  saveError.value = ''
+  isEditMode.value = false
+}
+
+async function loadStoreDetail() {
+  isLoading.value = true
+  loadError.value = ''
+  try {
+    const found = await getStoreByCode(storeCode.value)
+    store.value = found || null
+    resetEditForm()
+  } catch (error) {
+    loadError.value = error.message || '매장 정보를 불러오지 못했습니다.'
+    store.value = null
+  } finally {
+    isLoading.value = false
+  }
+}
+
+async function saveEdit() {
+  if (!store.value || isSaving.value) return
+  saveError.value = ''
+  saveSuccess.value = ''
+
+  const managerName = editForm.value.managerName.trim()
+  const contact = editForm.value.contact.trim()
+
+  if (!managerName || !contact) {
+    saveError.value = '담당자와 연락처를 입력해주세요.'
+    return
+  }
+
+  isSaving.value = true
+  try {
+    await updateStore(store.value.code, {
+      name: store.value.name,
+      region: store.value.region,
+      type: store.value.type,
+      managerName,
+      contact,
+      address: store.value.address,
+      warehouseCode: store.value.warehouseCode,
+      status: editForm.value.status,
+    })
+
+    isEditMode.value = false
+    saveSuccess.value = '매장 정보가 저장되었습니다.'
+    await loadStoreDetail()
+  } catch (error) {
+    saveError.value = error.message || '매장 정보 저장에 실패했습니다.'
+  } finally {
+    isSaving.value = false
+  }
+}
 
 function goBack() {
   router.push({
@@ -63,6 +141,10 @@ function handleLogout() {
   auth.logout()
   router.push('/login')
 }
+
+onMounted(() => {
+  loadStoreDetail()
+})
 </script>
 
 <template>
@@ -75,14 +157,16 @@ function handleLogout() {
     @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
-      <section class="border border-gray-200 bg-white p-4 shadow-sm">
+      <section class="border border-gray-300 bg-white p-4 shadow-sm">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p class="text-[10px] font-black uppercase tracking-[0.16em] text-gray-400">Store Detail</p>
             <h1 class="mt-1 text-lg font-black text-gray-900">매장 상세 정보</h1>
-            <template v-if="selectedStore">
-              <p class="mt-2 text-sm font-bold text-gray-700">{{ selectedStore.name }}</p>
-              <p class="mt-1 text-xs font-bold text-gray-500">{{ selectedStore.id }} · {{ selectedStore.region }}</p>
+            <template v-if="store">
+              <p class="mt-2 text-sm font-bold text-gray-700">{{ store.name }}</p>
+              <p class="mt-1 text-xs font-bold text-gray-500">
+                {{ store.code }} · {{ store.region }}
+              </p>
             </template>
           </div>
           <button
@@ -95,39 +179,91 @@ function handleLogout() {
         </div>
       </section>
 
-      <section v-if="selectedStore" class="grid gap-4 xl:grid-cols-[1.1fr_1fr]">
-        <article class="border border-gray-200 bg-white p-4 shadow-sm">
-          <h2 class="text-xs font-black uppercase tracking-[0.1em] text-gray-500">기본 정보</h2>
-          <div class="mt-3 grid gap-2 text-xs">
-            <p class="flex items-center justify-between"><span class="font-bold text-gray-500">매장 ID</span><strong class="font-black text-gray-900">{{ selectedStore.id }}</strong></p>
-            <p class="flex items-center justify-between"><span class="font-bold text-gray-500">매장명</span><strong class="font-black text-gray-900">{{ selectedStore.name }}</strong></p>
-            <p class="flex items-center justify-between"><span class="font-bold text-gray-500">지역</span><strong class="font-black text-gray-900">{{ selectedStore.region }}</strong></p>
-            <p class="flex items-center justify-between"><span class="font-bold text-gray-500">담당자</span><strong class="font-black text-gray-900">{{ selectedStore.manager }}</strong></p>
-            <p class="flex items-center justify-between"><span class="font-bold text-gray-500">연락처</span><strong class="font-black text-gray-900">{{ selectedStore.contact }}</strong></p>
-            <p class="flex items-center justify-between"><span class="font-bold text-gray-500">담당 창고</span><strong class="font-black text-gray-900">{{ selectedStore.warehouse }}</strong></p>
-            <p class="flex items-center justify-between"><span class="font-bold text-gray-500">계약 종료일</span><strong class="font-black" :class="selectedStore.endDate === '2024.05.15' ? 'text-red-600' : 'text-gray-900'">{{ selectedStore.endDate }}</strong></p>
-          </div>
-        </article>
+      <p v-if="loadError" class="border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600">{{ loadError }}</p>
 
-        <article class="border border-gray-200 bg-white p-4 shadow-sm">
-          <h2 class="text-xs font-black uppercase tracking-[0.1em] text-gray-500">남은 재고량</h2>
-          <div class="mt-4">
-            <div class="mb-2 flex items-center justify-between text-xs font-bold text-gray-600">
-              <span>재고 잔여율</span>
-              <strong class="text-base font-black" :class="selectedStore.remainingRate < 30 ? 'text-red-600' : 'text-gray-900'">{{ selectedStore.remainingRate }}%</strong>
-            </div>
-            <div class="h-3 w-full bg-gray-200">
-              <div
-                class="h-full"
-                :class="selectedStore.remainingRate < 30 ? 'bg-red-500' : selectedStore.remainingRate < 60 ? 'bg-amber-500' : 'bg-[#0f766e]'"
-                :style="{ width: `${selectedStore.remainingRate}%` }"
-              />
-            </div>
-            <p class="mt-2 text-right text-[11px] font-bold text-gray-500">
-              {{ selectedStore.remainingStock.toLocaleString() }} / {{ selectedStore.stockCapacity.toLocaleString() }} EA
-            </p>
+      <section v-if="isLoading" class="border border-gray-300 bg-white p-10 text-center text-sm font-bold text-gray-400 shadow-sm">
+        매장 정보를 불러오는 중입니다.
+      </section>
+
+      <section v-else-if="store" class="border border-gray-300 bg-white p-4 shadow-sm">
+        <div class="flex items-center justify-between gap-2">
+          <h2 class="text-xs font-black uppercase tracking-[0.1em] text-gray-500">기본 정보</h2>
+          <div class="flex items-center gap-2">
+            <button
+              v-if="!isEditMode"
+              type="button"
+              class="h-8 border border-gray-300 bg-white px-3 text-[11px] font-black text-gray-700 hover:bg-gray-50"
+              @click="startEdit"
+            >
+              편집
+            </button>
+            <template v-else>
+              <button
+                type="button"
+                class="h-8 border border-gray-300 bg-white px-3 text-[11px] font-black text-gray-700 hover:bg-gray-50"
+                :disabled="isSaving"
+                @click="cancelEdit"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                class="h-8 border border-[#004D3C] bg-[#004D3C] px-3 text-[11px] font-black text-white hover:bg-[#003d30] disabled:cursor-not-allowed disabled:opacity-40"
+                :disabled="isSaving"
+                @click="saveEdit"
+              >
+                {{ isSaving ? '저장 중...' : '저장' }}
+              </button>
+            </template>
           </div>
-        </article>
+        </div>
+
+        <p v-if="saveError" class="mt-3 border border-red-200 bg-red-50 px-2 py-1 text-[11px] font-bold text-red-600">{{ saveError }}</p>
+        <p v-if="saveSuccess" class="mt-3 border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700">{{ saveSuccess }}</p>
+
+        <div class="mt-3 grid gap-2 text-xs">
+          <p class="flex items-center justify-between"><span class="font-bold text-gray-500">매장 코드</span><strong class="font-black text-gray-900">{{ store.code }}</strong></p>
+          <p class="flex items-center justify-between"><span class="font-bold text-gray-500">매장명</span><strong class="font-black text-gray-900">{{ store.name }}</strong></p>
+          <p class="flex items-center justify-between"><span class="font-bold text-gray-500">지역</span><strong class="font-black text-gray-900">{{ store.region }}</strong></p>
+          <p class="flex items-center justify-between"><span class="font-bold text-gray-500">유형</span><strong class="font-black text-gray-900">{{ typeToKor[store.type] || store.type }}</strong></p>
+
+          <template v-if="!isEditMode">
+            <p class="flex items-center justify-between"><span class="font-bold text-gray-500">담당자</span><strong class="font-black text-gray-900">{{ store.managerName }}</strong></p>
+            <p class="flex items-center justify-between"><span class="font-bold text-gray-500">연락처</span><strong class="font-black text-gray-900">{{ store.contact }}</strong></p>
+            <p class="flex items-center justify-between"><span class="font-bold text-gray-500">상태</span><strong class="font-black text-gray-900">{{ statusToKor[store.status] || store.status }}</strong></p>
+          </template>
+
+          <template v-else>
+            <label class="grid gap-1">
+              <span class="font-bold text-gray-500">담당자</span>
+              <input
+                v-model="editForm.managerName"
+                type="text"
+                class="h-8 border border-gray-300 bg-white px-2 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
+              />
+            </label>
+            <label class="grid gap-1">
+              <span class="font-bold text-gray-500">연락처</span>
+              <input
+                v-model="editForm.contact"
+                type="text"
+                class="h-8 border border-gray-300 bg-white px-2 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
+              />
+            </label>
+            <label class="grid gap-1">
+              <span class="font-bold text-gray-500">상태</span>
+              <select
+                v-model="editForm.status"
+                class="h-8 border border-gray-300 bg-white px-2 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
+              >
+                <option v-for="option in statusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+              </select>
+            </label>
+          </template>
+
+          <p class="flex items-center justify-between"><span class="font-bold text-gray-500">담당 창고</span><strong class="font-black text-gray-900">{{ store.warehouseCode }}</strong></p>
+          <p class="flex items-start justify-between gap-3"><span class="font-bold text-gray-500">주소</span><strong class="text-right font-black text-gray-900">{{ store.address }}</strong></p>
+        </div>
       </section>
 
       <section v-else class="border border-dashed border-gray-300 bg-white p-10 text-center text-sm font-bold text-gray-400 shadow-sm">

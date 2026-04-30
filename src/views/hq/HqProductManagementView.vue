@@ -5,6 +5,7 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { deleteCategory, getCategories, getCategory, updateCategory } from '@/api/category.js'
+import { vendorApi } from '@/api/vendor.js'
 import {
   getProducts,
 } from '@/api/productMaster.js'
@@ -36,6 +37,7 @@ const productSideMenus = [
 ]
 
 const productMasterData = ref([])
+const vendors = ref([])
 
 const categories = ref([])
 const categoryError = ref('')
@@ -281,6 +283,7 @@ function resolveCategoryNames(categoryCode) {
 
 async function loadProducts() {
   try {
+    const vendorNameByCode = new Map(vendors.value.map(v => [v.code, v.name]))
     const list = await getProducts({
       keyword: productKeyword.value || undefined,
       categoryCode: selectedParentFilter.value === 'all' ? undefined : selectedParentFilter.value,
@@ -291,13 +294,18 @@ async function loadProducts() {
       name: p.name,
       price: p.basePrice,
       leadTime: `${p.leadTimeDays}일`,
-      vendor: p.mainVendorCode,
+      vendor: vendorNameByCode.get(p.mainVendorCode) ?? p.mainVendorCode,
       status: productStatusMap[p.status] ?? p.status,
       regDate: formatDate(p.updatedAt),
     }))
   } catch (e) {
     categoryError.value = e.message
   }
+}
+
+async function loadVendors() {
+  const list = await vendorApi.listVendors()
+  vendors.value = list ?? []
 }
 
 watch(productKeyword, () => {
@@ -308,7 +316,7 @@ watch([selectedParentFilter, selectedChildFilter], () => {
 })
 
 onMounted(() => {
-  loadCategories().then(loadProducts)
+  Promise.all([loadCategories(), loadVendors()]).then(loadProducts)
 })
 </script>
 

@@ -6,6 +6,7 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { getCategories } from '@/api/category.js'
+import { vendorApi } from '@/api/vendor.js'
 import {
   createProduct,
   createProductSku,
@@ -39,7 +40,7 @@ const productSideMenus = [
 ]
 
 const categoryTree = ref([])
-const COLOR_OPTIONS = ['검정', '흰색', '그레이', '아이보리']
+const COLOR_OPTIONS = ['검정', '흰색', '그레이', '네이비']
 const SIZE_OPTIONS = ['XS', 'S', 'M', 'L', 'XL']
 
 const productName = ref('')
@@ -47,8 +48,10 @@ const parentCategory = ref('')
 const childCategory = ref('')
 const price = ref('')
 const status = ref('활성')
-const vendorName = ref('')
-const leadTimeDays = ref(3)
+const selectedVendorCode = ref('')
+const vendorOptions = ref([])
+const warehouseSafetyStock = ref(0)
+const storeSafetyStock = ref(0)
 const regDate = ref(new Date().toISOString().slice(0, 10).replaceAll('-', '.'))
 const selectedColors = ref([])
 const selectedSizes = ref([])
@@ -59,6 +62,18 @@ const isSubmitting = ref(false)
 
 
 const parentCategoryOptions = computed(() => categoryTree.value.map((c) => c.name))
+const activeVendorOptions = computed(() =>
+  vendorOptions.value.filter(vendor => vendor.status === 'ACTIVE'),
+)
+const selectedVendor = computed(() =>
+  vendorOptions.value.find(vendor => vendor.code === selectedVendorCode.value) ?? null,
+)
+const isSelectedVendorActive = computed(() =>
+  activeVendorOptions.value.some(vendor => vendor.code === selectedVendorCode.value),
+)
+const shouldShowCurrentVendorFallbackOption = computed(() =>
+  Boolean(selectedVendorCode.value) && !isSelectedVendorActive.value,
+)
 const childCategoryOptions = computed(() => {
   const parent = categoryTree.value.find((c) => c.name === parentCategory.value)
   return parent ? parent.children.map((c) => c.name) : []
@@ -82,7 +97,9 @@ const canSubmitCreate = computed(() =>
   parentCategory.value &&
   childCategory.value &&
   Number(price.value) >= 0 &&
-  vendorName.value.trim() &&
+  Number(warehouseSafetyStock.value) >= 0 &&
+  Number(storeSafetyStock.value) >= 0 &&
+  isSelectedVendorActive.value &&
   isVariantValid.value,
 )
 
@@ -91,7 +108,9 @@ const canSubmitEdit = computed(() =>
   parentCategory.value &&
   childCategory.value &&
   Number(price.value) >= 0 &&
-  vendorName.value.trim(),
+  Number(warehouseSafetyStock.value) >= 0 &&
+  Number(storeSafetyStock.value) >= 0 &&
+  isSelectedVendorActive.value,
 )
 
 const statusMap = {
@@ -172,8 +191,9 @@ async function loadProduct() {
   productName.value = product.name || ''
   price.value = Number(product.basePrice || 0)
   status.value = statusLabelMap[product.status] || '활성'
-  vendorName.value = product.mainVendorCode || ''
-  leadTimeDays.value = Number(product.leadTimeDays || 0)
+  selectedVendorCode.value = product.mainVendorCode || ''
+  warehouseSafetyStock.value = Number(product.warehouseSafetyStock || 0)
+  storeSafetyStock.value = Number(product.storeSafetyStock || 0)
 
   const parent = categoryTree.value.find((c) => (c.children || []).some((child) => child.code === product.categoryCode))
   if (parent) {
@@ -209,8 +229,10 @@ async function handleSubmit() {
         name: productName.value.trim(),
         categoryCode,
         basePrice: Number(price.value),
-        leadTimeDays: Number(leadTimeDays.value),
-        mainVendorCode: vendorName.value.trim(),
+        leadTimeDays: 0,
+        warehouseSafetyStock: Number(warehouseSafetyStock.value),
+        storeSafetyStock: Number(storeSafetyStock.value),
+        mainVendorCode: selectedVendorCode.value.trim(),
         status: statusMap[status.value] ?? 'ACTIVE',
       })
 
@@ -231,8 +253,10 @@ async function handleSubmit() {
         name: productName.value.trim(),
         categoryCode,
         basePrice: Number(price.value),
-        leadTimeDays: Number(leadTimeDays.value),
-        mainVendorCode: vendorName.value.trim(),
+        leadTimeDays: 0,
+        warehouseSafetyStock: Number(warehouseSafetyStock.value),
+        storeSafetyStock: Number(storeSafetyStock.value),
+        mainVendorCode: selectedVendorCode.value.trim(),
         status: statusMap[status.value] ?? 'ACTIVE',
       })
       const skuResult = await syncSkusBySelections()
@@ -284,10 +308,15 @@ async function loadCategories() {
   }
 }
 
+async function loadVendors() {
+  const list = await vendorApi.listVendors()
+  vendorOptions.value = list ?? []
+}
+
 onMounted(async () => {
   try {
     submitError.value = ''
-    await loadCategories()
+    await Promise.all([loadCategories(), loadVendors()])
     if (isEditMode.value) {
       await loadProduct()
       await loadSkus()
@@ -308,7 +337,7 @@ onMounted(async () => {
     @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
-      <section class="border border-gray-200 bg-white p-4 shadow-sm">
+      <section class="border border-gray-300 bg-white p-4 shadow-sm">
         <div class="flex items-center gap-2 text-[11px] font-bold text-gray-400">
           <button type="button" class="hover:text-[#004D3C]" @click="handleCancel">상품 관리</button>
           <ChevronRight :size="12" />
@@ -319,7 +348,7 @@ onMounted(async () => {
         <div class="mt-3 flex items-center gap-3">
           <button
             type="button"
-            class="inline-flex h-8 w-8 items-center justify-center border border-gray-200 text-gray-500 hover:border-[#004D3C] hover:text-[#004D3C]"
+            class="inline-flex h-8 w-8 items-center justify-center border border-gray-300 text-gray-500 hover:border-[#004D3C] hover:text-[#004D3C]"
             @click="handleCancel"
           >
             <ArrowLeft :size="15" />
@@ -333,23 +362,27 @@ onMounted(async () => {
 
       <section class="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)] xl:items-start">
         <div class="space-y-4">
-          <div class="border border-gray-200 bg-white shadow-sm">
+          <div class="border border-gray-300 bg-white shadow-sm">
             <div class="flex items-center gap-2 border-b border-gray-100 px-5 py-3">
               <Package :size="15" class="text-[#004D3C]" />
               <h2 class="text-sm font-black text-gray-900">제품 정보</h2>
             </div>
 
             <form class="space-y-6 p-5" @submit.prevent="handleSubmit">
-              <div>
-                <label class="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-gray-500">
+              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <label class="block text-[11px] font-black uppercase tracking-wide text-gray-500">
                   제품명 <span class="text-red-500">*</span>
+                  <input
+                    v-model="productName"
+                    type="text"
+                    placeholder="제품명을 입력하세요"
+                    class="mt-1.5 w-full border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#004D3C]"
+                  />
                 </label>
-                <input
-                  v-model="productName"
-                  type="text"
-                  placeholder="제품명을 입력하세요"
-                  class="w-full border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#004D3C]"
-                />
+                <label class="block text-[11px] font-black uppercase tracking-wide text-gray-500">
+                  단가 <span class="text-red-500">*</span>
+                  <input v-model.number="price" type="number" min="0" class="mt-1.5 w-full border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#004D3C]" />
+                </label>
               </div>
 
               <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -369,10 +402,6 @@ onMounted(async () => {
 
               <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <label class="block text-[11px] font-black uppercase tracking-wide text-gray-500">
-                  단가 <span class="text-red-500">*</span>
-                  <input v-model.number="price" type="number" min="0" class="mt-1.5 w-full border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#004D3C]" />
-                </label>
-                <label class="block text-[11px] font-black uppercase tracking-wide text-gray-500">
                   상태
                   <select v-model="status" class="mt-1.5 w-full border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#004D3C]">
                     <option value="활성">활성</option>
@@ -380,55 +409,85 @@ onMounted(async () => {
                     <option value="비활성">비활성</option>
                   </select>
                 </label>
+                <label class="block text-[11px] font-black uppercase tracking-wide text-gray-500">
+                  메인 거래처 <span class="text-red-500">*</span>
+                  <select
+                    v-model="selectedVendorCode"
+                    class="mt-1.5 w-full border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#004D3C]"
+                  >
+                    <option value="">거래처를 선택하세요</option>
+                    <option
+                      v-if="shouldShowCurrentVendorFallbackOption"
+                      :value="selectedVendorCode"
+                    >
+                      현재 설정 거래처 (비활성/미존재) - 재선택 필요
+                    </option>
+                    <option
+                      v-for="vendor in activeVendorOptions"
+                      :key="vendor.code"
+                      :value="vendor.code"
+                    >
+                      {{ vendor.name }} ({{ vendor.code }})
+                    </option>
+                  </select>
+                  <p
+                    v-if="shouldShowCurrentVendorFallbackOption"
+                    class="mt-1 text-[10px] font-bold text-red-500"
+                  >
+                    현재 설정 거래처는 사용할 수 없습니다. 활성 거래처를 다시 선택해주세요.
+                  </p>
+                </label>
               </div>
 
               <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <label class="block text-[11px] font-black uppercase tracking-wide text-gray-500">
-                  메인 거래처 <span class="text-red-500">*</span>
-                  <input v-model="vendorName" type="text" class="mt-1.5 w-full border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#004D3C]" />
+                  창고 공통 안전재고 <span class="text-red-500">*</span>
+                  <input v-model.number="warehouseSafetyStock" type="number" min="0" class="mt-1.5 w-full border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#004D3C]" />
                 </label>
                 <label class="block text-[11px] font-black uppercase tracking-wide text-gray-500">
-                  리드타임(일)
-                  <input v-model.number="leadTimeDays" type="number" min="0" class="mt-1.5 w-full border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#004D3C]" />
+                  매장 공통 안전재고 <span class="text-red-500">*</span>
+                  <input v-model.number="storeSafetyStock" type="number" min="0" class="mt-1.5 w-full border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#004D3C]" />
                 </label>
               </div>
 
-              <div class="!mt-4 space-y-5 rounded-md border border-gray-300 bg-white p-5">
+              <div class="!mt-4 rounded-md border border-gray-300 bg-white p-5">
                 <p class="text-[11px] font-black uppercase tracking-wide text-gray-500">
                   옵션 구성 <span v-if="!isEditMode" class="text-red-500">*</span>
                 </p>
-                <div class="space-y-2">
-                  <p class="text-[10px] font-bold text-gray-400">색상</p>
-                  <div class="flex flex-wrap gap-2">
-                    <button
-                      v-for="color in COLOR_OPTIONS"
-                      :key="color"
-                      type="button"
-                      class="border px-3 py-1.5 text-xs font-black transition"
-                      :class="selectedColors.includes(color)
-                        ? 'border-[#004D3C] bg-[#004D3C] text-white'
-                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-100'"
-                      @click="toggleColor(color)"
-                    >
-                      {{ color }}
-                    </button>
+                <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div class="space-y-2">
+                    <p class="text-[10px] font-bold text-gray-400">색상</p>
+                    <div class="flex flex-wrap gap-2">
+                      <button
+                        v-for="color in COLOR_OPTIONS"
+                        :key="color"
+                        type="button"
+                        class="min-w-[72px] border px-3 py-1.5 text-xs font-black transition"
+                        :class="selectedColors.includes(color)
+                          ? 'border-[#004D3C] bg-[#004D3C] text-white'
+                          : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-100'"
+                        @click="toggleColor(color)"
+                      >
+                        {{ color }}
+                      </button>
+                    </div>
                   </div>
-                </div>
-                <div class="space-y-2">
-                  <p class="text-[10px] font-bold text-gray-400">사이즈</p>
-                  <div class="flex flex-wrap gap-2">
-                    <button
-                      v-for="size in SIZE_OPTIONS"
-                      :key="size"
-                      type="button"
-                      class="border px-2.5 py-1 text-xs font-black transition"
-                      :class="selectedSizes.includes(size)
-                        ? 'border-[#0E7A60] bg-[#EBF5F5] text-[#0E7A60]'
-                        : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-100'"
-                      @click="toggleSize(size)"
-                    >
-                      {{ size }}
-                    </button>
+                  <div class="space-y-2">
+                    <p class="text-[10px] font-bold text-gray-400">사이즈</p>
+                    <div class="flex flex-wrap gap-2">
+                      <button
+                        v-for="size in SIZE_OPTIONS"
+                        :key="size"
+                        type="button"
+                        class="min-w-[56px] border px-2.5 py-1 text-xs font-black transition"
+                        :class="selectedSizes.includes(size)
+                          ? 'border-[#0E7A60] bg-[#EBF5F5] text-[#0E7A60]'
+                          : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-100'"
+                        @click="toggleSize(size)"
+                      >
+                        {{ size }}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -464,7 +523,7 @@ onMounted(async () => {
         </div>
 
         <aside class="space-y-4 xl:sticky xl:top-16">
-          <section class="border border-gray-200 bg-white p-4 shadow-sm">
+          <section class="border border-gray-300 bg-white p-4 shadow-sm">
             <h3 class="text-xs font-black uppercase tracking-wide text-gray-500">현재 입력 요약</h3>
             <div class="mt-3 space-y-2 text-xs">
               <div class="flex items-center justify-between border border-gray-100 bg-gray-50 px-3 py-2">
@@ -481,7 +540,17 @@ onMounted(async () => {
               </div>
               <div class="flex items-center justify-between border border-gray-100 bg-gray-50 px-3 py-2">
                 <span class="font-black text-gray-500">메인 거래처</span>
-                <span class="font-black text-gray-800">{{ vendorName || '-' }}</span>
+                <span class="font-black text-gray-800">
+                  {{ selectedVendor ? `${selectedVendor.name} (${selectedVendor.code})` : (selectedVendorCode || '-') }}
+                </span>
+              </div>
+              <div class="flex items-center justify-between border border-gray-100 bg-gray-50 px-3 py-2">
+                <span class="font-black text-gray-500">창고 공통 안전재고</span>
+                <span class="font-black text-gray-800">{{ Number(warehouseSafetyStock).toLocaleString() }}</span>
+              </div>
+              <div class="flex items-center justify-between border border-gray-100 bg-gray-50 px-3 py-2">
+                <span class="font-black text-gray-500">매장 공통 안전재고</span>
+                <span class="font-black text-gray-800">{{ Number(storeSafetyStock).toLocaleString() }}</span>
               </div>
               <div class="flex items-center justify-between border border-gray-100 bg-gray-50 px-3 py-2">
                 <span class="font-black text-gray-500">상태</span>

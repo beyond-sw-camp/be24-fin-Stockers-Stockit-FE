@@ -1,6 +1,6 @@
 <script setup>
 import { computed, h, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
@@ -14,7 +14,6 @@ import {
 } from '@/api/infrastructure.js'
 
 const router = useRouter()
-const route = useRoute()
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 
@@ -27,18 +26,14 @@ const brandColor = '#004D3C'
 const brandColorLight = '#E6F2F0'
 
 const activeTopMenu = computed(() => '인프라 관리')
-const menuLabels = ['매장 정보 관리', '창고 정보 관리']
-const activeSideMenu = ref(
-  typeof route.query.menu === 'string' && menuLabels.includes(route.query.menu)
-    ? route.query.menu
-    : '매장 정보 관리',
-)
-const storeRegionFilter = ref(typeof route.query.region === 'string' ? route.query.region : '전체 지역')
-const storeStatusFilter = ref(typeof route.query.status === 'string' ? route.query.status : '전체')
-const storeSearchTerm = ref(typeof route.query.search === 'string' ? route.query.search : '')
-const warehouseRegionFilter = ref(typeof route.query.region === 'string' ? route.query.region : '전체 지역')
-const warehouseStatusFilter = ref(typeof route.query.status === 'string' ? route.query.status : '전체')
-const warehouseSearchTerm = ref(typeof route.query.search === 'string' ? route.query.search : '')
+const activeSideMenu = ref('인프라 통합 조회')
+const viewType = ref('store')
+const storeRegionFilter = ref('전체 지역')
+const storeStatusFilter = ref('전체')
+const storeSearchTerm = ref('')
+const warehouseRegionFilter = ref('전체 지역')
+const warehouseStatusFilter = ref('전체')
+const warehouseSearchTerm = ref('')
 
 const topMenus = [
   '대시보드',
@@ -59,8 +54,7 @@ const routeMap = {
 }
 
 const infraSideMenus = [
-  { label: '매장 정보 관리', icon: 'store', id: 'SO-036' },
-  { label: '창고 정보 관리', icon: 'warehouse', id: 'SO-040' },
+  { label: '인프라 통합 조회', icon: 'store', id: 'SO-036' },
 ]
 
 const storeData = ref([])
@@ -93,14 +87,14 @@ if (!warehouseStatusOptions.includes(warehouseStatusFilter.value)) {
 
 const filteredWarehouseData = computed(() => warehouseData.value)
 
-const isStoreMenu = computed(() => activeSideMenu.value === '매장 정보 관리')
-const isWarehouseMenu = computed(() => activeSideMenu.value === '창고 정보 관리')
+const isStoreView = computed(() => viewType.value === 'store')
+const isWarehouseView = computed(() => viewType.value === 'warehouse')
 const activeSearchTerm = computed({
   get() {
-    return isWarehouseMenu.value ? warehouseSearchTerm.value : storeSearchTerm.value
+    return isWarehouseView.value ? warehouseSearchTerm.value : storeSearchTerm.value
   },
   set(value) {
-    if (isWarehouseMenu.value) {
+    if (isWarehouseView.value) {
       warehouseSearchTerm.value = value
       return
     }
@@ -132,22 +126,12 @@ const goToWarehouseDetail = (warehouse) => {
     name: 'hq-infrastructure-warehouse-detail',
     params: { warehouseId: warehouse.code },
     query: {
-      menu: '창고 정보 관리',
       region: warehouseRegionFilter.value !== '전체 지역' ? warehouseRegionFilter.value : undefined,
       status: warehouseStatusFilter.value !== '전체' ? warehouseStatusFilter.value : undefined,
       search: warehouseSearchTerm.value || undefined,
     },
   })
 }
-
-watch(
-  () => route.query.menu,
-  (menu) => {
-    if (typeof menu === 'string' && menuLabels.includes(menu)) {
-      activeSideMenu.value = menu
-    }
-  },
-)
 
 const statusToKor = {
   ACTIVE: '활성',
@@ -203,20 +187,22 @@ async function loadWarehouses() {
 async function reloadActiveMenuData() {
   try {
     infraError.value = ''
-    if (isStoreMenu.value) await loadStores()
-    if (isWarehouseMenu.value) await loadWarehouses()
+    if (isStoreView.value) await loadStores()
+    if (isWarehouseView.value) await loadWarehouses()
   } catch (e) {
     infraError.value = e.message
   }
 }
 
 watch([storeRegionFilter, storeStatusFilter, storeSearchTerm], () => {
-  if (isStoreMenu.value) reloadActiveMenuData()
+  if (isStoreView.value) reloadActiveMenuData()
 })
 watch([warehouseRegionFilter, warehouseStatusFilter, warehouseSearchTerm], () => {
-  if (isWarehouseMenu.value) reloadActiveMenuData()
+  if (isWarehouseView.value) reloadActiveMenuData()
 })
-watch(activeSideMenu, () => reloadActiveMenuData())
+watch(viewType, () => {
+  reloadActiveMenuData()
+})
 
 async function quickCreateStore() {
   const name = prompt('매장명을 입력하세요')
@@ -330,13 +316,20 @@ const iconMap = {
         <section class="panel filter-bar">
           <div class="filter-left">
             <div class="filter-item">
+              <span>조회 대상</span>
+              <select v-model="viewType">
+                <option value="store">매장</option>
+                <option value="warehouse">창고</option>
+              </select>
+            </div>
+            <div class="filter-item">
               <span>지역 분류</span>
-              <select v-if="isStoreMenu" v-model="storeRegionFilter">
+              <select v-if="isStoreView" v-model="storeRegionFilter">
                 <option v-for="region in storeRegionOptions" :key="region" :value="region">
                   {{ region }}
                 </option>
               </select>
-              <select v-else-if="isWarehouseMenu" v-model="warehouseRegionFilter">
+              <select v-else-if="isWarehouseView" v-model="warehouseRegionFilter">
                 <option v-for="region in warehouseRegionOptions" :key="region" :value="region">
                   {{ region }}
                 </option>
@@ -351,19 +344,19 @@ const iconMap = {
             </div>
             <div class="filter-item">
               <span>운영 상태</span>
-              <select v-if="isStoreMenu" v-model="storeStatusFilter">
+              <select v-if="isStoreView" v-model="storeStatusFilter">
                 <option>전체</option>
                 <option>활성</option>
                 <option>비활성</option>
               </select>
-              <select v-else-if="isWarehouseMenu" v-model="warehouseStatusFilter">
+              <select v-else-if="isWarehouseView" v-model="warehouseStatusFilter">
                 <option v-for="status in warehouseStatusOptions" :key="status" :value="status">
                   {{ status }}
                 </option>
               </select>
               <select v-else>
                 <option>전체</option>
-                <option>{{ isWarehouseMenu ? '활성 창고' : '활성 매장' }}</option>
+                <option>{{ isWarehouseView ? '활성 창고' : '활성 매장' }}</option>
                 <option>비활성</option>
               </select>
             </div>
@@ -374,7 +367,7 @@ const iconMap = {
                   v-model="activeSearchTerm"
                   type="text"
                   :placeholder="
-                    isWarehouseMenu
+                    isWarehouseView
                       ? '창고명, 창고 ID, 담당 책임자 통합 검색...'
                       : '매장명, 매장 ID, 담당자 통합 검색...'
                   "
@@ -384,7 +377,7 @@ const iconMap = {
         </section>
         <p v-if="infraError" class="text-xs font-bold text-red-600">{{ infraError }}</p>
 
-        <section v-if="activeSideMenu === '매장 정보 관리'" class="panel store-panel">
+        <section v-if="isStoreView" class="panel store-panel">
             <div class="store-head">
               <div class="store-head-left">
                 <h3 class="text-[11px] font-black uppercase tracking-[0.08em] text-gray-700">
@@ -392,7 +385,6 @@ const iconMap = {
                 </h3>
                 <span class="text-[10px] font-bold text-gray-400">Total: {{ filteredStoreData.length }} Locations</span>
               </div>
-              <button type="button" class="primary-button" @click="quickCreateStore">매장 등록</button>
             </div>
 
             <div class="store-card-grid">
@@ -414,26 +406,27 @@ const iconMap = {
                   <span class="inline-flex items-center bg-gray-100 px-2 py-1 text-[10px] font-bold text-gray-600">{{ store.region }}</span>
                 </div>
 
-                <p class="text-[11px] font-bold text-gray-600">
-                  담당 창고: <span class="text-gray-800">{{ store.warehouse }}</span>
-                </p>
+                <p class="warehouse-address">{{ store.address }}</p>
 
-                <div class="store-stock-graph">
-                  <div class="store-stock-head">
-                    <span>남은 재고량</span>
-                    <strong :class="{ low: store.remainingRate < 30 }">{{ store.remainingRate }}%</strong>
-                  </div>
-                  <div class="store-stock-track">
-                    <div
-                      class="store-stock-fill"
-                      :class="{ low: store.remainingRate < 30, caution: store.remainingRate >= 30 && store.remainingRate < 60 }"
-                      :style="{ width: `${store.remainingRate}%` }"
-                    />
-                  </div>
-                  <p class="store-stock-meta">
-                    {{ store.remainingStock.toLocaleString() }} / {{ store.stockCapacity.toLocaleString() }} EA
+                <div class="warehouse-meta-grid">
+                  <p class="warehouse-meta-row">
+                    <span>운영유형</span>
+                    <strong>{{ store.type }}</strong>
+                  </p>
+                  <p class="warehouse-meta-row">
+                    <span>담당자</span>
+                    <strong>{{ store.manager }}</strong>
+                  </p>
+                  <p class="warehouse-meta-row">
+                    <span>연락처</span>
+                    <strong>{{ store.contact }}</strong>
+                  </p>
+                  <p class="warehouse-meta-row full">
+                    <span>담당 창고</span>
+                    <strong class="text-[#0f766e]">{{ store.warehouse }}</strong>
                   </p>
                 </div>
+
               </article>
 
               <div v-if="filteredStoreData.length === 0" class="store-empty">
@@ -452,13 +445,12 @@ const iconMap = {
             </div>
         </section>
 
-        <section v-else-if="activeSideMenu === '창고 정보 관리'" class="panel store-panel">
+        <section v-else-if="isWarehouseView" class="panel store-panel">
             <div class="store-head">
               <div class="store-head-left">
                 <h3><WarehouseIcon :size="14" /> 전사 창고 마스터 정보 (SO-041)</h3>
                 <span>Total: {{ filteredWarehouseData.length }} Warehouses</span>
               </div>
-              <button type="button" class="primary-button" @click="quickCreateWarehouse">창고 등록</button>
             </div>
 
             <div class="store-card-grid">
@@ -525,7 +517,7 @@ const iconMap = {
         </section>
 
         <section v-else class="panel placeholder-panel">
-          <p>현재 {{ activeSideMenu }} 페이지가 준비 중입니다.</p>
+          <p>현재 페이지가 준비 중입니다.</p>
         </section>
     </div>
   </AppLayout>
@@ -947,6 +939,10 @@ const iconMap = {
   color: #6b7280;
   font-size: 11px;
   font-weight: 700;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .warehouse-meta-grid {
