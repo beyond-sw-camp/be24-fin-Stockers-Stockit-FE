@@ -316,8 +316,8 @@ function handleLogout() {
                     </div>
                     <div class="rounded-md border border-gray-200 bg-gray-50 px-3 py-3">
                       <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">환산 / 실차감 수량</p>
-                      <p class="mt-1 text-sm font-black text-gray-900">{{ Number(sale.totalEstimatedQuantity || 0).toFixed(2) }}볼</p>
-                      <p class="mt-1 text-sm font-black text-amber-700">{{ formatQuantity(sale.totalDeductedQuantity) }}볼</p>
+                      <p class="mt-1 text-sm font-black text-gray-900">{{ Number(sale.totalEstimatedQuantity || 0).toFixed(2) }}벌</p>
+                      <p class="mt-1 text-sm font-black text-amber-700">{{ formatQuantity(sale.totalDeductedQuantity) }}벌</p>
                     </div>
                     <div class="rounded-md border border-gray-200 bg-gray-50 px-3 py-3">
                       <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">예상 / 확정 거래 금액</p>
@@ -420,10 +420,10 @@ function handleLogout() {
                       <td class="px-3 py-3 font-black text-gray-900">{{ item.itemName }}</td>
                       <td class="px-3 py-3 text-left font-black text-gray-900">{{ materialTypeLabel(item) }}</td>
                       <td class="px-3 py-3 font-bold text-gray-700">{{ formatMaterials(item.materials || []) }}</td>
-                      <td class="px-3 py-3 text-left font-black text-gray-600">{{ formatQuantity(item.availableQuantity) }}볼 / {{ formatKg(item.availableWeightKg) }}</td>
+                      <td class="px-3 py-3 text-left font-black text-gray-600">{{ formatQuantity(item.availableQuantity) }}벌 / {{ formatKg(item.availableWeightKg) }}</td>
                       <td class="px-3 py-3 text-left font-black text-gray-900">{{ formatKg(item.requestedWeightKg) }}</td>
-                      <td class="px-3 py-3 text-left font-black text-gray-700">{{ Number(item.estimatedQuantity || 0).toFixed(2) }}볼</td>
-                      <td class="px-3 py-3 text-left font-black text-amber-700">{{ formatQuantity(item.deductedQuantity) }}볼</td>
+                      <td class="px-3 py-3 text-left font-black text-gray-700">{{ Number(item.estimatedQuantity || 0).toFixed(2) }}벌</td>
+                      <td class="px-3 py-3 text-left font-black text-amber-700">{{ formatQuantity(item.deductedQuantity) }}벌</td>
                       <td class="px-3 py-3 text-left font-black" :class="hasWeightAdjustment(item) ? 'text-[#0F5C4D]' : 'text-gray-900'">
                         {{ formatKg(item.actualWeightKg) }}
                       </td>

@@ -5,6 +5,7 @@ import { useEsgStore } from '@/stores/esg.js'
 
 const INVENTORY_STORAGE_KEY = 'stockit_circular_inventory_inventory_v2'
 const SALES_STORAGE_KEY = 'stockit_circular_inventory_sales_v1'
+const RETIRED_SALE_DATES = new Set(['2026-04-26', '2026-04-28'])
 
 const RAW_INITIAL_INVENTORY = [
   { id: 'CI-001', itemCode: 'SPA-TOP-001', parentCategory: '상의', childCategory: '반팔', itemName: '코튼 베이직 반팔 티셔츠', materials: [{ name: '면', ratio: 100 }], quantity: 184, weightKg: 92.0 },
@@ -237,6 +238,15 @@ function normalizeSaleRecord(sale) {
     totalWeightKg: totalActualWeightKg,
     totalAmount: totalActualAmount,
   }
+}
+
+function isRetiredSaleRecord(sale) {
+  const soldDate = String(sale?.soldAt ?? '').slice(0, 10)
+  return RETIRED_SALE_DATES.has(soldDate)
+}
+
+function filterRetiredSales(list = []) {
+  return list.filter(sale => !isRetiredSaleRecord(sale))
 }
 
 function normalizeDraftField(item, updates = {}) {
@@ -521,7 +531,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
   const buyerStore = useCircularStockBuyerStore()
   const esgStore = useEsgStore()
   const inventoryItems = ref(loadJson(INVENTORY_STORAGE_KEY, INITIAL_INVENTORY).map(enrichInventoryItem))
-  const sales = ref(loadJson(SALES_STORAGE_KEY, INITIAL_SALES).map(normalizeSaleRecord))
+  const sales = ref(filterRetiredSales(loadJson(SALES_STORAGE_KEY, INITIAL_SALES)).map(normalizeSaleRecord))
   const draftBuyerId = ref('')
   const draftMemo = ref('')
   const draftItems = ref([])
