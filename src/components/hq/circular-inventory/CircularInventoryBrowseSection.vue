@@ -161,20 +161,20 @@ const skuInventoryData = computed(() => {
 
   return normalizedInventoryData.value.flatMap((item) => {
     const totalWeight = parseWeight(item.weight)
-    const sourceQuantity = Math.max(1, Number(item.quantity) || 1)
+    const sourceQuantity = Math.max(0, Number(item.quantity) || 0)
+    if (sourceQuantity <= 0 || totalWeight <= 0) {
+      return []
+    }
     const perUnitWeight = totalWeight / sourceQuantity
-    // 재고 총량이 너무 작아 전 SKU가 저수량으로 보이는 것을 방지하되,
-    // SKU별 분산은 유지해 일부는 10~20대 수량도 나오도록 한다.
-    const boostedTotalQuantity = Math.max(
-      sourceQuantity,
-      760 + (String(item.id).split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) % 520),
-    )
+    const distributedQuantities = distributeWeightedIntegerByRatios(sourceQuantity, partitionRatios, String(item.id))
 
     return colorOptions.flatMap((color, colorIndex) =>
       sizeOptions.map((size, sizeIndex) => {
         const partitionIndex = colorIndex * sizeOptions.length + sizeIndex
-        const variance = 0.8 + ((colorIndex * 13 + sizeIndex * 7 + String(item.id).length) % 6) * 0.1
-        const quantity = Math.max(6, Math.round(boostedTotalQuantity * partitionRatios[partitionIndex] * variance))
+        const quantity = distributedQuantities[partitionIndex] ?? 0
+        if (quantity <= 0) {
+          return null
+        }
         const skuWeight = quantity * perUnitWeight
 
         return {
@@ -192,7 +192,7 @@ const skuInventoryData = computed(() => {
           weight: `${skuWeight.toFixed(1)}kg`,
         }
       }),
-    )
+    ).filter(Boolean)
   })
 })
 
@@ -325,6 +325,44 @@ function buildProductCode(item) {
   const childCode = childCategoryCodeMap[item.childCategory] ?? 'GEN'
   const numericPart = String(item.id ?? '').replace(/\D/g, '').padStart(3, '0').slice(-3)
   return `PRD-${categoryCode}-${childCode}-${numericPart}`
+}
+
+function distributeWeightedIntegerByRatios(total, ratios, seedText = '') {
+  if (!Number.isFinite(total) || total <= 0) {
+    return ratios.map(() => 0)
+  }
+
+  const weightedRatios = ratios.map((ratio, index) => {
+    const variance = 0.8 + ((index * 11 + String(seedText).length * 7) % 6) * 0.1
+    return ratio * variance
+  })
+  const ratioSum = weightedRatios.reduce((sum, value) => sum + value, 0) || 1
+  const base = weightedRatios.map((ratio) => (total * ratio) / ratioSum)
+  const quantities = base.map(value => Math.floor(value))
+  let remainder = total - quantities.reduce((sum, value) => sum + value, 0)
+
+  const seed = String(seedText).split('').reduce((sum, char) => sum + char.charCodeAt(0), 0)
+  const rankedIndexes = base
+    .map((value, index) => ({
+      index,
+      fraction: value - Math.floor(value),
+      tieBreaker: (seed + index * 17) % 97,
+    }))
+    .sort((a, b) => (
+      b.fraction - a.fraction
+      || a.tieBreaker - b.tieBreaker
+      || a.index - b.index
+    ))
+
+  let cursor = 0
+  while (remainder > 0 && rankedIndexes.length > 0) {
+    const target = rankedIndexes[cursor % rankedIndexes.length]
+    quantities[target.index] += 1
+    remainder -= 1
+    cursor += 1
+  }
+
+  return quantities
 }
 
 function resolveEstimatedUnitPrice(item) {

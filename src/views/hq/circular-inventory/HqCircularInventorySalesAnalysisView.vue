@@ -46,11 +46,11 @@ function handleLogout() {
           <p class="mt-3 text-2xl font-black text-gray-900">{{ summary.totalSalesCount }}</p>
         </article>
         <article class="border border-gray-200 bg-white px-4 py-4 shadow-sm">
-          <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">총 판매 kg</p>
+          <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">총 실제 판매 kg</p>
           <p class="mt-3 text-2xl font-black text-gray-900">{{ summary.totalWeightKg.toFixed(2) }}kg</p>
         </article>
         <article class="border border-gray-200 bg-white px-4 py-4 shadow-sm">
-          <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">총 판매 금액</p>
+          <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">총 실제 판매 금액</p>
           <p class="mt-3 text-2xl font-black text-gray-900">₩{{ summary.totalAmount.toLocaleString() }}</p>
         </article>
         <article class="border border-gray-200 bg-white px-4 py-4 shadow-sm">
@@ -69,7 +69,7 @@ function handleLogout() {
               <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
                 <tr>
                   <th class="px-3 py-3 text-left font-black">카테고리</th>
-                  <th class="px-3 py-3 text-right font-black">판매 kg</th>
+                  <th class="px-3 py-3 text-right font-black">실제 판매 kg</th>
                   <th class="px-3 py-3 text-right font-black">금액</th>
                 </tr>
               </thead>
@@ -93,7 +93,7 @@ function handleLogout() {
               <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
                 <tr>
                   <th class="px-3 py-3 text-left font-black">거래처</th>
-                  <th class="px-3 py-3 text-right font-black">판매 kg</th>
+                  <th class="px-3 py-3 text-right font-black">실제 판매 kg</th>
                   <th class="px-3 py-3 text-right font-black">금액</th>
                 </tr>
               </thead>
@@ -110,14 +110,14 @@ function handleLogout() {
 
         <section class="border border-gray-200 bg-white shadow-sm">
           <div class="border-b border-gray-100 px-4 py-3">
-            <h2 class="text-sm font-black text-gray-900">소재별 판매 환산 kg</h2>
+            <h2 class="text-sm font-black text-gray-900">소재별 실제 판매 환산 kg</h2>
           </div>
           <div class="overflow-x-auto">
             <table class="min-w-full border-collapse text-xs">
               <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
                 <tr>
                   <th class="px-3 py-3 text-left font-black">소재</th>
-                  <th class="px-3 py-3 text-right font-black">환산 kg</th>
+                  <th class="px-3 py-3 text-right font-black">실제 환산 kg</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">

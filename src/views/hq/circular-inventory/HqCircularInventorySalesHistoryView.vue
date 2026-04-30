@@ -52,6 +52,14 @@ function formatDateTime(iso) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
+function formatKg(value) {
+  return `${Number(value || 0).toFixed(2)}kg`
+}
+
+function formatCurrency(value) {
+  return `₩${Number(value || 0).toLocaleString()}`
+}
+
 function handleLogout() {
   auth.logout()
   router.push('/login')
@@ -100,8 +108,8 @@ function handleLogout() {
                   <th class="px-4 py-3 text-left font-black">판매번호</th>
                   <th class="px-4 py-3 text-left font-black">거래처</th>
                   <th class="px-4 py-3 text-left font-black">대표 품목</th>
-                  <th class="px-4 py-3 text-right font-black">총 판매 kg</th>
-                  <th class="px-4 py-3 text-right font-black">총 금액</th>
+                  <th class="px-4 py-3 text-right font-black">실제 판매 kg</th>
+                  <th class="px-4 py-3 text-right font-black">실제 금액</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">
@@ -116,8 +124,8 @@ function handleLogout() {
                   <td class="px-4 py-3 font-mono font-black text-gray-800">{{ sale.saleId }}</td>
                   <td class="px-4 py-3 font-black text-gray-900">{{ sale.buyerName }}</td>
                   <td class="px-4 py-3 font-black text-gray-900">{{ headlineLabel(sale) }}</td>
-                  <td class="px-4 py-3 text-right font-black text-gray-700">{{ sale.totalWeightKg.toFixed(2) }}kg</td>
-                  <td class="px-4 py-3 text-right font-black text-gray-900">₩{{ sale.totalAmount.toLocaleString() }}</td>
+                  <td class="px-4 py-3 text-right font-black text-gray-700">{{ formatKg(sale.totalActualWeightKg) }}</td>
+                  <td class="px-4 py-3 text-right font-black text-gray-900">{{ formatCurrency(sale.totalActualAmount) }}</td>
                 </tr>
                 <tr v-if="filteredSales.length === 0">
                   <td colspan="6" class="px-4 py-12 text-center text-gray-400">조회 가능한 판매 이력이 없습니다.</td>
@@ -150,31 +158,43 @@ function handleLogout() {
                 <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">등록자</p>
                 <p class="mt-1 text-sm font-black text-gray-900">{{ selectedSale.soldBy }}</p>
               </div>
+              <div class="border border-gray-200 bg-gray-50 px-3 py-3">
+                <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">요청 / 실제 KG</p>
+                <p class="mt-1 text-sm font-black text-gray-900">{{ formatKg(selectedSale.totalRequestedWeightKg) }} / <span class="text-[#0F5C4D]">{{ formatKg(selectedSale.totalActualWeightKg) }}</span></p>
+              </div>
+              <div class="border border-gray-200 bg-gray-50 px-3 py-3">
+                <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">예상 / 실제 금액</p>
+                <p class="mt-1 text-sm font-black text-gray-900">{{ formatCurrency(selectedSale.totalRequestedAmount) }} / <span class="text-[#0F5C4D]">{{ formatCurrency(selectedSale.totalActualAmount) }}</span></p>
+              </div>
             </div>
 
             <div class="overflow-x-auto">
-              <table class="min-w-[640px] w-full border-collapse text-xs">
+              <table class="min-w-[980px] w-full border-collapse text-xs">
                 <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
                   <tr>
                     <th class="px-3 py-3 text-left font-black">품목명</th>
                     <th class="px-3 py-3 text-left font-black">카테고리</th>
-                    <th class="px-3 py-3 text-right font-black">판매 kg</th>
+                    <th class="px-3 py-3 text-right font-black">요청 kg</th>
                     <th class="px-3 py-3 text-right font-black">참고 벌 수량</th>
                     <th class="px-3 py-3 text-right font-black">실차감</th>
-                    <th class="px-3 py-3 text-right font-black">금액</th>
+                    <th class="px-3 py-3 text-right font-black">실제 kg</th>
+                    <th class="px-3 py-3 text-right font-black">예상 금액</th>
+                    <th class="px-3 py-3 text-right font-black">실제 금액</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
-                  <tr v-for="item in selectedSale.items" :key="`${selectedSale.saleId}-${item.inventoryId}`">
+                  <tr v-for="item in selectedSale.items" :key="`${selectedSale.saleId}-${item.draftId || item.skuCode || item.inventoryId}`">
                     <td class="px-3 py-3 font-black text-gray-900">
                       <p>{{ item.itemName }}</p>
                       <p class="mt-1 font-mono text-[11px] text-gray-500">{{ item.itemCode }}</p>
                     </td>
                     <td class="px-3 py-3 font-bold text-gray-600">{{ item.mainCategory }} &gt; {{ item.subCategory }}</td>
-                    <td class="px-3 py-3 text-right font-black text-gray-900">{{ item.soldWeightKg.toFixed(2) }}kg</td>
+                    <td class="px-3 py-3 text-right font-black text-gray-900">{{ formatKg(item.requestedWeightKg) }}</td>
                     <td class="px-3 py-3 text-right font-black text-gray-700">{{ item.estimatedQuantity.toFixed(2) }}벌</td>
                     <td class="px-3 py-3 text-right font-black text-amber-700">{{ item.deductedQuantity }}벌</td>
-                    <td class="px-3 py-3 text-right font-black text-gray-900">₩{{ item.lineAmount.toLocaleString() }}</td>
+                    <td class="px-3 py-3 text-right font-black text-[#0F5C4D]">{{ formatKg(item.actualWeightKg) }}</td>
+                    <td class="px-3 py-3 text-right font-black text-gray-900">{{ formatCurrency(item.requestedAmount) }}</td>
+                    <td class="px-3 py-3 text-right font-black text-[#0F5C4D]">{{ formatCurrency(item.actualAmount) }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -186,8 +206,8 @@ function handleLogout() {
             </div>
 
             <div class="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-3 py-3">
-              <span class="text-xs font-bold text-gray-500">총 금액</span>
-              <span class="text-sm font-black text-gray-900">₩{{ selectedSale.totalAmount.toLocaleString() }}</span>
+              <span class="text-xs font-bold text-gray-500">실제 총 금액</span>
+              <span class="text-sm font-black text-[#0F5C4D]">{{ formatCurrency(selectedSale.totalActualAmount) }}</span>
             </div>
           </div>
 

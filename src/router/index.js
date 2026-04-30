@@ -39,7 +39,6 @@ import AllFlowTransactionsView from '@/views/hq/dashboard/AllFlowTransactionsVie
 import HqCompanyWideInventoryView from '@/views/hq/inventory/HqCompanyWideInventoryView.vue'
 import HqWarehouseInventoryComparisonView from '@/views/hq/inventory/HqWarehouseInventoryComparisonView.vue'
 import HqCompanyWideInventorySkuDetailView from '@/views/hq/inventory/HqCompanyWideInventorySkuDetailView.vue'
-import HqOrderManagementView from '@/views/hq/HqOrderManagementView.vue'
 import HqProductManagementView from '@/views/hq/HqProductManagementView.vue'
 import HqInfrastructureManagementView from '@/views/hq/HqInfrastructureManagementView.vue'
 import HqStoreDetailView from '@/views/hq/HqStoreDetailView.vue'
@@ -90,7 +89,6 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'hq' },
     },
     { path: '/hq/inventory/warehouse-comparison', name: 'hq-inventory-warehouse-comparison', component: HqWarehouseInventoryComparisonView, meta: { requiresAuth: true, role: 'hq' } },
-    { path: '/hq/orders', name: 'hq-orders', component: HqOrderManagementView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/products', name: 'hq-products', component: HqProductManagementView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/products/categories/add', name: 'hq-category-add', component: HqCategoryAddView, meta: { requiresAuth: true, role: 'hq' } },
     {

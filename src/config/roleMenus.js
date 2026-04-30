@@ -16,11 +16,10 @@ export const roleMenus = {
       ],
     },
     {
-      label: '주문/발주 관리',
+      label: '물류 창고 발주',
       path: '/hq/orders',
       icon: 'truck',
       children: [
-        { label: '매장 주문', path: '/hq/orders' },
         { label: '거래처 발주', path: '/hq/purchase-orders' },
         { label: '거래처 관리', path: '/hq/vendors' },
       ],
