@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularInventoryBrowseSection from '@/components/hq/circular-inventory/CircularInventoryBrowseSection.vue'
@@ -24,33 +24,46 @@ const isBuyerDropdownOpen = ref(false)
 const buyerDropdownRef = ref(null)
 const isDrawerOpen = ref(false)
 const showFinalReviewModal = ref(false)
+const priceEditModes = ref({})
 const toastMessage = ref('')
 const toastTone = ref('success')
+let toastTimer = null
 
+const saleStep = computed({
+  get: () => Number(unref(circularInventoryStore.saleStep) || 1),
+  set: (value) => circularInventoryStore.setSaleStep(value),
+})
 const filteredBuyers = computed(() => circularInventoryStore.filteredBuyers(buyerSearchTerm.value))
 const selectedBuyer = computed(() => circularInventoryStore.selectedBuyer)
 const drawerSummary = computed(() => circularInventoryStore.draftSummary)
 const draftItems = computed(() => circularInventoryStore.draftItems)
-const draftInventoryIds = computed(() => draftItems.value.map(item => item.inventoryId))
+const draftRowIds = computed(() => draftItems.value.map(item => item.draftId))
+const lockedMaterialType = computed(() => {
+  const raw = unref(circularInventoryStore.lockedMaterialType)
+  return typeof raw === 'string' ? raw : ''
+})
 
+const canMoveStep2 = computed(() => draftItems.value.length > 0 && Boolean(lockedMaterialType.value))
+const canMoveStep3 = computed(() => canMoveStep2.value && Boolean(selectedBuyer.value))
 const canSubmit = computed(() =>
-  Boolean(selectedBuyer.value)
-  && draftItems.value.length > 0
+  canMoveStep3.value
   && draftItems.value.every((item) => Number(item.soldWeightKg) > 0 && Number(item.unitPrice) > 0),
 )
-
-const shouldRenderDrawer = computed(() =>
-  isDrawerOpen.value || draftItems.value.length > 0,
-)
-
-const browseSummaryText = computed(() => `담긴 품목 ${draftItems.value.length.toLocaleString()}건`)
+const shouldRenderDrawer = computed(() => isDrawerOpen.value || draftItems.value.length > 0)
+const browseSummaryText = computed(() => `담긴 SKU ${draftItems.value.length.toLocaleString()}건`)
 
 function formatMaterials(materials) {
   return materials.map(material => `${material.name} ${material.ratio}%`).join(', ')
 }
 
-function isItemAdded(inventoryId) {
-  return Boolean(circularInventoryStore.getDraftItem(inventoryId))
+function isItemAdded(draftId) {
+  return Boolean(circularInventoryStore.getDraftItem(draftId))
+}
+
+function isRowSelectionDisabled(row) {
+  if (isItemAdded(row.id)) return false
+  if (!lockedMaterialType.value) return false
+  return lockedMaterialType.value !== row.materialType
 }
 
 function openDrawer() {
@@ -61,25 +74,42 @@ function toggleDrawer() {
   isDrawerOpen.value = !isDrawerOpen.value
 }
 
+function moveStep(step) {
+  if (step === 2 && !canMoveStep2.value) {
+    showToast('먼저 판매할 SKU를 선택해주세요.', 'error')
+    return
+  }
+  if (step === 3 && !canMoveStep3.value) {
+    showToast('거래처를 먼저 선택해주세요.', 'error')
+    return
+  }
+  saleStep.value = step
+}
+
 function addItemToDraft(row) {
-  const result = circularInventoryStore.addSaleDraftItem(row.inventoryId)
+  const result = circularInventoryStore.addSaleDraftItem(row)
   if (!result.success) {
-    toastMessage.value = result.message
-    toastTone.value = 'error'
+    showToast(result.message, 'error')
     return
   }
 
   isDrawerOpen.value = true
-  toastMessage.value = result.alreadyExists ? '이미 판매 패널에 담긴 항목입니다.' : '판매 패널에 항목을 추가했습니다.'
-  toastTone.value = 'success'
+  showToast(
+    result.alreadyExists ? '이미 판매 패널에 담긴 SKU입니다.' : '판매 패널에 SKU를 추가했습니다.',
+    'success',
+  )
 }
 
-function updateDraftItemField(inventoryId, field, value) {
-  circularInventoryStore.updateSaleDraftItem(inventoryId, { [field]: value })
+function updateDraftItemField(draftId, field, value) {
+  circularInventoryStore.updateSaleDraftItem(draftId, { [field]: value, resolvedUnitPrice: Number(field === 'unitPrice' ? value : undefined) || undefined })
 }
 
-function removeDraftItem(inventoryId) {
-  circularInventoryStore.removeSaleDraftItem(inventoryId)
+function removeDraftItem(draftId) {
+  circularInventoryStore.removeSaleDraftItem(draftId)
+  delete priceEditModes.value[draftId]
+  if (draftItems.value.length === 0) {
+    isDrawerOpen.value = false
+  }
 }
 
 function selectBuyer(buyer) {
@@ -90,11 +120,34 @@ function selectBuyer(buyer) {
 
 function clearDraftPanel() {
   circularInventoryStore.clearDraft()
+  priceEditModes.value = {}
   buyerSearchTerm.value = ''
+  saleStep.value = 1
+}
+
+function isPriceEditMode(draftId) {
+  return Boolean(priceEditModes.value[draftId])
+}
+
+function openPriceEditMode(draftId) {
+  priceEditModes.value = {
+    ...priceEditModes.value,
+    [draftId]: true,
+  }
+}
+
+function closePriceEditMode(draftId) {
+  priceEditModes.value = {
+    ...priceEditModes.value,
+    [draftId]: false,
+  }
 }
 
 function openFinalReviewModal() {
-  if (!canSubmit.value) return
+  if (!canSubmit.value) {
+    showToast('판매 kg/단가 입력을 완료해주세요.', 'error')
+    return
+  }
   showFinalReviewModal.value = true
 }
 
@@ -117,6 +170,11 @@ function submitSale() {
   }
 }
 
+function showToast(message, tone = 'success') {
+  toastMessage.value = message
+  toastTone.value = tone
+}
+
 function handleDocumentClick(event) {
   if (!buyerDropdownRef.value?.contains(event.target)) {
     isBuyerDropdownOpen.value = false
@@ -132,6 +190,14 @@ function materialFitLabel(value) {
   return buyerStore.materialFitLabel(value)
 }
 
+watch(toastMessage, (message) => {
+  if (!message) return
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => {
+    toastMessage.value = ''
+  }, 3000)
+})
+
 onMounted(() => {
   document.addEventListener('mousedown', handleDocumentClick)
   if (draftItems.value.length > 0) {
@@ -141,6 +207,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('mousedown', handleDocumentClick)
+  if (toastTimer) clearTimeout(toastTimer)
 })
 </script>
 
@@ -159,7 +226,7 @@ onBeforeUnmount(() => {
             <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Circular Inventory Sales</p>
             <h1 class="mt-1 text-lg font-black text-gray-900">순환 재고 판매 등록</h1>
             <p class="mt-1 text-xs font-bold text-gray-500">
-              조회 리스트에서 판매할 순환 재고를 선택해 하단 판매 패널에 담고, 거래처별로 판매 등록합니다.
+              SKU를 먼저 선택하고, 거래처를 매칭한 뒤 판매 kg/단가를 확정해 요청서를 등록합니다.
             </p>
           </div>
 
@@ -171,81 +238,45 @@ onBeforeUnmount(() => {
             판매 패널 열기
           </button>
         </div>
-
-        <div class="mt-4 grid gap-3 xl:grid-cols-[minmax(20rem,1.2fr)_minmax(16rem,0.8fr)]">
-          <div ref="buyerDropdownRef" class="relative flex flex-col gap-1.5">
-            <span class="text-[11px] font-bold text-gray-500">거래처 검색</span>
-            <input
-              v-model="buyerSearchTerm"
-              type="search"
-              class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#004D3C]"
-              placeholder="업체명, 코드, 담당자명"
-              @focus="isBuyerDropdownOpen = true"
-            />
-
-            <div
-              v-if="isBuyerDropdownOpen"
-              class="absolute left-0 top-full z-30 mt-1 max-h-64 w-full overflow-y-auto border border-gray-200 bg-white shadow-lg"
-            >
-              <button
-                v-for="buyer in filteredBuyers"
-                :key="buyer.id"
-                type="button"
-                class="flex w-full flex-col items-start border-b border-gray-100 px-3 py-2 text-left hover:bg-[#EBF5F5]"
-                @click="selectBuyer(buyer)"
-              >
-                <span class="text-xs font-black text-gray-900">{{ buyer.companyName }}</span>
-                <span class="mt-0.5 text-[11px] font-bold text-gray-500">{{ buyer.code }} · {{ buyer.managerName }} · {{ buyer.phone }}</span>
-                <span class="mt-1 text-[11px] font-bold text-gray-400">{{ buyer.industryGroup }} · {{ materialFitLabel(buyer.primaryMaterialFit) }}</span>
-              </button>
-              <div
-                v-if="filteredBuyers.length === 0"
-                class="px-3 py-4 text-center text-xs font-bold text-gray-400"
-              >
-                검색 결과가 없습니다.
-              </div>
-            </div>
-          </div>
-
-          <div class="border border-gray-200 bg-gray-50 px-3 py-3">
-            <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">선택 거래처</p>
-            <template v-if="selectedBuyer">
-              <p class="mt-1 text-sm font-black text-gray-900">{{ selectedBuyer.companyName }}</p>
-              <p class="mt-1 text-[11px] font-bold text-gray-500">{{ selectedBuyer.code }} · {{ selectedBuyer.managerName }} · {{ selectedBuyer.phone }}</p>
-              <p class="mt-1 text-[11px] font-bold text-gray-500">{{ selectedBuyer.industryGroup }} · {{ materialFitLabel(selectedBuyer.primaryMaterialFit) }}</p>
-              <p class="mt-1 text-[11px] font-bold text-gray-400">{{ selectedBuyer.description || '설명 없음' }}</p>
-            </template>
-            <p v-else class="mt-2 text-xs font-bold text-gray-400">거래처를 검색해 1건 선택해주세요.</p>
-          </div>
-        </div>
       </section>
 
       <CircularInventoryBrowseSection
         title="판매 대상 순환 재고 리스트"
-        description="순환 재고 조회 화면과 동일한 기준으로 SKU를 탐색하고, 판매 패널로 보낼 항목을 선택합니다."
+        description="순환 재고 조회 화면과 동일한 기준으로 SKU를 탐색하고, Step 1에 담을 항목을 선택합니다."
         :summary-text="browseSummaryText"
         :show-circular-sale-price-column="true"
+        :inventory-rows="circularInventoryStore.inventoryRows"
         action-column-label="추가"
         action-column-position="end"
-        :highlighted-row-ids="[]"
+        :selected-row-ids="draftRowIds"
+        :highlighted-row-ids="draftRowIds"
       >
         <template #row-action="{ row }">
+          <div class="flex flex-col items-center gap-1">
           <button
             type="button"
-            class="inline-flex h-9 w-[8.75rem] items-center justify-center gap-2 rounded-full border px-3.5 text-[11px] font-black tracking-[0.01em] transition-all duration-150"
-            :class="isItemAdded(row.inventoryId)
-              ? 'border-[#B7D8D1] bg-[#F3FAF8] text-[#0F5C4D] shadow-[inset_0_0_0_1px_rgba(183,216,209,0.35)] hover:border-[#8EC5BA] hover:bg-[#EAF6F2]'
-              : 'border-[#C9D9EE] bg-[#EEF4FB] text-[#24476B] shadow-[inset_0_0_0_1px_rgba(201,217,238,0.45)] hover:-translate-y-[1px] hover:border-[#AFC7E5] hover:bg-[#E4EEF9] hover:shadow-[0_8px_18px_rgba(137,163,198,0.18)]'"
+            class="inline-flex h-8 items-center justify-center gap-1.5 rounded-full border px-2.5 text-[11px] font-black tracking-[0.01em] transition-all duration-150 disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:opacity-100"
+            :class="isItemAdded(row.id)
+              ? 'border-[#B7D8D1] bg-[#F3FAF8] text-[#0F5C4D]'
+              : 'border-[#C9D9EE] bg-[#EEF4FB] text-[#24476B]'"
+            :disabled="isRowSelectionDisabled(row)"
+            :title="isRowSelectionDisabled(row)
+              ? `현재 요청서는 ${lockedMaterialType}만 선택 가능합니다.`
+              : ''"
             @click.stop="addItemToDraft(row)"
           >
-            <span
-              class="flex h-4 w-4 items-center justify-center rounded-full text-[10px]"
-              :class="isItemAdded(row.inventoryId) ? 'bg-[#DCEFEA] text-[#0F5C4D]' : 'bg-white text-[#24476B]'"
-            >
-              {{ isItemAdded(row.inventoryId) ? '✓' : '+' }}
+            <span class="flex h-4 w-4 items-center justify-center rounded-full text-[10px]" :class="isItemAdded(row.id) ? 'bg-[#DCEFEA] text-[#0F5C4D]' : 'bg-white text-[#24476B]'">
+              {{ isItemAdded(row.id) ? '✓' : '+' }}
             </span>
-            <span>{{ isItemAdded(row.inventoryId) ? '패널에서 수정' : '선택' }}</span>
+            <span>{{ isItemAdded(row.id) ? '수정' : '선택' }}</span>
           </button>
+            <span
+              v-if="isRowSelectionDisabled(row)"
+              class="text-[10px] font-black text-gray-400"
+            >
+              선택 불가
+            </span>
+          </div>
         </template>
       </CircularInventoryBrowseSection>
 
@@ -253,7 +284,7 @@ onBeforeUnmount(() => {
         v-if="shouldRenderDrawer"
         class="fixed bottom-0 right-0 z-20 w-full border-t border-gray-200 bg-white/95 shadow-[0_-8px_24px_rgba(15,23,42,0.12)] backdrop-blur"
       >
-        <div class="flex w-full flex-col gap-5 px-4 py-3">
+        <div class="flex w-full flex-col gap-4 px-4 py-3">
           <button
             type="button"
             class="flex w-full items-center justify-between gap-3 rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-left"
@@ -262,7 +293,7 @@ onBeforeUnmount(() => {
             <div class="flex flex-wrap items-center gap-3">
               <span class="text-sm font-black text-gray-900">판매 등록 패널</span>
               <span class="text-[11px] font-bold text-gray-500">
-                {{ selectedBuyer?.companyName ?? '거래처 미선택' }} · {{ drawerSummary.totalItems }}건 · {{ drawerSummary.totalWeightKg.toFixed(2) }}kg
+                소재 구분 {{ lockedMaterialType || '-' }} · 담긴 SKU {{ drawerSummary.totalItems }}건
               </span>
             </div>
             <div class="flex items-center gap-3">
@@ -271,163 +302,283 @@ onBeforeUnmount(() => {
             </div>
           </button>
 
-          <div v-if="isDrawerOpen" class="grid w-full gap-6 rounded-md border border-gray-200 bg-white p-4 xl:grid-cols-[minmax(0,1fr)_minmax(15rem,18rem)] xl:gap-8">
-            <div class="min-w-0">
-              <div class="mb-3 flex items-center justify-between gap-3">
-                <div>
-                  <p class="text-sm font-black text-gray-900">판매 품목</p>
-                  <p class="mt-1 text-[11px] font-bold text-gray-400">kg 입력 후 참고 벌 수량과 실제 차감 수량을 확인하세요.</p>
-                </div>
-                <button
-                  type="button"
-                  class="text-[11px] font-black text-gray-500 hover:text-gray-900"
-                  @click="clearDraftPanel"
-                >
-                  전체 비우기
+          <div v-if="isDrawerOpen" class="rounded-md border border-gray-200 bg-white p-4">
+            <div class="rounded-md border border-gray-200 bg-[#FAFCFB] p-3">
+              <div class="grid gap-2 md:grid-cols-3">
+                <button type="button" class="group overflow-hidden rounded-md border text-left transition" :class="saleStep >= 1 ? 'border-[#B7D8D1] bg-[#F3FAF8]' : 'border-gray-200 bg-white'" @click="moveStep(1)">
+                  <div class="h-1.5 bg-[#E6ECE9]">
+                    <div class="h-full bg-gradient-to-r from-[#2F9E87] to-[#0F5C4D] transition-all duration-500 ease-out" :style="{ width: saleStep >= 1 ? '100%' : '0%' }" />
+                  </div>
+                  <div class="flex items-center gap-2 px-3 py-2">
+                  <span class="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-black transition" :class="saleStep >= 1 ? 'bg-[#0F5C4D] text-white' : 'bg-gray-200 text-gray-500'">1</span>
+                  <span class="text-xs font-black" :class="saleStep === 1 ? 'text-[#0F5C4D]' : 'text-gray-600'">SKU 선택</span>
+                  </div>
+                </button>
+                <button type="button" class="group overflow-hidden rounded-md border text-left transition" :class="saleStep >= 2 ? 'border-[#B7D8D1] bg-[#F3FAF8]' : 'border-gray-200 bg-white'" @click="moveStep(2)">
+                  <div class="h-1.5 bg-[#E6ECE9]">
+                    <div class="h-full bg-gradient-to-r from-[#2F9E87] to-[#0F5C4D] transition-all duration-500 ease-out" :style="{ width: saleStep >= 2 ? '100%' : '0%' }" />
+                  </div>
+                  <div class="flex items-center gap-2 px-3 py-2">
+                  <span class="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-black transition" :class="saleStep >= 2 ? 'bg-[#0F5C4D] text-white' : 'bg-gray-200 text-gray-500'">2</span>
+                  <span class="text-xs font-black" :class="saleStep === 2 ? 'text-[#0F5C4D]' : 'text-gray-600'">거래처 매칭</span>
+                  </div>
+                </button>
+                <button type="button" class="group overflow-hidden rounded-md border text-left transition" :class="saleStep >= 3 ? 'border-[#B7D8D1] bg-[#F3FAF8]' : 'border-gray-200 bg-white'" @click="moveStep(3)">
+                  <div class="h-1.5 bg-[#E6ECE9]">
+                    <div class="h-full bg-gradient-to-r from-[#2F9E87] to-[#0F5C4D] transition-all duration-500 ease-out" :style="{ width: saleStep >= 3 ? '100%' : '0%' }" />
+                  </div>
+                  <div class="flex items-center gap-2 px-3 py-2">
+                  <span class="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-black transition" :class="saleStep >= 3 ? 'bg-[#0F5C4D] text-white' : 'bg-gray-200 text-gray-500'">3</span>
+                  <span class="text-xs font-black" :class="saleStep === 3 ? 'text-[#0F5C4D]' : 'text-gray-600'">판매 조건 확정</span>
+                  </div>
                 </button>
               </div>
+            </div>
 
-              <div
-                v-if="draftItems.length > 0"
-                class="max-h-[22rem] overflow-y-auto border border-gray-200"
-              >
-                <table class="min-w-[980px] w-full border-collapse text-left text-xs">
+            <p class="mt-3 text-[11px] font-bold text-gray-500">
+              <template v-if="saleStep === 1">요청서에서 같은 소재 구분 SKU만 선택할 수 있습니다.</template>
+              <template v-else-if="saleStep === 2">현재 단계는 수동 선택만 지원합니다. (AI 매칭은 이후 확장)</template>
+              <template v-else>판매 kg 기준 입력이며, 차감 벌 수량은 항상 올림 처리됩니다.</template>
+            </p>
+
+            <div v-if="saleStep === 1" class="mt-4">
+              <div class="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p class="text-sm font-black text-gray-900">선택 SKU</p>
+                  <p class="mt-1 text-[11px] font-bold text-gray-400">소재 구분 고정: {{ lockedMaterialType || '-' }}</p>
+                </div>
+                <button type="button" class="text-[11px] font-black text-gray-500 hover:text-gray-900" @click="clearDraftPanel">전체 비우기</button>
+              </div>
+              <div class="max-h-56 overflow-y-auto border border-gray-200">
+                <table class="w-full border-collapse text-left text-xs">
                   <thead class="sticky top-0 bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
                     <tr>
+                      <th class="px-3 py-3 font-black">SKU</th>
                       <th class="px-3 py-3 font-black">품목</th>
-                      <th class="px-3 py-3 font-black">현재 재고</th>
-                      <th class="px-3 py-3 font-black">판매 kg</th>
-                      <th class="px-3 py-3 font-black">참고 벌 수량</th>
-                      <th class="px-3 py-3 font-black">실차감 벌 수량</th>
-                      <th class="px-3 py-3 font-black">단가</th>
-                      <th class="px-3 py-3 text-right font-black">금액</th>
+                      <th class="px-3 py-3 font-black">소재 구분</th>
+                      <th class="px-3 py-3 font-black">소재 상세</th>
+                      <th class="px-3 py-3 text-right font-black">재고 수량</th>
+                      <th class="px-3 py-3 text-right font-black">kg당 단가</th>
+                      <th class="px-3 py-3 text-right font-black">환산 금액</th>
+                      <th class="px-3 py-3 text-right font-black">무게</th>
+                      <th class="px-3 py-3 text-right font-black">개당 무게</th>
                       <th class="px-3 py-3 text-center font-black">제거</th>
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-gray-100">
-                    <tr v-for="item in draftItems" :key="item.inventoryId">
-                      <td class="px-3 py-3 align-top">
-                        <p class="font-mono text-[11px] font-black text-gray-500">{{ item.itemCode }}</p>
-                        <p class="mt-1 font-black text-gray-900">{{ item.itemName }}</p>
-                        <p class="mt-1 text-[11px] font-bold text-gray-500">{{ item.mainCategory }} &gt; {{ item.subCategory }}</p>
-                        <p class="mt-1 text-[11px] font-bold text-gray-400">{{ formatMaterials(item.materials) }}</p>
+                    <tr v-for="item in draftItems" :key="item.draftId">
+                      <td class="px-3 py-3 font-mono font-bold text-gray-600">{{ item.skuCode }}</td>
+                      <td class="px-3 py-3 font-black text-gray-900">{{ item.itemName }}</td>
+                      <td class="px-3 py-3 font-black text-gray-700">{{ item.materialType }}</td>
+                      <td class="px-3 py-3 font-bold text-gray-700">{{ formatMaterials(item.materials) }}</td>
+                      <td class="px-3 py-3 text-right font-black text-gray-900">{{ item.availableQuantity.toLocaleString() }}벌</td>
+                      <td class="px-3 py-3 text-right font-black text-gray-900">₩{{ Number(item.defaultKgUnitPrice || 0).toLocaleString() }}</td>
+                      <td class="px-3 py-3 text-right font-black text-gray-900">₩{{ Math.round(Number(item.availableWeightKg || 0) * Number(item.defaultKgUnitPrice || 0)).toLocaleString() }}</td>
+                      <td class="px-3 py-3 text-right font-black text-gray-900">{{ Number(item.availableWeightKg || 0).toFixed(2) }}kg</td>
+                      <td class="px-3 py-3 text-right font-black text-gray-900">{{ Number(item.unitWeightKg || 0).toFixed(3) }}kg</td>
+                      <td class="px-3 py-3 text-center">
+                        <button type="button" class="h-7 border border-gray-200 px-2 text-[11px] font-black text-gray-500" @click="removeDraftItem(item.draftId)">삭제</button>
                       </td>
-                      <td class="px-3 py-3 align-top">
-                        <p class="font-black text-gray-900">{{ item.availableQuantity.toLocaleString() }}벌</p>
-                        <p class="mt-1 text-[11px] font-bold text-gray-500">{{ circularInventoryStore.formatWeight(item.availableWeightKg) }}</p>
-                        <p class="mt-1 text-[11px] font-bold text-gray-400">개당 {{ item.unitWeightKg.toFixed(3) }}kg</p>
-                      </td>
-                      <td class="px-3 py-3 align-top">
-                        <input
-                          :value="item.soldWeightKg"
-                          type="number"
-                          min="0"
-                          :max="item.availableWeightKg"
-                          step="0.01"
-                          class="h-9 w-24 border border-gray-300 bg-white px-2 text-right text-xs font-black text-gray-900 outline-none focus:border-[#004D3C]"
-                          placeholder="0"
-                          @input="updateDraftItemField(item.inventoryId, 'soldWeightKg', $event.target.value)"
-                        />
-                        <p class="mt-1 text-[11px] font-bold text-gray-400">최대 {{ item.availableWeightKg.toFixed(2) }}kg</p>
-                      </td>
-                      <td class="px-3 py-3 align-top font-black text-gray-900">
-                        {{ item.estimatedQuantity.toFixed(2) }}벌
-                      </td>
-                      <td class="px-3 py-3 align-top">
-                        <span class="inline-flex min-w-12 justify-center bg-amber-50 px-2 py-1 text-[11px] font-black text-amber-700">
-                          {{ item.deductedQuantity }}벌
-                        </span>
-                        <p class="mt-1 text-[11px] font-bold text-gray-400">올림 차감</p>
-                      </td>
-                      <td class="px-3 py-3 align-top">
-                        <input
-                          :value="item.unitPrice"
-                          type="number"
-                          min="0"
-                          step="100"
-                          class="h-9 w-28 border border-gray-300 bg-white px-2 text-right text-xs font-black text-gray-900 outline-none focus:border-[#004D3C]"
-                          placeholder="0"
-                          @input="updateDraftItemField(item.inventoryId, 'unitPrice', $event.target.value)"
-                        />
-                      </td>
-                      <td class="px-3 py-3 align-top text-right font-black text-gray-900">
-                        ₩{{ item.lineAmount.toLocaleString() }}
-                      </td>
-                      <td class="px-3 py-3 text-center align-top">
-                        <button
-                          type="button"
-                          class="h-8 border border-gray-200 px-2 text-[11px] font-black text-gray-500 hover:bg-gray-50 hover:text-black"
-                          @click="removeDraftItem(item.inventoryId)"
-                        >
-                          삭제
-                        </button>
-                      </td>
+                    </tr>
+                    <tr v-if="draftItems.length === 0">
+                      <td colspan="10" class="px-3 py-8 text-center text-xs font-bold text-gray-400">선택된 SKU가 없습니다.</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
-
-              <div
-                v-else
-                class="flex min-h-[22rem] items-center justify-center border border-dashed border-gray-200 bg-gray-50 px-6 text-center"
-              >
-                <div>
-                  <p class="text-sm font-black text-gray-900">아직 추가된 판매 품목이 없습니다.</p>
-                  <p class="mt-2 text-xs font-bold text-gray-400">
-                    위 순환 재고 리스트에서 <span class="text-[#24476B]">+ 선택</span> 버튼을 눌러 판매할 재고를 담아주세요.
-                  </p>
-                </div>
+              <div class="mt-4 border-t border-gray-100 pt-2 flex justify-end">
+                <button type="button" class="h-9 border border-[#004D3C] bg-[#004D3C] px-4 text-xs font-black text-white disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400" :disabled="!canMoveStep2" @click="moveStep(2)">다음</button>
               </div>
             </div>
 
-            <div class="flex w-full min-w-0 flex-col gap-4">
-              <section class="w-full border border-gray-200 bg-gray-50 px-3 py-3">
-                <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">판매 메모</p>
-                <textarea
-                  :value="circularInventoryStore.draftMemo"
-                  rows="5"
-                  maxlength="500"
-                  class="mt-2 w-full resize-none border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
-                  placeholder="거래 조건, 출고 메모 등을 입력하세요."
-                  @input="circularInventoryStore.setDraftMemo($event.target.value)"
-                />
-              </section>
+            <div v-else-if="saleStep === 2" class="mt-4">
+              <div class="grid gap-4 xl:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]">
+                <section ref="buyerDropdownRef" class="relative rounded-md border border-gray-200 bg-white p-3">
+                  <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">Buyer Search</p>
+                  <label class="mt-2 flex flex-col gap-1.5">
+                    <span class="text-[11px] font-bold text-gray-500">거래처 검색</span>
+                    <input
+                      v-model="buyerSearchTerm"
+                      type="search"
+                      class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#004D3C]"
+                      placeholder="업체명, 코드, 담당자명"
+                      @focus="isBuyerDropdownOpen = true"
+                    />
+                  </label>
+                  <p class="mt-2 text-[10px] font-bold text-gray-400">소재 구분 {{ lockedMaterialType || '-' }} 기준 후보 {{ filteredBuyers.length }}건</p>
+                  <div v-if="isBuyerDropdownOpen" class="absolute left-3 right-3 top-[5.8rem] z-30 max-h-64 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-xl">
+                    <button
+                      v-for="buyer in filteredBuyers"
+                      :key="buyer.id"
+                      type="button"
+                      class="flex w-full flex-col items-start border-b border-gray-100 px-3 py-2 text-left transition hover:bg-[#EBF5F5]"
+                      @click="selectBuyer(buyer)"
+                    >
+                      <span class="text-xs font-black text-gray-900">{{ buyer.companyName }}</span>
+                      <span class="mt-0.5 text-[11px] font-bold text-gray-500">{{ buyer.code }} · {{ buyer.managerName }} · {{ buyer.phone }}</span>
+                      <span class="mt-1 text-[11px] font-bold text-gray-400">{{ buyer.industryGroup }} · {{ materialFitLabel(buyer.primaryMaterialFit) }}</span>
+                    </button>
+                    <div v-if="filteredBuyers.length === 0" class="px-3 py-4 text-center text-xs font-bold text-gray-400">검색 결과가 없습니다.</div>
+                  </div>
+                </section>
 
-              <section class="w-full border border-blue-200 bg-blue-50 px-3 py-3">
-                <p class="text-[10px] font-black uppercase tracking-[0.12em] text-blue-500">수량 안내</p>
-                <p class="mt-2 text-xs font-black text-blue-700">
-                  판매 kg 기준으로 등록하며, 실제 재고 차감은 환산 벌 수량 기준 올림 처리됩니다.
-                </p>
-              </section>
+                <section class="rounded-md border border-gray-200 bg-[#FAFCFB] p-5">
+                  <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">Selected Buyer</p>
+                  <template v-if="selectedBuyer">
+                    <div class="mt-3 flex flex-col gap-4 rounded-md border border-[#DCE8E4] bg-white px-4 py-4">
+                      <div class="flex items-start justify-between gap-3">
+                        <div>
+                          <p class="text-base font-black text-gray-900">{{ selectedBuyer.companyName }}</p>
+                          <p class="mt-1 font-mono text-[11px] font-black text-gray-500">{{ selectedBuyer.code }}</p>
+                        </div>
+                        <span class="rounded-full bg-[#EAF4F0] px-2.5 py-1 text-[10px] font-black text-[#255F52]">
+                          {{ materialFitLabel(selectedBuyer.primaryMaterialFit) }}
+                        </span>
+                      </div>
 
-              <section class="w-full border border-gray-200 bg-white px-3 py-3">
-                <div class="flex items-center justify-between text-xs">
-                  <span class="font-bold text-gray-500">거래처</span>
-                  <span class="font-black text-gray-900">{{ selectedBuyer?.companyName ?? '-' }}</span>
-                </div>
-                <div class="mt-3 flex items-center justify-between text-xs">
-                  <span class="font-bold text-gray-500">담긴 품목</span>
-                  <span class="font-black text-gray-900">{{ drawerSummary.totalItems }}건</span>
-                </div>
-                <div class="mt-3 flex items-center justify-between text-xs">
-                  <span class="font-bold text-gray-500">총 판매 kg</span>
-                  <span class="font-black text-gray-900">{{ drawerSummary.totalWeightKg.toFixed(2) }}kg</span>
-                </div>
-                <div class="mt-3 flex items-center justify-between text-xs">
-                  <span class="font-bold text-gray-500">총 금액</span>
-                  <span class="font-black text-gray-900">₩{{ drawerSummary.totalAmount.toLocaleString() }}</span>
-                </div>
-              </section>
+                      <div class="grid gap-3 sm:grid-cols-2">
+                        <div class="rounded-md bg-gray-50 px-3 py-3">
+                          <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">담당자</p>
+                          <p class="mt-1 text-xs font-black text-gray-800">{{ selectedBuyer.managerName }}</p>
+                        </div>
+                        <div class="rounded-md bg-gray-50 px-3 py-3">
+                          <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">연락처</p>
+                          <p class="mt-1 text-xs font-black text-gray-800">{{ selectedBuyer.phone }}</p>
+                        </div>
+                      </div>
 
-              <button
-                type="button"
-                class="h-10 w-full text-sm font-black transition"
-                :class="canSubmit ? 'bg-[#004D3C] text-white hover:bg-[#00382c]' : 'cursor-not-allowed bg-gray-100 text-gray-400'"
-                :disabled="!canSubmit"
-                @click="openFinalReviewModal"
-              >
-                최종 판매 등록서 확인
-              </button>
+                      <div class="rounded-md bg-gray-50 px-3 py-3">
+                        <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">산업군</p>
+                        <p class="mt-1 text-xs font-black text-gray-800">{{ selectedBuyer.industryGroup }}</p>
+                      </div>
+
+                      <div class="rounded-md bg-gray-50 px-3 py-3">
+                        <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">거래처 설명</p>
+                        <p class="mt-1 text-xs font-bold leading-5 text-gray-700">{{ selectedBuyer.description || '설명 없음' }}</p>
+                      </div>
+                    </div>
+                  </template>
+                  <div
+                    v-else
+                    class="mt-3 flex min-h-[12rem] items-center justify-center rounded-md border border-dashed border-gray-200 bg-white px-4 text-center text-xs font-bold text-gray-400"
+                  >
+                    왼쪽 검색 목록에서 거래처를 선택하면 요약 정보가 표시됩니다.
+                  </div>
+                </section>
+              </div>
+              <div class="mt-6 border-t border-gray-100 pt-3 xl:col-span-2 flex justify-end gap-2">
+                <button type="button" class="h-9 border border-gray-300 bg-white px-4 text-xs font-black text-gray-700 hover:bg-gray-50" @click="moveStep(1)">이전</button>
+                <button type="button" class="h-9 border border-[#004D3C] bg-[#004D3C] px-4 text-xs font-black text-white disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400" :disabled="!canMoveStep3" @click="moveStep(3)">다음</button>
+              </div>
+            </div>
+
+            <div v-else class="mt-4 grid w-full gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(16rem,18rem)]">
+              <div class="min-w-0">
+                <div class="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                  <p class="text-sm font-black text-gray-900">판매 조건 입력</p>
+                  <p class="mt-1 text-[11px] font-bold text-gray-400">kg당 단가는 자동 입력되며 수정 가능합니다.</p>
+                  </div>
+                  <button type="button" class="text-[11px] font-black text-gray-500 hover:text-gray-900" @click="clearDraftPanel">전체 비우기</button>
+                </div>
+                <div class="max-h-[22rem] overflow-y-auto border border-gray-200">
+                  <table class="min-w-[980px] w-full border-collapse text-left text-xs">
+                    <thead class="sticky top-0 bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
+                      <tr>
+                        <th class="px-3 py-3 font-black">품목</th>
+                        <th class="px-3 py-3 text-center font-black">현재 재고</th>
+                        <th class="px-3 py-3 text-center font-black">재고 총 kg</th>
+                        <th class="px-3 py-3 text-center font-black">판매 kg</th>
+                        <th class="px-3 py-3 text-center font-black">환산 수량</th>
+                        <th class="px-3 py-3 text-center font-black">실차감 수량</th>
+                        <th class="px-3 py-3 text-center font-black">kg당 단가</th>
+                        <th class="px-3 py-3 text-center font-black">금액</th>
+                        <th class="px-3 py-3 text-center font-black">삭제</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                      <tr v-for="item in draftItems" :key="item.draftId">
+                        <td class="px-3 py-3 align-top">
+                          <p class="font-mono text-[11px] font-black text-gray-400">{{ item.skuCode || '-' }}</p>
+                          <p class="font-black text-gray-900">{{ item.itemName }}</p>
+                          <p class="mt-1 text-[11px] font-bold text-gray-500">{{ item.mainCategory }} &gt; {{ item.subCategory }} · {{ item.color }}/{{ item.size }}</p>
+                        </td>
+                        <td class="px-3 py-3 align-top text-center font-black text-gray-900">{{ item.availableQuantity.toLocaleString() }}벌</td>
+                        <td class="px-3 py-3 align-top text-center font-black text-gray-900">{{ circularInventoryStore.formatWeight(item.availableWeightKg) }}</td>
+                        <td class="px-3 py-3 align-top text-center">
+                          <div class="mx-auto inline-flex items-center gap-1">
+                            <input :value="item.soldWeightKg" type="number" min="0" :max="item.availableWeightKg" step="0.01" class="no-spin h-8 w-16 border border-gray-300 bg-white px-2 text-center text-[11px] font-black text-gray-900 outline-none focus:border-[#004D3C]" @input="updateDraftItemField(item.draftId, 'soldWeightKg', $event.target.value)" />
+                            <span class="text-[11px] font-black text-gray-500">kg</span>
+                          </div>
+                        </td>
+                        <td class="px-3 py-3 align-top text-center font-black text-gray-900">{{ item.estimatedQuantity.toFixed(2) }}벌</td>
+                        <td class="px-3 py-3 align-top text-center font-black text-amber-700">{{ item.deductedQuantity }}벌</td>
+                        <td class="px-3 py-3 align-top text-center">
+                          <div v-if="!isPriceEditMode(item.draftId)" class="mx-auto inline-flex h-8 min-w-[6.5rem] items-center justify-center gap-0.5 border border-gray-200 bg-gray-50 pl-2 pr-1 text-[11px] font-black text-gray-900">
+                            <span>₩{{ Number(item.unitPrice || 0).toLocaleString() }}</span>
+                            <button
+                              type="button"
+                              class="inline-flex h-5 w-5 items-center justify-center text-gray-500 transition hover:text-gray-900"
+                              title="kg당 단가 수정"
+                              @click="openPriceEditMode(item.draftId)"
+                            >
+                              ✎
+                            </button>
+                          </div>
+                          <input
+                            v-else
+                            :value="item.unitPrice"
+                            type="number"
+                            min="0"
+                            step="100"
+                            class="no-spin mx-auto h-8 w-24 border border-gray-300 bg-white px-2 text-center text-[11px] font-black text-gray-900 outline-none focus:border-[#004D3C]"
+                            @input="updateDraftItemField(item.draftId, 'unitPrice', $event.target.value)"
+                            @blur="closePriceEditMode(item.draftId)"
+                            @keydown.enter="closePriceEditMode(item.draftId)"
+                          />
+                          <p class="mt-1 text-center text-[10px] font-bold text-gray-400">기본 {{ Number(item.defaultKgUnitPrice || 0).toLocaleString() }}</p>
+                        </td>
+                        <td class="px-3 py-3 align-top text-center font-black text-gray-900">₩{{ item.lineAmount.toLocaleString() }}</td>
+                        <td class="px-3 py-3 align-top text-center">
+                          <button
+                            type="button"
+                            class="h-7 border border-gray-200 px-2 text-[11px] font-black text-gray-500 hover:bg-gray-50 hover:text-black"
+                            @click="removeDraftItem(item.draftId)"
+                          >
+                            삭제
+                          </button>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="flex w-full min-w-0 flex-col gap-3">
+                <section class="w-full border border-gray-200 bg-gray-50 px-3 py-3">
+                  <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">판매 메모</p>
+                  <textarea :value="circularInventoryStore.draftMemo" rows="5" maxlength="500" class="mt-2 w-full resize-none border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]" placeholder="거래 조건, 출고 메모 등을 입력하세요." @input="circularInventoryStore.setDraftMemo($event.target.value)" />
+                </section>
+
+                <section class="w-full border border-gray-200 bg-white px-3 py-3">
+                  <div class="flex items-center justify-between text-xs"><span class="font-bold text-gray-500">소재 구분</span><span class="font-black text-gray-900">{{ lockedMaterialType || '-' }}</span></div>
+                  <div class="mt-3 flex items-center justify-between text-xs"><span class="font-bold text-gray-500">거래처</span><span class="font-black text-gray-900">{{ selectedBuyer?.companyName ?? '-' }}</span></div>
+                  <div class="mt-3 flex items-center justify-between text-xs"><span class="font-bold text-gray-500">담긴 SKU</span><span class="font-black text-gray-900">{{ drawerSummary.totalItems }}건</span></div>
+                  <div class="mt-3 flex items-start justify-between gap-3 text-xs">
+                    <span class="font-bold text-gray-500">포함 소재</span>
+                    <span class="text-right font-black text-gray-900">
+                      {{
+                        [...new Set(draftItems.flatMap(item => item.materials.map(material => material.name)))]
+                          .join(', ') || '-'
+                      }}
+                    </span>
+                  </div>
+                  <div class="mt-3 flex items-center justify-between text-xs"><span class="font-bold text-gray-500">요청 KG</span><span class="font-black text-gray-900">{{ drawerSummary.totalWeightKg.toFixed(2) }}kg</span></div>
+                  <div class="mt-3 flex items-center justify-between text-xs"><span class="font-bold text-gray-500">예상 금액</span><span class="font-black text-gray-900">₩{{ drawerSummary.totalAmount.toLocaleString() }}</span></div>
+                </section>
+
+                <button type="button" class="h-9 w-full border border-gray-300 bg-white text-xs font-black text-gray-700 hover:bg-gray-50" @click="moveStep(2)">이전</button>
+                <button type="button" class="h-10 w-full text-sm font-black transition" :class="canSubmit ? 'bg-[#004D3C] text-white hover:bg-[#00382c]' : 'cursor-not-allowed bg-gray-100 text-gray-400'" :disabled="!canSubmit" @click="openFinalReviewModal">최종 판매 등록서 확인</button>
+              </div>
             </div>
           </div>
         </div>
@@ -444,147 +595,59 @@ onBeforeUnmount(() => {
               <div>
                 <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Final Review</p>
                 <h2 class="mt-1 text-lg font-black text-gray-900">최종 판매 등록서 확인</h2>
-                <p class="mt-1 text-xs font-bold text-gray-500">거래처와 품목, 차감 수량, 금액을 확인한 뒤 최종 등록합니다.</p>
               </div>
-              <button
-                type="button"
-                class="border border-gray-300 bg-white px-3 py-2 text-xs font-black text-gray-700 hover:bg-gray-50"
-                @click="showFinalReviewModal = false"
-              >
-                닫기
-              </button>
+              <button type="button" class="border border-gray-300 bg-white px-3 py-2 text-xs font-black text-gray-700 hover:bg-gray-50" @click="showFinalReviewModal = false">닫기</button>
             </div>
-
             <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-              <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
-                <div class="flex min-w-0 flex-col gap-4">
-                  <section class="grid gap-3 md:grid-cols-2">
-                    <div class="border border-gray-200 bg-gray-50 px-4 py-3">
-                      <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">거래처명</p>
-                      <p class="mt-1 text-sm font-black text-gray-900">{{ selectedBuyer?.companyName ?? '-' }}</p>
-                    </div>
-                    <div class="border border-gray-200 bg-gray-50 px-4 py-3">
-                      <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">거래처 코드</p>
-                      <p class="mt-1 text-sm font-black text-gray-900">{{ selectedBuyer?.code ?? '-' }}</p>
-                    </div>
-                    <div class="border border-gray-200 bg-gray-50 px-4 py-3">
-                      <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">담당자</p>
-                      <p class="mt-1 text-sm font-black text-gray-900">{{ selectedBuyer?.managerName ?? '-' }}</p>
-                    </div>
-                    <div class="border border-gray-200 bg-gray-50 px-4 py-3">
-                      <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">연락처</p>
-                      <p class="mt-1 text-sm font-black text-gray-900">{{ selectedBuyer?.phone ?? '-' }}</p>
-                    </div>
-                    <div class="border border-gray-200 bg-gray-50 px-4 py-3">
-                      <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">대표 소재 적합도</p>
-                      <p class="mt-1 text-sm font-black text-gray-900">{{ selectedBuyer ? materialFitLabel(selectedBuyer.primaryMaterialFit) : '-' }}</p>
-                    </div>
-                    <div class="border border-gray-200 bg-gray-50 px-4 py-3">
-                      <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">산업군</p>
-                      <p class="mt-1 text-sm font-black text-gray-900">{{ selectedBuyer?.industryGroup ?? '-' }}</p>
-                    </div>
-                  </section>
-
-                  <section class="border border-gray-200 bg-gray-50 px-4 py-3">
-                    <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">거래처 설명</p>
-                    <p class="mt-2 text-xs font-bold text-gray-700">{{ selectedBuyer?.description ?? '설명 없음' }}</p>
-                  </section>
-
-                  <section class="border border-gray-200 bg-gray-50 px-4 py-3">
-                    <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">판매 메모</p>
-                    <p class="mt-2 text-xs font-bold text-gray-700">{{ circularInventoryStore.draftMemo || '메모 없음' }}</p>
-                  </section>
-
-                  <section class="min-w-0 border border-gray-200 bg-white">
-                    <div class="border-b border-gray-100 px-4 py-3">
-                      <h3 class="text-sm font-black text-gray-900">판매 등록 품목</h3>
-                    </div>
-                    <div class="overflow-x-auto">
-                      <table class="min-w-[1240px] w-full border-collapse text-left text-xs">
-                        <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
-                          <tr>
-                            <th class="px-3 py-3 font-black">품목 코드</th>
-                            <th class="px-3 py-3 font-black">품목명</th>
-                            <th class="px-3 py-3 font-black">카테고리</th>
-                            <th class="px-3 py-3 font-black">소재</th>
-                            <th class="px-3 py-3 text-right font-black">현재 재고(벌)</th>
-                            <th class="px-3 py-3 text-right font-black">현재 환산 재고</th>
-                            <th class="px-3 py-3 text-right font-black">판매 kg</th>
-                            <th class="px-3 py-3 text-right font-black">참고 벌 수량</th>
-                            <th class="px-3 py-3 text-right font-black">실차감 벌 수량</th>
-                            <th class="px-3 py-3 text-right font-black">단가</th>
-                            <th class="px-3 py-3 text-right font-black">금액</th>
-                          </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100">
-                          <tr v-for="item in draftItems" :key="item.inventoryId">
-                            <td class="px-3 py-3 font-mono font-bold text-gray-500">{{ item.itemCode }}</td>
-                            <td class="px-3 py-3 font-black text-gray-900">{{ item.itemName }}</td>
-                            <td class="px-3 py-3 font-bold text-gray-600">{{ item.mainCategory }} &gt; {{ item.subCategory }}</td>
-                            <td class="px-3 py-3 font-bold text-gray-700">{{ formatMaterials(item.materials) }}</td>
-                            <td class="px-3 py-3 text-right font-black text-gray-900">{{ item.availableQuantity.toLocaleString() }}벌</td>
-                            <td class="px-3 py-3 text-right font-black text-gray-900">{{ circularInventoryStore.formatWeight(item.availableWeightKg) }}</td>
-                            <td class="px-3 py-3 text-right font-black text-gray-900">{{ Number(item.soldWeightKg).toFixed(2) }}kg</td>
-                            <td class="px-3 py-3 text-right font-black text-gray-700">{{ item.estimatedQuantity.toFixed(2) }}벌</td>
-                            <td class="px-3 py-3 text-right font-black text-amber-700">{{ item.deductedQuantity }}벌</td>
-                            <td class="px-3 py-3 text-right font-black text-gray-900">₩{{ Number(item.unitPrice).toLocaleString() }}</td>
-                            <td class="px-3 py-3 text-right font-black text-gray-900">₩{{ item.lineAmount.toLocaleString() }}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  </section>
+              <div class="grid gap-4 md:grid-cols-3">
+                <div class="border border-gray-200 bg-gray-50 px-4 py-3">
+                  <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">소재 구분</p>
+                  <p class="mt-1 text-sm font-black text-gray-900">{{ lockedMaterialType || '-' }}</p>
                 </div>
-
-                <div class="flex flex-col gap-4">
-                  <section class="border border-blue-200 bg-blue-50 px-4 py-4">
-                    <p class="text-[10px] font-black uppercase tracking-[0.12em] text-blue-500">차감 규칙 안내</p>
-                    <p class="mt-2 text-xs font-black text-blue-700">판매 kg 기준으로 입력하며 실제 재고 차감은 환산 벌 수량 기준 올림 처리됩니다.</p>
-                  </section>
-
-                  <section class="border border-gray-200 bg-white px-4 py-4">
-                    <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">최종 요약</p>
-                    <div class="mt-4 space-y-3">
-                      <div class="flex items-center justify-between text-xs">
-                        <span class="font-bold text-gray-500">총 품목 수</span>
-                        <span class="font-black text-gray-900">{{ drawerSummary.totalItems }}건</span>
-                      </div>
-                      <div class="flex items-center justify-between text-xs">
-                        <span class="font-bold text-gray-500">총 판매 kg</span>
-                        <span class="font-black text-gray-900">{{ drawerSummary.totalWeightKg.toFixed(2) }}kg</span>
-                      </div>
-                      <div class="flex items-center justify-between text-xs">
-                        <span class="font-bold text-gray-500">총 금액</span>
-                        <span class="font-black text-gray-900">₩{{ drawerSummary.totalAmount.toLocaleString() }}</span>
-                      </div>
-                    </div>
-                  </section>
+                <div class="border border-gray-200 bg-gray-50 px-4 py-3">
+                  <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">거래처</p>
+                  <p class="mt-1 text-sm font-black text-gray-900">{{ selectedBuyer?.companyName ?? '-' }}</p>
+                </div>
+                <div class="border border-gray-200 bg-gray-50 px-4 py-3">
+                  <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">총 금액</p>
+                  <p class="mt-1 text-sm font-black text-gray-900">₩{{ drawerSummary.totalAmount.toLocaleString() }}</p>
                 </div>
               </div>
-            </div>
 
+              <section class="mt-4 min-w-0 border border-gray-200 bg-white">
+                <div class="border-b border-gray-100 px-4 py-3">
+                  <h3 class="text-sm font-black text-gray-900">판매 등록 SKU</h3>
+                </div>
+                <div class="overflow-x-auto">
+                  <table class="min-w-[1100px] w-full border-collapse text-left text-xs">
+                    <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
+                      <tr>
+                        <th class="px-3 py-3 font-black">SKU</th>
+                        <th class="px-3 py-3 font-black">품목명</th>
+                        <th class="px-3 py-3 text-right font-black">판매 kg</th>
+                        <th class="px-3 py-3 text-right font-black">실차감 벌 수량</th>
+                        <th class="px-3 py-3 text-right font-black">kg당 단가</th>
+                        <th class="px-3 py-3 text-right font-black">금액</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                      <tr v-for="item in draftItems" :key="item.draftId">
+                        <td class="px-3 py-3 font-mono font-bold text-gray-500">{{ item.skuCode }}</td>
+                        <td class="px-3 py-3 font-black text-gray-900">{{ item.itemName }}</td>
+                        <td class="px-3 py-3 text-right font-black text-gray-900">{{ Number(item.soldWeightKg).toFixed(2) }}kg</td>
+                        <td class="px-3 py-3 text-right font-black text-amber-700">{{ item.deductedQuantity }}벌</td>
+                        <td class="px-3 py-3 text-right font-black text-gray-900">₩{{ Number(item.unitPrice).toLocaleString() }}</td>
+                        <td class="px-3 py-3 text-right font-black text-gray-900">₩{{ item.lineAmount.toLocaleString() }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
             <div class="flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-6 py-4">
-              <button
-                type="button"
-                class="border border-gray-300 bg-white px-4 py-2 text-xs font-black text-gray-700 hover:bg-gray-100"
-                @click="showFinalReviewModal = false"
-              >
-                닫기
-              </button>
-              <button
-                type="button"
-                class="border border-gray-300 bg-white px-4 py-2 text-xs font-black text-gray-700 hover:bg-gray-100"
-                @click="returnToDrawerEdit"
-              >
-                패널로 돌아가 수정
-              </button>
-              <button
-                type="button"
-                class="border border-[#004D3C] bg-[#004D3C] px-4 py-2 text-xs font-black text-white hover:bg-[#00382c]"
-                @click="submitSale"
-              >
-                최종 등록
-              </button>
+              <button type="button" class="border border-gray-300 bg-white px-4 py-2 text-xs font-black text-gray-700 hover:bg-gray-100" @click="showFinalReviewModal = false">닫기</button>
+              <button type="button" class="border border-gray-300 bg-white px-4 py-2 text-xs font-black text-gray-700 hover:bg-gray-100" @click="returnToDrawerEdit">패널로 돌아가 수정</button>
+              <button type="button" class="border border-[#004D3C] bg-[#004D3C] px-4 py-2 text-xs font-black text-white hover:bg-[#00382c]" @click="submitSale">최종 등록</button>
             </div>
           </div>
         </div>
@@ -600,3 +663,15 @@ onBeforeUnmount(() => {
     </div>
   </AppLayout>
 </template>
+
+<style scoped>
+.no-spin::-webkit-outer-spin-button,
+.no-spin::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.no-spin {
+  -moz-appearance: textfield;
+}
+</style>
