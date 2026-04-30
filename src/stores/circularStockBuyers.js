@@ -572,7 +572,7 @@ function mergeSeedBuyers(savedBuyers) {
   return merged
 }
 
-export const useCircularInventoryBuyerStore = defineStore('circularInventoryBuyers', () => {
+export const useCircularStockBuyerStore = defineStore('circularStockBuyers', () => {
   const buyers = ref(mergeSeedBuyers(loadJson(BUYER_STORAGE_KEY, INITIAL_BUYERS)))
 
   const sortedBuyers = computed(() =>

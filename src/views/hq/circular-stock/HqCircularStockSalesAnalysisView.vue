@@ -4,20 +4,20 @@ import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useCircularInventoryStore } from '@/stores/circularInventory.js'
+import { useCircularStockStore } from '@/stores/circularStock.js'
 
 const router = useRouter()
 const auth = useAuthStore()
-const circularInventoryStore = useCircularInventoryStore()
+const circularStockStore = useCircularStockStore()
 
 const hqMenus = roleMenus.hq
-const circularInventoryMenus = roleMenus.hq.find(menu => menu.label === '순환 재고 관리')?.children ?? []
+const circularStockMenus = roleMenus.hq.find(menu => menu.label === '순환 재고 관리')?.children ?? []
 
 const activeTopMenu = computed(() => '순환 재고 관리')
 const activeSideMenu = ref('순환 재고 판매 분석')
 
-const summary = computed(() => circularInventoryStore.salesSummary)
-const analytics = computed(() => circularInventoryStore.salesAnalytics)
+const summary = computed(() => circularStockStore.salesSummary)
+const analytics = computed(() => circularStockStore.salesAnalytics)
 
 function handleLogout() {
   auth.logout()
@@ -29,7 +29,7 @@ function handleLogout() {
   <AppLayout
     :active-top-menu="activeTopMenu"
     :top-menus="hqMenus"
-    :side-menus="circularInventoryMenus"
+    :side-menus="circularStockMenus"
     v-model:active-side-menu="activeSideMenu"
     @logout="handleLogout"
   >

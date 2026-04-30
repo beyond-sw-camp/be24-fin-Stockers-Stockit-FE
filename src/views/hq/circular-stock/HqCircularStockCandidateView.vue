@@ -8,7 +8,7 @@ import { useAuthStore } from '@/stores/auth.js'
 const router = useRouter()
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
-const circularInventoryMenus = roleMenus.hq.find(menu => menu.label === '순환 재고 관리')?.children ?? []
+const circularStockMenus = roleMenus.hq.find(menu => menu.label === '순환 재고 관리')?.children ?? []
 
 const activeTopMenu = computed(() => '순환 재고 관리')
 const activeSideMenu = ref('순환 재고 후보 조회')
@@ -244,7 +244,7 @@ function handleLogout() {
   <AppLayout
     :active-top-menu="activeTopMenu"
     :top-menus="hqMenus"
-    :side-menus="circularInventoryMenus"
+    :side-menus="circularStockMenus"
     v-model:active-side-menu="activeSideMenu"
     @logout="handleLogout"
   >

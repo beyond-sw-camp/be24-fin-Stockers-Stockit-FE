@@ -2,16 +2,16 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
-import CircularInventoryBrowseSection from '@/components/hq/circular-inventory/CircularInventoryBrowseSection.vue'
+import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useCircularInventoryStore } from '@/stores/circularInventory.js'
+import { useCircularStockStore } from '@/stores/circularStock.js'
 
 const router = useRouter()
 const auth = useAuthStore()
-const circularInventoryStore = useCircularInventoryStore()
+const circularStockStore = useCircularStockStore()
 const hqMenus = roleMenus.hq
-const circularInventoryMenus = roleMenus.hq.find(menu => menu.label === '순환 재고 관리')?.children ?? []
+const circularStockMenus = roleMenus.hq.find(menu => menu.label === '순환 재고 관리')?.children ?? []
 
 const activeTopMenu = computed(() => '순환 재고 관리')
 const activeSideMenu = ref('순환 재고 조회')
@@ -26,7 +26,7 @@ function handleLogout() {
   <AppLayout
     :active-top-menu="activeTopMenu"
     :top-menus="hqMenus"
-    :side-menus="circularInventoryMenus"
+    :side-menus="circularStockMenus"
     v-model:active-side-menu="activeSideMenu"
     @logout="handleLogout"
   >
@@ -41,11 +41,11 @@ function handleLogout() {
         </div>
       </section>
 
-      <CircularInventoryBrowseSection
+      <CircularStockInventoryBrowseSection
         title="순환 재고 리스트"
         description="소재와 SKU 기준으로 순환 재고를 탐색하고 판매 대상 SKU를 확인합니다."
         :show-circular-sale-price-column="true"
-        :inventory-rows="circularInventoryStore.inventoryRows"
+        :inventory-rows="circularStockStore.inventoryRows"
       />
     </div>
   </AppLayout>

@@ -2,19 +2,19 @@
 import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
-import CircularInventoryBrowseSection from '@/components/hq/circular-inventory/CircularInventoryBrowseSection.vue'
+import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useCircularInventoryBuyerStore } from '@/stores/circularInventoryBuyers.js'
-import { useCircularInventoryStore } from '@/stores/circularInventory.js'
+import { useCircularStockBuyerStore } from '@/stores/circularStockBuyers.js'
+import { useCircularStockStore } from '@/stores/circularStock.js'
 
 const router = useRouter()
 const auth = useAuthStore()
-const buyerStore = useCircularInventoryBuyerStore()
-const circularInventoryStore = useCircularInventoryStore()
+const buyerStore = useCircularStockBuyerStore()
+const circularStockStore = useCircularStockStore()
 
 const hqMenus = roleMenus.hq
-const circularInventoryMenus = roleMenus.hq.find(menu => menu.label === '순환 재고 관리')?.children ?? []
+const circularStockMenus = roleMenus.hq.find(menu => menu.label === '순환 재고 관리')?.children ?? []
 
 const activeTopMenu = computed(() => '순환 재고 관리')
 const activeSideMenu = ref('순환 재고 판매 등록')
@@ -30,17 +30,17 @@ const toastTone = ref('success')
 let toastTimer = null
 
 const saleStep = computed({
-  get: () => Number(unref(circularInventoryStore.saleStep) || 1),
-  set: (value) => circularInventoryStore.setSaleStep(value),
+  get: () => Number(unref(circularStockStore.saleStep) || 1),
+  set: (value) => circularStockStore.setSaleStep(value),
 })
-const filteredBuyers = computed(() => circularInventoryStore.filteredBuyers(buyerSearchTerm.value))
-const selectedBuyer = computed(() => circularInventoryStore.selectedBuyer)
-const drawerSummary = computed(() => circularInventoryStore.draftSummary)
-const draftItems = computed(() => circularInventoryStore.draftItems)
+const filteredBuyers = computed(() => circularStockStore.filteredBuyers(buyerSearchTerm.value))
+const selectedBuyer = computed(() => circularStockStore.selectedBuyer)
+const drawerSummary = computed(() => circularStockStore.draftSummary)
+const draftItems = computed(() => circularStockStore.draftItems)
 const draftRowIds = computed(() => draftItems.value.map(item => item.draftId))
-const submitValidation = computed(() => circularInventoryStore.validateCircularInventorySaleDraft())
+const submitValidation = computed(() => circularStockStore.validateCircularStockSaleDraft())
 const lockedMaterialType = computed(() => {
-  const raw = unref(circularInventoryStore.lockedMaterialType)
+  const raw = unref(circularStockStore.lockedMaterialType)
   return typeof raw === 'string' ? raw : ''
 })
 
@@ -83,7 +83,7 @@ function hasWeightAdjustment(item) {
 }
 
 function isItemAdded(draftId) {
-  return Boolean(circularInventoryStore.getDraftItem(draftId))
+  return Boolean(circularStockStore.getDraftItem(draftId))
 }
 
 function isRowSelectionDisabled(row) {
@@ -113,7 +113,7 @@ function moveStep(step) {
 }
 
 function addItemToDraft(row) {
-  const result = circularInventoryStore.addSaleDraftItem(row)
+  const result = circularStockStore.addSaleDraftItem(row)
   if (!result.success) {
     showToast(result.message, 'error')
     return
@@ -128,11 +128,11 @@ function addItemToDraft(row) {
 
 function updateDraftItemField(draftId, field, value) {
   const normalizedField = field === 'soldWeightKg' ? 'requestedWeightKg' : field
-  circularInventoryStore.updateSaleDraftItem(draftId, { [normalizedField]: value, resolvedUnitPrice: Number(field === 'unitPrice' ? value : undefined) || undefined })
+  circularStockStore.updateSaleDraftItem(draftId, { [normalizedField]: value, resolvedUnitPrice: Number(field === 'unitPrice' ? value : undefined) || undefined })
 }
 
 function removeDraftItem(draftId) {
-  circularInventoryStore.removeSaleDraftItem(draftId)
+  circularStockStore.removeSaleDraftItem(draftId)
   delete priceEditModes.value[draftId]
   if (draftItems.value.length === 0) {
     isDrawerOpen.value = false
@@ -140,13 +140,13 @@ function removeDraftItem(draftId) {
 }
 
 function selectBuyer(buyer) {
-  circularInventoryStore.selectBuyer(buyer.id)
+  circularStockStore.selectBuyer(buyer.id)
   buyerSearchTerm.value = buyer.companyName
   isBuyerDropdownOpen.value = false
 }
 
 function clearDraftPanel() {
-  circularInventoryStore.clearDraft()
+  circularStockStore.clearDraft()
   priceEditModes.value = {}
   buyerSearchTerm.value = ''
   saleStep.value = 1
@@ -184,7 +184,7 @@ function returnToDrawerEdit() {
 }
 
 function submitSale() {
-  const result = circularInventoryStore.submitCircularInventorySale(auth.user?.name ?? '본사 관리자')
+  const result = circularStockStore.submitCircularStockSale(auth.user?.name ?? '본사 관리자')
   toastMessage.value = result.success
     ? `${result.sale.saleId} 판매 등록을 완료했습니다.`
     : result.message
@@ -242,7 +242,7 @@ onBeforeUnmount(() => {
   <AppLayout
     :active-top-menu="activeTopMenu"
     :top-menus="hqMenus"
-    :side-menus="circularInventoryMenus"
+    :side-menus="circularStockMenus"
     v-model:active-side-menu="activeSideMenu"
     @logout="handleLogout"
   >
@@ -267,12 +267,12 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <CircularInventoryBrowseSection
+      <CircularStockInventoryBrowseSection
         title="판매 대상 순환 재고 리스트"
         description="순환 재고 조회 화면과 동일한 기준으로 SKU를 탐색하고, Step 1에 담을 항목을 선택합니다."
         :summary-text="browseSummaryText"
         :show-circular-sale-price-column="true"
-        :inventory-rows="circularInventoryStore.inventoryRows"
+        :inventory-rows="circularStockStore.inventoryRows"
         action-column-label="추가"
         action-column-position="end"
         :selected-row-ids="draftRowIds"
@@ -305,7 +305,7 @@ onBeforeUnmount(() => {
             </span>
           </div>
         </template>
-      </CircularInventoryBrowseSection>
+      </CircularStockInventoryBrowseSection>
 
       <div
         v-if="shouldRenderDrawer"
@@ -537,7 +537,7 @@ onBeforeUnmount(() => {
                         <td class="pl-1 pr-2 py-3 align-top text-center font-black text-gray-700">{{ item.materialType || '-' }}</td>
                         <td class="px-3 py-3 align-top text-center font-bold text-gray-500">{{ formatMaterials(item.materials) }}</td>
                         <td class="px-3 py-3 align-top text-center font-black text-gray-900">{{ item.availableQuantity.toLocaleString() }}벌</td>
-                        <td class="px-3 py-3 align-top text-center font-black text-gray-900">{{ circularInventoryStore.formatWeight(item.availableWeightKg) }}</td>
+                        <td class="px-3 py-3 align-top text-center font-black text-gray-900">{{ circularStockStore.formatWeight(item.availableWeightKg) }}</td>
                         <td class="px-3 py-3 align-top text-center">
                           <div class="mx-auto inline-flex items-center gap-1">
                             <input :value="item.requestedWeightKg" type="number" min="0" :max="item.availableWeightKg" step="0.01" class="no-spin h-8 w-16 border border-gray-300 bg-white px-2 text-center text-[11px] font-black text-gray-900 outline-none focus:border-[#004D3C]" @input="updateDraftItemField(item.draftId, 'requestedWeightKg', $event.target.value)" />
@@ -593,7 +593,7 @@ onBeforeUnmount(() => {
               <div class="flex w-full min-w-0 flex-col gap-3">
                 <section class="w-full border border-gray-200 bg-gray-50 px-3 py-3">
                   <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">판매 메모</p>
-                  <textarea :value="circularInventoryStore.draftMemo" rows="5" maxlength="500" class="mt-2 w-full resize-none border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]" placeholder="거래 조건, 출고 메모 등을 입력하세요." @input="circularInventoryStore.setDraftMemo($event.target.value)" />
+                  <textarea :value="circularStockStore.draftMemo" rows="5" maxlength="500" class="mt-2 w-full resize-none border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]" placeholder="거래 조건, 출고 메모 등을 입력하세요." @input="circularStockStore.setDraftMemo($event.target.value)" />
                 </section>
 
                 <section class="w-full border border-gray-200 bg-white px-3 py-3">
@@ -719,7 +719,7 @@ onBeforeUnmount(() => {
 
                     <div class="mt-4 border-t border-gray-200 pt-3">
                       <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">판매 메모</p>
-                      <p class="mt-1 text-xs font-bold leading-5 text-gray-700">{{ circularInventoryStore.draftMemo?.trim() || '입력된 메모 없음' }}</p>
+                      <p class="mt-1 text-xs font-bold leading-5 text-gray-700">{{ circularStockStore.draftMemo?.trim() || '입력된 메모 없음' }}</p>
                     </div>
                   </aside>
                 </div>

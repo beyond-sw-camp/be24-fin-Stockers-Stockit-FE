@@ -4,14 +4,14 @@ import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useCircularInventoryStore } from '@/stores/circularInventory.js'
+import { useCircularStockStore } from '@/stores/circularStock.js'
 
 const router = useRouter()
 const auth = useAuthStore()
-const circularInventoryStore = useCircularInventoryStore()
+const circularStockStore = useCircularStockStore()
 
 const hqMenus = roleMenus.hq
-const circularInventoryMenus = roleMenus.hq.find(menu => menu.label === '순환 재고 관리')?.children ?? []
+const circularStockMenus = roleMenus.hq.find(menu => menu.label === '순환 재고 관리')?.children ?? []
 
 const activeTopMenu = computed(() => '순환 재고 관리')
 const activeSideMenu = ref('순환 재고 판매 내역')
@@ -20,7 +20,7 @@ const selectedSaleId = ref('')
 
 const filteredSales = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase()
-  return circularInventoryStore.sortedSales.filter((sale) => {
+  return circularStockStore.sortedSales.filter((sale) => {
     if (!keyword) return true
     const headline = sale.items.length > 1
       ? `${sale.items[0].itemName} 외 ${sale.items.length - 1}건`
@@ -70,7 +70,7 @@ function handleLogout() {
   <AppLayout
     :active-top-menu="activeTopMenu"
     :top-menus="hqMenus"
-    :side-menus="circularInventoryMenus"
+    :side-menus="circularStockMenus"
     v-model:active-side-menu="activeSideMenu"
     @logout="handleLogout"
   >

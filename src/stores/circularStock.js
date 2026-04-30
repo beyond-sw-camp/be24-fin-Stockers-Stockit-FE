@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { useCircularInventoryBuyerStore } from '@/stores/circularInventoryBuyers.js'
+import { useCircularStockBuyerStore } from '@/stores/circularStockBuyers.js'
 
 const INVENTORY_STORAGE_KEY = 'stockit_circular_inventory_inventory_v2'
 const SALES_STORAGE_KEY = 'stockit_circular_inventory_sales_v1'
@@ -320,8 +320,8 @@ function buyerMaterialFitValue(materialType) {
   return 'blended'
 }
 
-export const useCircularInventoryStore = defineStore('circularInventory', () => {
-  const buyerStore = useCircularInventoryBuyerStore()
+export const useCircularStockStore = defineStore('circularStock', () => {
+  const buyerStore = useCircularStockBuyerStore()
   const inventoryItems = ref(loadJson(INVENTORY_STORAGE_KEY, INITIAL_INVENTORY).map(enrichInventoryItem))
   const sales = ref(loadJson(SALES_STORAGE_KEY, INITIAL_SALES).map(normalizeSaleRecord))
   const draftBuyerId = ref('')
@@ -557,7 +557,7 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
     saleStep.value = parsed
   }
 
-  function validateCircularInventorySaleDraft() {
+  function validateCircularStockSaleDraft() {
     if (draftItems.value.length === 0) {
       return { success: false, message: 'Step 1에서 판매할 SKU를 1건 이상 선택해주세요.' }
     }
@@ -635,8 +635,8 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
     return { success: true, buyer }
   }
 
-  function submitCircularInventorySale(soldBy = '본사 관리자') {
-    const validation = validateCircularInventorySaleDraft()
+  function submitCircularStockSale(soldBy = '본사 관리자') {
+    const validation = validateCircularStockSaleDraft()
     if (!validation.success) {
       return validation
     }
@@ -736,7 +736,7 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
     updateSaleDraftItem,
     removeSaleDraftItem,
     clearDraft,
-    validateCircularInventorySaleDraft,
-    submitCircularInventorySale,
+    validateCircularStockSaleDraft,
+    submitCircularStockSale,
   }
 })
