@@ -42,6 +42,26 @@ const productSideMenus = [
 const categoryTree = ref([])
 const COLOR_OPTIONS = ['검정', '흰색', '그레이', '네이비']
 const SIZE_OPTIONS = ['XS', 'S', 'M', 'L', 'XL']
+const MATERIAL_TYPE_OPTIONS = [
+  { label: '천연 단일 섬유', value: 'NATURAL_SINGLE' },
+  { label: '합성 섬유', value: 'SYNTHETIC' },
+  { label: '혼방', value: 'BLEND' },
+]
+const NATURAL_MATERIAL_OPTIONS = [
+  { code: 'COTTON', label: '면' },
+  { code: 'WOOL', label: '울' },
+  { code: 'CASHMERE', label: '캐시미어' },
+  { code: 'SILK', label: '실크' },
+  { code: 'LINEN', label: '린넨' },
+]
+const SYNTHETIC_MATERIAL_OPTIONS = [
+  { code: 'POLYESTER', label: '폴리에스터' },
+  { code: 'ACRYLIC', label: '아크릴' },
+  { code: 'POLYAMIDE', label: '나일론' },
+  { code: 'ELASTANE', label: '스판덱스' },
+]
+const ALL_MATERIAL_OPTIONS = [...NATURAL_MATERIAL_OPTIONS, ...SYNTHETIC_MATERIAL_OPTIONS]
+const MATERIAL_LABEL_BY_CODE = Object.fromEntries(ALL_MATERIAL_OPTIONS.map((option) => [option.code, option.label]))
 
 const productName = ref('')
 const parentCategory = ref('')
@@ -52,6 +72,12 @@ const selectedVendorCode = ref('')
 const vendorOptions = ref([])
 const warehouseSafetyStock = ref(0)
 const storeSafetyStock = ref(0)
+const materialType = ref('NATURAL_SINGLE')
+const singleMaterialCode = ref('COTTON')
+const blendCompositions = ref([
+  { materialCode: 'COTTON', ratio: 50 },
+  { materialCode: 'POLYESTER', ratio: 50 },
+])
 const regDate = ref(new Date().toISOString().slice(0, 10).replaceAll('-', '.'))
 const selectedColors = ref([])
 const selectedSizes = ref([])
@@ -91,6 +117,54 @@ const variantSummaryText = computed(() => {
   if (!selectedColors.value.length || !selectedSizes.value.length) return '-'
   return `색상(${selectedColors.value.join(', ')}) / 사이즈(${selectedSizes.value.join(', ')})`
 })
+const materialOptionsByType = computed(() => {
+  if (materialType.value === 'NATURAL_SINGLE') return NATURAL_MATERIAL_OPTIONS
+  if (materialType.value === 'SYNTHETIC') return SYNTHETIC_MATERIAL_OPTIONS
+  return ALL_MATERIAL_OPTIONS
+})
+const blendRatioTotal = computed(() =>
+  blendCompositions.value.reduce((sum, composition) => sum + Number(composition.ratio || 0), 0),
+)
+const isMaterialValid = computed(() => {
+  if (materialType.value === 'BLEND') {
+    if (blendCompositions.value.length < 2) return false
+    const usedCodes = new Set()
+    for (const composition of blendCompositions.value) {
+      if (!composition.materialCode || usedCodes.has(composition.materialCode)) return false
+      usedCodes.add(composition.materialCode)
+      if (Number(composition.ratio || 0) <= 0) return false
+    }
+    return blendRatioTotal.value === 100
+  }
+  return Boolean(singleMaterialCode.value)
+})
+const materialSummaryText = computed(() => {
+  if (materialType.value === 'BLEND') {
+    if (!blendCompositions.value.length) return '혼방'
+    const pieces = blendCompositions.value.map((composition) =>
+      `${MATERIAL_LABEL_BY_CODE[composition.materialCode] || composition.materialCode} ${Number(composition.ratio || 0)}%`,
+    )
+    return `혼방 (${pieces.join(' + ')})`
+  }
+  const groupLabel = MATERIAL_TYPE_OPTIONS.find((type) => type.value === materialType.value)?.label || '-'
+  const detailLabel = MATERIAL_LABEL_BY_CODE[singleMaterialCode.value] || '-'
+  return `${groupLabel} (${detailLabel} 100%)`
+})
+
+watch(materialType, (nextType) => {
+  if (nextType === 'NATURAL_SINGLE') {
+    singleMaterialCode.value = NATURAL_MATERIAL_OPTIONS[0].code
+    return
+  }
+  if (nextType === 'SYNTHETIC') {
+    singleMaterialCode.value = SYNTHETIC_MATERIAL_OPTIONS[0].code
+    return
+  }
+  blendCompositions.value = [
+    { materialCode: NATURAL_MATERIAL_OPTIONS[0].code, ratio: 50 },
+    { materialCode: SYNTHETIC_MATERIAL_OPTIONS[0].code, ratio: 50 },
+  ]
+})
 
 const canSubmitCreate = computed(() =>
   productName.value.trim() &&
@@ -99,6 +173,7 @@ const canSubmitCreate = computed(() =>
   Number(price.value) >= 0 &&
   Number(warehouseSafetyStock.value) >= 0 &&
   Number(storeSafetyStock.value) >= 0 &&
+  isMaterialValid.value &&
   isSelectedVendorActive.value &&
   isVariantValid.value,
 )
@@ -110,6 +185,7 @@ const canSubmitEdit = computed(() =>
   Number(price.value) >= 0 &&
   Number(warehouseSafetyStock.value) >= 0 &&
   Number(storeSafetyStock.value) >= 0 &&
+  isMaterialValid.value &&
   isSelectedVendorActive.value,
 )
 
@@ -135,6 +211,25 @@ function resolveCategoryCode() {
 function splitColorSize(optionValue) {
   const [color, size] = String(optionValue || '').split('|')
   return { color: color || '', size: size || '' }
+}
+
+function createMaterialCompositionsPayload() {
+  if (materialType.value === 'BLEND') {
+    return blendCompositions.value.map((composition) => ({
+      materialCode: composition.materialCode,
+      ratio: Number(composition.ratio || 0),
+    }))
+  }
+  return [{ materialCode: singleMaterialCode.value, ratio: 100 }]
+}
+
+function addBlendComposition() {
+  blendCompositions.value = [...blendCompositions.value, { materialCode: '', ratio: 0 }]
+}
+
+function removeBlendComposition(index) {
+  if (blendCompositions.value.length <= 2) return
+  blendCompositions.value = blendCompositions.value.filter((_, currentIndex) => currentIndex !== index)
 }
 
 async function loadSkus() {
@@ -194,6 +289,23 @@ async function loadProduct() {
   selectedVendorCode.value = product.mainVendorCode || ''
   warehouseSafetyStock.value = Number(product.warehouseSafetyStock || 0)
   storeSafetyStock.value = Number(product.storeSafetyStock || 0)
+  materialType.value = product.materialType || 'NATURAL_SINGLE'
+  if (materialType.value === 'BLEND') {
+    blendCompositions.value = (product.materialCompositions || []).map((composition) => ({
+      materialCode: composition.materialCode,
+      ratio: Number(composition.ratio || 0),
+    }))
+    if (!blendCompositions.value.length) {
+      blendCompositions.value = [
+        { materialCode: NATURAL_MATERIAL_OPTIONS[0].code, ratio: 50 },
+        { materialCode: SYNTHETIC_MATERIAL_OPTIONS[0].code, ratio: 50 },
+      ]
+    }
+  } else {
+    singleMaterialCode.value = product.materialCompositions?.[0]?.materialCode || (
+      materialType.value === 'SYNTHETIC' ? SYNTHETIC_MATERIAL_OPTIONS[0].code : NATURAL_MATERIAL_OPTIONS[0].code
+    )
+  }
 
   const parent = categoryTree.value.find((c) => (c.children || []).some((child) => child.code === product.categoryCode))
   if (parent) {
@@ -233,6 +345,8 @@ async function handleSubmit() {
         warehouseSafetyStock: Number(warehouseSafetyStock.value),
         storeSafetyStock: Number(storeSafetyStock.value),
         mainVendorCode: selectedVendorCode.value.trim(),
+        materialType: materialType.value,
+        materialCompositions: createMaterialCompositionsPayload(),
         status: statusMap[status.value] ?? 'ACTIVE',
       })
 
@@ -257,6 +371,8 @@ async function handleSubmit() {
         warehouseSafetyStock: Number(warehouseSafetyStock.value),
         storeSafetyStock: Number(storeSafetyStock.value),
         mainVendorCode: selectedVendorCode.value.trim(),
+        materialType: materialType.value,
+        materialCompositions: createMaterialCompositionsPayload(),
         status: statusMap[status.value] ?? 'ACTIVE',
       })
       const skuResult = await syncSkusBySelections()
@@ -450,6 +566,64 @@ onMounted(async () => {
                 </label>
               </div>
 
+              <div class="space-y-4 rounded-md border border-gray-300 bg-white p-4">
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <label class="block text-[11px] font-black uppercase tracking-wide text-gray-500">
+                    소재 구분 <span class="text-red-500">*</span>
+                    <select v-model="materialType" class="mt-1.5 w-full border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#004D3C]">
+                      <option v-for="type in MATERIAL_TYPE_OPTIONS" :key="type.value" :value="type.value">{{ type.label }}</option>
+                    </select>
+                  </label>
+                  <template v-if="materialType !== 'BLEND'">
+                    <label class="block text-[11px] font-black uppercase tracking-wide text-gray-500">
+                      소재 상세 <span class="text-red-500">*</span>
+                      <select v-model="singleMaterialCode" class="mt-1.5 w-full border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#004D3C]">
+                        <option v-for="option in materialOptionsByType" :key="option.code" :value="option.code">{{ option.label }}</option>
+                      </select>
+                      <p class="mt-1 text-[10px] font-bold text-gray-400">단일 소재는 100%로 자동 반영됩니다.</p>
+                    </label>
+                  </template>
+                </div>
+
+                <div v-if="materialType === 'BLEND'" class="space-y-3">
+                  <div
+                    v-for="(composition, index) in blendCompositions"
+                    :key="`blend-${index}`"
+                    class="grid grid-cols-[minmax(0,1fr)_120px_88px] gap-2"
+                  >
+                    <select v-model="composition.materialCode" class="w-full border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-[#004D3C]">
+                      <option value="">소재 선택</option>
+                      <option v-for="option in ALL_MATERIAL_OPTIONS" :key="option.code" :value="option.code">{{ option.label }}</option>
+                    </select>
+                    <input
+                      v-model.number="composition.ratio"
+                      type="number"
+                      min="0"
+                      max="100"
+                      class="w-full border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#004D3C]"
+                      placeholder="%"
+                    />
+                    <button
+                      type="button"
+                      class="border border-gray-300 bg-white px-3 py-2 text-xs font-black text-gray-600 hover:bg-gray-50 disabled:opacity-40"
+                      :disabled="blendCompositions.length <= 2"
+                      @click="removeBlendComposition(index)"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <p class="text-[11px] font-bold" :class="blendRatioTotal === 100 ? 'text-emerald-600' : 'text-red-500'">
+                      혼방 비율 합계: {{ blendRatioTotal }}%
+                    </p>
+                    <button type="button" class="border border-gray-300 bg-white px-3 py-1.5 text-xs font-black text-gray-700 hover:bg-gray-50" @click="addBlendComposition">
+                      소재 추가
+                    </button>
+                  </div>
+                  <p class="text-[10px] font-bold text-gray-400">혼방은 소재 2개 이상, 비율 합계 100%를 만족해야 합니다.</p>
+                </div>
+              </div>
+
               <div class="!mt-4 rounded-md border border-gray-300 bg-white p-5">
                 <p class="text-[11px] font-black uppercase tracking-wide text-gray-500">
                   옵션 구성 <span v-if="!isEditMode" class="text-red-500">*</span>
@@ -551,6 +725,10 @@ onMounted(async () => {
               <div class="flex items-center justify-between border border-gray-100 bg-gray-50 px-3 py-2">
                 <span class="font-black text-gray-500">매장 공통 안전재고</span>
                 <span class="font-black text-gray-800">{{ Number(storeSafetyStock).toLocaleString() }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3 border border-gray-100 bg-gray-50 px-3 py-2">
+                <span class="font-black text-gray-500">소재</span>
+                <span class="text-right font-black text-gray-800">{{ materialSummaryText }}</span>
               </div>
               <div class="flex items-center justify-between border border-gray-100 bg-gray-50 px-3 py-2">
                 <span class="font-black text-gray-500">상태</span>
