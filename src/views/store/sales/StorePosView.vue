@@ -277,16 +277,22 @@ function handleLogout() {
                   <td class="px-4 py-3 text-center">
                     <button
                       type="button"
-                      class="inline-flex min-w-[72px] items-center justify-center border px-3 py-2 text-[11px] font-black shadow-sm transition-all"
+                      class="inline-flex h-8 min-w-[74px] items-center justify-center gap-1.5 rounded-full border px-2.5 text-[11px] font-black tracking-[0.01em] transition-all duration-150 disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:opacity-100"
                       :class="
                         sku.stock === 0
                           ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 shadow-none'
-                          : 'border-[#004D3C] bg-[#004D3C] !text-white hover:-translate-y-px hover:bg-[#003d30] hover:shadow-[0_8px_18px_rgba(32,140,28,0.22)]'
+                          : 'border-[#C9D9EE] bg-[#EEF4FB] text-[#24476B]'
                       "
                       :disabled="sku.stock === 0"
                       @click="addToSalesList(sku)"
                     >
-                      담기
+                      <span
+                        class="flex h-4 w-4 items-center justify-center rounded-full text-[10px]"
+                        :class="sku.stock === 0 ? 'bg-gray-200 text-gray-400' : 'bg-white text-[#24476B]'"
+                      >
+                        +
+                      </span>
+                      <span>담기</span>
                     </button>
                   </td>
                 </tr>

@@ -395,15 +395,15 @@ function handleLogout() {
               <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
                 <tr>
                   <th class="w-[12%] px-3 py-2.5 text-left font-black">품목코드</th>
-                  <th class="w-[20%] px-1.5 py-2.5 text-left font-black">상품명</th>
+                  <th class="w-[16%] px-1.5 py-2.5 text-left font-black">상품명</th>
                   <th class="w-[12%] px-1 py-2.5 text-left font-black">옵션</th>
-                  <th class="w-[12%] px-1 py-2.5 text-left font-black">카테고리</th>
-                  <th class="w-[6.5%] px-1 py-2.5 text-center font-black">실재고</th>
-                  <th class="w-[6.5%] px-1 py-2.5 text-center font-black">가용재고</th>
-                  <th class="w-[6.5%] px-1 py-2.5 text-center font-black">안전재고</th>
-                  <th class="w-[8%] px-1 py-2.5 text-center font-black">권장 발주량</th>
-                  <th class="w-[8%] px-1 py-2.5 text-center font-black">상태</th>
-                  <th class="w-[8%] px-1 py-2.5 text-center font-black">추가</th>
+                  <th class="w-[11%] px-1 py-2.5 text-left font-black">카테고리</th>
+                  <th class="w-[6%] px-1 py-2.5 text-center font-black">실재고</th>
+                  <th class="w-[6%] px-1 py-2.5 text-center font-black">가용재고</th>
+                  <th class="w-[6%] px-1 py-2.5 text-center font-black">안전재고</th>
+                  <th class="w-[7%] px-1 py-2.5 text-center font-black">권장 발주량</th>
+                  <th class="w-[6%] px-1 py-2.5 text-center font-black">상태</th>
+                  <th class="w-[10%] px-2 py-2.5 text-center font-black">추가</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">
@@ -443,13 +443,14 @@ function handleLogout() {
                       {{ statusLabel[sku.stockStatus] }}
                     </span>
                   </td>
-                  <td class="px-1 py-2.5 text-center">
+                  <td class="px-2 py-2.5 text-center">
                     <button
                       type="button"
-                      class="inline-flex min-w-[48px] items-center justify-center border border-[#004D3C] bg-[#004D3C] px-1 py-1.5 text-[10px] font-black !text-white shadow-sm transition-all hover:-translate-y-px hover:bg-[#003d30]"
+                      class="inline-flex h-8 min-w-[70px] items-center justify-center gap-1.5 rounded-full border border-[#C9D9EE] bg-[#EEF4FB] px-3 text-[11px] font-black tracking-[0.01em] text-[#24476B] shadow-[0_1px_2px_rgba(36,71,107,0.08)] transition-all duration-150 hover:-translate-y-px hover:border-[#9EB9DE] hover:bg-[#E5EFFA] hover:shadow-[0_8px_16px_rgba(36,71,107,0.16)] active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9EB9DE]/50"
                       @click="addToRequest(sku)"
                     >
-                      + 담기
+                      <span class="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[10px] text-[#24476B]">+</span>
+                      <span>담기</span>
                     </button>
                   </td>
                 </tr>
