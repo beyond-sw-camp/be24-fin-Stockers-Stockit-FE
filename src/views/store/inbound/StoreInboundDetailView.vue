@@ -4,12 +4,12 @@ import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useStoreOrdersStore } from '@/stores/storeOrders.js'
+import { useStoreInboundStore } from '@/stores/storeInbound.js'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
-const storeOrders = useStoreOrdersStore()
+const storeOrders = useStoreInboundStore()
 
 const storeMenus = roleMenus.store
 const inboundMenus = roleMenus.store.find((menu) => menu.label === '입고 관리')?.children ?? []
