@@ -6,7 +6,7 @@ import LineChart from '@/components/common/charts/LineChart.vue'
 import BarChart from '@/components/common/charts/BarChart.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useStoreAiReportStore } from '@/stores/storeAiReport.js'
+import { useStoreAiReportStore } from '@/stores/store/storeAiReport.js'
 
 const router = useRouter()
 const auth = useAuthStore()

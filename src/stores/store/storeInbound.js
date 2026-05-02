@@ -1,5 +1,5 @@
 import { computed, reactive } from 'vue'
-import { useStoreOrderStore } from '@/stores/storeOrder.js'
+import { useStoreOrderStore } from '@/stores/store/storeOrder.js'
 
 function isAllInboundTab(value) {
   return value === '전체' || value === 'ALL'

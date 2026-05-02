@@ -5,7 +5,7 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useInventoryStore } from '@/stores/inventory.js'
-import { useSalesStore } from '@/stores/sales.js'
+import { useSalesStore } from '@/stores/store/storeSales.js'
 
 const router = useRouter()
 const auth = useAuthStore()

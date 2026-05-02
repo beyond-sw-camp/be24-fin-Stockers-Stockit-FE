@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useSalesStore } from '@/stores/sales.js'
+import { useSalesStore } from '@/stores/store/storeSales.js'
 import { buildHeadline, formatDateTime } from '@/features/store/common/ui.js'
 
 const router = useRouter()

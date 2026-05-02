@@ -7,8 +7,8 @@ import AiBuyerRecommendationPanel from '@/components/hq/circular-stock/AiBuyerRe
 
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useCircularStockBuyerStore } from '@/stores/circularStockBuyers.js'
-import { useCircularStockStore } from '@/stores/circularStock.js'
+import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
+import { useCircularStockStore } from '@/stores/hq/circularStock/circularStock.js'
 
 const router = useRouter()
 const auth = useAuthStore()

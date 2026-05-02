@@ -12,10 +12,10 @@ import {
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useWarehouseDashboardStore } from '@/stores/warehouseDashboard.js'
-import { useWarehouseSpaceStore } from '@/stores/warehouseSpace.js'
+import { useWarehouseDashboardStore } from '@/stores/warehouse/warehouseDashboard.js'
+import { useWarehouseSpaceStore } from '@/stores/warehouse/warehouseSpace.js'
 import { useVendorStore } from '@/stores/vendor.js'
-import { useWarehouseStockStore } from '@/stores/warehouseStock.js'
+import { useWarehouseStockStore } from '@/stores/warehouse/warehouseStock.js'
 
 const router = useRouter()
 const auth = useAuthStore()

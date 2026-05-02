@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { usePurchaseOrderStore } from './purchaseOrder.js'
+import { usePurchaseOrderStore } from '../purchaseOrder.js'
 import { inboundApi } from '@/api/inbound.js'
 
 export const useWarehouseInboundStore = defineStore('warehouseInbound', () => {

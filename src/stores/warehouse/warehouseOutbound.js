@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { useStoreOrderStore } from '@/stores/storeOrder.js'
+import { useStoreOrderStore } from '@/stores/store/storeOrder.js'
 
 const OUTBOUND_STATUS_LABEL = {
   READY_TO_SHIP: '출고 준비중',

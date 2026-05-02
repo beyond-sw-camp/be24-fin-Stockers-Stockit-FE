@@ -4,8 +4,8 @@ import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useWarehouseInboundStore } from '@/stores/warehouseInbound.js'
-import { useWarehouseStockStore } from '@/stores/warehouseStock.js'
+import { useWarehouseInboundStore } from '@/stores/warehouse/warehouseInbound.js'
+import { useWarehouseStockStore } from '@/stores/warehouse/warehouseStock.js'
 
 const router = useRouter()
 const auth = useAuthStore()
