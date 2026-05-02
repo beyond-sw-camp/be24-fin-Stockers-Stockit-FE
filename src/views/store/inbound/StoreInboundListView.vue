@@ -81,10 +81,8 @@ function handleLogout() {
             </p>
           </div>
           <div class="text-right text-[11px] font-bold text-gray-500">
-            <p>입고 전체 {{ storeOrders.inboundStatusCounts.전체 }}건</p>
-            <p class="mt-1 text-gray-400">
-              입고 완료 {{ storeOrders.inboundSummary.receivedCount }}건
-            </p>
+            <p>입고 전체 {{ storeOrders.inboundStatusCounts.ALL }}건</p>
+            <p class="mt-1 text-gray-400">입고 완료 {{ storeOrders.inboundSummary.receivedCount }}건</p>
           </div>
         </div>
       </section>

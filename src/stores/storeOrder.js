@@ -755,7 +755,6 @@ function headlineLabel(order) {
 
 export const useStoreOrderStore = defineStore('storeOrder', () => {
   const SAMPLE_ARRIVED_ORDER_ID = 'SOR-20260503-ARRIVED-001'
-  const isAllInboundTab = (value) => value === '전체' || value === 'ALL'
 
   const inventory = useInventoryStore()
   const orders = ref(loadOrders().map(normalizeOrder))
@@ -1002,130 +1001,6 @@ export const useStoreOrderStore = defineStore('storeOrder', () => {
         return a.productName.localeCompare(b.productName, 'ko')
       }),
   )
-
-  const inboundTargetOrders = computed(() =>
-    orders.value.filter(
-      (order) => (order.status === 'APPROVED' || order.status === 'COMPLETED') && order.inboundStatus,
-    ),
-  )
-
-  const inboundListOrders = computed(() => inboundTargetOrders.value)
-
-  const inboundHistoryOrders = computed(() =>
-    inboundTargetOrders.value.filter((order) => order.status === 'COMPLETED' && order.inboundStatus === 'RECEIVED'),
-  )
-
-  function filterInboundOrders(baseOrders, includeReceived = false) {
-    let list = [...baseOrders]
-
-    if (includeReceived && inboundActiveStatusTab.value === 'RECEIVED') {
-      list = list.filter((order) => order.status === 'COMPLETED' && order.inboundStatus === 'RECEIVED')
-    } else if (!includeReceived && !isAllInboundTab(inboundActiveStatusTab.value)) {
-      list = list.filter((order) => order.inboundStatus === inboundActiveStatusTab.value)
-    }
-
-    const keyword = inboundSearchKeyword.value.trim().toLowerCase()
-    if (keyword) {
-      list = list.filter((order) => {
-        const haystack = [
-          order.orderId,
-          headlineLabel(order),
-          order.memo,
-          ...order.items.map((item) =>
-            [item.itemCode, item.productName, item.mainCategory, item.subCategory].join(' ')),
-        ].join(' ').toLowerCase()
-        return haystack.includes(keyword)
-      })
-    }
-
-    const dateField = includeReceived ? 'inboundCompletedAt' : 'requestedAt'
-    if (inboundDateFrom.value) {
-      list = list.filter((order) => (order[dateField] || order.requestedAt).slice(0, 10) >= inboundDateFrom.value)
-    }
-    if (inboundDateTo.value) {
-      list = list.filter((order) => (order[dateField] || order.requestedAt).slice(0, 10) <= inboundDateTo.value)
-    }
-
-    const sorted = [...list]
-    switch (inboundSortBy.value) {
-      case 'oldest':
-        sorted.sort((a, b) => a.requestedAt.localeCompare(b.requestedAt))
-        break
-      case 'qtyDesc':
-        sorted.sort((a, b) => b.totalRequestedQuantity - a.totalRequestedQuantity)
-        break
-      case 'qtyAsc':
-        sorted.sort((a, b) => a.totalRequestedQuantity - b.totalRequestedQuantity)
-        break
-      default:
-        sorted.sort((a, b) => {
-          const dateA = a.inboundStatus === 'RECEIVED' ? a.inboundCompletedAt || a.requestedAt : a.requestedAt
-          const dateB = b.inboundStatus === 'RECEIVED' ? b.inboundCompletedAt || b.requestedAt : b.requestedAt
-          return dateB.localeCompare(dateA)
-        })
-    }
-    return sorted
-  }
-
-  const filteredInboundList = computed(() => filterInboundOrders(inboundListOrders.value))
-  const filteredInboundHistory = computed(() => filterInboundOrders(inboundHistoryOrders.value, true))
-
-  const inboundStatusCounts = computed(() => ({
-    ALL: inboundListOrders.value.length,
-    READY_TO_SHIP: inboundListOrders.value.filter((order) => order.inboundStatus === 'READY_TO_SHIP').length,
-    IN_TRANSIT: inboundListOrders.value.filter((order) => order.inboundStatus === 'IN_TRANSIT').length,
-    ARRIVED: inboundListOrders.value.filter((order) => order.inboundStatus === 'ARRIVED').length,
-    RECEIVED: inboundListOrders.value.filter((order) => order.status === 'COMPLETED' && order.inboundStatus === 'RECEIVED').length,
-  }))
-
-  const inboundSummary = computed(() => ({
-    totalCompletedOrders: inboundHistoryOrders.value.length,
-    totalCompletedQuantity: inboundHistoryOrders.value.reduce(
-      (sum, order) => sum + order.items.reduce((itemSum, item) => itemSum + item.expectedInboundQuantity, 0),
-      0,
-    ),
-    readyToShipCount: inboundListOrders.value.filter((order) => order.inboundStatus === 'READY_TO_SHIP').length,
-    inTransitCount: inboundListOrders.value.filter((order) => order.inboundStatus === 'IN_TRANSIT').length,
-    arrivedCount: inboundListOrders.value.filter((order) => order.inboundStatus === 'ARRIVED').length,
-    receivedCount: inboundHistoryOrders.value.length,
-  }))
-
-  const inboundAnalytics = computed(() => {
-    const categoryMap = new Map()
-    const statusCountMap = {
-      READY_TO_SHIP: 0,
-      IN_TRANSIT: 0,
-      ARRIVED: 0,
-      RECEIVED: 0,
-    }
-
-    for (const order of inboundTargetOrders.value) {
-      if (order.inboundStatus && statusCountMap[order.inboundStatus] !== undefined) {
-        statusCountMap[order.inboundStatus] += 1
-      }
-
-      for (const item of order.items) {
-        const categoryKey = `${item.mainCategory}|${item.subCategory}`
-        const previous = categoryMap.get(categoryKey) ?? {
-          label: `${item.mainCategory} > ${item.subCategory}`,
-          mainCategory: item.mainCategory,
-          subCategory: item.subCategory,
-          quantity: 0,
-        }
-        previous.quantity += item.expectedInboundQuantity
-        categoryMap.set(categoryKey, previous)
-      }
-    }
-
-    return {
-      statusCounts: statusCountMap,
-      categoryBreakdown: [...categoryMap.values()].sort((a, b) => (
-        compareMainCategory(a.mainCategory, b.mainCategory)
-        || a.subCategory.localeCompare(b.subCategory, 'ko')
-        || b.quantity - a.quantity
-      )),
-    }
-  })
 
   function persist() {
     saveOrders(orders.value)
@@ -1407,14 +1282,6 @@ export const useStoreOrderStore = defineStore('storeOrder', () => {
     summary,
     analytics,
     requestableSkus,
-    inboundTargetOrders,
-    inboundListOrders,
-    inboundHistoryOrders,
-    filteredInboundList,
-    filteredInboundHistory,
-    inboundStatusCounts,
-    inboundSummary,
-    inboundAnalytics,
     statusLabelMap: STATUS_LABEL,
     inboundStatusLabelMap: INBOUND_STATUS_LABEL,
     selectOrder,
