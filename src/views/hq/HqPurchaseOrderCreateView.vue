@@ -188,17 +188,12 @@ function clearFacets() {
   for (const k of Object.keys(activeFacetFilters)) delete activeFacetFilters[k]
 }
 
-// SKU 의 옵션값을 axis 별 분해 (슬래시 합성)
 function skuMatchesFacets(row) {
   const filters = Object.entries(activeFacetFilters)
   if (filters.length === 0) return true
-  const axes = (row.optionName || '').split('/').map((s) => s.trim())
-  const values = (row.optionValue || '').split('/').map((s) => s.trim())
   for (const [axisName, valueSet] of filters) {
-    const idx = axes.indexOf(axisName)
-    // axis 가 이 SKU 에 없는 경우 — 매칭 실패 (다른 마스터의 axis)
-    if (idx === -1) return false
-    if (!valueSet.has(values[idx])) return false
+    const current = axisName === '색상' ? row.color : axisName === '사이즈' ? row.size : ''
+    if (!valueSet.has(current)) return false
   }
   return true
 }
@@ -326,7 +321,7 @@ const filteredRows = computed(() => {
   let skus = all.filter((r) => r.type === 'sku')
   if (kw) {
     skus = skus.filter((r) =>
-      [r.vendorName, r.productName, r.productCode, r.skuCode, r.optionName, r.optionValue]
+      [r.vendorName, r.productName, r.productCode, r.skuCode, r.color, r.size, r.displayOption]
         .some((s) => (s ?? '').toLowerCase().includes(kw)),
     )
   }
@@ -348,7 +343,7 @@ const filteredRows = computed(() => {
       break
     case 'nameAsc':
       skus = [...skus].sort((a, b) =>
-        a.productName.localeCompare(b.productName, 'ko') || a.optionValue.localeCompare(b.optionValue, 'ko'),
+        a.productName.localeCompare(b.productName, 'ko') || (a.displayOption || '').localeCompare((b.displayOption || ''), 'ko'),
       )
       break
     default:
@@ -585,8 +580,9 @@ function pushSku(row, qty) {
       vendorId: row.vendorCode,
       vendorName: row.vendorName,
       skuCode: row.skuCode,
-      optionName: row.optionName,
-      optionValue: row.optionValue,
+      color: row.color,
+      size: row.size,
+      displayOption: row.displayOption,
       unitPrice: row.unitPrice,
       quantity: qty,
     })
@@ -737,8 +733,9 @@ async function confirmSubmitOrder() {
     productCode: i.productCode,
     productName: i.productName,
     skuCode: i.skuCode,
-    optionName: i.optionName,
-    optionValue: i.optionValue,
+    color: i.color,
+    size: i.size,
+    displayOption: i.displayOption,
     unitPrice: i.unitPrice,
     quantity: i.quantity,
     subtotal: i.unitPrice * i.quantity,
@@ -803,8 +800,9 @@ function initEditMode() {
     productCode: i.productCode,
     productName: i.productName,
     skuCode: i.skuCode ?? '',
-    optionName: i.optionName ?? '',
-    optionValue: i.optionValue ?? '',
+    color: i.color ?? '',
+    size: i.size ?? '',
+    displayOption: i.displayOption ?? [i.color, i.size].filter(Boolean).join('/'),
     vendorId: order.vendorId,
     vendorName: order.vendorName,
     unitPrice: i.unitPrice,
@@ -1147,8 +1145,7 @@ const AlertTriangleIcon = IconBase([
                       />
                     </td>
                     <td class="px-2 py-2 align-middle">
-                      <div class="text-xs font-bold text-gray-800">{{ row.optionValue }}</div>
-                      <div v-if="row.optionName" class="text-[10px] text-gray-400">{{ row.optionName }}</div>
+                      <div class="text-xs font-bold text-gray-800">{{ row.displayOption }}</div>
                     </td>
                     <td class="px-2 py-2 text-[11px] text-gray-500 align-middle">{{ row.skuCode }}</td>
                     <td class="px-2 py-2 text-right font-bold text-[#004D3C] align-middle">
@@ -1282,8 +1279,8 @@ const AlertTriangleIcon = IconBase([
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0 flex-1">
                     <p class="text-xs font-black text-gray-800">{{ item.productName }}</p>
-                    <p v-if="item.optionValue" class="text-[10px] font-bold text-[#004D3C]">
-                      {{ item.optionValue }}
+                    <p v-if="item.displayOption" class="text-[10px] font-bold text-[#004D3C]">
+                      {{ item.displayOption }}
                     </p>
                     <p class="text-[10px] text-gray-400">
                       {{ item.skuCode || item.productCode }} · ₩{{ item.unitPrice.toLocaleString() }}

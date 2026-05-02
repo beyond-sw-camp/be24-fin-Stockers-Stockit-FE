@@ -76,7 +76,7 @@ export const purchaseOrderApi = {
    * warehouseCode 는 본 사이클 BE 가 사용하지 않음 (인벤토리 합류 후 stock 필터링용).
    * 응답: { masters: [{ vendorCode, vendorName, vendorProductCode, productCode, productName,
    *                     contractUnitPrice, minSkuUnitPrice, maxSkuUnitPrice,
-   *                     skus: [{ skuCode, optionName, optionValue, unitPrice }] }],
+   *                     skus: [{ skuCode, color, size, displayOption, unitPrice }] }],
    *         optionFacets: [{ name, values: [string] }] }
    */
   getCatalog: ({ vendorCode = '', warehouseCode = '' } = {}) => {

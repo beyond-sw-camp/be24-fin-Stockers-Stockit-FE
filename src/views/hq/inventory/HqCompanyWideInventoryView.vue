@@ -1,9 +1,10 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { getCompanyWideInventories } from '@/api/inventory.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -22,6 +23,8 @@ const selectedStatus = ref('')
 const searchTerm = ref('')
 const isLocationDropdownOpen = ref(false)
 const locationDropdownRef = ref(null)
+const isLoading = ref(false)
+const loadError = ref('')
 
 const categoryMap = {
   상의: ['반팔', '긴팔', '셔츠', '니트', '후드티'],
@@ -30,36 +33,20 @@ const categoryMap = {
   아우터: ['패딩', '후드집업', '자켓', '가디건'],
 }
 
-const locationOptions = {
-  매장: ['강남 플래그십', '홍대 스토어', '성수 쇼룸', '부산 센텀점', '대구 동성로점'],
-  창고: ['인천 제1창고', '이천 풀필먼트', '부산 물류창고', '대전 허브창고'],
-}
-
 const locationTypeOptions = ['매장', '창고']
-
-const inventoryData = [
-  { itemCode: 'SPA-TOP-001', parentCategory: '상의', childCategory: '반팔', itemName: '코튼 베이직 반팔 티셔츠', locationType: '매장', locationName: '강남 플래그십', actualStock: 184, availableStock: 172, safetyStock: 60, status: '정상', updatedAt: '2026.04.22 09:20' },
-  { itemCode: 'SPA-TOP-002', parentCategory: '상의', childCategory: '긴팔', itemName: '슬림핏 긴팔 티셔츠', locationType: '매장', locationName: '홍대 스토어', actualStock: 38, availableStock: 32, safetyStock: 45, status: '부족', updatedAt: '2026.04.22 09:10' },
-  { itemCode: 'SPA-TOP-003', parentCategory: '상의', childCategory: '셔츠', itemName: '오버핏 옥스포드 셔츠', locationType: '창고', locationName: '인천 제1창고', actualStock: 420, availableStock: 402, safetyStock: 120, status: '정상', updatedAt: '2026.04.22 08:50' },
-  { itemCode: 'SPA-TOP-004', parentCategory: '상의', childCategory: '니트', itemName: '라운드넥 소프트 니트', locationType: '창고', locationName: '이천 풀필먼트', actualStock: 0, availableStock: 0, safetyStock: 80, status: '품절', updatedAt: '2026.04.22 08:30' },
-  { itemCode: 'SPA-TOP-005', parentCategory: '상의', childCategory: '후드티', itemName: '헤비웨이트 로고 후드티', locationType: '매장', locationName: '성수 쇼룸', actualStock: 76, availableStock: 68, safetyStock: 50, status: '정상', updatedAt: '2026.04.22 08:15' },
-  { itemCode: 'SPA-PNT-001', parentCategory: '바지', childCategory: '청바지', itemName: '스트레이트 워싱 데님', locationType: '매장', locationName: '부산 센텀점', actualStock: 28, availableStock: 21, safetyStock: 35, status: '부족', updatedAt: '2026.04.21 18:40' },
-  { itemCode: 'SPA-PNT-002', parentCategory: '바지', childCategory: '반바지', itemName: '라이트 코튼 쇼츠', locationType: '창고', locationName: '부산 물류창고', actualStock: 310, availableStock: 296, safetyStock: 90, status: '정상', updatedAt: '2026.04.21 18:10' },
-  { itemCode: 'SPA-PNT-003', parentCategory: '바지', childCategory: '긴바지', itemName: '와이드 밴딩 팬츠', locationType: '매장', locationName: '대구 동성로점', actualStock: 0, availableStock: 0, safetyStock: 30, status: '품절', updatedAt: '2026.04.21 17:35' },
-  { itemCode: 'SPA-PNT-004', parentCategory: '바지', childCategory: '츄리닝', itemName: '데일리 조거 트레이닝 팬츠', locationType: '창고', locationName: '대전 허브창고', actualStock: 144, availableStock: 130, safetyStock: 70, status: '정상', updatedAt: '2026.04.21 16:55' },
-  { itemCode: 'SPA-SKT-001', parentCategory: '치마', childCategory: '미니스커트', itemName: 'A라인 데님 미니스커트', locationType: '매장', locationName: '강남 플래그십', actualStock: 52, availableStock: 47, safetyStock: 40, status: '정상', updatedAt: '2026.04.21 15:45' },
-  { itemCode: 'SPA-SKT-002', parentCategory: '치마', childCategory: '롱스커트', itemName: '플리츠 롱스커트', locationType: '창고', locationName: '인천 제1창고', actualStock: 24, availableStock: 18, safetyStock: 55, status: '부족', updatedAt: '2026.04.21 15:20' },
-  { itemCode: 'SPA-OUT-001', parentCategory: '아우터', childCategory: '패딩', itemName: '라이트 숏 패딩', locationType: '창고', locationName: '이천 풀필먼트', actualStock: 98, availableStock: 92, safetyStock: 45, status: '정상', updatedAt: '2026.04.21 14:30' },
-  { itemCode: 'SPA-OUT-002', parentCategory: '아우터', childCategory: '후드집업', itemName: '스웨트 후드 집업', locationType: '매장', locationName: '홍대 스토어', actualStock: 17, availableStock: 12, safetyStock: 30, status: '부족', updatedAt: '2026.04.21 13:50' },
-  { itemCode: 'SPA-OUT-003', parentCategory: '아우터', childCategory: '자켓', itemName: '싱글 브레스트 자켓', locationType: '매장', locationName: '성수 쇼룸', actualStock: 64, availableStock: 58, safetyStock: 25, status: '정상', updatedAt: '2026.04.21 13:15' },
-  { itemCode: 'SPA-OUT-004', parentCategory: '아우터', childCategory: '가디건', itemName: '브이넥 니트 가디건', locationType: '창고', locationName: '대전 허브창고', actualStock: 0, availableStock: 0, safetyStock: 35, status: '품절', updatedAt: '2026.04.21 12:40' },
-]
+const locationOptionsRaw = ref([])
+const inventoryData = ref([])
 
 const childCategoryOptions = computed(() =>
   selectedParentCategory.value ? categoryMap[selectedParentCategory.value] : [],
 )
 
-const currentLocationOptions = computed(() => locationOptions[locationType.value])
+const currentLocationOptions = computed(() => {
+  const current = locationType.value === '창고' ? 'WAREHOUSE' : 'STORE'
+  return locationOptionsRaw.value
+    .filter(l => l.locationType === current)
+    .map(l => l.name)
+})
 
 const parseQueryList = (value) => {
   if (typeof value !== 'string') return []
@@ -76,9 +63,7 @@ const initializeFiltersFromQuery = () => {
   searchTerm.value = typeof route.query.search === 'string' ? route.query.search : ''
 
   const queryLocations = parseQueryList(route.query.locations)
-  selectedLocations.value = queryLocations.filter(location =>
-    locationOptions[locationType.value].includes(location),
-  )
+  selectedLocations.value = queryLocations
 }
 
 initializeFiltersFromQuery()
@@ -96,54 +81,10 @@ const hiddenLocationCount = computed(() =>
   selectedLocations.value.length >= 3 ? selectedLocations.value.length - 1 : 0,
 )
 
-const locationScopedInventory = computed(() => {
-  const keyword = searchTerm.value.trim().toLowerCase()
-
-  return inventoryData.filter((item) => {
-    const matchesType = item.locationType === locationType.value
-    const matchesLocation = selectedLocations.value.length === 0 || selectedLocations.value.includes(item.locationName)
-    const matchesParentCategory = !selectedParentCategory.value || item.parentCategory === selectedParentCategory.value
-    const matchesChildCategory = !selectedChildCategory.value || item.childCategory === selectedChildCategory.value
-    const matchesKeyword = !keyword || [item.itemCode, item.itemName, item.locationName].join(' ').toLowerCase().includes(keyword)
-
-    return matchesType && matchesLocation && matchesParentCategory && matchesChildCategory && matchesKeyword
-  })
+const filteredInventory = computed(() => {
+  if (!selectedStatus.value) return inventoryData.value
+  return inventoryData.value.filter(item => item.status === selectedStatus.value)
 })
-
-const aggregatedInventory = computed(() => {
-  const grouped = new Map()
-
-  locationScopedInventory.value.forEach((item) => {
-    const existing = grouped.get(item.itemCode)
-    if (!existing) {
-      grouped.set(item.itemCode, {
-        itemCode: item.itemCode,
-        parentCategory: item.parentCategory,
-        childCategory: item.childCategory,
-        itemName: item.itemName,
-        actualStock: item.actualStock,
-        availableStock: item.availableStock,
-        safetyStock: item.safetyStock,
-        updatedAt: item.updatedAt,
-      })
-      return
-    }
-
-    existing.actualStock += item.actualStock
-    existing.availableStock += item.availableStock
-    existing.safetyStock += item.safetyStock
-    if (item.updatedAt > existing.updatedAt) existing.updatedAt = item.updatedAt
-  })
-
-  return [...grouped.values()].map((item) => ({
-    ...item,
-    status: item.availableStock === 0 ? '품절' : item.availableStock < item.safetyStock ? '부족' : '정상',
-  }))
-})
-
-const filteredInventory = computed(() =>
-  aggregatedInventory.value.filter((item) => !selectedStatus.value || item.status === selectedStatus.value),
-)
 
 const locationSummary = computed(() => {
   if (selectedLocations.value.length === 0) return `전체 ${locationType.value}`
@@ -181,6 +122,58 @@ const removeLocation = (location) => {
   selectedLocations.value = selectedLocations.value.filter(selectedLocation => selectedLocation !== location)
 }
 
+const mapLocationNamesToIds = () => {
+  const typeCode = locationType.value === '창고' ? 'WAREHOUSE' : 'STORE'
+  const nameSet = new Set(selectedLocations.value)
+  return locationOptionsRaw.value
+    .filter(l => l.locationType === typeCode && (nameSet.size === 0 || nameSet.has(l.name)))
+    .map(l => l.id)
+}
+
+async function fetchCompanyWideInventory() {
+  isLoading.value = true
+  loadError.value = ''
+  try {
+    const typeCode = locationType.value === '창고' ? 'WAREHOUSE' : 'STORE'
+    const locationIds = mapLocationNamesToIds()
+    const payload = {
+      locationType: typeCode,
+      parentCategory: selectedParentCategory.value || undefined,
+      childCategory: selectedChildCategory.value || undefined,
+      keyword: searchTerm.value || undefined,
+    }
+    if (selectedLocations.value.length > 0) payload.locationIds = locationIds
+
+    const res = await getCompanyWideInventories(payload)
+    const items = Array.isArray(res?.items) ? res.items : []
+    const options = Array.isArray(res?.locationOptions) ? res.locationOptions : []
+
+    locationOptionsRaw.value = options.map(o => ({
+      id: o.id,
+      code: o.code,
+      name: o.name,
+      locationType: o.code?.startsWith('WH-') ? 'WAREHOUSE' : 'STORE',
+    }))
+
+    inventoryData.value = items.map(item => ({
+      itemCode: item.itemCode,
+      parentCategory: item.parentCategory,
+      childCategory: item.childCategory,
+      itemName: item.itemName,
+      actualStock: item.actualStock,
+      availableStock: item.availableStock,
+      safetyStock: item.safetyStock,
+      status: item.status,
+      updatedAt: item.updatedAt ? new Date(item.updatedAt).toLocaleString('ko-KR', { hour12: false }) : '-',
+    }))
+  } catch (e) {
+    loadError.value = e.message || '전사 재고 조회에 실패했습니다.'
+    inventoryData.value = []
+  } finally {
+    isLoading.value = false
+  }
+}
+
 const moveToSkuDetail = (item) => {
   router.push({
     name: 'hq-inventory-sku-detail',
@@ -208,8 +201,13 @@ const handleDocumentClick = (event) => {
   }
 }
 
+watch([locationType, selectedParentCategory, selectedChildCategory, selectedStatus, searchTerm, selectedLocations], () => {
+  fetchCompanyWideInventory()
+})
+
 onMounted(() => {
   document.addEventListener('click', handleDocumentClick)
+  fetchCompanyWideInventory()
 })
 
 onBeforeUnmount(() => {

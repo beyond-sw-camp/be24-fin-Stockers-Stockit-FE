@@ -561,11 +561,8 @@ const TruckIcon = IconBase([
                   <tr v-for="item in poStore.selectedOrder.items" :key="item.skuCode || item.productId">
                     <td class="px-2 py-2 align-top">
                       <div class="font-bold text-gray-800">{{ item.productName }}</div>
-                      <div v-if="item.optionValue" class="mt-0.5 text-[11px] font-bold text-[#004D3C]">
-                        {{ item.optionValue }}
-                        <span v-if="item.optionName" class="ml-1 font-normal text-gray-400">
-                          ({{ item.optionName }})
-                        </span>
+                      <div v-if="item.displayOption" class="mt-0.5 text-[11px] font-bold text-[#004D3C]">
+                        {{ item.displayOption }}
                       </div>
                       <div v-if="item.skuCode" class="text-[10px] text-gray-400">
                         {{ item.skuCode }}

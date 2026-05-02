@@ -54,8 +54,9 @@ function toFeItem(beItem) {
     productCode: beItem.productCode,
     productName: beItem.productName,
     skuCode: beItem.skuCode ?? '',
-    optionName: beItem.optionName ?? '',
-    optionValue: beItem.optionValue ?? '',
+    color: beItem.color ?? '',
+    size: beItem.size ?? '',
+    displayOption: beItem.displayOption ?? [beItem.color, beItem.size].filter(Boolean).join('/') ,
     quantity: beItem.quantity,
     unitPrice: beItem.unitPrice,
     subtotal: beItem.subtotal,
@@ -88,8 +89,9 @@ function toFeCatalogMaster(beMaster) {
     maxSkuUnitPrice: beMaster.maxSkuUnitPrice,
     skus: Array.isArray(beMaster.skus) ? beMaster.skus.map((s) => ({
       skuCode: s.skuCode,
-      optionName: s.optionName ?? '',
-      optionValue: s.optionValue ?? '',
+      color: s.color ?? '',
+      size: s.size ?? '',
+      displayOption: s.displayOption ?? [s.color, s.size].filter(Boolean).join('/') ,
       unitPrice: s.unitPrice,
     })) : [],
   }
@@ -253,7 +255,7 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
   // row 형식:
   //   { type: 'header', masterKey, vendorCode, vendorName, vendorProductCode, productCode,
   //     productName, contractUnitPrice, minSkuUnitPrice, maxSkuUnitPrice, skuCount }
-  //   { type: 'sku',    masterKey, skuCode, optionName, optionValue, unitPrice,
+  //   { type: 'sku',    masterKey, skuCode, color, size, displayOption, unitPrice,
   //     vendorCode, vendorName, vendorProductCode, productCode, productName }
   // 정렬 — vendorName 가나다 → productName 가나다 → SKU 는 BE id asc 순서 그대로
   const catalogSkuRows = computed(() => {
@@ -282,8 +284,9 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
           type: 'sku',
           masterKey: m.masterKey,
           skuCode: s.skuCode,
-          optionName: s.optionName,
-          optionValue: s.optionValue,
+          color: s.color,
+          size: s.size,
+          displayOption: s.displayOption,
           unitPrice: s.unitPrice,
           vendorCode: m.vendorCode,
           vendorName: m.vendorName,

@@ -1,9 +1,10 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { getCompanyWideInventorySkus } from '@/api/inventory.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -14,10 +15,9 @@ const inventoryMenus = roleMenus.hq.find(menu => menu.label === '재고 관리')
 
 const activeTopMenu = computed(() => '재고 관리')
 const activeSideMenu = ref('전사 재고 조회')
-
-const colorOptions = ['검정', '흰색', '그레이', '아이보리']
-const colorCodeMap = { 검정: 'BLK', 흰색: 'WHT', 그레이: 'GRY', 아이보리: 'IVR' }
-const sizeOptions = ['XS', 'S', 'M', 'L', 'XL']
+const loadError = ref('')
+const isLoading = ref(false)
+const skuRows = ref([])
 
 const itemCode = computed(() => String(route.params.itemCode ?? route.query.itemCode ?? ''))
 const itemName = computed(() => String(route.query.itemName ?? '선택 품목'))
@@ -43,34 +43,6 @@ const filterScopeLabel = computed(() =>
   filterLocations.value.length > 0 ? `${filterLocationType.value} 기준` : `전체${filterLocationType.value}`,
 )
 
-const seed = computed(() =>
-  `${itemCode.value}-${locationName.value}`.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0),
-)
-
-const skuRows = computed(() =>
-  colorOptions.flatMap((color, colorIndex) =>
-    sizeOptions.map((size, sizeIndex) => {
-      const actualStock = 14 + ((seed.value + colorIndex * 19 + sizeIndex * 7) % 85)
-      const reservedStock = (seed.value + colorIndex * 11 + sizeIndex * 5) % 14
-      const availableStock = Math.max(actualStock - reservedStock, 0)
-      const safetyStock = 20 + (sizeIndex % 3) * 6
-      const status = availableStock === 0 ? '품절' : availableStock < safetyStock ? '부족' : '정상'
-      const updatedAt = `2026.04.${String(25 - (colorIndex % 3)).padStart(2, '0')} ${String(10 + sizeIndex).padStart(2, '0')}:40`
-
-      return {
-        skuCode: `${itemCode.value}-${colorCodeMap[color]}-${size}`,
-        color,
-        size,
-        actualStock,
-        availableStock,
-        safetyStock,
-        status,
-        updatedAt,
-      }
-    }),
-  ),
-)
-
 const statusClass = (status) => ({
   정상: 'bg-[#EBF5F5] text-black',
   부족: 'bg-amber-50 text-amber-700',
@@ -86,6 +58,29 @@ const backQuery = computed(() => ({
   search: typeof route.query.search === 'string' ? route.query.search : undefined,
 }))
 
+async function loadSkuDetails() {
+  isLoading.value = true
+  loadError.value = ''
+  try {
+    const type = filterLocationType.value === '창고' ? 'WAREHOUSE' : 'STORE'
+    const payload = {
+      locationType: type,
+      parentCategory: typeof route.query.parent === 'string' ? route.query.parent : undefined,
+      childCategory: typeof route.query.child === 'string' ? route.query.child : undefined,
+      keyword: typeof route.query.search === 'string' ? route.query.search : undefined,
+    }
+    const rows = await getCompanyWideInventorySkus(itemCode.value, payload)
+    skuRows.value = Array.isArray(rows)
+      ? rows.map(r => ({ ...r, updatedAt: r.updatedAt ? new Date(r.updatedAt).toLocaleString('ko-KR', { hour12: false }) : '-' }))
+      : []
+  } catch (e) {
+    loadError.value = e.message || 'SKU 재고 상세 조회에 실패했습니다.'
+    skuRows.value = []
+  } finally {
+    isLoading.value = false
+  }
+}
+
 function goBackToInventory() {
   router.push({
     name: 'hq-inventory-company-wide',
@@ -97,6 +92,10 @@ function handleLogout() {
   auth.logout()
   router.push('/login')
 }
+
+onMounted(() => {
+  loadSkuDetails()
+})
 </script>
 
 <template>

@@ -208,11 +208,6 @@ function resolveCategoryCode() {
   return child?.code || parent.code
 }
 
-function splitColorSize(optionValue) {
-  const [color, size] = String(optionValue || '').split('|')
-  return { color: color || '', size: size || '' }
-}
-
 function createMaterialCompositionsPayload() {
   if (materialType.value === 'BLEND') {
     return blendCompositions.value.map((composition) => ({
@@ -235,8 +230,8 @@ function removeBlendComposition(index) {
 async function loadSkus() {
   if (!isEditMode.value) return
   currentSkus.value = await getProductSkus(productCode.value)
-  selectedColors.value = [...new Set(currentSkus.value.map((s) => splitColorSize(s.optionValue).color).filter(Boolean))]
-  selectedSizes.value = [...new Set(currentSkus.value.map((s) => splitColorSize(s.optionValue).size).filter(Boolean))]
+  selectedColors.value = [...new Set(currentSkus.value.map((s) => s.color).filter(Boolean))]
+  selectedSizes.value = [...new Set(currentSkus.value.map((s) => s.size).filter(Boolean))]
 }
 
 async function toggleColor(color) {
@@ -252,31 +247,33 @@ async function toggleSize(size) {
 }
 
 async function syncSkusBySelections() {
-  const desiredOptionValues = new Set()
+  const desired = new Set()
   for (const color of selectedColors.value) {
     for (const size of selectedSizes.value) {
-      desiredOptionValues.add(`${color}|${size}`)
+      desired.add(`${color}|${size}`)
     }
   }
 
-  const currentOptionMap = new Map(currentSkus.value.map((sku) => [sku.optionValue, sku]))
-  const removeTargets = currentSkus.value.filter((sku) => !desiredOptionValues.has(sku.optionValue))
-  const addTargets = [...desiredOptionValues].filter((optionValue) => !currentOptionMap.has(optionValue))
+  const current = new Set(currentSkus.value.map((sku) => `${sku.color}|${sku.size}`))
+  const removeTargets = currentSkus.value.filter((sku) => !desired.has(`${sku.color}|${sku.size}`))
 
   if (removeTargets.length > 0) {
     await Promise.all(removeTargets.map((sku) => deleteProductSku(sku.skuCode)))
   }
 
-  if (addTargets.length > 0) {
+  const missing = [...desired].filter((key) => !current.has(key))
+  if (missing.length > 0) {
+    const colors = [...new Set(missing.map((m) => m.split('|')[0]))]
+    const sizes = [...new Set(missing.map((m) => m.split('|')[1]))]
     await createProductSkusBulk(productCode.value, {
-      optionName: 'COLOR_SIZE',
-      optionValues: addTargets,
+      colors,
+      sizes,
       unitPrice: Number(price.value),
       status: statusMap[status.value] ?? 'ACTIVE',
     })
   }
 
-  return { added: addTargets.length, removed: removeTargets.length }
+  return { added: missing.length, removed: removeTargets.length }
 }
 
 async function loadProduct() {
@@ -353,8 +350,8 @@ async function handleSubmit() {
       for (const color of selectedColors.value) {
         for (const size of selectedSizes.value) {
           await createProductSku(product.code, {
-            optionName: 'COLOR_SIZE',
-            optionValue: `${color}|${size}`,
+            color,
+            size,
             unitPrice: Number(price.value),
             status: statusMap[status.value] ?? 'ACTIVE',
           })

@@ -30,17 +30,11 @@ const statusLabel = {
   INACTIVE: '비활성',
 }
 
-function splitColorSize(value) {
-  const [color, size] = String(value ?? '').split('|')
-  return { color: color || '-', size: size || '-' }
-}
-
 function openEdit(sku) {
-  const parsed = splitColorSize(sku.optionValue)
   editSkuCode.value = sku.skuCode
   editForm.value = {
-    color: parsed.color,
-    size: parsed.size,
+    color: sku.color || '-',
+    size: sku.size || '-',
     unitPrice: sku.unitPrice,
     status: sku.status,
   }
@@ -59,8 +53,8 @@ async function saveEdit(skuCode) {
     errorMessage.value = ''
     successMessage.value = ''
     await updateProductSku(skuCode, {
-      optionName: 'COLOR_SIZE',
-      optionValue: `${editForm.value.color}|${editForm.value.size}`,
+      color: editForm.value.color,
+      size: editForm.value.size,
       unitPrice: Number(editForm.value.unitPrice),
       status: editForm.value.status,
     })
@@ -172,7 +166,7 @@ onMounted(() => {
                     v-model="editForm.color"
                     class="w-full max-w-[96px] border border-gray-300 px-2 py-1.5 text-xs"
                   />
-                  <span v-else>{{ splitColorSize(sku.optionValue).color }}</span>
+                  <span v-else>{{ sku.color }}</span>
                 </td>
                 <td class="px-4 py-3 align-middle font-black text-gray-900">
                   <input
@@ -180,7 +174,7 @@ onMounted(() => {
                     v-model="editForm.size"
                     class="w-full max-w-[88px] border border-gray-300 px-2 py-1.5 text-xs"
                   />
-                  <span v-else>{{ splitColorSize(sku.optionValue).size }}</span>
+                  <span v-else>{{ sku.size }}</span>
                 </td>
                 <td class="px-4 py-3 align-middle text-right font-black text-gray-900">
                   <input
