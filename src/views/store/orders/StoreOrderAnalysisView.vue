@@ -1,14 +1,14 @@
-<script setup>
+﻿<script setup>
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useStoreOrdersStore } from '@/stores/storeOrders.js'
+import { useStoreOrderStore } from '@/stores/store/storeOrder.js'
 
 const router = useRouter()
 const auth = useAuthStore()
-const storeOrders = useStoreOrdersStore()
+const storeOrders = useStoreOrderStore()
 
 const storeMenus = roleMenus.store
 const orderMenus = roleMenus.store.find((menu) => menu.label === '발주 관리')?.children ?? []
@@ -56,7 +56,7 @@ function handleLogout() {
           <p class="mt-2 text-2xl font-black text-gray-900">{{ storeOrders.summary.approvedCount }}</p>
         </article>
         <article class="border border-gray-300 bg-white p-4 shadow-sm">
-          <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">완료</p>
+          <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">종료</p>
           <p class="mt-2 text-2xl font-black text-gray-900">{{ storeOrders.summary.completedCount }}</p>
         </article>
       </section>

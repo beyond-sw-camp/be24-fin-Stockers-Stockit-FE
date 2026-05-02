@@ -4,7 +4,8 @@ import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useSalesStore } from '@/stores/sales.js'
+import { useSalesStore } from '@/stores/store/storeSales.js'
+import { buildHeadline, formatDateTime } from '@/features/store/common/ui.js'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -39,16 +40,8 @@ const selectedSale = computed(() =>
   ?? null,
 )
 
-function formatDateTime(iso) {
-  if (!iso) return '-'
-  const date = new Date(iso)
-  const pad = (value) => String(value).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
-}
-
 function headlineLabel(sale) {
-  if (!sale || sale.items.length === 0) return '-'
-  return sale.items.length > 1 ? `${sale.items[0].productName} 외 ${sale.items.length - 1}건` : sale.items[0].productName
+  return buildHeadline(sale?.items)
 }
 
 function handleLogout() {

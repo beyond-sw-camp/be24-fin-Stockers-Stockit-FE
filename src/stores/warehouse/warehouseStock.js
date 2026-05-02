@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { usePurchaseOrderStore } from './purchaseOrder.js'
+import { usePurchaseOrderStore } from '../purchaseOrder.js'
 
 /**
  * 발주 카탈로그 전용 창고-제품 재고 store.

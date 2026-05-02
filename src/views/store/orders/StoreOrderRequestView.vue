@@ -4,12 +4,12 @@ import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useStoreOrdersStore } from '@/stores/storeOrders.js'
+import { useStoreOrderStore } from '@/stores/store/storeOrder.js'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
-const storeOrders = useStoreOrdersStore()
+const storeOrders = useStoreOrderStore()
 
 const storeMenus = roleMenus.store
 const orderMenus = roleMenus.store.find((menu) => menu.label === '발주 관리')?.children ?? []
@@ -395,15 +395,15 @@ function handleLogout() {
               <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
                 <tr>
                   <th class="w-[12%] px-3 py-2.5 text-left font-black">품목코드</th>
-                  <th class="w-[20%] px-1.5 py-2.5 text-left font-black">상품명</th>
+                  <th class="w-[16%] px-1.5 py-2.5 text-left font-black">상품명</th>
                   <th class="w-[12%] px-1 py-2.5 text-left font-black">옵션</th>
-                  <th class="w-[12%] px-1 py-2.5 text-left font-black">카테고리</th>
-                  <th class="w-[6.5%] px-1 py-2.5 text-center font-black">실재고</th>
-                  <th class="w-[6.5%] px-1 py-2.5 text-center font-black">가용재고</th>
-                  <th class="w-[6.5%] px-1 py-2.5 text-center font-black">안전재고</th>
-                  <th class="w-[8%] px-1 py-2.5 text-center font-black">권장 발주량</th>
-                  <th class="w-[8%] px-1 py-2.5 text-center font-black">상태</th>
-                  <th class="w-[8%] px-1 py-2.5 text-center font-black">추가</th>
+                  <th class="w-[11%] px-1 py-2.5 text-left font-black">카테고리</th>
+                  <th class="w-[6%] px-1 py-2.5 text-center font-black">실재고</th>
+                  <th class="w-[6%] px-1 py-2.5 text-center font-black">가용재고</th>
+                  <th class="w-[6%] px-1 py-2.5 text-center font-black">안전재고</th>
+                  <th class="w-[7%] px-1 py-2.5 text-center font-black">권장 발주량</th>
+                  <th class="w-[6%] px-1 py-2.5 text-center font-black">상태</th>
+                  <th class="w-[10%] px-2 py-2.5 text-center font-black">추가</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">
@@ -443,13 +443,14 @@ function handleLogout() {
                       {{ statusLabel[sku.stockStatus] }}
                     </span>
                   </td>
-                  <td class="px-1 py-2.5 text-center">
+                  <td class="px-2 py-2.5 text-center">
                     <button
                       type="button"
-                      class="inline-flex min-w-[48px] items-center justify-center border border-[#004D3C] bg-[#004D3C] px-1 py-1.5 text-[10px] font-black !text-white shadow-sm transition-all hover:-translate-y-px hover:bg-[#003d30]"
+                      class="group inline-flex h-8 min-w-[70px] items-center justify-center gap-1.5 rounded-full border border-[#97BFB4]/30 bg-[#97BFB4]/10 px-3 text-[11px] font-bold text-[#5A7F75] transition-all duration-200 hover:border-[#97BFB4]/50 hover:bg-[#97BFB4]/20 hover:text-[#4A6860] active:scale-95"
                       @click="addToRequest(sku)"
                     >
-                      + 담기
+                      <span class="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[10px] text-[#97BFB4] shadow-sm transition-colors group-hover:bg-[#004D3C] group-hover:text-white">+</span>
+                      <span>담기</span>
                     </button>
                   </td>
                 </tr>

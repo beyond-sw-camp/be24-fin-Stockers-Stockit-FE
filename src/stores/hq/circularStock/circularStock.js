@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { circularBuyerApi } from '@/api/circularBuyer.js'
-import { useCircularStockBuyerStore } from '@/stores/circularStockBuyers.js'
+import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
 import { useEsgStore } from '@/stores/esg.js'
 
 const INVENTORY_STORAGE_KEY = 'stockit_circular_inventory_inventory_v2'

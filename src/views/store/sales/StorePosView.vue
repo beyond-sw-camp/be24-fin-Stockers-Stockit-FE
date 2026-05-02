@@ -5,7 +5,7 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useInventoryStore } from '@/stores/inventory.js'
-import { useSalesStore } from '@/stores/sales.js'
+import { useSalesStore } from '@/stores/store/storeSales.js'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -277,16 +277,26 @@ function handleLogout() {
                   <td class="px-4 py-3 text-center">
                     <button
                       type="button"
-                      class="inline-flex min-w-[72px] items-center justify-center border px-3 py-2 text-[11px] font-black shadow-sm transition-all"
+                      class="group inline-flex h-8 min-w-[74px] items-center justify-center gap-1.5 rounded-full border px-3 text-[11px] font-bold transition-all duration-200 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:opacity-100"
                       :class="
                         sku.stock === 0
-                          ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 shadow-none'
-                          : 'border-[#004D3C] bg-[#004D3C] !text-white hover:-translate-y-px hover:bg-[#003d30] hover:shadow-[0_8px_18px_rgba(32,140,28,0.22)]'
+                          ? 'cursor-not-allowed shadow-none'
+                          : 'border-[#97BFB4]/30 bg-[#97BFB4]/10 text-[#5A7F75] hover:border-[#97BFB4]/50 hover:bg-[#97BFB4]/20 hover:text-[#4A6860] active:scale-95'
                       "
                       :disabled="sku.stock === 0"
                       @click="addToSalesList(sku)"
                     >
-                      담기
+                      <span
+                        class="flex h-4 w-4 items-center justify-center rounded-full text-[10px] transition-colors"
+                        :class="
+                          sku.stock === 0
+                            ? 'bg-gray-200 text-gray-400'
+                            : 'bg-white text-[#97BFB4] shadow-sm group-hover:bg-[#004D3C] group-hover:text-white'
+                        "
+                      >
+                        +
+                      </span>
+                      <span>담기</span>
                     </button>
                   </td>
                 </tr>

@@ -4,31 +4,22 @@ import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useStoreOrdersStore } from '@/stores/storeOrders.js'
+import { useStoreInboundStore } from '@/stores/store/storeInbound.js'
+import { buildHeadline, formatDateTime } from '@/features/store/common/ui.js'
 
 const router = useRouter()
 const auth = useAuthStore()
-const storeOrders = useStoreOrdersStore()
+const storeOrders = useStoreInboundStore()
 
 const storeMenus = roleMenus.store
 const inboundMenus = roleMenus.store.find((menu) => menu.label === '입고 관리')?.children ?? []
 const activeTopMenu = computed(() => '입고 관리')
 const activeSideMenu = ref('입고 내역')
 
-storeOrders.inboundActiveStatusTab = 'RECEIVED'
-
-function formatDateTime(iso) {
-  if (!iso) return '-'
-  const date = new Date(iso)
-  const pad = (value) => String(value).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
-}
+storeOrders.activateHistoryMode()
 
 function headlineLabel(order) {
-  if (!order || order.items.length === 0) return '-'
-  return order.items.length > 1
-    ? `${order.items[0].productName} 외 ${order.items.length - 1}건`
-    : order.items[0].productName
+  return buildHeadline(order?.items)
 }
 
 function handleLogout() {

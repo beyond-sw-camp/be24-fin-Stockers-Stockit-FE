@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useCircularStockBuyerStore } from '@/stores/circularStockBuyers.js'
+import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
 
 const router = useRouter()
 const auth = useAuthStore()

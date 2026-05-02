@@ -4,12 +4,12 @@ import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useInboundStore } from '@/stores/inbound.js'
-import { useWarehouseStockStore } from '@/stores/warehouseStock.js'
+import { useWarehouseInboundStore } from '@/stores/warehouse/warehouseInbound.js'
+import { useWarehouseStockStore } from '@/stores/warehouse/warehouseStock.js'
 
 const router = useRouter()
 const auth = useAuthStore()
-const inbound = useInboundStore()
+const inbound = useWarehouseInboundStore()
 const stockStore = useWarehouseStockStore()
 
 // 입고 확정 시 재고 변화 미리보기 — 선택된 발주의 items 와 warehouseId 로 산출

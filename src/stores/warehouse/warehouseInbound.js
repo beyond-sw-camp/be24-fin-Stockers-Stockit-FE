@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { usePurchaseOrderStore } from './purchaseOrder.js'
+import { usePurchaseOrderStore } from '../purchaseOrder.js'
 import { inboundApi } from '@/api/inbound.js'
 
-export const useInboundStore = defineStore('inbound', () => {
+export const useWarehouseInboundStore = defineStore('warehouseInbound', () => {
   const poStore = usePurchaseOrderStore()
 
   // --- view state (입고 화면 전용) ---

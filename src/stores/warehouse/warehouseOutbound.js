@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { useStoreOrdersStore } from '@/stores/storeOrders.js'
+import { useStoreOrderStore } from '@/stores/store/storeOrder.js'
 
 const OUTBOUND_STATUS_LABEL = {
   READY_TO_SHIP: '출고 준비중',
@@ -177,7 +177,7 @@ function fromCircularSalesMock() {
 }
 
 export const useWarehouseOutboundStore = defineStore('warehouseOutbound', () => {
-  const storeOrders = useStoreOrdersStore()
+  const storeOrders = useStoreOrderStore()
 
   const activeStatusTab = ref('전체')
   const activeTypeTab = ref('전체')
