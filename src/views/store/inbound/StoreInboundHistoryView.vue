@@ -16,7 +16,7 @@ const inboundMenus = roleMenus.store.find((menu) => menu.label === '입고 관�
 const activeTopMenu = computed(() => '입고 관리')
 const activeSideMenu = ref('입고 내역')
 
-storeOrders.inboundActiveStatusTab = 'RECEIVED'
+storeOrders.activateHistoryMode()
 
 function headlineLabel(order) {
   return buildHeadline(order?.items)

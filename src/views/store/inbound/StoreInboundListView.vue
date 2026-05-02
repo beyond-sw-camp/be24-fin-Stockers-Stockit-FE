@@ -12,32 +12,12 @@ const auth = useAuthStore()
 const storeOrders = useStoreInboundStore()
 
 const storeMenus = roleMenus.store
-const inboundMenus = roleMenus.store.find((menu) => menu.label === '입고 관리')?.children ?? []
-const activeTopMenu = computed(() => '입고 관리')
-const activeSideMenu = ref('입고 리스트')
+const inboundMenuGroup = roleMenus.store.find((menu) => menu.path === '/store/inbound/list')
+const inboundMenus = inboundMenuGroup?.children ?? []
+const activeTopMenu = computed(() => inboundMenuGroup?.label ?? '?? ??')
+const activeSideMenu = ref(inboundMenus[0]?.label ?? '')
 
-if (
-  !['전체', 'READY_TO_SHIP', 'IN_TRANSIT', 'ARRIVED', 'RECEIVED'].includes(
-    storeOrders.inboundActiveStatusTab,
-  )
-) {
-  storeOrders.inboundActiveStatusTab = '전체'
-}
-
-const STATUS_TABS = [
-  { label: '전체', key: '전체' },
-  { label: '배송 준비중', key: 'READY_TO_SHIP' },
-  { label: '배송 중', key: 'IN_TRANSIT' },
-  { label: '배송 완료', key: 'ARRIVED' },
-  { label: '입고 완료', key: 'RECEIVED' },
-]
-
-const arrivedOrders = computed(() =>
-  storeOrders.inboundListOrders.filter(
-    (order) => order.inboundStatus === 'ARRIVED' && order.status === 'APPROVED',
-  ),
-)
-const arrivedOrderCount = computed(() => arrivedOrders.value.length)
+storeOrders.normalizeStatusTab()
 
 function headlineLabel(order) {
   return buildHeadline(order?.items)
@@ -47,22 +27,12 @@ function inboundStatusClass(status) {
   return storeInboundStatusClass(status)
 }
 
-function inboundActionLabel(order) {
-  if (order.inboundStatus === 'READY_TO_SHIP' || order.inboundStatus === 'IN_TRANSIT') return '대기'
-  if (order.inboundStatus === 'RECEIVED' || order.status === 'COMPLETED') return '처리 완료'
-  return '-'
-}
-
-function canHandleInbound(order) {
-  return order.inboundStatus === 'ARRIVED' && order.status === 'APPROVED'
-}
-
 function changeTab(key) {
-  storeOrders.inboundActiveStatusTab = key
+  storeOrders.setInboundStatusTab(key)
 }
 
 function focusArrivedOrders() {
-  storeOrders.inboundActiveStatusTab = 'ARRIVED'
+  storeOrders.focusArrivedOrders()
 }
 
 function goToInboundDetail(orderId) {
@@ -70,9 +40,9 @@ function goToInboundDetail(orderId) {
 }
 
 function goToFirstArrivedOrder() {
-  const firstOrder = arrivedOrders.value[0]
-  if (!firstOrder) return
-  goToInboundDetail(firstOrder.orderId)
+  const firstOrderId = storeOrders.getFirstArrivedOrderId()
+  if (!firstOrderId) return
+  goToInboundDetail(firstOrderId)
 }
 
 function handleRowClick(orderId) {
@@ -122,7 +92,7 @@ function handleLogout() {
       <section class="border border-gray-300 bg-white p-3 shadow-sm">
         <div class="flex flex-wrap gap-1">
           <button
-            v-for="tab in STATUS_TABS"
+            v-for="tab in storeOrders.statusTabs"
             :key="tab.key"
             type="button"
             class="inline-flex items-center gap-1.5 border px-3 py-1.5 text-xs font-black transition-colors"
@@ -149,7 +119,7 @@ function handleLogout() {
       </section>
 
       <section
-        v-if="arrivedOrderCount > 0"
+        v-if="storeOrders.arrivedOrderCount > 0"
         class="border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm"
       >
         <div class="flex flex-wrap items-center justify-between gap-3">
@@ -158,7 +128,7 @@ function handleLogout() {
               Inbound Action
             </p>
             <p class="mt-1 text-sm font-black text-amber-900">
-              입고 확정이 필요한 발주가 {{ arrivedOrderCount }}건 있습니다.
+              입고 확정이 필요한 발주가 {{ storeOrders.arrivedOrderCount }}건 있습니다.
             </p>
             <p class="mt-1 text-xs font-bold text-amber-700">
               배송 완료 상태의 발주는 매장 재고 반영 전 단계입니다. 상세로 들어가 입고 확정을
@@ -273,7 +243,7 @@ function handleLogout() {
                 </td>
                 <td class="px-2 py-2.5 text-center">
                   <button
-                    v-if="canHandleInbound(order)"
+                    v-if="storeOrders.canHandleInbound(order)"
                     type="button"
                     class="inline-flex items-center gap-1 rounded-lg border border-[#B9D8D1] bg-[#F3FAF8] px-3 py-1.5 text-[10px] font-black text-[#0F4C3F] shadow-[0_1px_2px_rgba(15,76,63,0.06)] transition-all hover:-translate-y-px hover:border-[#8FC2B6] hover:bg-[#E8F5F1] hover:shadow-[0_6px_16px_rgba(15,76,63,0.12)]"
                     @click="handleActionClick($event, order.orderId)"
@@ -290,7 +260,7 @@ function handleLogout() {
                         : 'text-gray-400'
                     "
                   >
-                    {{ inboundActionLabel(order) }}
+                    {{ storeOrders.inboundActionLabel(order) }}
                   </span>
                 </td>
               </tr>

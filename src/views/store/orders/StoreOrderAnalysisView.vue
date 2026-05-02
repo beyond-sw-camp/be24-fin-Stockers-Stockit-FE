@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
@@ -56,7 +56,7 @@ function handleLogout() {
           <p class="mt-2 text-2xl font-black text-gray-900">{{ storeOrders.summary.approvedCount }}</p>
         </article>
         <article class="border border-gray-300 bg-white p-4 shadow-sm">
-          <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">완료</p>
+          <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">종료</p>
           <p class="mt-2 text-2xl font-black text-gray-900">{{ storeOrders.summary.completedCount }}</p>
         </article>
       </section>
