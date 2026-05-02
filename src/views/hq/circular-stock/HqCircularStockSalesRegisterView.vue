@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
+import AiBuyerRecommendationPanel from '@/components/hq/circular-stock/AiBuyerRecommendationPanel.vue'
 
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
@@ -116,14 +117,14 @@ function moveStep(step) {
   saleStep.value = step
   // ADR-021 — Step 2 진입 시 AI 추천 1회 자동 호출 (사용자 결정 2026-04-30).
   if (step === 2) {
-    circularInventoryStore.fetchRecommendations()
+    circularStockStore.fetchRecommendations()
   }
 }
 
 function onRecommendationSelect(code) {
-  const rec = circularInventoryStore.recommendations.find(r => r.code === code)
+  const rec = circularStockStore.recommendations.find(r => r.code === code)
   if (!rec) return
-  circularInventoryStore.selectBuyer(code)
+  circularStockStore.selectBuyer(code)
   buyerSearchTerm.value = rec.companyName
 }
 
@@ -448,9 +449,9 @@ onBeforeUnmount(() => {
                     @click="buyerPanelMode = 'ai'"
                   >
                     ✨ AI 추천<span
-                      v-if="!circularInventoryStore.isRecommendationLoading"
+                      v-if="!circularStockStore.isRecommendationLoading"
                       class="ml-1 opacity-80"
-                    >· {{ circularInventoryStore.recommendations.length }}</span>
+                    >· {{ circularStockStore.recommendations.length }}</span>
                   </button>
                   <button
                     type="button"
@@ -465,14 +466,14 @@ onBeforeUnmount(() => {
                 <!-- AI 추천 모드 -->
                 <div v-if="buyerPanelMode === 'ai'" class="mt-4">
                   <AiBuyerRecommendationPanel
-                    :recommendations="circularInventoryStore.recommendations"
-                    :loading="circularInventoryStore.isRecommendationLoading"
-                    :error="circularInventoryStore.recommendationError || ''"
+                    :recommendations="circularStockStore.recommendations"
+                    :loading="circularStockStore.isRecommendationLoading"
+                    :error="circularStockStore.recommendationError || ''"
                     :selected-buyer-code="selectedBuyer?.code || ''"
                     :material-fit-label="materialFitLabel"
                     :locked-material-type="lockedMaterialType"
                     @select="onRecommendationSelect"
-                    @retry="circularInventoryStore.fetchRecommendations()"
+                    @retry="circularStockStore.fetchRecommendations()"
                     @switch-to-manual="buyerPanelMode = 'manual'"
                   />
                 </div>

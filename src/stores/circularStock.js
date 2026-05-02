@@ -725,8 +725,9 @@ export const useCircularStockStore = defineStore('circularStock', () => {
   }
 
   function addSaleDraftItem(skuRow) {
-    const draftId = String(skuRow?.id ?? '')
-    const inventoryId = String(skuRow?.inventoryId ?? '')
+    const resolvedInventoryId = skuRow?.inventoryId ?? skuRow?.id ?? ''
+    const draftId = String(skuRow?.id ?? resolvedInventoryId)
+    const inventoryId = String(resolvedInventoryId)
     const inventory = getInventoryById(inventoryId)
     if (!inventory) {
       return { success: false, message: '순환 재고 품목을 찾을 수 없습니다.' }
