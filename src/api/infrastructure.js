@@ -1,41 +1,21 @@
 import api, { unwrap } from '@/api/axios.js'
 
-export async function getStores(params = {}) {
-  const res = await api.get('/api/hq/stores', { params })
+export async function getInfrastructures(params = {}) {
+  const res = await api.get('/api/hq/infrastructures', { params })
   return unwrap(res)
 }
 
-export async function getStoreByCode(code) {
-  const res = await api.get(`/api/hq/stores/${code}`)
+export async function getInfrastructureByCode(code) {
+  const res = await api.get(`/api/hq/infrastructures/${code}`)
   return unwrap(res)
 }
 
-export async function createStore(payload) {
-  const res = await api.post('/api/hq/stores', payload)
+export async function createInfrastructure(payload) {
+  const res = await api.post('/api/hq/infrastructures', payload)
   return unwrap(res)
 }
 
-export async function updateStore(storeCode, payload) {
-  const res = await api.patch(`/api/hq/stores/${storeCode}`, payload)
-  return unwrap(res)
-}
-
-export async function getWarehouses(params = {}) {
-  const res = await api.get('/api/hq/warehouses', { params })
-  return unwrap(res)
-}
-
-export async function getWarehouseByCode(code) {
-  const res = await api.get(`/api/hq/warehouses/${code}`)
-  return unwrap(res)
-}
-
-export async function createWarehouse(payload) {
-  const res = await api.post('/api/hq/warehouses', payload)
-  return unwrap(res)
-}
-
-export async function updateWarehouse(warehouseCode, payload) {
-  const res = await api.patch(`/api/hq/warehouses/${warehouseCode}`, payload)
+export async function updateInfrastructure(code, payload) {
+  const res = await api.patch(`/api/hq/infrastructures/${code}`, payload)
   return unwrap(res)
 }

@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { getStoreByCode, updateStore } from '@/api/infrastructure.js'
+import { getInfrastructureByCode, updateInfrastructure } from '@/api/infrastructure.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -83,7 +83,7 @@ async function loadStoreDetail() {
   isLoading.value = true
   loadError.value = ''
   try {
-    const found = await getStoreByCode(storeCode.value)
+    const found = await getInfrastructureByCode(storeCode.value)
     store.value = found || null
     resetEditForm()
   } catch (error) {
@@ -109,14 +109,15 @@ async function saveEdit() {
 
   isSaving.value = true
   try {
-    await updateStore(store.value.code, {
+    await updateInfrastructure(store.value.code, {
+      locationType: 'STORE',
       name: store.value.name,
       region: store.value.region,
-      type: store.value.type,
+      storeType: store.value.storeType,
       managerName,
       contact,
       address: store.value.address,
-      warehouseCode: store.value.warehouseCode,
+      mappedWarehouseCode: store.value.mappedWarehouseCode,
       status: editForm.value.status,
     })
 
@@ -225,7 +226,7 @@ onMounted(() => {
           <p class="flex items-center justify-between"><span class="font-bold text-gray-500">매장 코드</span><strong class="font-black text-gray-900">{{ store.code }}</strong></p>
           <p class="flex items-center justify-between"><span class="font-bold text-gray-500">매장명</span><strong class="font-black text-gray-900">{{ store.name }}</strong></p>
           <p class="flex items-center justify-between"><span class="font-bold text-gray-500">지역</span><strong class="font-black text-gray-900">{{ store.region }}</strong></p>
-          <p class="flex items-center justify-between"><span class="font-bold text-gray-500">유형</span><strong class="font-black text-gray-900">{{ typeToKor[store.type] || store.type }}</strong></p>
+          <p class="flex items-center justify-between"><span class="font-bold text-gray-500">유형</span><strong class="font-black text-gray-900">{{ typeToKor[store.storeType] || store.storeType }}</strong></p>
 
           <template v-if="!isEditMode">
             <p class="flex items-center justify-between"><span class="font-bold text-gray-500">담당자</span><strong class="font-black text-gray-900">{{ store.managerName }}</strong></p>
@@ -261,7 +262,7 @@ onMounted(() => {
             </label>
           </template>
 
-          <p class="flex items-center justify-between"><span class="font-bold text-gray-500">담당 창고</span><strong class="font-black text-gray-900">{{ store.warehouseCode }}</strong></p>
+          <p class="flex items-center justify-between"><span class="font-bold text-gray-500">담당 창고</span><strong class="font-black text-gray-900">{{ store.mappedWarehouseCode }}</strong></p>
           <p class="flex items-start justify-between gap-3"><span class="font-bold text-gray-500">주소</span><strong class="text-right font-black text-gray-900">{{ store.address }}</strong></p>
         </div>
       </section>

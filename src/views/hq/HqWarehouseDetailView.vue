@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { getWarehouseByCode } from '@/api/infrastructure.js'
+import { getInfrastructureByCode } from '@/api/infrastructure.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -52,7 +52,10 @@ async function loadWarehouseDetail() {
   isLoading.value = true
   loadError.value = ''
   try {
-    const found = await getWarehouseByCode(warehouseCode.value)
+    const found = await getInfrastructureByCode(warehouseCode.value)
+    if (found?.locationType !== 'WAREHOUSE') {
+      throw new Error('창고 정보가 아닙니다.')
+    }
     warehouse.value = found || null
   } catch (error) {
     loadError.value = error.message || '창고 정보를 불러오지 못했습니다.'

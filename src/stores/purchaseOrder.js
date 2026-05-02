@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { purchaseOrderApi } from '@/api/purchaseOrder.js'
-import { getWarehouses } from '@/api/infrastructure.js'
+import { getInfrastructures } from '@/api/infrastructure.js'
 
 // ─── BE ↔ FE 매핑 헬퍼 ─────────────────────────────────────────────────────
 // BE (PurchaseOrder DetailRes/ListRes) ↔ FE store 형식 변환.
@@ -235,7 +235,7 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     }
   })
 
-  // 창고 목록 — BE 에서 fetch (Warehouse 테이블, Long ID)
+  // 창고 목록 — BE infrastructure(type=WAREHOUSE)에서 fetch
   const warehouseList = ref([])
   const warehouses = computed(() =>
     warehouseList.value.map((w) => ({ id: w.id, name: w.name, code: w.code })),
@@ -319,7 +319,7 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
 
   async function fetchWarehouses() {
     try {
-      const list = await getWarehouses()
+      const list = await getInfrastructures({ type: 'WAREHOUSE' })
       warehouseList.value = Array.isArray(list) ? list : []
     } catch (e) {
       console.error('[purchaseOrder] fetchWarehouses 실패', e)
