@@ -6,6 +6,8 @@ const form = ref({
   name: '',
   email: '',
   phone: '',
+  password: '',
+  passwordConfirm: '',
   storeCode: '',
   storeName: '',
   role: '',
@@ -51,6 +53,10 @@ function validate() {
     e.email = '이메일 앞부분은 영문·숫자만 허용됩니다.'
   }
   if (!form.value.phone.trim())        e.phone       = '전화번호를 입력해주세요.'
+  if (!form.value.password)            e.password    = '비밀번호를 입력해주세요.'
+  else if (form.value.password.length < 8) e.password = '비밀번호는 8자 이상이어야 합니다.'
+  if (!form.value.passwordConfirm)     e.passwordConfirm = '비밀번호 확인을 입력해주세요.'
+  else if (form.value.password !== form.value.passwordConfirm) e.passwordConfirm = '비밀번호가 일치하지 않습니다.'
   if (!form.value.storeCode.trim())    e.storeCode   = '지점 코드를 입력해주세요.'
   if (!form.value.storeName.trim())    e.storeName   = '지점명을 입력해주세요.'
   if (!form.value.role)                e.role        = '권한을 선택해주세요.'
@@ -157,6 +163,33 @@ function clearErr(field) {
 
             <div class="grid grid-cols-2 gap-3">
               <label class="flex flex-col gap-1.5">
+                <span class="text-[12px] font-bold text-gray-600">비밀번호 <em class="not-italic text-red-500">*</em></span>
+                <div :class="['flex h-9 items-center border bg-gray-50 px-3 transition focus-within:bg-white focus-within:border-[#004D3C]', errors.password ? 'border-red-400' : 'border-gray-300']">
+                  <input v-model="form.password" type="password" placeholder="8자 이상" class="w-full bg-transparent text-sm outline-none placeholder:text-gray-400" @input="clearErr('password')" />
+                </div>
+                <p v-if="errors.password" class="text-[11px] font-bold text-red-600">{{ errors.password }}</p>
+              </label>
+
+              <label class="flex flex-col gap-1.5">
+                <span class="text-[12px] font-bold text-gray-600">비밀번호 확인 <em class="not-italic text-red-500">*</em></span>
+                <div :class="['flex h-9 items-center border bg-gray-50 px-3 transition focus-within:bg-white focus-within:border-[#004D3C]', errors.passwordConfirm ? 'border-red-400' : 'border-gray-300']">
+                  <input v-model="form.passwordConfirm" type="password" placeholder="비밀번호 재입력" class="w-full bg-transparent text-sm outline-none placeholder:text-gray-400" @input="clearErr('passwordConfirm')" />
+                </div>
+                <p v-if="errors.passwordConfirm" class="text-[11px] font-bold text-red-600">{{ errors.passwordConfirm }}</p>
+              </label>
+            </div>
+          </div>
+
+          <!-- [오른쪽 영역] 02 권한 -->
+          <div class="flex flex-col gap-4">
+
+            <div class="mb-1 flex items-center gap-2 border-b border-gray-100 pb-2">
+              <span class="flex h-4 w-4 shrink-0 items-center justify-center bg-[#004D3C] text-[9px] font-black text-white">02</span>
+              <p class="text-[12px] font-black text-[#004D3C]">지점 및 권한 정보</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <label class="flex flex-col gap-1.5">
                 <span class="text-[12px] font-bold text-gray-600">지점 코드 <em class="not-italic text-red-500">*</em></span>
                 <div :class="['flex h-9 items-center border bg-gray-50 px-3 transition focus-within:bg-white focus-within:border-[#004D3C]', errors.storeCode ? 'border-red-400' : 'border-gray-300']">
                   <input v-model="form.storeCode" type="text" placeholder="ST-001" class="w-full bg-transparent text-sm outline-none placeholder:text-gray-400" @input="clearErr('storeCode')" />
@@ -171,15 +204,6 @@ function clearErr(field) {
                 </div>
                 <p v-if="errors.storeName" class="text-[11px] font-bold text-red-600">{{ errors.storeName }}</p>
               </label>
-            </div>
-          </div>
-
-          <!-- [오른쪽 영역] 02 권한 -->
-          <div class="flex flex-col gap-4">
-
-            <div class="mb-1 flex items-center gap-2 border-b border-gray-100 pb-2">
-              <span class="flex h-4 w-4 shrink-0 items-center justify-center bg-[#004D3C] text-[9px] font-black text-white">02</span>
-              <p class="text-[12px] font-black text-[#004D3C]">권한 정보</p>
             </div>
 
             <!-- 권한 버튼을 가로 2단으로 압축 -->
@@ -204,7 +228,7 @@ function clearErr(field) {
             </div>
 
             <!-- 권한 안내 카드 -->
-            <div class="relative h-[80px] overflow-hidden">
+            <div class="relative h-[72px] overflow-hidden">
               <Transition name="fade" mode="out-in">
                 <div v-if="selectedRole" :key="selectedRole.id" class="absolute inset-0 flex items-start gap-3 border border-[#004D3C]/20 bg-[#eef7f4] px-4 py-3">
                   <component :is="selectedRole.icon" :size="18" class="mt-0.5 shrink-0 text-[#004D3C]" />

@@ -12,7 +12,8 @@ export const roleMenus = {
       icon: 'warehouse',
       children: [
         { label: '전사 재고 조회', path: '/hq/inventory/company-wide' },
-        { label: '창고별 재고 비교', path: '/hq/inventory/warehouse-comparison' },
+        { label: '창고간 재고 이동', path: '/hq/inventory/warehouse-comparison' },
+        { label: '창고간 재고 이동 내역', path: '/hq/inventory/warehouse-transfer-history' },
       ],
     },
     {

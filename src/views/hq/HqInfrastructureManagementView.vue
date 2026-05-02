@@ -5,12 +5,8 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import {
-  createStore,
-  createWarehouse,
-  getStores,
-  getWarehouses,
-  updateStore,
-  updateWarehouse,
+  createInfrastructure,
+  getInfrastructures,
 } from '@/api/infrastructure.js'
 
 const router = useRouter()
@@ -147,17 +143,17 @@ const korToStatus = {
 async function loadStores() {
   const status = storeStatusFilter.value === '전체' ? undefined : korToStatus[storeStatusFilter.value]
   const region = storeRegionFilter.value === '전체 지역' ? undefined : storeRegionFilter.value
-  const list = await getStores({ keyword: storeSearchTerm.value || undefined, region, status })
+  const list = await getInfrastructures({ type: 'STORE', keyword: storeSearchTerm.value || undefined, region, status })
   storeData.value = list.map((s) => ({
     code: s.code,
     id: s.code,
     name: s.name,
     region: s.region,
-    type: s.type === 'DIRECT' ? '직영점' : '가맹점',
+    type: s.storeType === 'DIRECT' ? '직영점' : '가맹점',
     manager: s.managerName,
     contact: s.contact,
     address: s.address,
-    warehouse: s.warehouseCode,
+    warehouse: s.mappedWarehouseCode,
     status: statusToKor[s.status] ?? s.status,
     stockCapacity: 1000,
     remainingStock: 700,
@@ -168,7 +164,7 @@ async function loadStores() {
 async function loadWarehouses() {
   const status = warehouseStatusFilter.value === '전체' ? undefined : korToStatus[warehouseStatusFilter.value]
   const region = warehouseRegionFilter.value === '전체 지역' ? undefined : warehouseRegionFilter.value
-  const list = await getWarehouses({ keyword: warehouseSearchTerm.value || undefined, region, status })
+  const list = await getInfrastructures({ type: 'WAREHOUSE', keyword: warehouseSearchTerm.value || undefined, region, status })
   warehouseData.value = list.map((w) => ({
     code: w.code,
     id: w.code,
@@ -208,14 +204,15 @@ async function quickCreateStore() {
   const name = prompt('매장명을 입력하세요')
   if (!name) return
   try {
-    await createStore({
+    await createInfrastructure({
+      locationType: 'STORE',
       name,
       region: '서울',
-      type: 'DIRECT',
+      storeType: 'DIRECT',
       managerName: '담당자',
       contact: '010-0000-0000',
       address: '서울시 강남구',
-      warehouseCode: warehouseData.value[0]?.code || 'WH-0001',
+      mappedWarehouseCode: warehouseData.value[0]?.code || 'WH-0001',
       status: 'ACTIVE',
     })
     await loadStores()
@@ -228,7 +225,8 @@ async function quickCreateWarehouse() {
   const name = prompt('창고명을 입력하세요')
   if (!name) return
   try {
-    await createWarehouse({
+    await createInfrastructure({
+      locationType: 'WAREHOUSE',
       name,
       region: '서울',
       managerName: '담당자',

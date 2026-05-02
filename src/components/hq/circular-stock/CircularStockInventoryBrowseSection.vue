@@ -58,6 +58,7 @@ const isMaterialDropdownOpen = ref(false)
 const materialDropdownRef = ref(null)
 const sortKey = ref('')
 const sortDirection = ref('asc')
+const hoveredRowId = ref(null)
 const visibleColumns = ref({
   color: true,
   size: true,
@@ -723,13 +724,17 @@ onBeforeUnmount(() => {
             <tr
               v-for="item in filteredRows"
               :key="item.id"
-              class="transition"
+              class="transition-colors"
               :class="[
                 highlightedRowIds.includes(item.id) || highlightedInventoryIds.includes(item.inventoryId)
                   ? 'bg-[#EBF5F5] font-bold'
-                  : 'hover:bg-[#EBF5F5]/60',
+                  : hoveredRowId === item.id
+                    ? 'bg-[#EBF5F5]/60'
+                    : '',
                 enableRowClick ? 'cursor-pointer' : '',
               ]"
+              @mouseenter="hoveredRowId = item.id"
+              @mouseleave="hoveredRowId = null"
               @click="handleRowClick(item)"
             >
               <td v-if="hasActionColumn && actionColumnPosition === 'start'" class="px-3 py-3 text-center">
@@ -740,8 +745,22 @@ onBeforeUnmount(() => {
                   :highlighted="highlightedRowIds.includes(item.id) || highlightedInventoryIds.includes(item.inventoryId)"
                 />
               </td>
-              <td class="sticky left-0 z-10 whitespace-nowrap bg-white px-3 py-3 font-mono font-bold text-gray-600">{{ item.skuCode }}</td>
-              <td class="sticky left-[170px] z-10 truncate bg-white px-3 py-3 font-black text-gray-900">{{ item.itemName }}</td>
+              <td
+                class="sticky left-0 z-10 whitespace-nowrap px-3 py-3 font-mono font-bold text-gray-600 transition-colors"
+                :class="highlightedRowIds.includes(item.id) || highlightedInventoryIds.includes(item.inventoryId)
+                  ? 'bg-[#EBF5F5]'
+                  : hoveredRowId === item.id
+                    ? 'bg-[#EBF5F5]/60'
+                    : 'bg-white'"
+              >{{ item.skuCode }}</td>
+              <td
+                class="sticky left-[170px] z-10 truncate px-3 py-3 font-black text-gray-900 transition-colors"
+                :class="highlightedRowIds.includes(item.id) || highlightedInventoryIds.includes(item.inventoryId)
+                  ? 'bg-[#EBF5F5]'
+                  : hoveredRowId === item.id
+                    ? 'bg-[#EBF5F5]/60'
+                    : 'bg-white'"
+              >{{ item.itemName }}</td>
               <td v-if="visibleColumns.color" class="px-3 py-3 text-center font-black text-gray-900">{{ item.color }}</td>
               <td v-if="visibleColumns.size" class="px-3 py-3 text-center font-black text-gray-900">{{ item.size }}</td>
               <td class="px-3 py-3 font-black text-gray-900">{{ item.materialType }}</td>

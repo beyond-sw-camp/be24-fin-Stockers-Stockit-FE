@@ -134,11 +134,11 @@ function cancelEditMode() {
   resetForm()
 }
 
-function submitForm() {
+async function submitForm() {
   const result =
     panelMode.value === 'create'
-      ? buyerStore.createBuyer(form.value)
-      : buyerStore.updateBuyer(selectedBuyerId.value, form.value)
+      ? await buyerStore.createBuyer(form.value)
+      : await buyerStore.updateBuyer(selectedBuyerId.value, form.value)
 
   if (!result.success) {
     errors.value = result.errors ?? {}
