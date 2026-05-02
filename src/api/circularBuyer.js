@@ -41,4 +41,18 @@ export const circularBuyerApi = {
 
   /** embedding NULL 거래처 일괄 임베딩 — 시드 backfill 용. */
   backfillEmbeddings: () => apiClient.post(`${BASE}/embeddings/backfill`).then(unwrap),
+
+  /**
+   * ADR-021 AI 거래처 추천 — 3층 RAG (SQL 룰 → 임베딩 코사인 → LLM 사유).
+   * 판매 등록 페이지 Step 1 → Step 2 [다음] 클릭 1회 호출.
+   * LLM 실패 시에도 200 OK + rationale fallback 텍스트 (BE 책임).
+   *
+   * timeout 30초 — OpenAI 임베딩 1콜 + Chat(gpt-4o-mini) 1콜 합산 BUDGET 1.5~2.5초이지만
+   * cold start / 네트워크 지연 / 토큰 길이 변동으로 글로벌 10초 초과 가능 → 추천 호출만 명시 override.
+   *
+   * @param {{materialFit: 'natural-single'|'synthetic'|'blended', productName?: string, description?: string, quantityHint?: string}} payload
+   * @returns {Promise<{recommendations: Array<{code, companyName, primaryMaterialFit, industryGroup, rationale}>}>}
+   */
+  recommend: (payload) =>
+    apiClient.post(`${BASE}/recommend`, payload, { timeout: 30000 }).then(unwrap),
 }

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { circularBuyerApi } from '@/api/circularBuyer.js'
 import { useCircularInventoryBuyerStore } from '@/stores/circularInventoryBuyers.js'
 
 const INVENTORY_STORAGE_KEY = 'stockit_circular_inventory_inventory_v2'
@@ -330,6 +331,11 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
   const saleStep = ref(1)
   const lockedMaterialType = ref('')
 
+  // ADR-021 AI 거래처 추천 — Step 1 → Step 2 [다음] 클릭 시 1회 호출 (사용자 결정 2026-04-30).
+  const recommendations = ref([])
+  const isRecommendationLoading = ref(false)
+  const recommendationError = ref(null)
+
   const inventoryRows = computed(() =>
     [...inventoryItems.value].sort((a, b) => (
       a.parentCategory.localeCompare(b.parentCategory, 'ko')
@@ -365,6 +371,33 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
     ),
     totalAmount: draftItems.value.reduce((sum, item) => sum + (Number(item.requestedAmount) || 0), 0),
   }))
+
+  /**
+   * 추천 호출 페이로드 자동 합성. Step 1 의 SKU 들 + lockedMaterialType 으로 4필드 만든다.
+   * 사용자 추가 입력 0 — 옵션 A 자동 추출 (사용자 결정 2026-04-30).
+   */
+  const recommendationPayload = computed(() => {
+    const items = draftItems.value
+    if (items.length === 0 || !lockedMaterialType.value) return null
+    const materialFit = buyerMaterialFitValue(lockedMaterialType.value)
+    const head = items[0]
+    const productName = items.length > 1
+      ? `${head.itemName} 외 ${items.length - 1}건`
+      : head.itemName
+    const materialsLabel = (head.materials ?? [])
+      .map(m => `${m.name} ${m.ratio}%`)
+      .join(', ')
+    const categories = [...new Set(items.map(item => item.mainCategory).filter(Boolean))].join(', ')
+    const description = [
+      `${lockedMaterialType.value} 잔재고.`,
+      materialsLabel ? `${materialsLabel}.` : '',
+      categories ? `${categories} 카테고리.` : '',
+    ].filter(Boolean).join(' ')
+    const totalKg = items.reduce((sum, item) => sum + (Number(item.availableWeightKg) || 0), 0)
+    const totalQty = items.reduce((sum, item) => sum + (Number(item.availableQuantity) || 0), 0)
+    const quantityHint = `약 ${totalKg.toFixed(1)}kg / ${totalQty}벌`
+    return { materialFit, productName, description, quantityHint }
+  })
 
   const matchedBuyerCandidates = computed(() => {
     if (!lockedMaterialType.value) return buyerStore.sortedBuyers
@@ -538,6 +571,8 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
       lockedMaterialType.value = ''
       draftBuyerId.value = ''
       saleStep.value = 1
+      recommendations.value = []
+      recommendationError.value = null
     }
   }
 
@@ -547,6 +582,30 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
     draftItems.value = []
     lockedMaterialType.value = ''
     saleStep.value = 1
+    recommendations.value = []
+    recommendationError.value = null
+  }
+
+  /**
+   * ADR-021 추천 호출. 페이로드는 recommendationPayload computed 가 자동 합성.
+   * 호출 시점은 페이지의 moveStep(2) 안 — Step 1 → Step 2 [다음] 클릭 시 1회.
+   * BE 가 LLM 실패해도 200 OK + rationale fallback 텍스트 반환하므로 catch 는 네트워크/4xx 만.
+   */
+  async function fetchRecommendations() {
+    const payload = recommendationPayload.value
+    if (!payload) return
+    isRecommendationLoading.value = true
+    recommendationError.value = null
+    recommendations.value = []
+    try {
+      const res = await circularBuyerApi.recommend(payload)
+      recommendations.value = Array.isArray(res?.recommendations) ? res.recommendations : []
+    } catch (err) {
+      recommendationError.value = err?.message ?? 'AI 추천을 불러오지 못했습니다.'
+      recommendations.value = []
+    } finally {
+      isRecommendationLoading.value = false
+    }
   }
 
   function setSaleStep(nextStep) {
@@ -724,6 +783,10 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
     draftSummary,
     salesSummary,
     salesAnalytics,
+    recommendations,
+    isRecommendationLoading,
+    recommendationError,
+    recommendationPayload,
     formatWeight,
     filteredBuyers,
     getInventoryById,
@@ -736,6 +799,7 @@ export const useCircularInventoryStore = defineStore('circularInventory', () => 
     updateSaleDraftItem,
     removeSaleDraftItem,
     clearDraft,
+    fetchRecommendations,
     validateCircularInventorySaleDraft,
     submitCircularInventorySale,
   }

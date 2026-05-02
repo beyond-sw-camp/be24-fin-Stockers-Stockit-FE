@@ -35,6 +35,31 @@ function stockLevelClass(level) {
   return 'text-gray-700'
 }
 
+// 상태 칩 — 매장 발주 요청 페이지(StoreOrderRequestView)의 패턴을 본사용으로 확장.
+// stockStore 의 stockLevel(critical/warning/normal) + available 0 분리해 4단계.
+function statusChipForSku(skuCode) {
+  const stock = rowStock(skuCode)
+  if (!stock) return null
+  if (stock.available === 0) {
+    return { label: '품절', class: 'bg-red-100 text-red-700' }
+  }
+  const level = stockStore.getSkuStockLevel(stock)
+  if (level === 'critical') return { label: '부족', class: 'bg-orange-100 text-orange-700' }
+  if (level === 'warning') return { label: '주의', class: 'bg-yellow-50 text-yellow-700' }
+  return { label: '정상', class: 'bg-[#EBF5F5] text-gray-700' }
+}
+
+// 부족 SKU 우선 정렬용 rank — 작을수록 위로.
+function shortageRank(skuCode) {
+  const stock = rowStock(skuCode)
+  if (!stock) return 4
+  if (stock.available === 0) return 0
+  const level = stockStore.getSkuStockLevel(stock)
+  if (level === 'critical') return 1
+  if (level === 'warning') return 2
+  return 3
+}
+
 const DRAFT_KEY = 'stockit:po-cart-draft'
 
 const isEditMode = computed(() => route.name === 'hq-purchase-order-edit')
@@ -340,6 +365,15 @@ const filteredRows = computed(() => {
     })
   }
   switch (sortBy.value) {
+    case 'shortage':
+      // 부족 SKU 우선 — 품절(0) > 부족(critical) > 주의(warning) > 정상 순. 같은 등급 안에선 productName 가나다.
+      skus = [...skus].sort((a, b) => {
+        const rankDiff = shortageRank(a.skuCode) - shortageRank(b.skuCode)
+        if (rankDiff !== 0) return rankDiff
+        return a.productName.localeCompare(b.productName, 'ko')
+          || a.optionValue.localeCompare(b.optionValue, 'ko')
+      })
+      break
     case 'priceAsc':
       skus = [...skus].sort((a, b) => a.unitPrice - b.unitPrice)
       break
@@ -377,24 +411,8 @@ const filteredRows = computed(() => {
     }
   }
 
-  // vendorFilter === 'all' 일 때만 vendor row 삽입 — 거래처 단위 sticky 그룹.
-  // 특정 거래처 필터 시엔 select 에 이미 vendor 표시되어 잉여라 생략.
-  if (vendorFilter.value !== 'all') return baseResult
-
-  const result = []
-  let lastVendor = null
-  for (const r of baseResult) {
-    if (r.type === 'header' && r.vendorCode !== lastVendor) {
-      result.push({
-        type: 'vendor',
-        vendorCode: r.vendorCode,
-        vendorName: r.vendorName,
-      })
-      lastVendor = r.vendorCode
-    }
-    result.push(r)
-  }
-  return result
+  // 품목 중심 표시 — vendor sticky 그룹 행 제거. 거래처는 마스터 제품 헤더의 칩으로 표시.
+  return baseResult
 })
 
 // 매칭 SKU 수 (헤더 제외)
@@ -454,27 +472,6 @@ function priceRangeText(header) {
 
 function toggleGroup(masterKey) {
   collapsed.value[masterKey] = !collapsed.value[masterKey]
-}
-
-// 거래처 단위 접기/펼치기 — 그 vendor 의 모든 master 토글
-function isVendorAllCollapsed(vendorCode) {
-  const masters = catalogSkuRows.value.filter(
-    (r) => r.type === 'header' && r.vendorCode === vendorCode,
-  )
-  if (masters.length === 0) return false
-  return masters.every((m) => collapsed.value[m.masterKey])
-}
-
-function toggleVendorGroup(vendorCode) {
-  const masters = catalogSkuRows.value.filter(
-    (r) => r.type === 'header' && r.vendorCode === vendorCode,
-  )
-  const allCollapsed = masters.every((m) => collapsed.value[m.masterKey])
-  const next = { ...collapsed.value }
-  for (const m of masters) {
-    next[m.masterKey] = !allCollapsed
-  }
-  collapsed.value = next
 }
 
 function expandAll() {
@@ -986,6 +983,7 @@ const AlertTriangleIcon = IconBase([
               class="border border-gray-300 bg-white px-3 py-1.5 text-xs outline-none focus:border-[#004D3C]"
             >
               <option value="default">정렬: 기본</option>
+              <option value="shortage">부족 SKU 우선</option>
               <option value="priceAsc">단가 ↑</option>
               <option value="priceDesc">단가 ↓</option>
               <option value="nameAsc">제품명 ㄱ-ㄴ</option>
@@ -1071,43 +1069,27 @@ const AlertTriangleIcon = IconBase([
               <thead class="bg-gray-100 text-xs text-gray-500">
                 <tr>
                   <th class="w-8 px-1 py-2 text-center font-black"></th>
-                  <th class="w-48 px-2 py-2 text-left font-black">옵션</th>
+                  <th class="w-44 px-2 py-2 text-left font-black">옵션</th>
                   <th class="w-28 px-2 py-2 text-left font-black">SKU 코드</th>
                   <th class="w-20 px-2 py-2 text-right font-black">단가</th>
                   <th class="w-12 px-2 py-2 text-right font-black" title="실재고 + 입고예정 - 출고예정">가용</th>
                   <th class="w-12 px-2 py-2 text-right font-black" title="실재고 (현재 보유)">실</th>
                   <th class="w-12 px-2 py-2 text-right font-black" title="안전재고 (이 밑으로 떨어지면 안 됨)">안전</th>
                   <th class="w-14 px-2 py-2 text-right font-black" title="안전재고 × 1.5 까지 채우는 권장 발주 수량">권장</th>
+                  <th class="w-14 px-1 py-2 text-center font-black">상태</th>
                   <th class="w-14 px-1 py-2 text-center font-black">수량</th>
                   <th class="w-12 px-2 py-2 text-center font-black"></th>
                 </tr>
               </thead>
               <tbody :class="!selectedWarehouseCode ? 'pointer-events-none opacity-50' : ''">
                 <template v-for="row in filteredRows" :key="rowKey(row)">
-                  <!-- 거래처 헤더 (전체 거래처 모드 only) -->
+                  <!-- 제품 헤더 — 미니멀 실무 ERP 스타일. 텍스트 위계로만 정보 구분, 강한 시각요소 X -->
                   <tr
-                    v-if="row.type === 'vendor'"
-                    class="bg-[#004D3C] text-white cursor-pointer select-none"
-                    @click="toggleVendorGroup(row.vendorCode)"
-                  >
-                    <td class="w-8 px-1 py-2 text-center align-middle">
-                      <span class="text-xs font-black">
-                        {{ isVendorAllCollapsed(row.vendorCode) ? '▸' : '▾' }}
-                      </span>
-                    </td>
-                    <td colspan="9" class="px-2 py-2 align-middle">
-                      <span class="text-[11px] font-black uppercase tracking-wider">
-                        {{ row.vendorName }}
-                      </span>
-                    </td>
-                  </tr>
-                  <!-- 제품 헤더 -->
-                  <tr
-                    v-else-if="row.type === 'header'"
-                    class="bg-[#E6F2F0] cursor-pointer select-none"
+                    v-if="row.type === 'header'"
+                    class="bg-gray-50 hover:bg-gray-100 border-t border-gray-200 cursor-pointer select-none"
                     @click="toggleGroup(row.masterKey)"
                   >
-                    <td class="px-1 py-2 text-center ">
+                    <td class="px-1 py-2.5 text-center">
                       <input
                         v-if="!collapsed[row.masterKey]"
                         type="checkbox"
@@ -1118,15 +1100,16 @@ const AlertTriangleIcon = IconBase([
                         @change="toggleGroupSelected(row.masterKey, $event)"
                       />
                     </td>
-                    <td colspan="9" class="px-2 py-2 ">
-                      <div class="flex items-center gap-2 flex-wrap">
-                        <span class="text-xs font-black text-[#004D3C]">
+                    <td colspan="10" class="px-3 py-2.5">
+                      <div class="flex items-center gap-3 flex-wrap">
+                        <span class="text-[11px] font-black text-gray-500 shrink-0">
                           {{ collapsed[row.masterKey] ? '▸' : '▾' }}
                         </span>
-                        <span class="text-xs font-bold text-gray-700">{{ row.productName }}</span>
-                        <span class="text-[10px] text-gray-500">{{ row.productCode }}</span>
-                        <span class="ml-auto text-[10px] font-bold text-gray-500">
-                          SKU {{ groupMatchedCount(row.masterKey) }} · {{ priceRangeText(row) }}
+                        <span class="text-xs font-black text-gray-900 truncate">{{ row.productName }}</span>
+                        <span class="font-mono text-[10px] font-bold text-gray-400 shrink-0">{{ row.productCode }}</span>
+                        <span class="ml-auto text-[10px] font-bold text-gray-400 shrink-0">
+                          거래처
+                          <span class="ml-1 font-black text-gray-700">{{ row.vendorName }}</span>
                         </span>
                       </div>
                     </td>
@@ -1185,6 +1168,18 @@ const AlertTriangleIcon = IconBase([
                       </template>
                       <span v-else class="text-gray-300">—</span>
                     </td>
+                    <!-- 상태 칩 -->
+                    <td class="px-1 py-2 text-center align-middle">
+                      <template v-if="statusChipForSku(row.skuCode)">
+                        <span
+                          class="inline-flex min-w-9 justify-center px-1.5 py-0.5 text-[10px] font-black"
+                          :class="statusChipForSku(row.skuCode).class"
+                        >
+                          {{ statusChipForSku(row.skuCode).label }}
+                        </span>
+                      </template>
+                      <span v-else class="text-gray-300">—</span>
+                    </td>
                     <td class="px-1 py-2 align-middle">
                       <input
                         type="number"
@@ -1222,17 +1217,17 @@ const AlertTriangleIcon = IconBase([
                   </tr>
                 </template>
                 <tr v-if="!catalogLoading && catalogSkuRows.length === 0">
-                  <td colspan="10" class="px-3 py-8 text-center text-xs text-gray-400">
+                  <td colspan="11" class="px-3 py-8 text-center text-xs text-gray-400">
                     노출 가능한 계약 제품이 없습니다.
                   </td>
                 </tr>
                 <tr v-else-if="!catalogLoading && filteredRows.length === 0">
-                  <td colspan="10" class="px-3 py-8 text-center text-xs text-gray-400">
+                  <td colspan="11" class="px-3 py-8 text-center text-xs text-gray-400">
                     검색 결과가 없습니다.
                   </td>
                 </tr>
                 <tr v-if="catalogLoading">
-                  <td colspan="10" class="px-3 py-8 text-center text-xs text-gray-400">
+                  <td colspan="11" class="px-3 py-8 text-center text-xs text-gray-400">
                     카탈로그를 불러오는 중...
                   </td>
                 </tr>

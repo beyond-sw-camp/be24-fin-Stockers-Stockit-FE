@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularInventoryBrowseSection from '@/components/hq/circular-inventory/CircularInventoryBrowseSection.vue'
+import AiBuyerRecommendationPanel from '@/components/hq/circular-inventory/AiBuyerRecommendationPanel.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useCircularInventoryBuyerStore } from '@/stores/circularInventoryBuyers.js'
@@ -28,6 +29,9 @@ const priceEditModes = ref({})
 const toastMessage = ref('')
 const toastTone = ref('success')
 let toastTimer = null
+
+// ADR-021 AI 거래처 추천 — Step 2 좌측 영역 모드 토글. 'ai' | 'manual'.
+const buyerPanelMode = ref('ai')
 
 const saleStep = computed({
   get: () => Number(unref(circularInventoryStore.saleStep) || 1),
@@ -110,6 +114,17 @@ function moveStep(step) {
     return
   }
   saleStep.value = step
+  // ADR-021 — Step 2 진입 시 AI 추천 1회 자동 호출 (사용자 결정 2026-04-30).
+  if (step === 2) {
+    circularInventoryStore.fetchRecommendations()
+  }
+}
+
+function onRecommendationSelect(code) {
+  const rec = circularInventoryStore.recommendations.find(r => r.code === code)
+  if (!rec) return
+  circularInventoryStore.selectBuyer(code)
+  buyerSearchTerm.value = rec.companyName
 }
 
 function addItemToDraft(row) {
@@ -329,7 +344,7 @@ onBeforeUnmount(() => {
             </div>
           </button>
 
-          <div v-if="isDrawerOpen" class="rounded-md border border-gray-200 bg-white p-4">
+          <div v-if="isDrawerOpen" class="rounded-md border border-gray-200 bg-white p-4 max-h-[72vh] overflow-y-auto">
             <div class="rounded-md border border-gray-200 bg-[#FAFCFB] p-3">
               <div class="grid gap-2 md:grid-cols-3">
                 <button type="button" class="group overflow-hidden rounded-md border text-left transition" :class="saleStep >= 1 ? 'border-[#B7D8D1] bg-[#F3FAF8]' : 'border-gray-200 bg-white'" @click="moveStep(1)">
@@ -364,7 +379,7 @@ onBeforeUnmount(() => {
 
             <p class="mt-3 text-[11px] font-bold text-gray-500">
               <template v-if="saleStep === 1">요청서에서 같은 소재 구분 SKU만 선택할 수 있습니다.</template>
-              <template v-else-if="saleStep === 2">현재 단계는 수동 선택만 지원합니다. (AI 매칭은 이후 확장)</template>
+              <template v-else-if="saleStep === 2">AI가 추천한 거래처 중 선택하거나, 수동 검색으로 직접 찾을 수 있습니다.</template>
               <template v-else>판매 kg 기준 입력이며, 차감 벌 수량은 항상 올림 처리됩니다.</template>
             </p>
 
@@ -419,8 +434,47 @@ onBeforeUnmount(() => {
             </div>
 
             <div v-else-if="saleStep === 2" class="mt-4">
-              <div class="grid gap-4 xl:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]">
-                <section ref="buyerDropdownRef" class="relative rounded-md border border-gray-200 bg-white p-3">
+              <section ref="buyerDropdownRef" class="rounded-md border border-gray-200 bg-white p-4">
+                <!-- 모드 토글 — AI 추천 (default) / 수동 검색 -->
+                <div class="grid max-w-md grid-cols-2 gap-1 rounded-md border border-gray-200 bg-gray-50 p-1">
+                  <button
+                    type="button"
+                    class="h-9 text-xs font-black transition"
+                    :class="buyerPanelMode === 'ai' ? 'bg-[#004D3C] text-white' : 'bg-transparent text-gray-500 hover:text-gray-700'"
+                    @click="buyerPanelMode = 'ai'"
+                  >
+                    ✨ AI 추천<span
+                      v-if="!circularInventoryStore.isRecommendationLoading"
+                      class="ml-1 opacity-80"
+                    >· {{ circularInventoryStore.recommendations.length }}</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="h-9 text-xs font-black transition"
+                    :class="buyerPanelMode === 'manual' ? 'bg-[#004D3C] text-white' : 'bg-transparent text-gray-500 hover:text-gray-700'"
+                    @click="buyerPanelMode = 'manual'"
+                  >
+                    수동 검색<span class="ml-1 opacity-80">· {{ filteredBuyers.length }}</span>
+                  </button>
+                </div>
+
+                <!-- AI 추천 모드 -->
+                <div v-if="buyerPanelMode === 'ai'" class="mt-4">
+                  <AiBuyerRecommendationPanel
+                    :recommendations="circularInventoryStore.recommendations"
+                    :loading="circularInventoryStore.isRecommendationLoading"
+                    :error="circularInventoryStore.recommendationError || ''"
+                    :selected-buyer-code="selectedBuyer?.code || ''"
+                    :material-fit-label="materialFitLabel"
+                    :locked-material-type="lockedMaterialType"
+                    @select="onRecommendationSelect"
+                    @retry="circularInventoryStore.fetchRecommendations()"
+                    @switch-to-manual="buyerPanelMode = 'manual'"
+                  />
+                </div>
+
+                <!-- 수동 검색 모드 -->
+                <div v-else class="mt-4">
                   <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">Buyer Search</p>
                   <label class="mt-2 flex flex-col gap-1.5">
                     <span class="text-[11px] font-bold text-gray-500">거래처 검색</span>
@@ -433,7 +487,7 @@ onBeforeUnmount(() => {
                     />
                   </label>
                   <p class="mt-2 text-[10px] font-bold text-gray-400">소재 구분 {{ lockedMaterialType || '-' }} 기준 후보 {{ filteredBuyers.length }}건</p>
-                  <div v-if="isBuyerDropdownOpen" class="absolute left-3 right-3 top-[5.8rem] z-30 max-h-64 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-xl">
+                  <div v-if="isBuyerDropdownOpen" class="mt-2 max-h-64 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-xl">
                     <button
                       v-for="buyer in filteredBuyers"
                       :key="buyer.id"
@@ -447,53 +501,53 @@ onBeforeUnmount(() => {
                     </button>
                     <div v-if="filteredBuyers.length === 0" class="px-3 py-4 text-center text-xs font-bold text-gray-400">검색 결과가 없습니다.</div>
                   </div>
-                </section>
+                </div>
 
-                <section class="rounded-md border border-gray-200 bg-[#FAFCFB] p-5">
-                  <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">Selected Buyer</p>
-                  <template v-if="selectedBuyer">
-                    <div class="mt-3 flex flex-col gap-4 rounded-md border border-[#DCE8E4] bg-white px-4 py-4">
-                      <div class="flex items-start justify-between gap-3">
-                        <div>
-                          <p class="text-base font-black text-gray-900">{{ selectedBuyer.companyName }}</p>
-                          <p class="mt-1 font-mono text-[11px] font-black text-gray-500">{{ selectedBuyer.code }}</p>
-                        </div>
-                        <span class="rounded-full bg-[#EAF4F0] px-2.5 py-1 text-[10px] font-black text-[#255F52]">
-                          {{ materialFitLabel(selectedBuyer.primaryMaterialFit) }}
-                        </span>
+                <!-- 선택된 거래처 컴팩트 카드 (AI/수동 공용) -->
+                <section
+                  v-if="selectedBuyer"
+                  class="mt-4 rounded-md border border-[#DCE8E4] bg-[#F3FAF8] px-4 py-3"
+                >
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <div class="flex items-center gap-2">
+                        <p class="text-[9px] font-bold uppercase tracking-[0.14em] text-[#0F5C4D]">선택된 거래처</p>
+                        <span class="rounded-full bg-[#0F5C4D] px-1.5 py-0.5 text-[9px] font-black text-white">✓</span>
                       </div>
-
-                      <div class="grid gap-3 sm:grid-cols-2">
-                        <div class="rounded-md bg-gray-50 px-3 py-3">
-                          <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">담당자</p>
-                          <p class="mt-1 text-xs font-black text-gray-800">{{ selectedBuyer.managerName }}</p>
-                        </div>
-                        <div class="rounded-md bg-gray-50 px-3 py-3">
-                          <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">연락처</p>
-                          <p class="mt-1 text-xs font-black text-gray-800">{{ selectedBuyer.phone }}</p>
-                        </div>
-                      </div>
-
-                      <div class="rounded-md bg-gray-50 px-3 py-3">
-                        <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">산업군</p>
-                        <p class="mt-1 text-xs font-black text-gray-800">{{ selectedBuyer.industryGroup }}</p>
-                      </div>
-
-                      <div class="rounded-md bg-gray-50 px-3 py-3">
-                        <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">거래처 설명</p>
-                        <p class="mt-1 text-xs font-bold leading-5 text-gray-700">{{ selectedBuyer.description || '설명 없음' }}</p>
-                      </div>
+                      <p class="mt-1 text-sm font-black text-gray-900">{{ selectedBuyer.companyName }}</p>
+                      <p class="mt-0.5 font-mono text-[11px] font-semibold text-gray-500">{{ selectedBuyer.code }}</p>
                     </div>
-                  </template>
+                    <span class="rounded-full bg-[#EAF4F0] px-2 py-0.5 text-[10px] font-bold text-[#255F52]">
+                      {{ materialFitLabel(selectedBuyer.primaryMaterialFit) }}
+                    </span>
+                  </div>
+                  <div class="mt-3 grid grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <p class="text-[9px] font-bold uppercase tracking-[0.12em] text-gray-400">담당자</p>
+                      <p class="mt-0.5 font-semibold text-gray-800">{{ selectedBuyer.managerName || '-' }}</p>
+                    </div>
+                    <div>
+                      <p class="text-[9px] font-bold uppercase tracking-[0.12em] text-gray-400">연락처</p>
+                      <p class="mt-0.5 font-semibold text-gray-800">{{ selectedBuyer.phone || '-' }}</p>
+                    </div>
+                    <div>
+                      <p class="text-[9px] font-bold uppercase tracking-[0.12em] text-gray-400">산업군</p>
+                      <p class="mt-0.5 font-semibold text-gray-800">{{ selectedBuyer.industryGroup || '-' }}</p>
+                    </div>
+                  </div>
                   <div
-                    v-else
-                    class="mt-3 flex min-h-[12rem] items-center justify-center rounded-md border border-dashed border-gray-200 bg-white px-4 text-center text-xs font-bold text-gray-400"
+                    v-if="selectedBuyer.description"
+                    class="mt-3 border-t border-[#DCE8E4] pt-3"
                   >
-                    왼쪽 검색 목록에서 거래처를 선택하면 요약 정보가 표시됩니다.
+                    <p class="text-[9px] font-bold uppercase tracking-[0.12em] text-gray-400">거래처 설명</p>
+                    <p class="mt-1 text-[11px] font-medium leading-5 text-gray-700">
+                      {{ selectedBuyer.description }}
+                    </p>
                   </div>
                 </section>
-              </div>
-              <div class="mt-6 border-t border-gray-100 pt-3 xl:col-span-2 flex justify-end gap-2">
+              </section>
+
+              <div class="mt-6 border-t border-gray-100 pt-3 flex justify-end gap-2">
                 <button type="button" class="h-9 border border-gray-300 bg-white px-4 text-xs font-black text-gray-700 hover:bg-gray-50" @click="moveStep(1)">이전</button>
                 <button type="button" class="h-9 border border-[#004D3C] bg-[#004D3C] px-4 text-xs font-black text-white disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400" :disabled="!canMoveStep3" @click="moveStep(3)">다음</button>
               </div>
