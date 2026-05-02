@@ -446,10 +446,10 @@ function handleLogout() {
                   <td class="px-2 py-2.5 text-center">
                     <button
                       type="button"
-                      class="inline-flex h-8 min-w-[70px] items-center justify-center gap-1.5 rounded-full border border-[#C9D9EE] bg-[#EEF4FB] px-3 text-[11px] font-black tracking-[0.01em] text-[#24476B] shadow-[0_1px_2px_rgba(36,71,107,0.08)] transition-all duration-150 hover:-translate-y-px hover:border-[#9EB9DE] hover:bg-[#E5EFFA] hover:shadow-[0_8px_16px_rgba(36,71,107,0.16)] active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9EB9DE]/50"
+                      class="group inline-flex h-8 min-w-[70px] items-center justify-center gap-1.5 rounded-full border border-[#97BFB4]/30 bg-[#97BFB4]/10 px-3 text-[11px] font-bold text-[#5A7F75] transition-all duration-200 hover:border-[#97BFB4]/50 hover:bg-[#97BFB4]/20 hover:text-[#4A6860] active:scale-95"
                       @click="addToRequest(sku)"
                     >
-                      <span class="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[10px] text-[#24476B]">+</span>
+                      <span class="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[10px] text-[#97BFB4] shadow-sm transition-colors group-hover:bg-[#004D3C] group-hover:text-white">+</span>
                       <span>담기</span>
                     </button>
                   </td>

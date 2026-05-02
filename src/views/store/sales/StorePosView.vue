@@ -277,18 +277,22 @@ function handleLogout() {
                   <td class="px-4 py-3 text-center">
                     <button
                       type="button"
-                      class="inline-flex h-8 min-w-[74px] items-center justify-center gap-1.5 rounded-full border px-2.5 text-[11px] font-black tracking-[0.01em] transition-all duration-150 disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:opacity-100"
+                      class="group inline-flex h-8 min-w-[74px] items-center justify-center gap-1.5 rounded-full border px-3 text-[11px] font-bold transition-all duration-200 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:opacity-100"
                       :class="
                         sku.stock === 0
-                          ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 shadow-none'
-                          : 'border-[#C9D9EE] bg-[#EEF4FB] text-[#24476B]'
+                          ? 'cursor-not-allowed shadow-none'
+                          : 'border-[#97BFB4]/30 bg-[#97BFB4]/10 text-[#5A7F75] hover:border-[#97BFB4]/50 hover:bg-[#97BFB4]/20 hover:text-[#4A6860] active:scale-95'
                       "
                       :disabled="sku.stock === 0"
                       @click="addToSalesList(sku)"
                     >
                       <span
-                        class="flex h-4 w-4 items-center justify-center rounded-full text-[10px]"
-                        :class="sku.stock === 0 ? 'bg-gray-200 text-gray-400' : 'bg-white text-[#24476B]'"
+                        class="flex h-4 w-4 items-center justify-center rounded-full text-[10px] transition-colors"
+                        :class="
+                          sku.stock === 0
+                            ? 'bg-gray-200 text-gray-400'
+                            : 'bg-white text-[#97BFB4] shadow-sm group-hover:bg-[#004D3C] group-hover:text-white'
+                        "
                       >
                         +
                       </span>

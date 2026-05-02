@@ -302,17 +302,22 @@ onBeforeUnmount(() => {
           <div class="flex flex-col items-center gap-1">
           <button
             type="button"
-            class="inline-flex h-8 items-center justify-center gap-1.5 rounded-full border px-2.5 text-[11px] font-black tracking-[0.01em] transition-all duration-150 disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:opacity-100"
+            class="group inline-flex h-8 items-center justify-center gap-1.5 rounded-full border px-3 text-[11px] font-bold transition-all duration-200 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:opacity-100 active:scale-95"
             :class="isItemAdded(row.id)
-              ? 'border-[#B7D8D1] bg-[#F3FAF8] text-[#0F5C4D]'
-              : 'border-[#C9D9EE] bg-[#EEF4FB] text-[#24476B]'"
+              ? 'border-indigo-200/60 bg-indigo-50 text-indigo-600 hover:border-indigo-300 hover:bg-indigo-100 hover:text-indigo-700'
+              : 'border-[#97BFB4]/30 bg-[#97BFB4]/10 text-[#5A7F75] hover:border-[#97BFB4]/50 hover:bg-[#97BFB4]/20 hover:text-[#4A6860]'"
             :disabled="isRowSelectionDisabled(row)"
             :title="isRowSelectionDisabled(row)
               ? `현재 요청서는 ${lockedMaterialType}만 선택 가능합니다.`
               : ''"
             @click.stop="addItemToDraft(row)"
           >
-            <span class="flex h-4 w-4 items-center justify-center rounded-full text-[10px]" :class="isItemAdded(row.id) ? 'bg-[#DCEFEA] text-[#0F5C4D]' : 'bg-white text-[#24476B]'">
+            <span
+              class="flex h-4 w-4 items-center justify-center rounded-full text-[10px] shadow-sm transition-colors"
+              :class="isItemAdded(row.id)
+                ? 'bg-white text-indigo-300 group-hover:bg-indigo-600 group-hover:text-white'
+                : 'bg-white text-[#97BFB4] group-hover:bg-[#004D3C] group-hover:text-white'"
+            >
               {{ isItemAdded(row.id) ? '✓' : '+' }}
             </span>
             <span>{{ isItemAdded(row.id) ? '수정' : '선택' }}</span>
