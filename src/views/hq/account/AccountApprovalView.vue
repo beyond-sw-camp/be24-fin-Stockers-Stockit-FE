@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   ClipboardList,
@@ -13,6 +13,7 @@ import {
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { accountApi } from '@/api/account.js'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -29,13 +30,42 @@ function handleLogout() {
   router.push('/login')
 }
 
-// ── 목업 데이터
-const requests = ref([
-  { id: 'REQ-0012', name: '이민준', email: 'minjun@stockit.com', phone: '010-1234-5678', position: '점장', storeCode: 'ST003', storeName: '판교 테크노점', birthdate: '1990-03-15', reason: '신규 계약 체결로 인한 계정 신청입니다.', requestedAt: '2026-04-19 09:12:33', status: 'PENDING' },
-  { id: 'REQ-0011', name: '박지수', email: 'jisoo@stockit.com', phone: '010-9876-5432', position: '부점장', storeCode: 'ST005', storeName: '인천 제1물류센터', birthdate: '1988-11-02', reason: '', requestedAt: '2026-04-18 16:45:10', status: 'PENDING' },
-  { id: 'REQ-0010', name: '김도현', email: 'dohyun@stockit.com', phone: '010-5555-1234', position: '점장', storeCode: 'ST002', storeName: '성수 직영점', birthdate: '1992-07-28', reason: '기존 담당자 교체로 인한 신규 계정 신청입니다.', requestedAt: '2026-04-18 11:20:05', status: 'APPROVED' },
-  { id: 'REQ-0009', name: '최수연', email: 'sooyeon@stockit.com', phone: '010-3333-7890', position: '점장', storeCode: 'ST007', storeName: '부산 중앙창고', birthdate: '1985-05-19', reason: '', requestedAt: '2026-04-17 14:33:21', status: 'REJECTED' },
-])
+// ── BE에서 받아온 전체 회원 목록 (PENDING / APPROVED / REJECTED)
+const requests = ref([])
+const loading = ref(false)
+const loadError = ref('')
+
+const roleLabel = (r) => ({ HQ: '본사 관리자', STORE: '매장 관리자', WAREHOUSE: '창고 관리자' })[r] ?? r
+
+/** 전체 회원 목록 조회 (status 별 필터는 화면에서 처리) */
+async function loadAccounts() {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const list = await accountApi.listAll()
+    // BE 응답 → 화면 필드 형식 변환
+    requests.value = list.map(item => ({
+      id: item.id,                              // Long
+      employeeCode: item.employeeCode,          // APPROVED만 채워져 있음
+      name: item.name,
+      email: item.email,
+      phone: item.phoneNumber,
+      storeCode: item.locationCode,
+      storeName: item.locationName,
+      role: item.role,                          // HQ / STORE / WAREHOUSE
+      reason: item.applicationReason ?? '',
+      requestedAt: item.appliedAt,
+      processedAt: item.processedAt,            // 승인/거절 시각
+      status: item.status,                      // PENDING / APPROVED / REJECTED
+    }))
+  } catch (err) {
+    loadError.value = err?.message ?? '목록을 불러오지 못했습니다.'
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => loadAccounts())
 
 const filterStatus = ref('ALL')
 const selectedRequest = ref(null)
@@ -58,6 +88,9 @@ const filteredRequests = computed(() =>
 
 const pendingCount = computed(() => requests.value.filter(r => r.status === 'PENDING').length)
 
+// 처리 컬럼은 PENDING이 보이는 화면(전체/대기중)에서만 노출
+const showActionColumn = computed(() => filterStatus.value === 'ALL' || filterStatus.value === 'PENDING')
+
 const statusLabel = (s) => ({ PENDING: '대기중', APPROVED: '승인완료', REJECTED: '거절됨' })[s] ?? s
 
 const statusStyle = (s) => ({
@@ -67,6 +100,15 @@ const statusStyle = (s) => ({
 })[s] ?? 'bg-gray-100 text-gray-500'
 
 const statusIcon = (s) => ({ PENDING: Clock, APPROVED: CheckCircle2, REJECTED: XCircle })[s] ?? Clock
+
+/** ISO 8601 → 'YYYY-MM-DD HH:mm' */
+const formatDateTime = (iso) => {
+  if (!iso) return '-'
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return iso
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
 
 function openDetail(req) {
   selectedRequest.value = req
@@ -80,20 +122,31 @@ function closeDetail() {
   modalMode.value = null
 }
 
-function confirmApprove() {
+async function confirmApprove() {
   if (!selectedRequest.value) return
-  selectedRequest.value.status = 'APPROVED'
-  closeDetail()
+  try {
+    const result = await accountApi.approve(selectedRequest.value.id)
+    alert(`승인 완료\n사원코드: ${result.employeeCode}`)
+    closeDetail()
+    await loadAccounts()
+  } catch (err) {
+    alert(err?.message ?? '승인에 실패했습니다.')
+  }
 }
 
-function confirmReject() {
+async function confirmReject() {
   if (!rejectReason.value.trim()) {
     rejectReasonError.value = '거절 사유를 입력해주세요.'
     return
   }
   if (!selectedRequest.value) return
-  selectedRequest.value.status = 'REJECTED'
-  closeDetail()
+  try {
+    await accountApi.reject(selectedRequest.value.id)
+    closeDetail()
+    await loadAccounts()
+  } catch (err) {
+    alert(err?.message ?? '거절에 실패했습니다.')
+  }
 }
 </script>
 
@@ -124,8 +177,18 @@ function confirmReject() {
         직영점 점주가 신청한 계정을 검토하고 승인 또는 거절합니다. 승인 시 초기 비밀번호(생년월일)가 자동 부여됩니다.
       </p>
 
+      <!-- 로딩 상태 -->
+      <div v-if="loading" class="border border-gray-300 bg-white p-12 text-center text-[13px] text-gray-500">
+        목록을 불러오는 중...
+      </div>
+
+      <!-- 에러 상태 -->
+      <div v-else-if="loadError" class="border border-red-200 bg-red-50 p-4 text-[13px] text-red-600">
+        {{ loadError }}
+      </div>
+
       <!-- 테이블 카드 -->
-      <section class="border border-gray-300 bg-white shadow-sm">
+      <section v-else class="border border-gray-300 bg-white shadow-sm">
 
         <!-- 카드 헤더 + 필터 탭 -->
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-3 py-2.5">
@@ -161,11 +224,11 @@ function confirmReject() {
                 <th class="px-3 py-2.5 text-left font-bold">신청 ID</th>
                 <th class="px-3 py-2.5 text-left font-bold">신청자</th>
                 <th class="px-3 py-2.5 text-left font-bold">이메일</th>
-                <th class="px-3 py-2.5 text-left font-bold">직책</th>
+                <th class="px-3 py-2.5 text-left font-bold">권한</th>
                 <th class="px-3 py-2.5 text-left font-bold">담당 매장</th>
                 <th class="px-3 py-2.5 text-left font-bold">신청일시</th>
                 <th class="px-3 py-2.5 text-left font-bold">상태</th>
-                <th class="px-3 py-2.5 text-left font-bold">처리</th>
+                <th v-if="showActionColumn" class="px-3 py-2.5 text-left font-bold">처리</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100 border-t border-gray-200">
@@ -176,22 +239,22 @@ function confirmReject() {
                 :class="{ 'bg-[#eef7f4] hover:bg-[#e4f2ef]': selectedRequest?.id === req.id }"
                 @click="openDetail(req)"
               >
-                <td class="px-3 py-2.5 text-gray-400">{{ req.id }}</td>
+                <td class="px-3 py-2.5 text-gray-400">REQ-{{ String(req.id).padStart(4, '0') }}</td>
                 <td class="px-3 py-2.5 font-semibold text-gray-800">{{ req.name }}</td>
                 <td class="px-3 py-2.5 text-gray-600">{{ req.email }}</td>
-                <td class="px-3 py-2.5 text-gray-600">{{ req.position }}</td>
+                <td class="px-3 py-2.5 text-gray-600">{{ roleLabel(req.role) }}</td>
                 <td class="px-3 py-2.5 text-gray-600">
                   <span class="mr-1.5 border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-[11px] font-medium text-gray-500">{{ req.storeCode }}</span>
                   {{ req.storeName }}
                 </td>
-                <td class="px-3 py-2.5 text-gray-400">{{ req.requestedAt }}</td>
+                <td class="px-3 py-2.5 text-gray-400">{{ formatDateTime(req.requestedAt) }}</td>
                 <td class="px-3 py-2.5">
                   <span class="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium" :class="statusStyle(req.status)">
                     <component :is="statusIcon(req.status)" :size="11" />
                     {{ statusLabel(req.status) }}
                   </span>
                 </td>
-                <td class="px-3 py-2.5" @click.stop>
+                <td v-if="showActionColumn" class="px-3 py-2.5" @click.stop>
                   <div v-if="req.status === 'PENDING'" class="flex gap-1.5">
                     <button
                       type="button"
@@ -208,7 +271,7 @@ function confirmReject() {
                 </td>
               </tr>
               <tr v-if="filteredRequests.length === 0">
-                <td colspan="8" class="px-3 py-10 text-center text-[13px] text-gray-400">조회된 신청이 없습니다.</td>
+                <td :colspan="showActionColumn ? 8 : 7" class="px-3 py-10 text-center text-[13px] text-gray-400">조회된 신청이 없습니다.</td>
               </tr>
             </tbody>
           </table>
@@ -233,7 +296,7 @@ function confirmReject() {
           <!-- 헤더 -->
           <div class="flex shrink-0 items-start justify-between border-b border-gray-200 bg-gray-50 px-4 py-3">
             <div>
-              <p class="text-[11px] font-bold uppercase tracking-widest text-gray-400">신청 상세 · {{ selectedRequest.id }}</p>
+              <p class="text-[11px] font-bold uppercase tracking-widest text-gray-400">신청 상세 · REQ-{{ String(selectedRequest.id).padStart(4, '0') }}</p>
               <h2 class="mt-1 text-[18px] font-bold text-gray-900">{{ selectedRequest.name }}</h2>
             </div>
             <button
@@ -251,17 +314,25 @@ function confirmReject() {
             <!-- 현재 상태 -->
             <div>
               <p class="mb-2 text-[11px] font-bold uppercase tracking-widest text-gray-400">처리 상태</p>
-              <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium" :class="statusStyle(selectedRequest.status)">
-                <component :is="statusIcon(selectedRequest.status)" :size="13" />
-                {{ statusLabel(selectedRequest.status) }}
-              </span>
+              <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium" :class="statusStyle(selectedRequest.status)">
+                  <component :is="statusIcon(selectedRequest.status)" :size="13" />
+                  {{ statusLabel(selectedRequest.status) }}
+                </span>
+                <span v-if="selectedRequest.employeeCode" class="text-[12px] font-bold text-gray-700">
+                  사원코드: {{ selectedRequest.employeeCode }}
+                </span>
+              </div>
+              <p v-if="selectedRequest.processedAt" class="mt-1 text-[11px] text-gray-400">
+                처리 일시: {{ formatDateTime(selectedRequest.processedAt) }}
+              </p>
             </div>
 
             <!-- 신청자 정보 -->
             <div>
               <p class="mb-2 text-[11px] font-bold uppercase tracking-widest text-gray-400">신청자 정보</p>
               <div class="divide-y divide-gray-100 border border-gray-200">
-                <div v-for="(val, key) in { '이름': selectedRequest.name, '직책': selectedRequest.position, '이메일': selectedRequest.email, '전화번호': selectedRequest.phone, '생년월일': selectedRequest.birthdate }"
+                <div v-for="(val, key) in { '이름': selectedRequest.name, '권한': roleLabel(selectedRequest.role), '이메일': selectedRequest.email, '전화번호': selectedRequest.phone }"
                   :key="key"
                   class="flex items-center gap-3 px-3 py-2.5">
                   <span class="w-20 shrink-0 text-[11px] font-medium text-gray-400">{{ key }}</span>
@@ -293,12 +364,11 @@ function confirmReject() {
               </p>
             </div>
 
-            <!-- 초기 비밀번호 미리보기 -->
-            <div v-if="selectedRequest.status === 'PENDING'">
-              <p class="mb-2 text-[11px] font-bold uppercase tracking-widest text-gray-400">승인 시 초기 비밀번호</p>
-              <div class="flex items-baseline gap-2 border border-gray-200 bg-gray-50 px-3 py-2.5">
-                <span class="text-[18px] font-bold tracking-widest text-gray-900">{{ selectedRequest.birthdate.replace(/-/g, '') }}</span>
-                <span class="text-[11px] font-medium text-gray-400">YYYYMMDD</span>
+            <!-- 승인 시 안내 -->
+            <div v-if="selectedRequest.status === 'PENDING' && modalMode === 'approve'">
+              <p class="mb-2 text-[11px] font-bold uppercase tracking-widest text-gray-400">승인 처리 안내</p>
+              <div class="border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-[12px] leading-relaxed text-emerald-800">
+                승인 시 권한별 사원코드가 자동 발급됩니다. (HQ → hq0001, STORE → st0001, WAREHOUSE → wa0001)
               </div>
             </div>
 
