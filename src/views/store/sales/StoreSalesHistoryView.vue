@@ -151,6 +151,7 @@ function handleLogout() {
                 <tbody class="divide-y divide-gray-100">
                   <tr v-for="item in selectedSale.items" :key="`${selectedSale.saleId}-${item.skuId}`">
                     <td class="px-3 py-3 font-black text-gray-900">
+                      <p class="text-[9px] font-bold text-gray-400 leading-none mb-0.5">{{ item.skuId }}</p>
                       <p class="truncate">{{ item.productName }}</p>
                     </td>
                     <td class="px-3 py-3 font-bold text-gray-600">

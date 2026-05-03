@@ -172,7 +172,7 @@ export const roleMenus = {
 
 export const roleHomeMap = {
   hq: '/hq/dashboard',
-  store: '/store/sales/register',
+  store: '/store/dashboard',
   warehouse: '/warehouse/inventory',
 }
 
