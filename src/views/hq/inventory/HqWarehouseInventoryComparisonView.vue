@@ -5,7 +5,7 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useWarehouseTransferCartStore } from '@/stores/hq/warehouseTransferCart.js'
-import { transferSkuCatalog, buildWarehouseRows, getImbalanceMetrics } from '@/constants/hqWarehouseTransferData.js'
+import { transferSkuCatalog, buildWarehouseRows } from '@/constants/hqWarehouseTransferData.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -19,7 +19,6 @@ const activeSideMenu = ref('창고간 재고 이동')
 
 const searchTerm = ref(String(route.query.search || ''))
 const selectedCategory = ref(String(route.query.category || '전체'))
-const selectedStatus = ref(String(route.query.status || '전체'))
 const selectedWarehouseGroup = ref(String(route.query.warehouseGroup || '전체'))
 
 const categoryOptions = computed(() => ['전체', ...new Set(transferSkuCatalog.map(sku => sku.category))])
@@ -28,21 +27,32 @@ const warehouseGroupOptions = ['전체', '수도권', '충청권', '영남권']
 const warehouseGroupByCode = {
   'WH-ICN-01': '수도권',
   'WH-ICH-01': '수도권',
+  'WH-GMP-01': '수도권',
+  'WH-SUW-01': '수도권',
   'WH-DJN-01': '충청권',
+  'WH-CJU-01': '충청권',
   'WH-BSN-01': '영남권',
+  'WH-ULS-01': '영남권',
+  'WH-GWJ-01': '영남권',
+  'WH-JJU-01': '영남권',
 }
 
 const skuRows = computed(() => transferSkuCatalog.map((sku) => {
   const rows = buildWarehouseRows(sku.skuCode)
-  const metrics = getImbalanceMetrics(rows)
   const totalOnHand = rows.reduce((sum, row) => sum + row.onHandStock, 0)
   const totalAvailable = rows.reduce((sum, row) => sum + row.availableStock, 0)
+  const shortageWarehouseCount = rows.filter((row) => row.availableStock < row.safetyStock).length
+  const totalShortageQty = rows.reduce((sum, row) => {
+    if (row.availableStock >= row.safetyStock) return sum
+    return sum + (row.safetyStock - row.availableStock)
+  }, 0)
 
   return {
     ...sku,
     totalOnHand,
     totalAvailable,
-    ...metrics,
+    shortageWarehouseCount,
+    totalShortageQty,
     warehouseGroups: [...new Set(rows.map(row => warehouseGroupByCode[row.warehouseCode]).filter(Boolean))],
   }
 }))
@@ -53,20 +63,21 @@ const filteredSkuRows = computed(() => {
   return skuRows.value
     .filter((row) => {
       if (selectedCategory.value !== '전체' && row.category !== selectedCategory.value) return false
-      if (selectedStatus.value !== '전체' && row.status !== selectedStatus.value) return false
       if (selectedWarehouseGroup.value !== '전체' && !row.warehouseGroups.includes(selectedWarehouseGroup.value)) return false
       if (!keyword) return true
 
       return [row.skuCode, row.itemCode, row.itemName].join(' ').toLowerCase().includes(keyword)
     })
-    .sort((a, b) => b.imbalanceScore - a.imbalanceScore)
+    .sort((a, b) => {
+      if (b.shortageWarehouseCount !== a.shortageWarehouseCount) {
+        return b.shortageWarehouseCount - a.shortageWarehouseCount
+      }
+      if (b.totalShortageQty !== a.totalShortageQty) {
+        return b.totalShortageQty - a.totalShortageQty
+      }
+      return a.skuCode.localeCompare(b.skuCode)
+    })
 })
-
-const statusClass = (status) => ({
-  정상: 'bg-[#EBF5F5] text-black',
-  주의: 'bg-amber-50 text-amber-700',
-  불균형: 'bg-red-50 text-red-700',
-})[status] ?? 'bg-gray-100 text-gray-600'
 
 const moveToSkuDetail = (sku) => {
   router.push({
@@ -75,7 +86,6 @@ const moveToSkuDetail = (sku) => {
     query: {
       search: searchTerm.value || undefined,
       category: selectedCategory.value !== '전체' ? selectedCategory.value : undefined,
-      status: selectedStatus.value !== '전체' ? selectedStatus.value : undefined,
       warehouseGroup: selectedWarehouseGroup.value !== '전체' ? selectedWarehouseGroup.value : undefined,
     },
   })
@@ -84,7 +94,6 @@ const moveToSkuDetail = (sku) => {
 const resetFilters = () => {
   searchTerm.value = ''
   selectedCategory.value = '전체'
-  selectedStatus.value = '전체'
   selectedWarehouseGroup.value = '전체'
 }
 
@@ -116,10 +125,10 @@ function handleLogout() {
               장바구니 {{ cartStore.lineCount }}건
             </button>
           </div>
-          <p class="mt-1 text-xs font-bold text-gray-500">불균형 SKU를 우선 확인하고 상세에서 장바구니를 구성해 이동을 실행합니다.</p>
+          <p class="mt-1 text-xs font-bold text-gray-500">부족 창고가 많은 SKU를 우선 확인하고 상세에서 장바구니를 구성해 이동을 실행합니다.</p>
         </div>
 
-        <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-[1.2fr_0.9fr_0.9fr_0.9fr_auto]">
+        <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-[1.2fr_0.9fr_0.9fr_auto]">
           <label class="flex flex-col gap-1">
             <span class="text-[11px] font-bold text-gray-500">검색</span>
             <input
@@ -134,16 +143,6 @@ function handleLogout() {
             <span class="text-[11px] font-bold text-gray-500">카테고리</span>
             <select v-model="selectedCategory" class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
               <option v-for="category in categoryOptions" :key="category" :value="category">{{ category }}</option>
-            </select>
-          </label>
-
-          <label class="flex flex-col gap-1">
-            <span class="text-[11px] font-bold text-gray-500">불균형 상태</span>
-            <select v-model="selectedStatus" class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
-              <option value="전체">전체</option>
-              <option value="불균형">불균형</option>
-              <option value="주의">주의</option>
-              <option value="정상">정상</option>
             </select>
           </label>
 
@@ -179,8 +178,8 @@ function handleLogout() {
                 <th class="px-3 py-3 font-black">카테고리</th>
                 <th class="px-3 py-3 text-right font-black">총 실재고</th>
                 <th class="px-3 py-3 text-right font-black">총 가용재고</th>
-                <th class="px-3 py-3 text-right font-black">불균형 점수</th>
-                <th class="px-3 py-3 text-center font-black">상태</th>
+                <th class="px-3 py-3 text-right font-black">부족 창고 수</th>
+                <th class="px-3 py-3 text-right font-black">순부족 수량</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -197,10 +196,8 @@ function handleLogout() {
                 <td class="px-3 py-3 font-bold text-gray-600">{{ row.category }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ row.totalOnHand.toLocaleString() }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ row.totalAvailable.toLocaleString() }}</td>
-                <td class="px-3 py-3 text-right font-black text-gray-900">{{ row.imbalanceScore.toLocaleString() }}</td>
-                <td class="px-3 py-3 text-center">
-                  <span class="inline-flex min-w-14 justify-center px-2 py-1 text-[11px] font-black" :class="statusClass(row.status)">{{ row.status }}</span>
-                </td>
+                <td class="px-3 py-3 text-right font-black text-gray-900">{{ row.shortageWarehouseCount.toLocaleString() }}개</td>
+                <td class="px-3 py-3 text-right font-black text-gray-900">{{ row.totalShortageQty.toLocaleString() }}개</td>
               </tr>
 
               <tr v-if="filteredSkuRows.length === 0">
