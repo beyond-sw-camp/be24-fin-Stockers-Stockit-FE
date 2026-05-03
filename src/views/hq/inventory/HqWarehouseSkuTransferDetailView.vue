@@ -4,11 +4,13 @@ import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { useWarehouseTransferCartStore } from '@/stores/hq/warehouseTransferCart.js'
 import { transferSkuCatalog, buildWarehouseRows } from '@/constants/hqWarehouseTransferData.js'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const cartStore = useWarehouseTransferCartStore()
 const hqMenus = roleMenus.hq
 const inventoryMenus = roleMenus.hq.find(menu => menu.label === '재고 관리')?.children ?? []
 
@@ -19,8 +21,12 @@ const selectedWarehouseCodes = ref([])
 const transferQty = ref('')
 const transferReason = ref('재고 불균형 해소')
 const transferNote = ref('')
+const sortKey = ref('availableStock')
+const sortDirection = ref('desc')
 const sheetOpen = ref(false)
+const cartDrawerOpen = ref(false)
 const toastMessage = ref('')
+const toastShowHistoryAction = ref(false)
 let toastTimer = null
 
 const selectedSku = computed(() => transferSkuCatalog.find(sku => sku.skuCode === route.params.skuCode) ?? null)
@@ -32,11 +38,41 @@ watch(selectedSku, (sku) => {
   transferQty.value = ''
   transferReason.value = '재고 불균형 해소'
   transferNote.value = ''
+  sortKey.value = 'availableStock'
+  sortDirection.value = 'desc'
   sheetOpen.value = false
 }, { immediate: true })
 
+const statusWeight = {
+  품절: 3,
+  부족: 2,
+  정상: 1,
+}
+
+const sortedWarehouseRows = computed(() => {
+  const direction = sortDirection.value === 'desc' ? -1 : 1
+
+  return [...warehouseRows.value].sort((a, b) => {
+    let left = a[sortKey.value]
+    let right = b[sortKey.value]
+
+    if (sortKey.value === 'status') {
+      left = statusWeight[a.status] ?? 0
+      right = statusWeight[b.status] ?? 0
+    }
+
+    if (left !== right) {
+      return left > right ? direction * -1 : direction
+    }
+
+    return a.warehouseCode.localeCompare(b.warehouseCode)
+  })
+})
+
 const selectedWarehouses = computed(() => warehouseRows.value.filter(row => selectedWarehouseCodes.value.includes(row.warehouseCode)))
 const canTransfer = computed(() => selectedWarehouses.value.length === 2)
+const cartGroups = computed(() => cartStore.groupedByRoute)
+const cartLineCount = computed(() => cartStore.lineCount)
 
 const fromWarehouse = computed(() => {
   if (!canTransfer.value) return null
@@ -61,10 +97,10 @@ const transferValidationMessage = computed(() => {
   return ''
 })
 
-const canSubmitTransfer = computed(() => !transferValidationMessage.value)
+const canAddToCart = computed(() => !transferValidationMessage.value)
 
 const expectedStocks = computed(() => {
-  if (!canSubmitTransfer.value) return null
+  if (!canAddToCart.value) return null
   const qty = Number(transferQty.value)
 
   return {
@@ -78,6 +114,21 @@ const statusClass = (status) => ({
   부족: 'bg-amber-50 text-amber-700',
   품절: 'bg-red-50 text-red-700',
 })[status] ?? 'bg-gray-100 text-gray-600'
+
+const toggleSort = (key) => {
+  if (sortKey.value !== key) {
+    sortKey.value = key
+    sortDirection.value = 'desc'
+    return
+  }
+
+  sortDirection.value = sortDirection.value === 'desc' ? 'asc' : 'desc'
+}
+
+const sortIndicator = (key) => {
+  if (sortKey.value !== key) return '△'
+  return sortDirection.value === 'desc' ? '▼' : '▲'
+}
 
 const toggleWarehouseSelection = (warehouseCode) => {
   if (selectedWarehouseCodes.value.includes(warehouseCode)) {
@@ -98,37 +149,99 @@ const closeSheet = () => {
   sheetOpen.value = false
 }
 
-const submitTransfer = () => {
-  if (!canSubmitTransfer.value) return
+const openCartDrawer = () => {
+  cartDrawerOpen.value = true
+}
 
-  const qty = Number(transferQty.value)
-  const sourceWarehouseName = fromWarehouse.value?.warehouseName ?? ''
-  const targetWarehouseName = toWarehouse.value?.warehouseName ?? ''
-  const fromIndex = warehouseRows.value.findIndex(row => row.warehouseCode === fromWarehouse.value.warehouseCode)
-  const toIndex = warehouseRows.value.findIndex(row => row.warehouseCode === toWarehouse.value.warehouseCode)
+const closeCartDrawer = () => {
+  cartDrawerOpen.value = false
+}
 
-  if (fromIndex < 0 || toIndex < 0) return
-
-  warehouseRows.value[fromIndex].onHandStock -= qty
-  warehouseRows.value[fromIndex].availableStock -= qty
-  warehouseRows.value[toIndex].onHandStock += qty
-  warehouseRows.value[toIndex].availableStock += qty
-
+const resetTransferForm = () => {
   selectedWarehouseCodes.value = []
   transferQty.value = ''
   transferReason.value = '재고 불균형 해소'
   transferNote.value = ''
-  sheetOpen.value = false
-
-  showToast(`재고 이동 완료: ${sourceWarehouseName} → ${targetWarehouseName}`)
 }
 
-const showToast = (message) => {
+const addToCart = () => {
+  if (!canAddToCart.value || !selectedSku.value || !fromWarehouse.value || !toWarehouse.value) return
+
+  cartStore.addLine({
+    skuCode: selectedSku.value.skuCode,
+    itemName: selectedSku.value.itemName,
+    fromWarehouseCode: fromWarehouse.value.warehouseCode,
+    fromWarehouseName: fromWarehouse.value.warehouseName,
+    toWarehouseCode: toWarehouse.value.warehouseCode,
+    toWarehouseName: toWarehouse.value.warehouseName,
+    qty: Number(transferQty.value),
+    reason: transferReason.value,
+    memo: transferNote.value,
+  })
+
+  resetTransferForm()
+  sheetOpen.value = false
+  showToast('장바구니에 이동 항목을 추가했습니다.')
+}
+
+const applyTransferToRows = (line) => {
+  const fromIndex = warehouseRows.value.findIndex((row) => row.warehouseCode === line.fromWarehouseCode)
+  const toIndex = warehouseRows.value.findIndex((row) => row.warehouseCode === line.toWarehouseCode)
+
+  if (fromIndex < 0 || toIndex < 0) {
+    return { success: false, message: '현재 SKU 분포에 없는 창고 경로입니다.' }
+  }
+
+  const fromRow = warehouseRows.value[fromIndex]
+  const toRow = warehouseRows.value[toIndex]
+
+  if (line.qty > fromRow.availableStock) {
+    return { success: false, message: '출발 창고 가용재고가 부족합니다.' }
+  }
+
+  warehouseRows.value[fromIndex].onHandStock -= line.qty
+  warehouseRows.value[fromIndex].availableStock -= line.qty
+  warehouseRows.value[toIndex].onHandStock += line.qty
+  warehouseRows.value[toIndex].availableStock += line.qty
+
+  return { success: true }
+}
+
+const executeCartTransfers = async () => {
+  if (!cartLineCount.value) return
+
+  const result = await cartStore.executeAll(async (line) => applyTransferToRows(line))
+
+  if (result.failureCount === 0) {
+    showToast(`장바구니 실행 완료: ${result.successCount}건 처리됨`, true)
+    return
+  }
+
+  showToast(`부분 완료: 성공 ${result.successCount}건 / 실패 ${result.failureCount}건`)
+}
+
+const updateCartLineQty = (lineId, event) => {
+  const nextQty = Number(event.target.value)
+  if (!Number.isFinite(nextQty) || nextQty < 1) {
+    event.target.value = '1'
+    cartStore.updateLineQty(lineId, 1)
+    return
+  }
+  cartStore.updateLineQty(lineId, Math.trunc(nextQty))
+}
+
+const showToast = (message, showHistoryAction = false) => {
   toastMessage.value = message
+  toastShowHistoryAction.value = showHistoryAction
   if (toastTimer) clearTimeout(toastTimer)
   toastTimer = setTimeout(() => {
     toastMessage.value = ''
-  }, 2600)
+    toastShowHistoryAction.value = false
+  }, 3000)
+}
+
+const moveHistory = () => {
+  router.push({ name: 'hq-inventory-warehouse-transfer-history' })
 }
 
 const moveBack = () => {
@@ -163,7 +276,7 @@ function handleLogout() {
           <div>
             <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Inventory</p>
             <h1 class="mt-1 text-lg font-black text-gray-900">창고별 SKU 분포 상세</h1>
-            <p class="mt-1 text-xs font-bold text-gray-500">창고 2개를 선택한 뒤 하단 바에서 이동 정보를 입력하세요.</p>
+            <p class="mt-1 text-xs font-bold text-gray-500">창고 2개를 선택한 뒤 장바구니에 이동 항목을 담아 한 번에 실행하세요.</p>
           </div>
           <button type="button" class="h-9 border border-gray-300 px-4 text-xs font-black text-gray-700 hover:bg-gray-100" @click="moveBack">
             목록으로
@@ -193,17 +306,37 @@ function handleLogout() {
                 <th class="px-3 py-3 font-black">창고 코드</th>
                 <th class="px-3 py-3 font-black">창고명</th>
                 <th class="px-3 py-3 font-black">위치</th>
-                <th class="px-3 py-3 text-right font-black">실재고</th>
-                <th class="px-3 py-3 text-right font-black">예약</th>
-                <th class="px-3 py-3 text-right font-black">가용</th>
+                <th class="px-3 py-3 text-right font-black">
+                  <button type="button" class="inline-flex items-center gap-1 hover:text-gray-700" @click="toggleSort('onHandStock')">
+                    실재고
+                    <span class="text-[10px]">{{ sortIndicator('onHandStock') }}</span>
+                  </button>
+                </th>
+                <th class="px-3 py-3 text-right font-black">
+                  <button type="button" class="inline-flex items-center gap-1 hover:text-gray-700" @click="toggleSort('reservedStock')">
+                    예약
+                    <span class="text-[10px]">{{ sortIndicator('reservedStock') }}</span>
+                  </button>
+                </th>
+                <th class="px-3 py-3 text-right font-black">
+                  <button type="button" class="inline-flex items-center gap-1 hover:text-gray-700" @click="toggleSort('availableStock')">
+                    가용
+                    <span class="text-[10px]">{{ sortIndicator('availableStock') }}</span>
+                  </button>
+                </th>
                 <th class="px-3 py-3 text-right font-black">안전재고</th>
-                <th class="px-3 py-3 text-center font-black">상태</th>
+                <th class="px-3 py-3 text-center font-black">
+                  <button type="button" class="inline-flex items-center gap-1 hover:text-gray-700" @click="toggleSort('status')">
+                    상태
+                    <span class="text-[10px]">{{ sortIndicator('status') }}</span>
+                  </button>
+                </th>
                 <th class="px-3 py-3 font-black">최종 업데이트</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
               <tr
-                v-for="row in warehouseRows"
+                v-for="row in sortedWarehouseRows"
                 :key="row.warehouseCode"
                 class="cursor-pointer transition"
                 :class="selectedWarehouseCodes.includes(row.warehouseCode) ? 'bg-[#EBF5F5] font-bold' : 'hover:bg-[#EBF5F5]/60'"
@@ -253,6 +386,13 @@ function handleLogout() {
           </div>
           <button
             type="button"
+            class="flex h-10 shrink-0 items-center gap-1.5 border border-gray-300 px-4 text-xs font-black text-gray-700 transition hover:bg-gray-100"
+            @click="openCartDrawer"
+          >
+            장바구니 열기 ({{ cartLineCount }})
+          </button>
+          <button
+            type="button"
             class="ml-auto flex h-10 shrink-0 items-center gap-1.5 px-4 text-xs font-black transition"
             :class="canTransfer ? 'bg-[#004D3C] text-white hover:bg-[#00382c]' : 'cursor-not-allowed bg-gray-100 text-gray-400'"
             :disabled="!canTransfer"
@@ -272,7 +412,7 @@ function handleLogout() {
           <div class="w-full px-6 py-5 lg:px-8">
             <div class="mb-5 flex items-start justify-between gap-4 border-b border-gray-100 pb-4">
               <div>
-                <h2 class="text-base font-black text-gray-900">재고 이동 정보 입력</h2>
+                <h2 class="text-base font-black text-gray-900">장바구니 항목 입력</h2>
                 <p class="mt-1 text-[11px] font-bold text-gray-500">출발/도착 창고를 확인하고 이동 수량과 사유를 입력하세요.</p>
               </div>
               <button type="button" class="h-8 shrink-0 border border-gray-300 px-3 text-xs font-black text-gray-700 hover:bg-gray-100" @click="closeSheet">닫기</button>
@@ -358,14 +498,88 @@ function handleLogout() {
                   <button
                     type="button"
                     class="h-10 flex-1 px-4 text-xs font-black transition"
-                    :class="canSubmitTransfer ? 'bg-[#004D3C] text-white hover:bg-[#00382c]' : 'cursor-not-allowed bg-gray-100 text-gray-400'"
-                    :disabled="!canSubmitTransfer"
-                    @click="submitTransfer"
+                    :class="canAddToCart ? 'bg-[#004D3C] text-white hover:bg-[#00382c]' : 'cursor-not-allowed bg-gray-100 text-gray-400'"
+                    :disabled="!canAddToCart"
+                    @click="addToCart"
                   >
-                    재고 이동 실행
+                    장바구니 담기
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div v-if="cartDrawerOpen" class="fixed inset-0 z-50">
+        <div class="absolute inset-0 bg-black/35" @click="closeCartDrawer" />
+        <section class="absolute right-0 top-0 h-full w-full max-w-[520px] overflow-y-auto border-l border-gray-200 bg-white shadow-2xl">
+          <div class="sticky top-0 z-10 border-b border-gray-100 bg-white px-5 py-4">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <h2 class="text-base font-black text-gray-900">재고 이동 장바구니</h2>
+                <p class="mt-1 text-[11px] font-bold text-gray-500">총 {{ cartLineCount }}건</p>
+              </div>
+              <button type="button" class="h-8 border border-gray-300 px-3 text-xs font-black text-gray-700 hover:bg-gray-100" @click="closeCartDrawer">닫기</button>
+            </div>
+          </div>
+
+          <div class="space-y-4 p-5 pb-28">
+            <div v-if="cartLineCount === 0" class="border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center text-xs font-bold text-gray-400">
+              장바구니가 비어 있습니다.
+            </div>
+
+            <article v-for="group in cartGroups" :key="group.routeKey" class="border border-gray-200 bg-white">
+              <header class="border-b border-gray-100 bg-gray-50 px-4 py-3">
+                <p class="text-xs font-black text-gray-900">{{ group.fromWarehouseName }} → {{ group.toWarehouseName }}</p>
+                <p class="mt-1 text-[11px] font-bold text-gray-500">{{ group.lines.length }}건 · 총 {{ group.totalQty.toLocaleString() }}개</p>
+              </header>
+
+              <div class="divide-y divide-gray-100">
+                <div v-for="line in group.lines" :key="line.lineId" class="space-y-2 px-4 py-3">
+                  <p class="text-[11px] font-black text-gray-800">{{ line.itemName }}</p>
+                  <p class="font-mono text-[11px] font-bold text-gray-500">{{ line.skuCode }}</p>
+                  <div class="flex items-center gap-2">
+                    <input
+                      :value="line.qty"
+                      type="number"
+                      min="1"
+                      class="h-8 w-24 border border-gray-300 px-2 text-xs font-black text-gray-900 outline-none focus:border-[#004D3C]"
+                      @change="updateCartLineQty(line.lineId, $event)"
+                    />
+                    <span class="text-[11px] font-bold text-gray-500">개</span>
+                    <button
+                      type="button"
+                      class="ml-auto h-8 border border-red-200 px-3 text-[11px] font-black text-red-600 hover:bg-red-50"
+                      @click="cartStore.removeLine(line.lineId)"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <div class="fixed bottom-0 right-0 w-full max-w-[520px] border-t border-gray-200 bg-white px-5 py-3">
+            <div class="flex gap-2">
+              <button
+                type="button"
+                class="h-10 flex-1 border border-gray-300 px-4 text-xs font-black text-gray-700 hover:bg-gray-100"
+                :disabled="!cartLineCount"
+                @click="cartStore.clearAll()"
+              >
+                전체 비우기
+              </button>
+              <button
+                type="button"
+                class="h-10 flex-1 px-4 text-xs font-black transition"
+                :class="cartLineCount ? 'bg-[#004D3C] text-white hover:bg-[#00382c]' : 'cursor-not-allowed bg-gray-100 text-gray-400'"
+                :disabled="!cartLineCount"
+                @click="executeCartTransfers"
+              >
+                재고 이동 실행
+              </button>
             </div>
           </div>
         </section>
@@ -383,7 +597,15 @@ function handleLogout() {
       v-if="toastMessage"
       class="fixed bottom-20 right-5 z-50 border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-black text-emerald-700 shadow-sm"
     >
-      {{ toastMessage }}
+      <p>{{ toastMessage }}</p>
+      <button
+        v-if="toastShowHistoryAction"
+        type="button"
+        class="mt-1 text-[11px] font-black text-emerald-800 underline"
+        @click="moveHistory"
+      >
+        이동내역 보기
+      </button>
     </div>
   </AppLayout>
 </template>
