@@ -5,8 +5,8 @@
  *   GET    /api/vendors                            (목록, 등록은 SQL 직접)
  *   GET    /api/vendors/{code}
  *   GET    /api/vendors/{code}/contracts            (E 안 — ProductMaster 매칭 + VendorProduct join)
- *   GET    /api/vendor-products?vendorCode=...     (CEN-031, 특정 거래처)
- *   GET    /api/vendor-products?status=...         (CEN-035 발주 카탈로그, 전체 거래처)
+ *   GET    /api/vendor-products?vendorCode=...     (CEN-031, 특정 공급처)
+ *   GET    /api/vendor-products?status=...         (CEN-035 발주 카탈로그, 전체 공급처)
  *   GET    /api/vendor-products/{code}             (CEN-033)
  *   POST   /api/vendor-products                    (CEN-027)
  *   PATCH  /api/vendor-products/{code}             (CEN-028)
@@ -19,12 +19,12 @@
 import { apiClient, unwrap } from './axios.js'
 
 export const vendorApi = {
-  // ─── 거래처 (read-only) ──────────────────────────────────────────────────
+  // ─── 공급처 (read-only) ──────────────────────────────────────────────────
   listVendors: () => apiClient.get('/api/vendors').then(unwrap),
   getVendor: (code) => apiClient.get(`/api/vendors/${code}`).then(unwrap),
 
   /**
-   * 거래처 계약 표 (E 안) — mainVendorCode 매칭 ProductMaster 행 + VendorProduct join.
+   * 공급처 계약 표 (E 안) — mainVendorCode 매칭 ProductMaster 행 + VendorProduct join.
    * 응답: ContractRow[] = { productCode, productName, categoryCode, basePrice,
    *   vendorProductCode|null, contractUnitPrice|null, moq|null, leadTimeDays|null,
    *   contractStart|null, contractEnd|null, status|null, contracted: boolean }
@@ -32,12 +32,12 @@ export const vendorApi = {
   getContracts: (vendorCode) =>
     apiClient.get(`/api/vendors/${vendorCode}/contracts`).then(unwrap),
 
-  // ─── 거래처별 계약 제품 ─────────────────────────────────────────────────
+  // ─── 공급처별 계약 제품 ─────────────────────────────────────────────────
   listVendorProducts: (vendorCode) =>
     apiClient.get('/api/vendor-products', { params: { vendorCode } }).then(unwrap),
 
   /**
-   * 전체 거래처 제품 일괄 조회 (CEN-035 발주 작성 카탈로그용).
+   * 전체 공급처 제품 일괄 조회 (CEN-035 발주 작성 카탈로그용).
    * @param {'ACTIVE'|'SUSPENDED'|'EXPIRED'|'DELETED'} [status] — 생략 시 DELETED 제외 전체
    */
   listAllVendorProducts: (status) =>

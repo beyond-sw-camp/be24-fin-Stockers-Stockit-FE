@@ -35,8 +35,8 @@ function fromApiVendorProduct(vp) {
 export const useVendorStore = defineStore('vendor', () => {
   // --- state ---
   const vendors = ref([])
-  const vendorProducts = ref([]) // 현재 선택된 vendor 의 계약 제품만 보유 (거래처 관리 페이지용)
-  const allVendorProducts = ref([]) // 전체 거래처의 활성 제품 (CEN-035 발주 작성 카탈로그용)
+  const vendorProducts = ref([]) // 현재 선택된 vendor 의 계약 제품만 보유 (공급처 관리 페이지용)
+  const allVendorProducts = ref([]) // 전체 공급처의 활성 제품 (CEN-035 발주 작성 카탈로그용)
   const contracts = ref([]) // E 안 — ContractRow[] (ProductMaster 매칭 + VendorProduct join)
   const selectedVendorId = ref(null)
   const selectedProductId = ref(null)
@@ -73,7 +73,7 @@ export const useVendorStore = defineStore('vendor', () => {
     })
   }
 
-  // 같은 거래처에 같은 제품 코드가 이미 등록되어 있는지 검사 (UX 즉시 피드백용)
+  // 같은 공급처에 같은 제품 코드가 이미 등록되어 있는지 검사 (UX 즉시 피드백용)
   // BE 도 DUPLICATE_VENDOR_PRODUCT_CODE 로 막지만 입력 시점 즉시 알림.
   function isProductCodeDuplicate(vendorId, productCode, excludeId = null) {
     if (!vendorId || !productCode) return false
@@ -87,7 +87,7 @@ export const useVendorStore = defineStore('vendor', () => {
 
   // --- actions ---
 
-  // 거래처 목록 fetch (mount 시)
+  // 공급처 목록 fetch (mount 시)
   async function fetchVendors() {
     loading.value = true
     try {
@@ -98,7 +98,7 @@ export const useVendorStore = defineStore('vendor', () => {
     }
   }
 
-  // 전체 거래처 제품 fetch (CEN-035 발주 작성 카탈로그용)
+  // 전체 공급처 제품 fetch (CEN-035 발주 작성 카탈로그용)
   // 기존 vendorProducts 와 분리된 별 state (allVendorProducts) 에 적재.
   async function fetchAllVendorProducts(status = 'ACTIVE') {
     loading.value = true
@@ -110,7 +110,7 @@ export const useVendorStore = defineStore('vendor', () => {
     }
   }
 
-  // 거래처별 계약 제품 fetch
+  // 공급처별 계약 제품 fetch
   async function fetchProductsByVendor(vendorCode) {
     if (!vendorCode) {
       vendorProducts.value = []
@@ -125,7 +125,7 @@ export const useVendorStore = defineStore('vendor', () => {
     }
   }
 
-  // 거래처 계약 표 fetch (E 안 — ContractRow[])
+  // 공급처 계약 표 fetch (E 안 — ContractRow[])
   async function fetchContracts(vendorCode) {
     if (!vendorCode) {
       contracts.value = []
@@ -144,7 +144,7 @@ export const useVendorStore = defineStore('vendor', () => {
     }
   }
 
-  // 거래처 선택 + 그 거래처의 계약 표 자동 fetch (E 안)
+  // 공급처 선택 + 그 공급처의 계약 표 자동 fetch (E 안)
   async function selectVendor(id) {
     selectedVendorId.value = id
     selectedProductId.value = null
@@ -195,7 +195,7 @@ export const useVendorStore = defineStore('vendor', () => {
     return true
   }
 
-  // 스토어 생성 시 자동으로 거래처 목록 fetch
+  // 스토어 생성 시 자동으로 공급처 목록 fetch
   fetchVendors().catch((err) => {
     console.error('[vendor] fetchVendors 실패', err)
   })

@@ -16,10 +16,10 @@ const activeTopMenu = computed(() => '주문/발주 관리')
 
 const sideMenus = [
   { label: '매장 주문', icon: 'file', path: '/hq/orders' },
-  { label: '거래처 발주', icon: 'truck', path: '/hq/purchase-orders' },
-  { label: '거래처 관리', icon: 'briefcase', path: '/hq/vendors' },
+  { label: '공급처 발주', icon: 'truck', path: '/hq/purchase-orders' },
+  { label: '공급처 관리', icon: 'briefcase', path: '/hq/vendors' },
 ]
-const activeSideMenu = ref('거래처 발주')
+const activeSideMenu = ref('공급처 발주')
 
 function handleLogout() {
   auth.logout()
@@ -43,7 +43,7 @@ function selectOrder(id) {
 }
 
 // ─── 발주 취소 confirm ──────────────────────────────────────────────────────
-// 거래처 승인(PENDING→APPROVED)·출고 시작(APPROVED→SHIPPING) 두 단계는 SYS-001 배치가
+// 공급처 승인(PENDING→APPROVED)·출고 시작(APPROVED→SHIPPING) 두 단계는 SYS-001 배치가
 // 자동 처리한다 (5분 주기, 30분 경과 조건). 본사는 발주 작성·취소 + 시연용 강제 트리거만.
 const showCancelConfirm = ref(false)
 const cancelReason = ref('')
@@ -139,7 +139,10 @@ function statusLabel(status) {
 // 날짜 포맷
 function formatDate(iso) {
   if (!iso) return '-'
-  return iso.replace('T', ' ').slice(0, 16)
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '-'
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 // 진행 이력 타임라인 — 점/텍스트 색상
@@ -270,7 +273,7 @@ const TruckIcon = IconBase([
     @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
-      <!-- 총 발주 요약 (거래처/기간 컨텍스트 반영) -->
+      <!-- 총 발주 요약 (공급처/기간 컨텍스트 반영) -->
       <section
         class="flex items-center gap-4 border border-gray-200 bg-white px-5 py-4 shadow-sm"
       >
@@ -346,7 +349,7 @@ const TruckIcon = IconBase([
                 <input
                   v-model="poStore.searchKeyword"
                   type="text"
-                  placeholder="발주번호/거래처/품목명 검색"
+                  placeholder="발주번호/공급처/품목명 검색"
                   class="w-52 border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-xs outline-none focus:border-[#004D3C]"
                 />
               </label>
@@ -371,7 +374,7 @@ const TruckIcon = IconBase([
             </div>
           </div>
 
-          <!-- 필터 줄: 거래처 / 기간 / 정렬 -->
+          <!-- 필터 줄: 공급처 / 기간 / 정렬 -->
           <div
             class="flex flex-wrap items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2"
           >
@@ -379,7 +382,7 @@ const TruckIcon = IconBase([
               v-model="poStore.vendorFilter"
               class="border border-gray-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-[#004D3C]"
             >
-              <option value="">전체 거래처</option>
+              <option value="">전체 공급처</option>
               <option v-for="v in poStore.vendorOptions" :key="v.id" :value="v.id">
                 {{ v.name }}
               </option>
@@ -413,7 +416,7 @@ const TruckIcon = IconBase([
               <thead class="bg-gray-100 text-[10px] uppercase tracking-wider text-gray-500">
                 <tr>
                   <th class="w-32 px-3 py-2 text-left font-black">발주번호</th>
-                  <th class="px-3 py-2 text-left font-black">거래처</th>
+                  <th class="px-3 py-2 text-left font-black">공급처</th>
                   <th class="w-28 px-3 py-2 text-left font-black">입고 창고</th>
                   <th class="w-44 px-3 py-2 text-left font-black">품목</th>
                   <th class="w-28 px-3 py-2 text-right font-black">총금액</th>
@@ -514,7 +517,7 @@ const TruckIcon = IconBase([
 
               <div class="grid grid-cols-2 gap-3">
                 <div>
-                  <p class="text-[10px] font-bold uppercase text-gray-400">거래처</p>
+                  <p class="text-[10px] font-bold uppercase text-gray-400">공급처</p>
                   <p class="mt-0.5 text-xs font-black text-gray-800">
                     {{ poStore.selectedOrder.vendorName }}
                   </p>
@@ -643,14 +646,14 @@ const TruckIcon = IconBase([
                 </button>
               </div>
               <p class="pt-1 text-center text-[11px] leading-relaxed text-gray-500">
-                30분 후 시스템이 자동으로 거래처 승인을 처리합니다.<br />
+                30분 후 시스템이 자동으로 공급처 승인을 처리합니다.<br />
                 그 전에 [수정] 또는 [취소] 가능합니다.
               </p>
             </template>
 
             <template v-else-if="poStore.selectedOrder.status === 'APPROVED'">
               <p class="text-center text-xs leading-relaxed text-gray-500">
-                승인 완료 · 30분 후 시스템이 자동으로 거래처 출고 처리합니다.
+                승인 완료 · 30분 후 시스템이 자동으로 공급처 출고 처리합니다.
               </p>
             </template>
 
@@ -718,7 +721,7 @@ const TruckIcon = IconBase([
               v-model="cancelReason"
               rows="3"
               maxlength="500"
-              placeholder="예: 거래처 단가 변경, 수량 잘못 입력 등"
+              placeholder="예: 공급처 단가 변경, 수량 잘못 입력 등"
               class="mt-1 w-full resize-none border border-gray-300 px-2 py-1.5 text-xs outline-none focus:border-red-500"
             />
           </label>

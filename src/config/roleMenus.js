@@ -21,8 +21,8 @@ export const roleMenus = {
       path: '/hq/orders',
       icon: 'truck',
       children: [
-        { label: '거래처 발주', path: '/hq/purchase-orders' },
-        { label: '거래처 관리', path: '/hq/vendors' },
+        { label: '공급처 발주', path: '/hq/purchase-orders' },
+        { label: '공급처 관리', path: '/hq/vendors' },
       ],
     },
     {

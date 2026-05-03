@@ -18,15 +18,15 @@ function handleLogout() {
 
 // --- 레이아웃 설정 ---
 const activeTopMenu = computed(() => '주문/발주 관리')
-const activeSideMenu = ref('거래처 관리')
+const activeSideMenu = ref('공급처 관리')
 
 const sideMenus = [
   { label: '매장 주문', icon: 'file', path: '/hq/orders' },
-  { label: '거래처 발주', icon: 'truck', path: '/hq/purchase-orders' },
-  { label: '거래처 관리', icon: 'briefcase', path: '/hq/vendors' },
+  { label: '공급처 발주', icon: 'truck', path: '/hq/purchase-orders' },
+  { label: '공급처 관리', icon: 'briefcase', path: '/hq/vendors' },
 ]
 
-// --- 거래처 목록 패널 ---
+// --- 공급처 목록 패널 ---
 const vendorSearch = ref('')
 const vendorStatusFilter = ref('all')
 
@@ -376,7 +376,7 @@ const InfoIcon = IconBase([
     <!-- 3열 레이아웃 -->
     <div class="flex min-h-0 gap-4 overflow-hidden">
       <!-- ====================================================
-           1열: 거래처 목록 패널
+           1열: 공급처 목록 패널
            ==================================================== -->
       <div
         class="flex w-64 shrink-0 flex-col overflow-hidden border border-gray-300 bg-white shadow-sm"
@@ -387,7 +387,7 @@ const InfoIcon = IconBase([
             class="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider"
           >
             <BuildingIcon :size="13" />
-            거래처 목록
+            공급처 목록
           </h2>
           <span class="text-[10px] font-bold opacity-70">{{ displayedVendors.length }}개</span>
         </div>
@@ -402,7 +402,7 @@ const InfoIcon = IconBase([
             <input
               v-model="vendorSearch"
               type="text"
-              placeholder="거래처명 / 담당자 검색..."
+              placeholder="공급처명 / 담당자 검색..."
               class="w-full border border-gray-300 bg-gray-50 py-1.5 pl-7 pr-2 text-[11px] outline-none focus:border-[#004D3C] focus:bg-white"
             />
           </label>
@@ -416,14 +416,14 @@ const InfoIcon = IconBase([
           </select>
         </div>
 
-        <!-- 거래처 리스트 -->
+        <!-- 공급처 리스트 -->
         <div class="flex-1 overflow-y-auto divide-y divide-gray-100">
           <div
             v-if="displayedVendors.length === 0"
             class="flex flex-col items-center justify-center gap-2 py-10 text-center text-[11px] text-gray-400"
           >
             <BuildingIcon :size="28" class="opacity-30" />
-            <p>거래처가 없습니다.</p>
+            <p>공급처가 없습니다.</p>
           </div>
 
           <button
@@ -478,16 +478,16 @@ const InfoIcon = IconBase([
           </span>
         </div>
 
-        <!-- 거래처 미선택 상태 -->
+        <!-- 공급처 미선택 상태 -->
         <div
           v-if="!vendor.selectedVendorId"
           class="flex flex-1 flex-col items-center justify-center gap-3 text-center text-gray-400"
         >
           <BuildingIcon :size="40" class="opacity-20" />
           <div>
-            <p class="text-sm font-black">거래처를 선택해주세요</p>
+            <p class="text-sm font-black">공급처를 선택해주세요</p>
             <p class="mt-1 text-xs">
-              좌측 목록에서 거래처를 선택하면<br />계약 제품 목록이 표시됩니다.
+              좌측 목록에서 공급처를 선택하면<br />계약 제품 목록이 표시됩니다.
             </p>
           </div>
         </div>
@@ -511,8 +511,8 @@ const InfoIcon = IconBase([
               <tbody class="divide-y divide-gray-100">
                 <tr v-if="vendor.contracts.length === 0">
                   <td colspan="6" class="py-12 text-center text-[11px] text-gray-400">
-                    이 거래처에 매핑된 제품 마스터가 없습니다.<br />
-                    제품 마스터 페이지에서 메인 거래처를 이 거래처로 지정해 등록하세요.
+                    이 공급처에 매핑된 제품 마스터가 없습니다.<br />
+                    제품 마스터 페이지에서 메인 공급처를 이 공급처로 지정해 등록하세요.
                   </td>
                 </tr>
 
@@ -675,10 +675,10 @@ const InfoIcon = IconBase([
               </section>
             </template>
 
-            <!-- 거래처 담당자 정보 -->
+            <!-- 공급처 담당자 정보 -->
             <section v-if="vendor.selectedVendor" class="space-y-2 border-t border-gray-100 pt-3">
               <p class="text-[9px] font-black uppercase tracking-wider text-gray-400">
-                거래처 담당자
+                공급처 담당자
               </p>
               <div class="space-y-1 text-xs font-bold">
                 <p class="text-gray-800">{{ vendor.selectedVendor.contactPerson }}</p>

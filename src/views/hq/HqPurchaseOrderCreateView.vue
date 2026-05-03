@@ -70,10 +70,10 @@ const hqMenus = roleMenus.hq
 const activeTopMenu = computed(() => '주문/발주 관리')
 const sideMenus = [
   { label: '매장 주문', icon: 'file', path: '/hq/orders' },
-  { label: '거래처 발주', icon: 'truck', path: '/hq/purchase-orders' },
-  { label: '거래처 관리', icon: 'briefcase', path: '/hq/vendors' },
+  { label: '공급처 발주', icon: 'truck', path: '/hq/purchase-orders' },
+  { label: '공급처 관리', icon: 'briefcase', path: '/hq/vendors' },
 ]
-const activeSideMenu = ref('거래처 발주')
+const activeSideMenu = ref('공급처 발주')
 
 function handleLogout() {
   auth.logout()
@@ -90,7 +90,7 @@ const cart = ref([])
 // 창고 변경 confirm
 const showWarehouseChangeConfirm = ref(false)
 const pendingWarehouseId = ref(null)
-// 거래처 전환 confirm (한 발주서 = 한 거래처 정책)
+// 공급처 전환 confirm (한 발주서 = 한 공급처 정책)
 const showVendorSwitchConfirm = ref(false)
 const pendingNewVendorProduct = ref(null)
 // 장바구니 비우기 confirm
@@ -245,7 +245,7 @@ function applyBulkQty() {
     triggerToast('먼저 입고 창고를 선택해주세요.')
     return
   }
-  // 선택된 SKU 들의 vendorCode 가 cart 거래처와 다른 게 섞여 있으면 거절 (한 거래처 룰)
+  // 선택된 SKU 들의 vendorCode 가 cart 공급처와 다른 게 섞여 있으면 거절 (한 공급처 룰)
   const selectedRows = []
   for (const r of catalogSkuRows.value) {
     if (r.type === 'sku' && selectedSkus.value.has(r.skuCode)) selectedRows.push(r)
@@ -254,11 +254,11 @@ function applyBulkQty() {
   const firstVendor = selectedRows[0].vendorCode
   const sameVendor = selectedRows.every((r) => r.vendorCode === firstVendor)
   if (!sameVendor) {
-    triggerToast('서로 다른 거래처 SKU 가 섞여 있습니다.')
+    triggerToast('서로 다른 공급처 SKU 가 섞여 있습니다.')
     return
   }
   if (currentCartVendorId.value && firstVendor !== currentCartVendorId.value) {
-    triggerToast('장바구니의 거래처와 다릅니다. 장바구니를 비우고 다시 시도하세요.')
+    triggerToast('장바구니의 공급처와 다릅니다. 장바구니를 비우고 다시 시도하세요.')
     return
   }
   for (const row of selectedRows) {
@@ -406,7 +406,7 @@ const filteredRows = computed(() => {
     }
   }
 
-  // 품목 중심 표시 — vendor sticky 그룹 행 제거. 거래처는 마스터 제품 헤더의 칩으로 표시.
+  // 품목 중심 표시 — vendor sticky 그룹 행 제거. 공급처는 마스터 제품 헤더의 칩으로 표시.
   return baseResult
 })
 
@@ -544,7 +544,7 @@ function clearDraftStorage() {
 
 // ─── 장바구니 액션 ───────────────────────────────────────────────────────────
 // SKU 행 [+] 클릭 → 행 안 수량 input 값을 cart 로 push. 동일 SKU 가 cart 에 있으면 합산.
-// 한 발주서 = 한 거래처 정책 — cart 에 다른 거래처가 있으면 거래처 전환 confirm.
+// 한 발주서 = 한 공급처 정책 — cart 에 다른 공급처가 있으면 공급처 전환 confirm.
 function addSkuToCart(row) {
   if (!selectedWarehouseCode.value) {
     triggerToast('먼저 입고 창고를 선택해주세요.')
@@ -594,10 +594,10 @@ function addGroupToCart(masterKey) {
   }
   const skus = catalogSkuRows.value.filter((r) => r.type === 'sku' && r.masterKey === masterKey)
   if (skus.length === 0) return
-  // 한 거래처 룰
+  // 한 공급처 룰
   const vendorCode = skus[0].vendorCode
   if (currentCartVendorId.value && vendorCode !== currentCartVendorId.value) {
-    triggerToast('장바구니의 거래처와 다릅니다.')
+    triggerToast('장바구니의 공급처와 다릅니다.')
     return
   }
   let added = 0
@@ -709,11 +709,11 @@ const warehouseSelectRef = ref(null)
 // ─── 발주 요청 ────────────────────────────────────────────────────────────────
 function openSubmitConfirm() {
   if (!canSubmit.value) return
-  // 방어: 한 거래처 정책 (이론상 발생 X 안전망)
+  // 방어: 한 공급처 정책 (이론상 발생 X 안전망)
   const firstVendorId = cart.value[0].vendorId
   const allSameVendor = cart.value.every((i) => i.vendorId === firstVendorId)
   if (!allSameVendor) {
-    triggerToast('한 발주서에는 한 거래처 품목만 담을 수 있습니다.')
+    triggerToast('한 발주서에는 한 공급처 품목만 담을 수 있습니다.')
     return
   }
   showSubmitConfirm.value = true
@@ -791,7 +791,7 @@ function initEditMode() {
     return
   }
   selectedWarehouseCode.value = order.warehouseCode || ''
-  vendorFilter.value = order.vendorId // 거래처 잠금 (BE vendorCode)
+  vendorFilter.value = order.vendorId // 공급처 잠금 (BE vendorCode)
   cart.value = order.items.map((i) => ({
     productId: i.productId,
     productCode: i.productCode,
@@ -830,7 +830,7 @@ onMounted(() => {
   reloadCatalog()
 })
 
-// 거래처 필터 변경 시 server-side 재 fetch (한 거래처 결과만 받기)
+// 공급처 필터 변경 시 server-side 재 fetch (한 공급처 결과만 받기)
 watch(vendorFilter, () => {
   reloadCatalog()
 })
@@ -971,7 +971,7 @@ const AlertTriangleIcon = IconBase([
               :disabled="isEditMode"
               class="border border-gray-300 bg-white px-3 py-1.5 text-xs outline-none focus:border-[#004D3C] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
             >
-              <option value="all">전체 거래처</option>
+              <option value="all">전체 공급처</option>
               <option v-for="v in vendorOptions" :key="v.code" :value="v.code">
                 {{ v.name }}
               </option>
@@ -1106,7 +1106,7 @@ const AlertTriangleIcon = IconBase([
                         <span class="text-xs font-black text-gray-900 truncate">{{ row.productName }}</span>
                         <span class="font-mono text-[10px] font-bold text-gray-400 shrink-0">{{ row.productCode }}</span>
                         <span class="ml-auto text-[10px] font-bold text-gray-400 shrink-0">
-                          거래처
+                          공급처
                           <span class="ml-1 font-black text-gray-700">{{ row.vendorName }}</span>
                         </span>
                       </div>
@@ -1250,7 +1250,7 @@ const AlertTriangleIcon = IconBase([
             <span class="text-[10px] font-bold opacity-80">{{ cart.length }}건</span>
           </div>
 
-          <!-- 거래처 표시 -->
+          <!-- 공급처 표시 -->
           <div
             v-if="currentCartVendorName"
             class="border-b border-gray-200 bg-[#E6F2F0] px-4 py-2 text-[10px] font-black uppercase tracking-wider text-[#004D3C]"
@@ -1397,7 +1397,7 @@ const AlertTriangleIcon = IconBase([
       </div>
     </div>
 
-    <!-- ───────── 모달: 거래처 변경 confirm (amber, 주의) ───────── -->
+    <!-- ───────── 모달: 공급처 변경 confirm (amber, 주의) ───────── -->
     <div
       v-if="showVendorSwitchConfirm"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
@@ -1406,16 +1406,16 @@ const AlertTriangleIcon = IconBase([
       <div class="w-full max-w-sm overflow-hidden bg-white shadow-xl">
         <div class="flex items-center gap-2 bg-amber-600 px-5 py-3 text-white">
           <AlertTriangleIcon :size="14" />
-          <h2 class="text-sm font-black">거래처 변경</h2>
+          <h2 class="text-sm font-black">공급처 변경</h2>
         </div>
         <div class="p-5 text-xs text-gray-700">
           <p>
             장바구니의 <strong>{{ currentCartVendorName }}</strong> 품목
             <strong>{{ cart.length }}건</strong>이 초기화됩니다.
-            <strong>{{ pendingNewVendorName }}</strong> 거래처로 새로 시작할까요?
+            <strong>{{ pendingNewVendorName }}</strong> 공급처로 새로 시작할까요?
           </p>
           <p class="mt-2 text-[11px] text-gray-500">
-            한 발주서에는 한 거래처 품목만 담을 수 있습니다.
+            한 발주서에는 한 공급처 품목만 담을 수 있습니다.
           </p>
         </div>
         <div class="flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3">
@@ -1489,7 +1489,7 @@ const AlertTriangleIcon = IconBase([
               <dd class="font-bold text-gray-800">{{ selectedWarehouseName }}</dd>
             </div>
             <div class="flex justify-between gap-2">
-              <dt class="text-gray-500">거래처</dt>
+              <dt class="text-gray-500">공급처</dt>
               <dd class="font-bold text-gray-800">{{ currentCartVendorName }}</dd>
             </div>
             <div class="flex justify-between gap-2">
@@ -1503,11 +1503,11 @@ const AlertTriangleIcon = IconBase([
           </dl>
           <p class="pt-2 text-[11px] leading-relaxed text-gray-500">
             <template v-if="isEditMode">
-              이 내용으로 발주를 수정합니다. 거래처 승인 전까지만 가능합니다.
+              이 내용으로 발주를 수정합니다. 공급처 승인 전까지만 가능합니다.
             </template>
             <template v-else>
-              이 내용으로 거래처에 발주 요청합니다.
-              요청 후 거래처 응답 받기 전까지 [취소] 가능합니다.
+              이 내용으로 공급처에 발주 요청합니다.
+              요청 후 공급처 응답 받기 전까지 [취소] 가능합니다.
             </template>
           </p>
         </div>

@@ -72,7 +72,7 @@ export const purchaseOrderApi = {
    * 새 발주 페이지 카탈로그 — vendor_product → ProductMaster → ProductSku 묶음 응답.
    * GET /api/hq/purchase-orders/catalog?vendorCode=&warehouseId=
    *
-   * vendorCode 미지정: 모든 ACTIVE 거래처 펼침. 지정 시 그 거래처만.
+   * vendorCode 미지정: 모든 ACTIVE 공급처 펼침. 지정 시 그 공급처만.
    * warehouseCode 는 본 사이클 BE 가 사용하지 않음 (인벤토리 합류 후 stock 필터링용).
    * 응답: { masters: [{ vendorCode, vendorName, vendorProductCode, productCode, productName,
    *                     contractUnitPrice, minSkuUnitPrice, maxSkuUnitPrice,

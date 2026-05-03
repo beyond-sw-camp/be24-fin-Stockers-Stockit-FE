@@ -186,7 +186,10 @@ const shippingOrders = computed(() => dashStore.shippingOrders)
 
 function formatDate(iso) {
   if (!iso) return '-'
-  return iso.replace('T', ' ').slice(0, 16)
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '-'
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 // ─── 공간 점유율 (WHS-003) ──────────────────────────────────────────────────
@@ -322,7 +325,7 @@ const thresholdBarClass = computed(
               <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
                 <tr>
                   <th class="px-4 py-3 font-black">발주번호</th>
-                  <th class="px-4 py-3 font-black">거래처</th>
+                  <th class="px-4 py-3 font-black">공급처</th>
                   <th class="px-4 py-3 font-black">입고 창고</th>
                   <th class="px-4 py-3 font-black">출발일</th>
                   <th class="px-4 py-3 text-right font-black">품목/총액</th>

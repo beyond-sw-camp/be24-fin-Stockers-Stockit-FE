@@ -127,7 +127,10 @@ function statusLabel(status) {
 
 function formatDate(iso) {
   if (!iso) return '-'
-  return iso.replace('T', ' ').slice(0, 16)
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '-'
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 function historyDotClass(status) {
@@ -158,7 +161,7 @@ function selectOrder(id) {
   inbound.selectOrder(id)
 }
 
-// 창고 관점 진행 이력 — DELIVERED/COMPLETED 만 (PENDING/APPROVED/SHIPPING 은 거래처 영역, 노이즈)
+// 창고 관점 진행 이력 — DELIVERED/COMPLETED 만 (PENDING/APPROVED/SHIPPING 은 공급처 영역, 노이즈)
 const visibleHistory = computed(() => {
   const list = inbound.selectedOrder?.statusHistory ?? []
   return list.filter((h) => h.status === 'DELIVERED' || h.status === 'COMPLETED')
@@ -310,7 +313,7 @@ const CheckIcon = IconBase([{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12'
               <input
                 v-model="inbound.searchKeyword"
                 type="text"
-                placeholder="발주번호/거래처/품목 검색"
+                placeholder="발주번호/공급처/품목 검색"
                 class="w-52 border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-xs outline-none focus:border-[#004D3C]"
               />
             </label>
@@ -321,7 +324,7 @@ const CheckIcon = IconBase([{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12'
               <thead class="bg-gray-100 text-[10px] uppercase tracking-wider text-gray-500">
                 <tr>
                   <th class="w-32 px-3 py-2 text-left font-black">발주번호</th>
-                  <th class="w-32 px-3 py-2 text-left font-black">거래처</th>
+                  <th class="w-32 px-3 py-2 text-left font-black">공급처</th>
                   <th class="w-28 px-3 py-2 text-left font-black">입고 창고</th>
                   <th class="w-44 px-3 py-2 text-left font-black">품목</th>
                   <th class="w-28 px-3 py-2 text-right font-black">총금액</th>
@@ -420,7 +423,7 @@ const CheckIcon = IconBase([{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12'
 
               <div class="grid grid-cols-2 gap-3">
                 <div>
-                  <p class="text-[10px] font-bold uppercase text-gray-400">거래처</p>
+                  <p class="text-[10px] font-bold uppercase text-gray-400">공급처</p>
                   <p class="mt-0.5 text-xs font-black text-gray-800">
                     {{ inbound.selectedOrder.vendorName }}
                   </p>
