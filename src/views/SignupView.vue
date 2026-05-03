@@ -1,6 +1,8 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { ShieldCheck, UserPlus, Store, Warehouse, Building2 } from 'lucide-vue-next'
+import { accountApi } from '@/api/account.js' 
+
 
 const form = ref({
   name: '',
@@ -64,14 +66,35 @@ function validate() {
   return Object.keys(e).length === 0
 }
 
-function handleSubmit() {
+
+async function handleSubmit() {
   if (!validate()) return
+
   isSubmitting.value = true
-  setTimeout(() => {
-    isSubmitting.value = false
+
+  try {
+    // 폼 필드명 → BE 요청 필드명 변환
+    const payload = {
+      name: form.value.name,
+      email: form.value.email,
+      password: form.value.password,
+      phoneNumber: form.value.phone,                // phone → phoneNumber
+      locationCode: form.value.storeCode,           // storeCode → locationCode
+      locationName: form.value.storeName,           // storeName → locationName
+      applicationReason: form.value.reason || '',   // reason → applicationReason
+      role: form.value.role.toUpperCase(),          // 'hq' → 'HQ'
+    }
+
+    await accountApi.signup(payload)
     submitted.value = true
-  }, 1200)
+  } catch (err) {
+    alert(err?.message ?? '회원가입에 실패했습니다.')
+  } finally {
+    isSubmitting.value = false
+  }
 }
+
+
 
 function clearErr(field) {
   if (errors.value[field]) delete errors.value[field]
@@ -115,7 +138,7 @@ function clearErr(field) {
         <p class="mt-2 text-[13px] leading-relaxed text-gray-500">
           중앙 관리자가 신청 내용을 검토한 후 입력하신 이메일로 결과를 안내드립니다.
         </p>
-        <router-link to="/login" class="mt-6 inline-flex h-10 items-center justify-center bg-[#004D3C] px-6 text-[13px] font-bold text-white transition hover:bg-[#003d30]">
+        <router-link to="/login" class="mt-6 inline-flex h-10 items-center justify-center bg-[#004D3C] px-6 text-[13px] font-bold !text-white transition hover:bg-[#003d30]">
           로그인으로 돌아가기
         </router-link>
       </div>
