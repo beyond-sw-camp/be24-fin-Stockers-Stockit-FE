@@ -174,7 +174,8 @@ function handleLogout() {
                 <th class="px-3 py-3 font-black">SKU 코드</th>
                 <th class="px-3 py-3 font-black">품목 코드</th>
                 <th class="px-3 py-3 font-black">품목명</th>
-                <th class="px-3 py-3 font-black">옵션</th>
+                <th class="px-3 py-3 font-black">색상</th>
+                <th class="px-3 py-3 font-black">사이즈</th>
                 <th class="px-3 py-3 font-black">카테고리</th>
                 <th class="px-3 py-3 text-right font-black">총 실재고</th>
                 <th class="px-3 py-3 text-right font-black">총 가용재고</th>
@@ -192,7 +193,8 @@ function handleLogout() {
                 <td class="px-3 py-3 font-mono font-bold text-gray-700">{{ row.skuCode }}</td>
                 <td class="px-3 py-3 font-mono font-bold text-gray-500">{{ row.itemCode }}</td>
                 <td class="px-3 py-3 font-black text-gray-900">{{ row.itemName }}</td>
-                <td class="px-3 py-3 font-bold text-gray-600">{{ row.color }}/{{ row.size }}</td>
+                <td class="px-3 py-3 font-bold text-gray-600">{{ row.color }}</td>
+                <td class="px-3 py-3 font-bold text-gray-600">{{ row.size }}</td>
                 <td class="px-3 py-3 font-bold text-gray-600">{{ row.category }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ row.totalOnHand.toLocaleString() }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ row.totalAvailable.toLocaleString() }}</td>
@@ -201,7 +203,7 @@ function handleLogout() {
               </tr>
 
               <tr v-if="filteredSkuRows.length === 0">
-                <td colspan="9" class="px-4 py-10 text-center text-xs font-bold text-gray-400">
+                <td colspan="10" class="px-4 py-10 text-center text-xs font-bold text-gray-400">
                   조건에 맞는 SKU가 없습니다.
                 </td>
               </tr>
