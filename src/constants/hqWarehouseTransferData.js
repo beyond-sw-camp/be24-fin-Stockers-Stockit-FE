@@ -110,7 +110,7 @@ function hashSeed(s) {
 function buildSyntheticRow(skuCode, warehouse) {
   const seed = hashSeed(`${skuCode}|${warehouse.warehouseCode}`)
   const safetyStock = 9 + (seed % 13) // 9~21
-  const shortageBucket = (seed >> 3) % 4 // 0~3
+  const shortageBucket = (seed >>> 3) % 4 // 0~3
 
   const availableStockByBucket = [
     safetyStock + 16 + (seed % 18), // 여유
@@ -119,7 +119,7 @@ function buildSyntheticRow(skuCode, warehouse) {
     Math.max(0, safetyStock - (9 + (seed % 8))), // 강한 부족
   ]
   const availableStock = Math.max(0, availableStockByBucket[shortageBucket])
-  const reservedStock = 1 + ((seed >> 7) % 7)
+  const reservedStock = 1 + ((seed >>> 7) % 7)
   const onHandStock = availableStock + reservedStock
   const minute = ((seed % 30) + 30).toString().padStart(2, '0')
 

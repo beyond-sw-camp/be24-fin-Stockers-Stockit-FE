@@ -21,6 +21,8 @@ const selectedWarehouseCodes = ref([])
 const transferQty = ref('')
 const transferReason = ref('재고 불균형 해소')
 const transferNote = ref('')
+const sortKey = ref('availableStock')
+const sortDirection = ref('desc')
 const sheetOpen = ref(false)
 const cartDrawerOpen = ref(false)
 const toastMessage = ref('')
@@ -36,8 +38,36 @@ watch(selectedSku, (sku) => {
   transferQty.value = ''
   transferReason.value = '재고 불균형 해소'
   transferNote.value = ''
+  sortKey.value = 'availableStock'
+  sortDirection.value = 'desc'
   sheetOpen.value = false
 }, { immediate: true })
+
+const statusWeight = {
+  품절: 3,
+  부족: 2,
+  정상: 1,
+}
+
+const sortedWarehouseRows = computed(() => {
+  const direction = sortDirection.value === 'desc' ? -1 : 1
+
+  return [...warehouseRows.value].sort((a, b) => {
+    let left = a[sortKey.value]
+    let right = b[sortKey.value]
+
+    if (sortKey.value === 'status') {
+      left = statusWeight[a.status] ?? 0
+      right = statusWeight[b.status] ?? 0
+    }
+
+    if (left !== right) {
+      return left > right ? direction * -1 : direction
+    }
+
+    return a.warehouseCode.localeCompare(b.warehouseCode)
+  })
+})
 
 const selectedWarehouses = computed(() => warehouseRows.value.filter(row => selectedWarehouseCodes.value.includes(row.warehouseCode)))
 const canTransfer = computed(() => selectedWarehouses.value.length === 2)
@@ -84,6 +114,21 @@ const statusClass = (status) => ({
   부족: 'bg-amber-50 text-amber-700',
   품절: 'bg-red-50 text-red-700',
 })[status] ?? 'bg-gray-100 text-gray-600'
+
+const toggleSort = (key) => {
+  if (sortKey.value !== key) {
+    sortKey.value = key
+    sortDirection.value = 'desc'
+    return
+  }
+
+  sortDirection.value = sortDirection.value === 'desc' ? 'asc' : 'desc'
+}
+
+const sortIndicator = (key) => {
+  if (sortKey.value !== key) return '△'
+  return sortDirection.value === 'desc' ? '▼' : '▲'
+}
 
 const toggleWarehouseSelection = (warehouseCode) => {
   if (selectedWarehouseCodes.value.includes(warehouseCode)) {
@@ -261,17 +306,37 @@ function handleLogout() {
                 <th class="px-3 py-3 font-black">창고 코드</th>
                 <th class="px-3 py-3 font-black">창고명</th>
                 <th class="px-3 py-3 font-black">위치</th>
-                <th class="px-3 py-3 text-right font-black">실재고</th>
-                <th class="px-3 py-3 text-right font-black">예약</th>
-                <th class="px-3 py-3 text-right font-black">가용</th>
+                <th class="px-3 py-3 text-right font-black">
+                  <button type="button" class="inline-flex items-center gap-1 hover:text-gray-700" @click="toggleSort('onHandStock')">
+                    실재고
+                    <span class="text-[10px]">{{ sortIndicator('onHandStock') }}</span>
+                  </button>
+                </th>
+                <th class="px-3 py-3 text-right font-black">
+                  <button type="button" class="inline-flex items-center gap-1 hover:text-gray-700" @click="toggleSort('reservedStock')">
+                    예약
+                    <span class="text-[10px]">{{ sortIndicator('reservedStock') }}</span>
+                  </button>
+                </th>
+                <th class="px-3 py-3 text-right font-black">
+                  <button type="button" class="inline-flex items-center gap-1 hover:text-gray-700" @click="toggleSort('availableStock')">
+                    가용
+                    <span class="text-[10px]">{{ sortIndicator('availableStock') }}</span>
+                  </button>
+                </th>
                 <th class="px-3 py-3 text-right font-black">안전재고</th>
-                <th class="px-3 py-3 text-center font-black">상태</th>
+                <th class="px-3 py-3 text-center font-black">
+                  <button type="button" class="inline-flex items-center gap-1 hover:text-gray-700" @click="toggleSort('status')">
+                    상태
+                    <span class="text-[10px]">{{ sortIndicator('status') }}</span>
+                  </button>
+                </th>
                 <th class="px-3 py-3 font-black">최종 업데이트</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
               <tr
-                v-for="row in warehouseRows"
+                v-for="row in sortedWarehouseRows"
                 :key="row.warehouseCode"
                 class="cursor-pointer transition"
                 :class="selectedWarehouseCodes.includes(row.warehouseCode) ? 'bg-[#EBF5F5] font-bold' : 'hover:bg-[#EBF5F5]/60'"
