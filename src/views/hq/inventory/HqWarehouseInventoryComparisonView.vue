@@ -4,11 +4,13 @@ import { useRouter, useRoute } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { useWarehouseTransferCartStore } from '@/stores/hq/warehouseTransferCart.js'
 import { transferSkuCatalog, buildWarehouseRows, getImbalanceMetrics } from '@/constants/hqWarehouseTransferData.js'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
+const cartStore = useWarehouseTransferCartStore()
 const hqMenus = roleMenus.hq
 const inventoryMenus = roleMenus.hq.find(menu => menu.label === '재고 관리')?.children ?? []
 
@@ -104,8 +106,17 @@ function handleLogout() {
       <section class="border border-gray-200 bg-white p-4 shadow-sm">
         <div class="mb-4">
           <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Inventory</p>
-          <h1 class="mt-1 text-lg font-black text-gray-900">창고간 재고 이동</h1>
-          <p class="mt-1 text-xs font-bold text-gray-500">불균형 SKU를 우선 확인하고 상세에서 창고 간 이동을 실행합니다.</p>
+          <div class="mt-1 flex flex-wrap items-center justify-between gap-2">
+            <h1 class="text-lg font-black text-gray-900">창고간 재고 이동</h1>
+            <button
+              type="button"
+              class="h-8 border border-gray-300 px-3 text-[11px] font-black text-gray-700 transition hover:bg-gray-100"
+              @click="router.push({ name: 'hq-inventory-warehouse-transfer-history' })"
+            >
+              장바구니 {{ cartStore.lineCount }}건
+            </button>
+          </div>
+          <p class="mt-1 text-xs font-bold text-gray-500">불균형 SKU를 우선 확인하고 상세에서 장바구니를 구성해 이동을 실행합니다.</p>
         </div>
 
         <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-[1.2fr_0.9fr_0.9fr_0.9fr_auto]">
