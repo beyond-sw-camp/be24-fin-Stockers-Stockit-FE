@@ -49,7 +49,7 @@ export const useWarehouseDashboardStore = defineStore('warehouseDashboard', () =
     try {
       const [progressRes, listRes] = await Promise.all([
         dashboardApi.getInboundProgress(params),
-        // 입고 예정 = DELIVERED(배송완료, 도착됨) — SHIPPING 은 거래처 단계라 창고 화면 미노출
+        // 입고 예정 = DELIVERED(배송완료, 도착됨) — SHIPPING 은 공급처 단계라 창고 화면 미노출
         inboundApi.list({ ...params, status: 'DELIVERED' }),
       ])
       progress.value = progressRes

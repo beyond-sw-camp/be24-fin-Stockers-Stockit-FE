@@ -8,7 +8,7 @@ export const useWarehouseInboundStore = defineStore('warehouseInbound', () => {
 
   // --- view state (입고 화면 전용) ---
   // 'DELIVERED' = 배송완료(도착됨, 입고 확정 대기) / 'COMPLETED' = 입고완료
-  // SHIPPING(배송중) 은 거래처 단계라 창고 화면에 노출 안 함 (BE InboundService 도 차단)
+  // SHIPPING(배송중) 은 공급처 단계라 창고 화면에 노출 안 함 (BE InboundService 도 차단)
   const activeStatusTab = ref('DELIVERED')
   const selectedOrderId = ref(null)
   const searchKeyword = ref('')
