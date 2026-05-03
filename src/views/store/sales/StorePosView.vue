@@ -7,6 +7,8 @@ import { useAuthStore } from '@/stores/auth.js'
 import { useInventoryStore } from '@/stores/inventory.js'
 import { useSalesStore } from '@/stores/store/storeSales.js'
 
+import { Plus, Ban } from 'lucide-vue-next'
+
 const router = useRouter()
 const auth = useAuthStore()
 const inventory = useInventoryStore()
@@ -15,7 +17,7 @@ const sales = useSalesStore()
 const storeMenus = roleMenus.store
 const salesMenus = roleMenus.store.find((menu) => menu.label === '판매 관리')?.children ?? []
 const activeTopMenu = computed(() => '판매 관리')
-const activeSideMenu = ref('판매 등록')
+const activeSideMenu = ref('POS / 판매 등록')
 
 const selectedMainCategory = ref('전체')
 const selectedSubCategory = ref('전체')
@@ -23,6 +25,8 @@ const selectedColor = ref('전체')
 const searchTerm = ref('')
 const salesLines = ref([])
 const feedbackMessage = ref('')
+const isSuccessModalOpen = ref(false)
+const completedSale = ref(null)
 
 const subCategoryOptions = computed(() => inventory.getSubCategories(selectedMainCategory.value))
 
@@ -131,8 +135,15 @@ function confirmSale() {
     return
   }
 
+  completedSale.value = result.sale
   salesLines.value = []
+  isSuccessModalOpen.value = true
   feedbackMessage.value = `${result.sale.saleId} 판매가 등록되었습니다.`
+}
+
+function closeSuccessModal() {
+  isSuccessModalOpen.value = false
+  completedSale.value = null
 }
 
 const statusLabel = { out: '품절', low: '부족', normal: '정상' }
@@ -238,6 +249,7 @@ function handleLogout() {
             <table class="min-w-[840px] w-full border-collapse text-xs">
               <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
                 <tr>
+                  <th class="px-4 py-3 text-left font-black">SKU 코드</th>
                   <th class="px-4 py-3 text-left font-black">상품명</th>
                   <th class="px-4 py-3 text-left font-black">카테고리</th>
                   <th class="px-4 py-3 text-left font-black">옵션</th>
@@ -253,6 +265,9 @@ function handleLogout() {
                   :key="sku.skuId"
                   class="transition-colors hover:bg-gray-50"
                 >
+                  <td class="px-4 py-3 font-mono font-bold text-gray-500">
+                    {{ sku.skuId }}
+                  </td>
                   <td class="px-4 py-3">
                     <p class="font-black text-gray-900">{{ sku.productName }}</p>
                   </td>
@@ -277,31 +292,28 @@ function handleLogout() {
                   <td class="px-4 py-3 text-center">
                     <button
                       type="button"
-                      class="group inline-flex h-8 min-w-[74px] items-center justify-center gap-1.5 rounded-full border px-3 text-[11px] font-bold transition-all duration-200 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:opacity-100"
+                      class="group inline-flex h-8 min-w-[74px] items-center justify-center gap-1.5 rounded-full border px-3 text-[11px] font-semibold transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-100"
                       :class="
                         sku.stock === 0
-                          ? 'cursor-not-allowed shadow-none'
-                          : 'border-[#97BFB4]/30 bg-[#97BFB4]/10 text-[#5A7F75] hover:border-[#97BFB4]/50 hover:bg-[#97BFB4]/20 hover:text-[#4A6860] active:scale-95'
+                          ? 'border-red-100 bg-red-50/50 text-red-400 shadow-none'
+                          : 'border-[#97BFB4]/30 bg-[#97BFB4]/10 text-[#6B8E85] hover:border-[#97BFB4]/50 hover:bg-[#97BFB4]/20 hover:text-[#5A7F75] active:scale-95'
                       "
                       :disabled="sku.stock === 0"
                       @click="addToSalesList(sku)"
                     >
                       <span
-                        class="flex h-4 w-4 items-center justify-center rounded-full text-[10px] transition-colors"
-                        :class="
-                          sku.stock === 0
-                            ? 'bg-gray-200 text-gray-400'
-                            : 'bg-white text-[#97BFB4] shadow-sm group-hover:bg-[#004D3C] group-hover:text-white'
-                        "
+                        class="flex h-4 w-4 items-center justify-center rounded-full shadow-sm transition-colors"
+                        :class="sku.stock === 0 ? 'bg-white/50 text-red-300' : 'bg-white text-[#97BFB4] group-hover:bg-[#004D3C] group-hover:text-white'"
                       >
-                        +
+                        <Plus v-if="sku.stock > 0" :size="10" stroke-width="3" />
+                        <Ban v-else :size="10" stroke-width="3" />
                       </span>
-                      <span>담기</span>
+                      <span>{{ sku.stock === 0 ? '품절' : '담기' }}</span>
                     </button>
                   </td>
                 </tr>
                 <tr v-if="filteredSkus.length === 0">
-                  <td colspan="7" class="px-4 py-12 text-center text-gray-400">
+                  <td colspan="8" class="px-4 py-12 text-center text-gray-400">
                     조건에 맞는 상품이 없습니다.
                   </td>
                 </tr>
@@ -430,6 +442,49 @@ function handleLogout() {
             </button>
           </div>
         </section>
+      </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div
+      v-if="isSuccessModalOpen"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+    >
+      <div class="w-full max-w-sm border border-gray-300 bg-white shadow-2xl">
+        <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
+          <h3 class="text-sm font-black text-gray-900">판매 등록 완료</h3>
+        </div>
+        <div class="p-6 text-center">
+          <div
+            class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600"
+          >
+            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <p class="text-sm font-bold text-gray-500">정상적으로 판매가 등록되었습니다.</p>
+          <div class="mt-4 border-y border-gray-100 py-3">
+            <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">판매번호</p>
+            <p class="mt-1 font-mono text-lg font-black text-gray-900">
+              {{ completedSale?.saleId }}
+            </p>
+          </div>
+          <div class="mt-3 flex items-center justify-between text-xs font-bold text-gray-600">
+            <span>결제 금액</span>
+            <span class="text-sm font-black text-[#004D3C]"
+              >₩{{ completedSale?.totalAmount.toLocaleString() }}</span
+            >
+          </div>
+        </div>
+        <div class="p-4">
+          <button
+            type="button"
+            class="h-11 w-full bg-[#004D3C] text-sm font-black text-white transition-colors hover:bg-[#003d30]"
+            @click="closeSuccessModal"
+          >
+            확인
+          </button>
+        </div>
       </div>
     </div>
   </AppLayout>
