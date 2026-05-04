@@ -21,14 +21,16 @@ async function handleSubmit() {
   errorMsg.value = ''
   loading.value = true
 
-  const result = auth.login(employeeId.value.trim(), password.value)
+  try {
+    const result = await auth.login(employeeId.value.trim(), password.value)
 
-  loading.value = false
-
-  if (result.success) {
-    router.push(result.redirectTo)
-  } else {
-    errorMsg.value = '사원번호 또는 비밀번호가 올바르지 않습니다.'
+    if (result.success) {
+      router.push(result.redirectTo)
+    } else {
+      errorMsg.value = result.message ?? '사원번호 또는 비밀번호가 올바르지 않습니다.'
+    }
+  } finally {
+    loading.value = false
   }
 }
 

@@ -27,7 +27,7 @@ const activeTopMenu = computed(() => '계정 관리')
 
 function handleLogout() {
   auth.logout()
-  router.push('/login')
+  router.push('/dev-login')
 }
 
 // ── BE에서 받아온 전체 회원 목록 (PENDING / APPROVED / REJECTED)

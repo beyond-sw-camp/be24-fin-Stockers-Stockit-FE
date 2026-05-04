@@ -18,7 +18,7 @@ const activeSideMenu = ref('순환 재고 조회')
 
 function handleLogout() {
   auth.logout()
-  router.push('/login')
+  router.push('/dev-login')
 }
 </script>
 

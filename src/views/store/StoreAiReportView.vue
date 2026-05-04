@@ -23,7 +23,7 @@ const expandedRestockId = ref(null)
 
 function handleLogout() {
   auth.logout()
-  router.push('/login')
+  router.push('/dev-login')
 }
 
 function toggleHistoryDropdown() {
