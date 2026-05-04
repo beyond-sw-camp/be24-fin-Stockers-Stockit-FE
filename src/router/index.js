@@ -19,7 +19,6 @@ import StoreInboundDetailView from '@/views/store/inbound/StoreInboundDetailView
 import StoreInboundAnalysisView from '@/views/store/inbound/StoreInboundAnalysisView.vue'
 import StoreInventoryView from '@/views/store/inventory/StoreInventoryView.vue'
 import StoreInventorySkuDetailView from '@/views/store/inventory/StoreInventorySkuDetailView.vue'
-import StoreAiReportView from '@/views/store/StoreAiReportView.vue'
 import StoreStatsView from '@/views/store/stats/StoreStatsView.vue'
 import StoreSalesStatsView from '@/views/store/stats/StoreSalesStatsView.vue'
 
@@ -203,7 +202,6 @@ const router = createRouter({
     { path: '/store/inbound/history', redirect: { name: 'store-inbound-list' } },
     { path: '/store/inbound/history/:id', redirect: (to) => ({ name: 'store-inbound-detail', params: { id: to.params.id } }) },
     { path: '/store/inbound/analysis', name: 'store-inbound-analysis', component: StoreInboundAnalysisView, meta: { requiresAuth: true, role: 'store' } },
-    { path: '/store/ai-report', name: 'store-ai-report', component: StoreAiReportView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/stats', name: 'store-stats', component: StoreStatsView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/stats/sales', name: 'store-stats-sales', component: StoreSalesStatsView, meta: { requiresAuth: true, role: 'store' } },
 
