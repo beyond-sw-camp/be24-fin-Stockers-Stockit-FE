@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { vendorApi } from '@/api/vendor.js'
+import { vendorApi } from '@/api/hq/vendor.js'
 
 // ─── BE 응답 → FE 모델 매핑 ─────────────────────────────────────────────
 // BE 의 code 를 FE 의 id 로 노출하고, status 는 소문자로 변환해 기존 화면·헬퍼와 호환.

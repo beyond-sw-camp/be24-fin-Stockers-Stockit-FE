@@ -16,7 +16,7 @@
  * 응답: BaseResponse<T>. unwrap() 으로 result 만 추출, 실패 시 throw.
  */
 
-import { apiClient, unwrap } from './axios.js'
+import { apiClient, unwrap } from '../axios.js'
 
 export const vendorApi = {
   // ─── 공급처 (read-only) ──────────────────────────────────────────────────

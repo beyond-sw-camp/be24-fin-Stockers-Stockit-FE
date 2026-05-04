@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { dashboardApi } from '@/api/dashboard.js'
-import { inboundApi } from '@/api/inbound.js'
+import { dashboardApi } from '@/api/warehouse/dashboard.js'
+import { inboundApi } from '@/api/warehouse/inbound.js'
 
 /**
  * WHS-001 창고 관리자 대시보드 입고 진행률 store.

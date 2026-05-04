@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { purchaseOrderApi } from '@/api/purchaseOrder.js'
+import { purchaseOrderApi } from '@/api/hq/purchaseOrder.js'
 import { getInfrastructures } from '@/api/infrastructure.js'
 
 // ─── BE ↔ FE 매핑 헬퍼 ─────────────────────────────────────────────────────

@@ -23,10 +23,10 @@ import StoreAiReportView from '@/views/store/StoreAiReportView.vue'
 import StoreStatsView from '@/views/store/stats/StoreStatsView.vue'
 import StoreSalesStatsView from '@/views/store/stats/StoreSalesStatsView.vue'
 
-import WarehouseDashboardView from '@/views/warehouse/WarehouseDashboardView.vue'
+import WarehouseDashboardView from '@/views/warehouse/dashboard/WarehouseDashboardView.vue'
 import WarehouseInventoryView from '@/views/warehouse/WarehouseInventoryView.vue'
 import WarehouseInventorySkuDetailView from '@/views/warehouse/WarehouseInventorySkuDetailView.vue'
-import WarehouseInboundView from '@/views/warehouse/WarehouseInboundView.vue'
+import WarehouseInboundView from '@/views/warehouse/inbound/WarehouseInboundView.vue'
 import WarehouseOutboundView from '@/views/warehouse/WarehouseOutboundView.vue'
 import WarehouseOutboundDetailView from '@/views/warehouse/WarehouseOutboundDetailView.vue'
 
@@ -47,8 +47,8 @@ import HqProductManagementView from '@/views/hq/HqProductManagementView.vue'
 import HqInfrastructureManagementView from '@/views/hq/HqInfrastructureManagementView.vue'
 import HqStoreDetailView from '@/views/hq/HqStoreDetailView.vue'
 import HqWarehouseDetailView from '@/views/hq/HqWarehouseDetailView.vue'
-import HqPurchaseOrderView from '@/views/hq/HqPurchaseOrderView.vue'
-import HqVendorManagementView from '@/views/hq/HqVendorManagementView.vue'
+import HqPurchaseOrderView from '@/views/hq/purchase-order/HqPurchaseOrderView.vue'
+import HqVendorManagementView from '@/views/hq/vendor/HqVendorManagementView.vue'
 import HqCategoryAddView from '@/views/hq/HqCategoryAddView.vue'
 import HqCircularStockCandidateView from '@/views/hq/circular-stock/HqCircularStockCandidateView.vue'
 import HqCircularStockInventoryView from '@/views/hq/circular-stock/HqCircularStockInventoryView.vue'
@@ -57,7 +57,6 @@ import HqCircularStockSalesRegisterView from '@/views/hq/circular-stock/HqCircul
 import HqCircularStockSalesHistoryView from '@/views/hq/circular-stock/HqCircularStockSalesHistoryView.vue'
 import HqCircularStockSalesDetailView from '@/views/hq/circular-stock/HqCircularStockSalesDetailView.vue'
 import HqCircularStockSalesAnalysisView from '@/views/hq/circular-stock/HqCircularStockSalesAnalysisView.vue'
-import HqAiReportView from '@/views/hq/HqAiReportView.vue'
 import EsgDashBoardView from '@/views/hq/esg/EsgDashBoardView.vue'
 import AccountListView from '@/views/hq/account/AccountListView.vue'
 import AccountApprovalView from '@/views/hq/account/AccountApprovalView.vue'
@@ -157,13 +156,13 @@ const router = createRouter({
     {
       path: '/hq/purchase-orders/new',
       name: 'hq-purchase-order-new',
-      component: () => import('@/views/hq/HqPurchaseOrderCreateView.vue'),
+      component: () => import('@/views/hq/purchase-order/HqPurchaseOrderCreateView.vue'),
       meta: { requiresAuth: true, role: 'hq' },
     },
     {
       path: '/hq/purchase-orders/:id/edit',
       name: 'hq-purchase-order-edit',
-      component: () => import('@/views/hq/HqPurchaseOrderCreateView.vue'),
+      component: () => import('@/views/hq/purchase-order/HqPurchaseOrderCreateView.vue'),
       meta: { requiresAuth: true, role: 'hq' },
     },
     { path: '/hq/vendors', name: 'hq-vendors', component: HqVendorManagementView, meta: { requiresAuth: true, role: 'hq' } },
@@ -178,7 +177,6 @@ const router = createRouter({
     { path: '/hq/accounts/approvals', name: 'hq-account-approvals', component: AccountApprovalView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/account/accountlist', name: 'hq-account-list', component: AccountListView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/account/approval', name: 'hq-account-approval', component: AccountApprovalView, meta: { requiresAuth: true, role: 'hq' } },
-    { path: '/hq/ai-report', name: 'hq-ai-report', component: HqAiReportView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/esg', name: 'hq-esg', component: EsgDashBoardView, meta: { requiresAuth: true, role: 'hq' } },
 
     { path: '/store/dashboard', name: 'store-dashboard', component: StoreDashboardView, meta: { requiresAuth: true, role: 'store' } },
