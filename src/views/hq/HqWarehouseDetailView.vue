@@ -74,7 +74,7 @@ function goBack() {
 
 function handleLogout() {
   auth.logout()
-  router.push('/dev-login')
+  router.push('/login')
 }
 
 onMounted(() => {

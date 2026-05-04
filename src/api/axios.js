@@ -25,7 +25,7 @@ apiClient.interceptors.response.use(
       // 무한 리다이렉트 방지 (/login, /dev-login, /signup 페이지에선 그대로)
       const path = window.location.pathname
       if (!path.includes('/login') && !path.includes('/signup')) {
-        window.location.href = '/dev-login'
+        window.location.href = '/login'
       }
     }
     return Promise.reject(error)

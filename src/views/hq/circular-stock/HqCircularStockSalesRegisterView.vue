@@ -230,7 +230,7 @@ function handleDocumentClick(event) {
 
 function handleLogout() {
   auth.logout()
-  router.push('/dev-login')
+  router.push('/login')
 }
 
 function materialFitLabel(value) {

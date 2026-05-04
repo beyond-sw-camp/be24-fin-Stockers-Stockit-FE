@@ -50,7 +50,7 @@ const dateLabel = computed(() =>
 
 function handleLogout() {
   auth.logout()
-  router.push('/dev-login')
+  router.push('/login')
 }
 </script>
 

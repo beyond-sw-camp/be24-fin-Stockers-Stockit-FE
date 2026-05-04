@@ -33,7 +33,7 @@ const activeTopMenu = computed(() => '계정 관리')
 
 function handleLogout() {
   auth.logout()
-  router.push('/dev-login')
+  router.push('/login')
 }
 
 // ── 목업 데이터

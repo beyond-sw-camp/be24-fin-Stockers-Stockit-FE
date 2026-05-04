@@ -77,7 +77,7 @@ const activeSideMenu = ref('공급처 발주')
 
 function handleLogout() {
   auth.logout()
-  router.push('/dev-login')
+  router.push('/login')
 }
 
 // ─── state ───────────────────────────────────────────────────────────────────

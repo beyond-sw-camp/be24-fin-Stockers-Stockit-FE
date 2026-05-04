@@ -51,7 +51,7 @@ const sideMenus = roleMenus.warehouse.find((menu) => menu.label === '입/출고 
 
 function handleLogout() {
   auth.logout()
-  router.push('/dev-login')
+  router.push('/login')
 }
 
 // ─── 상태 탭 ────────────────────────────────────────────────────────────────

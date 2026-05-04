@@ -31,7 +31,7 @@ const activeSideMenu = ref('통합 KPI 대시보드')
 
 function handleLogout() {
   auth.logout()
-  router.push('/dev-login')
+  router.push('/login')
 }
 
 const dateLabel = computed(() =>

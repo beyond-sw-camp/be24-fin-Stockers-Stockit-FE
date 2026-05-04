@@ -39,7 +39,7 @@ const rows = computed(() => outboundStore.filteredOutboundList)
 
 function handleLogout() {
   auth.logout()
-  router.push('/dev-login')
+  router.push('/login')
 }
 
 function changeTab(key) {

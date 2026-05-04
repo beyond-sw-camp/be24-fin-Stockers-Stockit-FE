@@ -17,7 +17,7 @@ const hqMenus = roleMenus.hq
 
 function handleLogout() {
   auth.logout()
-  router.push('/dev-login')
+  router.push('/login')
 }
 
 const tabLabelMap = { categories: '카테고리 관리', products: '제품 마스터' }
