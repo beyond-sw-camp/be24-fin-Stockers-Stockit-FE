@@ -29,7 +29,7 @@ const activeSideMenu = ref('순환재고 거래처 통계')
 
 function handleLogout() {
   auth.logout()
-  router.push('/login')
+  router.push('/dev-login')
 }
 
 const dateLabel = computed(() =>

@@ -257,7 +257,7 @@ router.beforeEach((to) => {
     return true
   }
 
-  if (!auth.isAuthenticated) return { name: 'login' }
+  if (!auth.isAuthenticated) return { name: 'dev-login' }
 
   if (to.meta.role && to.meta.role !== auth.user.role) {
     return roleHomeMap[auth.user.role]
