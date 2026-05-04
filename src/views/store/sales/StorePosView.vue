@@ -1,17 +1,16 @@
-<script setup>
-import { computed, ref } from 'vue'
+﻿<script setup>
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useInventoryStore } from '@/stores/inventory.js'
 import { useSalesStore } from '@/stores/store/storeSales.js'
+import { getCompanyWideInventories, getCompanyWideInventorySkus } from '@/api/inventory.js'
 
 import { Plus, Ban } from 'lucide-vue-next'
 
 const router = useRouter()
 const auth = useAuthStore()
-const inventory = useInventoryStore()
 const sales = useSalesStore()
 
 const storeMenus = roleMenus.store
@@ -27,12 +26,34 @@ const salesLines = ref([])
 const feedbackMessage = ref('')
 const isSuccessModalOpen = ref(false)
 const completedSale = ref(null)
+const loadingSkus = ref(false)
+const skuRows = ref([])
 
-const subCategoryOptions = computed(() => inventory.getSubCategories(selectedMainCategory.value))
+const mainCategories = computed(() => [
+  '전체',
+  ...new Set(skuRows.value.map((sku) => sku.mainCategory)),
+])
+
+const subCategoryOptions = computed(() => {
+  if (!selectedMainCategory.value || selectedMainCategory.value === '전체') return ['전체']
+  return [
+    '전체',
+    ...new Set(
+      skuRows.value
+        .filter((sku) => sku.mainCategory === selectedMainCategory.value)
+        .map((sku) => sku.subCategory),
+    ),
+  ]
+})
+
+const colorOptions = computed(() => [
+  '전체',
+  ...new Set(skuRows.value.map((sku) => sku.color)),
+])
 
 const filteredSkus = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase()
-  return inventory.skus.filter((sku) => {
+  return skuRows.value.filter((sku) => {
     const matchMain =
       selectedMainCategory.value === '전체' || sku.mainCategory === selectedMainCategory.value
     const matchSub =
@@ -94,8 +115,12 @@ function addToSalesList(sku) {
   ]
 }
 
+function getSkuById(skuId) {
+  return skuRows.value.find((sku) => sku.skuId === skuId) ?? null
+}
+
 function updateLineQuantity(line, value) {
-  const sku = inventory.getSkuById(line.skuId)
+  const sku = getSkuById(line.skuId)
   const next = Number.parseInt(value, 10)
   if (!sku) return
   if (Number.isNaN(next) || next < 1) {
@@ -106,7 +131,7 @@ function updateLineQuantity(line, value) {
 }
 
 function increaseLine(line) {
-  const sku = inventory.getSkuById(line.skuId)
+  const sku = getSkuById(line.skuId)
   if (!sku || line.quantity >= sku.stock) return
   line.quantity += 1
 }
@@ -124,10 +149,10 @@ function clearSalesList() {
   salesLines.value = []
 }
 
-function confirmSale() {
+async function confirmSale() {
   feedbackMessage.value = ''
-  const result = sales.createSale({
-    items: salesLines.value.map((line) => ({ skuId: line.skuId, quantity: line.quantity })),
+  const result = await sales.createSaleFromPos({
+    items: salesLines.value.map((line) => ({ skuCode: line.skuId, quantity: line.quantity })),
   })
 
   if (!result.success) {
@@ -138,7 +163,8 @@ function confirmSale() {
   completedSale.value = result.sale
   salesLines.value = []
   isSuccessModalOpen.value = true
-  feedbackMessage.value = `${result.sale.saleId} 판매가 등록되었습니다.`
+  feedbackMessage.value = `${result.sale.saleNo} 판매가 등록되었습니다.`
+  await loadStoreSkus()
 }
 
 function closeSuccessModal() {
@@ -153,10 +179,65 @@ const statusClass = {
   normal: 'bg-[#EBF5F5] text-black',
 }
 
+function stockStatus(sku) {
+  if (sku.stock === 0) return 'out'
+  if (sku.stock <= sku.safetyStock) return 'low'
+  return 'normal'
+}
+
+async function loadStoreSkus() {
+  const locationId = auth.user?.storeLocationId
+  if (!locationId) {
+    feedbackMessage.value = '매장 위치 정보가 없어 상품/재고를 불러올 수 없습니다.'
+    return
+  }
+
+  loadingSkus.value = true
+  feedbackMessage.value = ''
+  try {
+    const params = { locationType: 'STORE', locationIds: [locationId] }
+    const page = await getCompanyWideInventories(params)
+    const items = page?.items ?? []
+
+    const skuLists = await Promise.all(
+      items.map((item) => getCompanyWideInventorySkus(item.itemCode, params)),
+    )
+
+    const rows = []
+    items.forEach((item, idx) => {
+      const skus = skuLists[idx] ?? []
+      skus.forEach((sku) => {
+        rows.push({
+          skuId: sku.skuCode,
+          productId: item.itemCode,
+          productName: item.itemName,
+          mainCategory: item.parentCategory,
+          subCategory: item.childCategory,
+          color: sku.color,
+          size: sku.size,
+          unitPrice: 0,
+          stock: sku.actualStock ?? 0,
+          safetyStock: sku.safetyStock ?? 0,
+          status: sku.status,
+        })
+      })
+    })
+    skuRows.value = rows
+  } catch (e) {
+    feedbackMessage.value = e?.message ?? '상품/재고 조회에 실패했습니다.'
+  } finally {
+    loadingSkus.value = false
+  }
+}
+
 function handleLogout() {
   auth.logout()
   router.push('/login')
 }
+
+onMounted(async () => {
+  await loadStoreSkus()
+})
 </script>
 
 <template>
@@ -200,11 +281,7 @@ function handleLogout() {
                 class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
                 @change="resetSubCategoryIfNeeded"
               >
-                <option
-                  v-for="category in inventory.mainCategories"
-                  :key="category"
-                  :value="category"
-                >
+                <option v-for="category in mainCategories" :key="category" :value="category">
                   {{ category }}
                 </option>
               </select>
@@ -228,7 +305,7 @@ function handleLogout() {
                 v-model="selectedColor"
                 class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
               >
-                <option v-for="color in inventory.colorOptions" :key="color" :value="color">
+                <option v-for="color in colorOptions" :key="color" :value="color">
                   {{ color }}
                 </option>
               </select>
@@ -284,9 +361,9 @@ function handleLogout() {
                   <td class="px-4 py-3 text-center">
                     <span
                       class="inline-flex min-w-12 justify-center px-2 py-1 text-[11px] font-black"
-                      :class="statusClass[inventory.stockStatus(sku)]"
+                      :class="statusClass[stockStatus(sku)]"
                     >
-                      {{ statusLabel[inventory.stockStatus(sku)] }}
+                      {{ statusLabel[stockStatus(sku)] }}
                     </span>
                   </td>
                   <td class="px-4 py-3 text-center">
@@ -303,7 +380,11 @@ function handleLogout() {
                     >
                       <span
                         class="flex h-4 w-4 items-center justify-center rounded-full shadow-sm transition-colors"
-                        :class="sku.stock === 0 ? 'bg-white/50 text-red-300' : 'bg-white text-[#97BFB4] group-hover:bg-[#004D3C] group-hover:text-white'"
+                        :class="
+                          sku.stock === 0
+                            ? 'bg-white/50 text-red-300'
+                            : 'bg-white text-[#97BFB4] group-hover:bg-[#004D3C] group-hover:text-white'
+                        "
                       >
                         <Plus v-if="sku.stock > 0" :size="10" stroke-width="3" />
                         <Ban v-else :size="10" stroke-width="3" />
@@ -383,7 +464,7 @@ function handleLogout() {
                     :value="line.quantity"
                     type="number"
                     min="1"
-                    :max="inventory.getSkuById(line.skuId)?.stock ?? 1"
+                    :max="getSkuById(line.skuId)?.stock ?? 1"
                     class="h-8 w-16 border-x border-gray-300 text-center text-xs font-black text-gray-900 outline-none"
                     @input="updateLineQuantity(line, $event.target.value)"
                   />
@@ -459,7 +540,12 @@ function handleLogout() {
             class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600"
           >
             <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M5 13l4 4L19 7"
+              />
             </svg>
           </div>
           <p class="text-sm font-bold text-gray-500">정상적으로 판매가 등록되었습니다.</p>

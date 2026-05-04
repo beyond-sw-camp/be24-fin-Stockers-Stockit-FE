@@ -10,14 +10,33 @@ const STORAGE_KEY = 'stockit_user'
 // 팀 테스트용 더미 계정 (LoginView 데모 계정 클릭 시 사용).
 // BE 연동 완료 후에는 제거 예정. DevLoginView 는 실제 BE 호출 사용.
 const DUMMY_USERS = [
-  { email: 'hq@stockit.com',        password: 'hq1234',    role: 'hq',        name: '본사 관리자', employeeCode: 'hq0001' },
-  { email: 'store@stockit.com',     password: 'store1234', role: 'store',     name: '매장 관리자', employeeCode: 'st0001' },
-  { email: 'warehouse@stockit.com', password: 'wh1234',    role: 'warehouse', name: '창고 관리자', employeeCode: 'wa0001' },
+  {
+    email: 'hq@stockit.com',
+    password: 'hq1234',
+    role: 'hq',
+    name: '본사 관리자',
+    employeeCode: 'hq0001'
+  },
+  {
+    email: 'store@stockit.com',
+    password: 'store1234',
+    role: 'store',
+    name: '매장 관리자',
+    employeeCode: 'st0001',
+    storeCode: 'ST-0001',
+    storeLocationId: 2,
+  },
+  {
+    email: 'warehouse@stockit.com',
+    password: 'wh1234',
+    role: 'warehouse',
+    name: '창고 관리자',
+    employeeCode: 'wh0001'
+  },
 ]
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
-
   const isAuthenticated = computed(() => user.value !== null)
 
   /** 새로고침 시 localStorage 에서 사용자 정보 복원 */
@@ -46,6 +65,8 @@ export const useAuthStore = defineStore('auth', () => {
         employeeCode: dummy.employeeCode,
         name: dummy.name,
         role: dummy.role,
+        storeCode: dummy.storeCode,
+        storeLocationId: dummy.storeLocationId,
       }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(user.value))
       sessionStorage.removeItem('stockit:openTopMenus')

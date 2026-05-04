@@ -1,5 +1,5 @@
-<script setup>
-import { computed, ref } from 'vue'
+﻿<script setup>
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
@@ -23,31 +23,45 @@ const filteredSales = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase()
   return sales.sortedSales.filter((sale) => {
     if (!keyword) return true
-    const headline = sale.items.length > 1
-      ? `${sale.items[0].productName} 외 ${sale.items.length - 1}건`
-      : sale.items[0]?.productName ?? ''
-    return [
-      sale.saleId,
-      headline,
-      ...sale.items.map((item) => [item.productName, item.mainCategory, item.subCategory, item.color, item.size].join(' ')),
-    ].join(' ').toLowerCase().includes(keyword)
+    return [sale.saleId, sale.headline, sale.storeCode]
+      .join(' ')
+      .toLowerCase()
+      .includes(keyword)
   })
 })
 
-const selectedSale = computed(() =>
-  filteredSales.value.find((sale) => sale.saleId === selectedSaleId.value)
-  ?? filteredSales.value[0]
-  ?? null,
-)
+const selectedSale = computed(() => {
+  if (!sales.selectedSale) return null
+  const id = sales.selectedSale.saleId ?? sales.selectedSale.saleNo
+  return id === selectedSaleId.value ? sales.selectedSale : null
+})
 
 function headlineLabel(sale) {
+  if (sale?.headline) return sale.headline
   return buildHeadline(sale?.items)
 }
+
+async function loadSales() {
+  const storeCode = auth.user?.storeCode
+  const result = await sales.fetchSales(storeCode ? { storeCode } : {})
+  if (result?.success && filteredSales.value.length > 0) {
+    selectedSaleId.value = filteredSales.value[0].saleId
+  }
+}
+
+watch(selectedSaleId, async (nextId) => {
+  if (!nextId) return
+  await sales.fetchSaleDetail(nextId)
+})
 
 function handleLogout() {
   auth.logout()
   router.push('/login')
 }
+
+onMounted(async () => {
+  await loadSales()
+})
 </script>
 
 <template>
