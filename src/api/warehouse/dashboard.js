@@ -14,7 +14,7 @@
  * 인증 도입(ADR-011) 전 임시: warehouseId 는 옵셔널 query 파라미터.
  */
 
-import { apiClient, unwrap } from './axios.js'
+import { apiClient, unwrap } from '../axios.js'
 
 const BASE = '/api/warehouse/dashboard'
 

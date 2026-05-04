@@ -13,7 +13,7 @@
  * 인증 도입(ADR-011) 전 임시: warehouseId 는 query 파라미터로 받음 (FE 가 auth.user.storeId 전달).
  */
 
-import { apiClient, unwrap } from './axios.js'
+import { apiClient, unwrap } from '../axios.js'
 
 const BASE = '/api/warehouse/inbound'
 

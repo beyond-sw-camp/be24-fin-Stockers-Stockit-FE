@@ -77,12 +77,6 @@ export const roleMenus = {
       ],
     },
     {
-      label: 'AI 리포트',
-      path: '/hq/ai-report',
-      icon: 'chart',
-      children: [{ label: 'AI 리포트', path: '/hq/ai-report' }],
-    },
-    {
       label: 'ESG 대시보드',
       path: '/hq/esg',
       icon: 'sprout',

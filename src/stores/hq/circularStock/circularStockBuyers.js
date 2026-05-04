@@ -7,7 +7,7 @@
  */
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { circularBuyerApi } from '@/api/circularBuyer.js'
+import { circularBuyerApi } from '@/api/hq/circularBuyer.js'
 
 export const MATERIAL_FIT_OPTIONS = [
   { value: 'natural-single', label: '천연 단일 섬유' },

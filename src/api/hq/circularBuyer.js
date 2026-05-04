@@ -12,7 +12,7 @@
  * 응답: BaseResponse<T>. unwrap() 으로 result 만 추출, 실패 시 한국어 message throw.
  */
 
-import { apiClient, unwrap } from './axios.js'
+import { apiClient, unwrap } from '../axios.js'
 
 const BASE = '/api/hq/circular-buyers'
 

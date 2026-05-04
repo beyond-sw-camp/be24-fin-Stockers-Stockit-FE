@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { circularBuyerApi } from '@/api/circularBuyer.js'
+import { circularBuyerApi } from '@/api/hq/circularBuyer.js'
 import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
 import { useEsgStore } from '@/stores/esg.js'
 
