@@ -23,7 +23,7 @@ const sizeFilter = ref('전체')
 
 function handleLogout() {
   auth.logout()
-  router.push('/dev-login')
+  router.push('/login')
 }
 
 const dateLabel = computed(() =>

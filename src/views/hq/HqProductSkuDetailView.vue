@@ -82,7 +82,7 @@ async function removeSku(skuCode) {
 
 function handleLogout() {
   auth.logout()
-  router.push('/dev-login')
+  router.push('/login')
 }
 
 function goBack() {

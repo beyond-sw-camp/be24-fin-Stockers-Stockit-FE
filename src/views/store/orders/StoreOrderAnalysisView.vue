@@ -17,7 +17,7 @@ const activeSideMenu = ref('발주 분석')
 
 function handleLogout() {
   auth.logout()
-  router.push('/dev-login')
+  router.push('/login')
 }
 </script>
 

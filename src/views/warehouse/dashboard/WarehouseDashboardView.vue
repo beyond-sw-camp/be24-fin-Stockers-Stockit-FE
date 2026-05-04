@@ -30,7 +30,7 @@ const activeSideMenu = ref('창고 대시보드')
 
 function handleLogout() {
   auth.logout()
-  router.push('/dev-login')
+  router.push('/login')
 }
 
 function goTo(path) {

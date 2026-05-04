@@ -171,7 +171,7 @@ const alerts = [
 
 function handleLogout() {
   auth.logout()
-  router.push('/dev-login')
+  router.push('/login')
 }
 
 const goTo = (path) => router.push(path)
