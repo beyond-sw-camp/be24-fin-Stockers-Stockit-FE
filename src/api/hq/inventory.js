@@ -20,6 +20,21 @@ export async function getCircularCandidates() {
   return unwrap(res)
 }
 
+export async function getCircularInventories() {
+  const res = await api.get('/api/hq/inventories/circular')
+  return unwrap(res)
+}
+
+export async function getCircularMaterialPrices() {
+  const res = await api.get('/api/hq/circular-material-prices')
+  return unwrap(res)
+}
+
+export async function updateCircularMaterialPrice(materialCode, payload = {}) {
+  const res = await api.put(`/api/hq/circular-material-prices/${materialCode}`, payload)
+  return unwrap(res)
+}
+
 export async function convertCircularCandidates(items = []) {
   const res = await api.post('/api/hq/inventories/circular-candidates/convert', items)
   return unwrap(res)

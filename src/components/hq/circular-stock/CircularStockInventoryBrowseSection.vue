@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, useSlots } from 'vue'
+import { getInfrastructures } from '@/api/hq/infrastructure.js'
 
 const props = defineProps({
   title: {
@@ -56,6 +57,10 @@ const searchTerm = ref('')
 const materialFilters = ref([])
 const isMaterialDropdownOpen = ref(false)
 const materialDropdownRef = ref(null)
+const selectedWarehouseCodes = ref([])
+const warehouseOptions = ref([])
+const isWarehouseDropdownOpen = ref(false)
+const warehouseDropdownRef = ref(null)
 const sortKey = ref('')
 const sortDirection = ref('asc')
 const hoveredRowId = ref(null)
@@ -102,39 +107,59 @@ const materialKgPriceMap = {
   스판덱스: 2000,
 }
 const blendKgPrice = 1000
-const colorOptions = ['검정', '흰색', '네이비', '그레이']
-const colorCodeMap = { 검정: 'BLK', 흰색: 'WHT', 네이비: 'NVY', 그레이: 'GRY' }
-const sizeOptions = ['XS', 'S', 'M', 'L', 'XL']
 
 const hasActionColumn = computed(() => Boolean(slots['header-action'] || slots['row-action']))
 
 const activeMaterialFilters = computed(() =>
   materialFilters.value.filter(filter => filter.materialGroup),
 )
-
-const circularStockData = computed(() =>
-  props.inventoryRows.map((item) => ({
-    id: item.id,
-    itemCode: item.itemCode,
-    productCode: buildProductCode(item),
-    parentCategory: item.parentCategory,
-    childCategory: item.childCategory,
-    itemName: item.itemName,
-    unitPrice: resolveEstimatedUnitPrice(item),
-    materials: Array.isArray(item.materials) ? item.materials : [],
-    quantity: Number(item.quantity) || 0,
-    weight: `${Number(item.weightKg || 0).toFixed(1)}kg`,
-  })),
+const selectedWarehouseNames = computed(() =>
+  warehouseOptions.value
+    .filter(option => selectedWarehouseCodes.value.includes(option.code))
+    .map(option => option.name),
 )
+const warehouseSummaryLabel = computed(() => {
+  if (selectedWarehouseCodes.value.length === 0) return '전체 창고'
+  if (selectedWarehouseCodes.value.length === 1) return selectedWarehouseNames.value[0]
+  return `${selectedWarehouseCodes.value.length}개 창고 선택됨`
+})
 
 const normalizedInventoryData = computed(() =>
-  circularStockData.value.map(item => ({
-    ...item,
-    materials: item.materials.map(material => ({
-      ...material,
-      name: normalizeMaterialName(material.name),
-    })),
-  })),
+  (Array.isArray(props.inventoryRows) ? props.inventoryRows : [])
+    .map((row) => {
+      const compositions = Array.isArray(row.materialCompositions)
+        ? row.materialCompositions
+        : Array.isArray(row.materials) ? row.materials : []
+      const materials = compositions.map(comp => ({
+        name: normalizeMaterialName(comp.materialNameKo ?? comp.name ?? ''),
+        ratio: Number(comp.ratio ?? 0),
+      }))
+      const totalWeightKg = Number(row.totalWeightKg ?? row.weightKg ?? 0)
+      const availableQuantity = Number(row.availableQuantity ?? row.quantity ?? 0)
+      const materialKgPrice = Number(row.materialKgPrice ?? resolveMaterialKgPrice(materials))
+
+      return {
+        id: String(row.id ?? row.inventoryId ?? ''),
+        inventoryId: String(row.inventoryId ?? row.id ?? ''),
+        skuCode: String(row.skuCode ?? ''),
+        itemCode: String(row.itemCode ?? ''),
+        itemName: String(row.itemName ?? ''),
+        warehouseCode: String(row.warehouseCode ?? ''),
+        warehouseName: String(row.warehouseName ?? ''),
+        parentCategory: String(row.parentCategory ?? ''),
+        childCategory: String(row.childCategory ?? ''),
+        color: String(row.color ?? ''),
+        size: String(row.size ?? ''),
+        materialType: String(row.materialType ?? deriveMaterialType(materials)),
+        materials,
+        quantity: availableQuantity,
+        weight: `${Number(totalWeightKg || 0).toFixed(3)}kg`,
+        unitPrice: materialKgPrice,
+        materialKgPrice,
+        circularSalePrice: Number(row.circularSalePrice ?? Math.round(totalWeightKg * materialKgPrice)),
+      }
+    })
+    .filter(row => row.skuCode && row.inventoryId),
 )
 
 const materialFilterSummary = computed(() => {
@@ -152,50 +177,7 @@ const materialFilterSummary = computed(() => {
   return restCount > 0 ? `${firstLabel} 외 ${restCount}건` : firstLabel
 })
 
-const skuInventoryData = computed(() => {
-  const partitionRatios = [
-    0.08, 0.05, 0.06, 0.05, 0.04,
-    0.07, 0.06, 0.07, 0.06, 0.05,
-    0.05, 0.04, 0.05, 0.04, 0.04,
-    0.06, 0.04, 0.05, 0.04, 0.05,
-  ]
-
-  return normalizedInventoryData.value.flatMap((item) => {
-    const totalWeight = parseWeight(item.weight)
-    const sourceQuantity = Math.max(0, Number(item.quantity) || 0)
-    if (sourceQuantity <= 0 || totalWeight <= 0) {
-      return []
-    }
-    const perUnitWeight = totalWeight / sourceQuantity
-    const distributedQuantities = distributeWeightedIntegerByRatios(sourceQuantity, partitionRatios, String(item.id))
-
-    return colorOptions.flatMap((color, colorIndex) =>
-      sizeOptions.map((size, sizeIndex) => {
-        const partitionIndex = colorIndex * sizeOptions.length + sizeIndex
-        const quantity = distributedQuantities[partitionIndex] ?? 0
-        if (quantity <= 0) {
-          return null
-        }
-        const skuWeight = quantity * perUnitWeight
-
-        return {
-          id: `${item.id}-${color}-${size}`,
-          inventoryId: item.id,
-          skuCode: `${item.productCode}-${colorCodeMap[color]}-${size}`,
-          productCode: item.productCode,
-          itemCode: item.itemCode,
-          itemName: item.itemName,
-          color,
-          size,
-          materials: item.materials,
-          unitPrice: item.unitPrice,
-          quantity,
-          weight: `${skuWeight.toFixed(1)}kg`,
-        }
-      }),
-    ).filter(Boolean)
-  })
-})
+const skuInventoryData = computed(() => normalizedInventoryData.value)
 
 const filteredRowsBase = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase()
@@ -203,10 +185,10 @@ const filteredRowsBase = computed(() => {
   return skuInventoryData.value
     .map(item => ({
       ...item,
-      materialType: deriveMaterialType(item.materials),
+      materialType: item.materialType || deriveMaterialType(item.materials),
       materialDetail: formatMaterialDetail(item.materials),
-      materialKgPrice: resolveMaterialKgPrice(item.materials),
-      circularSalePrice: resolveCircularSalePrice(item),
+      materialKgPrice: Number(item.materialKgPrice ?? resolveMaterialKgPrice(item.materials)),
+      circularSalePrice: Number(item.circularSalePrice ?? resolveCircularSalePrice(item)),
     }))
     .filter((item) => {
       const matchesMaterial = activeMaterialFilters.value.every((filter) => {
@@ -230,8 +212,10 @@ const filteredRowsBase = computed(() => {
         .join(' ')
         .toLowerCase()
         .includes(keyword)
+      const matchesWarehouse = selectedWarehouseCodes.value.length === 0
+        || selectedWarehouseCodes.value.includes(item.warehouseCode)
 
-      return matchesMaterial && matchesSearch
+      return matchesMaterial && matchesSearch && matchesWarehouse
     })
 })
 
@@ -282,7 +266,7 @@ const isAllVisibleSelected = computed(() =>
 )
 
 const visibleDataColumnCount = computed(() => {
-  let count = 4 // SKU, 품목명, 소재 구분, 수량
+  let count = 5 // SKU, 품목명, 창고, 소재 구분, 수량
   if (props.showCircularSalePriceColumn) count += 1
   if (visibleColumns.value.color) count += 1
   if (visibleColumns.value.size) count += 1
@@ -295,83 +279,6 @@ function normalizeMaterialName(name) {
   const normalized = String(name ?? '').trim()
   const lower = normalized.toLowerCase()
   return materialNameAliasMap[lower] ?? materialNameAliasMap[normalized] ?? normalized
-}
-
-function buildProductCode(item) {
-  const categoryCodeMap = {
-    상의: 'TOP',
-    바지: 'PNT',
-    치마: 'SKT',
-    아우터: 'OUT',
-  }
-  const childCategoryCodeMap = {
-    반팔: 'SS',
-    긴팔: 'LS',
-    셔츠: 'SH',
-    니트: 'KN',
-    후드티: 'HD',
-    청바지: 'DN',
-    반바지: 'ST',
-    긴바지: 'LG',
-    트레이닝: 'TR',
-    미니스커트: 'MN',
-    롱스커트: 'LG',
-    패딩: 'PD',
-    후드집업: 'HZ',
-    자켓: 'JK',
-    가디건: 'CD',
-  }
-
-  const categoryCode = categoryCodeMap[item.parentCategory] ?? 'ETC'
-  const childCode = childCategoryCodeMap[item.childCategory] ?? 'GEN'
-  const numericPart = String(item.id ?? '').replace(/\D/g, '').padStart(3, '0').slice(-3)
-  return `PRD-${categoryCode}-${childCode}-${numericPart}`
-}
-
-function distributeWeightedIntegerByRatios(total, ratios, seedText = '') {
-  if (!Number.isFinite(total) || total <= 0) {
-    return ratios.map(() => 0)
-  }
-
-  const weightedRatios = ratios.map((ratio, index) => {
-    const variance = 0.8 + ((index * 11 + String(seedText).length * 7) % 6) * 0.1
-    return ratio * variance
-  })
-  const ratioSum = weightedRatios.reduce((sum, value) => sum + value, 0) || 1
-  const base = weightedRatios.map((ratio) => (total * ratio) / ratioSum)
-  const quantities = base.map(value => Math.floor(value))
-  let remainder = total - quantities.reduce((sum, value) => sum + value, 0)
-
-  const seed = String(seedText).split('').reduce((sum, char) => sum + char.charCodeAt(0), 0)
-  const rankedIndexes = base
-    .map((value, index) => ({
-      index,
-      fraction: value - Math.floor(value),
-      tieBreaker: (seed + index * 17) % 97,
-    }))
-    .sort((a, b) => (
-      b.fraction - a.fraction
-      || a.tieBreaker - b.tieBreaker
-      || a.index - b.index
-    ))
-
-  let cursor = 0
-  while (remainder > 0 && rankedIndexes.length > 0) {
-    const target = rankedIndexes[cursor % rankedIndexes.length]
-    quantities[target.index] += 1
-    remainder -= 1
-    cursor += 1
-  }
-
-  return quantities
-}
-
-function resolveEstimatedUnitPrice(item) {
-  const baseWeight = Number(item.weightKg) || 0
-  const quantity = Number(item.quantity) || 0
-  const materialPrice = resolveMaterialKgPrice(item.materials)
-  const perItemWeight = quantity > 0 ? baseWeight / quantity : 0
-  return Math.round(perItemWeight * materialPrice * 5)
 }
 
 function deriveMaterialType(materials) {
@@ -451,6 +358,20 @@ function clearMaterialFilters() {
   materialFilters.value = []
 }
 
+function toggleWarehouseDropdown() {
+  isWarehouseDropdownOpen.value = !isWarehouseDropdownOpen.value
+}
+
+function toggleWarehouseCode(code) {
+  selectedWarehouseCodes.value = selectedWarehouseCodes.value.includes(code)
+    ? selectedWarehouseCodes.value.filter(value => value !== code)
+    : [...selectedWarehouseCodes.value, code]
+}
+
+function clearWarehouseCodes() {
+  selectedWarehouseCodes.value = []
+}
+
 function toggleSort(key) {
   if (sortKey.value === key) {
     sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc'
@@ -469,12 +390,17 @@ function sortIcon(key) {
 function resetFilters() {
   searchTerm.value = ''
   materialFilters.value = []
+  selectedWarehouseCodes.value = []
   isMaterialDropdownOpen.value = false
+  isWarehouseDropdownOpen.value = false
 }
 
 function handleDocumentClick(event) {
   if (!materialDropdownRef.value?.contains(event.target)) {
     isMaterialDropdownOpen.value = false
+  }
+  if (!warehouseDropdownRef.value?.contains(event.target)) {
+    isWarehouseDropdownOpen.value = false
   }
 }
 
@@ -483,8 +409,23 @@ function handleRowClick(row) {
   emit('row-click', row)
 }
 
+async function loadWarehouseOptions() {
+  try {
+    const rows = await getInfrastructures({ type: 'WAREHOUSE', status: 'ACTIVE' })
+    warehouseOptions.value = Array.isArray(rows)
+      ? rows
+        .map(row => ({ code: String(row.code ?? ''), name: String(row.name ?? '') }))
+        .filter(row => row.code && row.name)
+        .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+      : []
+  } catch {
+    warehouseOptions.value = []
+  }
+}
+
 onMounted(() => {
   document.addEventListener('mousedown', handleDocumentClick)
+  loadWarehouseOptions()
 })
 
 onBeforeUnmount(() => {
@@ -495,7 +436,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="flex flex-col gap-4">
     <section class="border border-gray-200 bg-white p-4 shadow-sm">
-      <div class="grid items-end gap-3 xl:grid-cols-[minmax(24rem,1fr)_minmax(16rem,1fr)_auto]">
+      <div class="grid items-end gap-3 xl:grid-cols-[minmax(18rem,1fr)_minmax(14rem,1fr)_minmax(16rem,1fr)_auto]">
         <div ref="materialDropdownRef" class="relative flex flex-col gap-1.5">
           <span class="text-[11px] font-bold text-gray-500">소재 조건</span>
           <button
@@ -602,6 +543,47 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
+        <div ref="warehouseDropdownRef" class="relative flex flex-col gap-1.5">
+          <span class="text-[11px] font-bold text-gray-500">창고</span>
+          <button
+            type="button"
+            class="h-9 border border-gray-300 bg-white px-3 text-left text-xs font-bold text-gray-900 outline-none hover:bg-gray-50 focus:border-[#004D3C]"
+            @click.stop="toggleWarehouseDropdown"
+          >
+            <span>{{ warehouseSummaryLabel }}</span>
+            <span class="float-right text-[11px] text-gray-500">{{ isWarehouseDropdownOpen ? '▲' : '▼' }}</span>
+          </button>
+          <div
+            v-if="isWarehouseDropdownOpen"
+            class="absolute top-[58px] z-20 w-full border border-gray-200 bg-white p-2 shadow-lg"
+            @click.stop
+          >
+            <div class="mb-2 flex items-center justify-between">
+              <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-500">Warehouse</p>
+              <button
+                type="button"
+                class="text-[10px] font-black text-gray-500 hover:text-gray-700"
+                @click="clearWarehouseCodes"
+              >
+                전체 해제
+              </button>
+            </div>
+            <label
+              v-for="option in warehouseOptions"
+              :key="option.code"
+              class="flex cursor-pointer items-start gap-2 rounded px-2 py-1.5 hover:bg-[#EBF5F5]/60"
+            >
+              <input
+                type="checkbox"
+                class="mt-0.5 h-3.5 w-3.5 accent-[#004D3C]"
+                :checked="selectedWarehouseCodes.includes(option.code)"
+                @change="toggleWarehouseCode(option.code)"
+              />
+              <span class="text-[11px] font-bold text-gray-700">{{ option.name }}</span>
+            </label>
+          </div>
+        </div>
+
         <label class="flex flex-col gap-1.5">
           <span class="text-[11px] font-bold text-gray-500">검색</span>
           <input
@@ -653,8 +635,9 @@ onBeforeUnmount(() => {
         <table class="w-full min-w-[980px] table-fixed border-collapse text-left text-xs">
           <colgroup>
             <col v-if="hasActionColumn && actionColumnPosition === 'start'" class="w-[4%]" />
-            <col class="w-[14%]" />
-            <col class="w-[14%]" />
+            <col class="w-[13%]" />
+            <col class="w-[13%]" />
+            <col class="w-[10%]" />
             <col v-if="visibleColumns.color" class="w-[5%]" />
             <col v-if="visibleColumns.size" class="w-[6%]" />
             <col class="w-[10%]" />
@@ -684,6 +667,7 @@ onBeforeUnmount(() => {
                 </button>
               </th>
               <th class="sticky left-[170px] z-20 bg-gray-50 px-3 py-3 font-black">품목명</th>
+              <th class="px-3 py-3 font-black">창고</th>
               <th v-if="visibleColumns.color" class="px-3 py-3 text-center font-black">색상</th>
               <th v-if="visibleColumns.size" class="px-3 py-3 text-center font-black">사이즈</th>
               <th class="px-3 py-3 font-black">소재 구분</th>
@@ -761,6 +745,7 @@ onBeforeUnmount(() => {
                     ? 'bg-[#EBF5F5]/60'
                     : 'bg-white'"
               >{{ item.itemName }}</td>
+              <td class="px-3 py-3 font-bold text-gray-700">{{ item.warehouseName || '-' }}</td>
               <td v-if="visibleColumns.color" class="px-3 py-3 text-center font-black text-gray-900">{{ item.color }}</td>
               <td v-if="visibleColumns.size" class="px-3 py-3 text-center font-black text-gray-900">{{ item.size }}</td>
               <td class="px-3 py-3 font-black text-gray-900">{{ item.materialType }}</td>
