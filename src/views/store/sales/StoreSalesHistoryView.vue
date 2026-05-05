@@ -1,11 +1,23 @@
 ﻿<script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+/**
+ * ==============================================================================
+ * 1. IMPORTS
+ * ==============================================================================
+ */
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useSalesStore } from '@/stores/store/storeSales.js'
+import { getSaleDetail, getSales } from '@/api/store/sales.js'
 import { buildHeadline, formatDateTime } from '@/features/store/common/ui.js'
+
+/**
+ * ==============================================================================
+ * 2. STATE & REFS
+ * ==============================================================================
+ */
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -13,12 +25,23 @@ const sales = useSalesStore()
 
 const storeMenus = roleMenus.store
 const salesMenus = roleMenus.store.find((menu) => menu.label === '판매 관리')?.children ?? []
-const activeTopMenu = computed(() => '판매 관리')
-const activeSideMenu = ref('판매 내역')
+const activeMainMenu = computed(() => '판매 관리')
+const activeSubMenu = ref('판매 내역')
 
 const searchTerm = ref('')
 const selectedSaleId = ref('')
+const listQuery = reactive({
+  storeCode: '',
+  from: '',
+  to: '',
+  keyword: '',
+})
 
+/**
+ * ==============================================================================
+ * 3. COMPUTED
+ * ==============================================================================
+ */
 const filteredSales = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase()
   return sales.sortedSales.filter((sale) => {
@@ -36,29 +59,126 @@ const selectedSale = computed(() => {
   return id === selectedSaleId.value ? sales.selectedSale : null
 })
 
+/**
+ * ==============================================================================
+ * 4. METHODS - UI STATE
+ * ==============================================================================
+ */
+// [함수] 판매 건의 대표 문구를 생성한다.
 function headlineLabel(sale) {
   if (sale?.headline) return sale.headline
   return buildHeadline(sale?.items)
 }
 
+/**
+ * ==============================================================================
+ * 5. METHODS - API SERVICE
+ * ==============================================================================
+ */
+// [함수] 판매 목록 API를 호출하고 화면 상태를 갱신한다.
 async function loadSales() {
-  const storeCode = auth.user?.storeCode
-  const result = await sales.fetchSales(storeCode ? { storeCode } : {})
-  if (result?.success && filteredSales.value.length > 0) {
-    selectedSaleId.value = filteredSales.value[0].saleId
+  listQuery.storeCode = auth.user?.storeCode ?? ''
+  listQuery.keyword = searchTerm.value.trim()
+  try {
+    sales.setLoading(true)
+    sales.setError('')
+    const params = {}
+    if (listQuery.storeCode) params.storeCode = listQuery.storeCode
+    if (listQuery.from) params.from = listQuery.from
+    if (listQuery.to) params.to = listQuery.to
+    if (listQuery.keyword) params.keyword = listQuery.keyword
+    const list = await getSales(params)
+    sales.setSales(
+      (list ?? []).map((row) => ({
+        saleNo: row.saleNo,
+        saleId: row.saleNo,
+        storeCode: row.storeCode,
+        soldAt: row.soldAt,
+        totalQuantity: row.totalQuantity,
+        totalAmount: row.totalAmount,
+        headline: row.headline ?? '',
+        items: [],
+      })),
+    )
+    if (filteredSales.value.length > 0) {
+      selectedSaleId.value = filteredSales.value[0].saleId
+    }
+  } catch (e) {
+    sales.setError(e?.message ?? '판매 목록 조회에 실패했습니다.')
+  } finally {
+    sales.setLoading(false)
   }
 }
 
-watch(selectedSaleId, async (nextId) => {
+// [함수] 선택된 판매번호 기준으로 상세 API를 호출해 상세 패널 상태를 갱신한다.
+async function loadSaleDetail(nextId) {
   if (!nextId) return
-  await sales.fetchSaleDetail(nextId)
-})
+  try {
+    sales.setLoading(true)
+    sales.setError('')
+    const detail = await getSaleDetail(nextId)
+    sales.setSelectedSale({
+      saleNo: detail.saleNo,
+      saleId: detail.saleNo,
+      storeCode: detail.storeCode,
+      soldAt: detail.soldAt,
+      totalQuantity: detail.totalQuantity,
+      totalAmount: detail.totalAmount,
+      status: detail.status,
+      items: (detail.items ?? []).map((item) => ({
+        skuCode: item.skuCode,
+        skuId: item.skuCode,
+        productCode: item.productCode,
+        productId: item.productCode,
+        productName: item.productName,
+        mainCategory: item.mainCategory,
+        subCategory: item.subCategory,
+        color: item.color,
+        size: item.size,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        lineAmount: item.lineAmount,
+      })),
+    })
+  } catch (e) {
+    sales.setError(e?.message ?? '판매 상세 조회에 실패했습니다.')
+    sales.setSelectedSale(null)
+  } finally {
+    sales.setLoading(false)
+  }
+}
 
+/**
+ * ==============================================================================
+ * 6. METHODS - NAVIGATION
+ * ==============================================================================
+ */
+// [함수] 로그아웃 후 로그인 화면으로 이동한다.
 function handleLogout() {
   auth.logout()
   router.push('/login')
 }
 
+/**
+ * ==============================================================================
+ * 7. WATCHERS
+ * ==============================================================================
+ */
+// [함수] 선택된 판매번호가 바뀌면 상세 API를 호출해 상세 패널 상태를 갱신한다.
+watch(selectedSaleId, async (nextId) => {
+  await loadSaleDetail(nextId)
+})
+
+// [함수] 검색어가 바뀌면 판매 목록 API를 다시 호출한다.
+watch(searchTerm, async () => {
+  await loadSales()
+})
+
+/**
+ * ==============================================================================
+ * 8. LIFECYCLE
+ * ==============================================================================
+ */
 onMounted(async () => {
   await loadSales()
 })
@@ -66,10 +186,10 @@ onMounted(async () => {
 
 <template>
   <AppLayout
-    :active-top-menu="activeTopMenu"
+    :active-top-menu="activeMainMenu"
     :top-menus="storeMenus"
     :side-menus="salesMenus"
-    v-model:active-side-menu="activeSideMenu"
+    v-model:active-side-menu="activeSubMenu"
     @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
