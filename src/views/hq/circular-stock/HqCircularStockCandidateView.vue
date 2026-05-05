@@ -1,9 +1,10 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { getCircularCandidates, refreshCircularCandidates } from '@/api/hq/inventory.js'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -15,9 +16,12 @@ const activeSideMenu = ref('순환 재고 후보 조회')
 const hasRefreshed = ref(false)
 const candidateSkus = ref([])
 const selectedSkuCodes = ref([])
-const selectedCategory = ref('')
+const selectedParentCategory = ref('')
+const selectedChildCategory = ref('')
 const selectedWarehouse = ref('')
 const searchTerm = ref('')
+const isLoading = ref(false)
+const loadError = ref('')
 
 const PAGE_SIZE = 20
 const currentPage = ref(1)
@@ -30,90 +34,59 @@ const conditionItems = [
   '극단 사이즈 재고 또는 특정 컬러 재고에 편중된 SKU',
 ]
 
-const baseCandidates = [
-  {
-    id: 'CIR-001',
-    itemCode: 'SPA-TOP-004',
-    category: '상의 > 니트',
-    itemName: '라운드넥 소프트 니트',
-    warehouseName: '이천 풀필먼트',
-    convertibleStock: 86,
-  },
-  {
-    id: 'CIR-002',
-    itemCode: 'SPA-PNT-003',
-    category: '바지 > 긴바지',
-    itemName: '와이드 밴딩 팬츠 XXXL',
-    warehouseName: '대전 허브창고',
-    convertibleStock: 24,
-  },
-  {
-    id: 'CIR-003',
-    itemCode: 'SPA-OUT-004',
-    category: '아우터 > 가디건',
-    itemName: '브이넥 니트 가디건 라임',
-    warehouseName: '부산 물류창고',
-    convertibleStock: 37,
-  },
-  {
-    id: 'CIR-004',
-    itemCode: 'SPA-SKT-002',
-    category: '치마 > 롱스커트',
-    itemName: '플리츠 롱스커트 XS',
-    warehouseName: '인천 제1창고',
-    convertibleStock: 19,
-  },
-  {
-    id: 'CIR-005',
-    itemCode: 'SPA-TOP-002',
-    category: '상의 > 긴팔',
-    itemName: '슬림핏 긴팔 티셔츠 머스타드',
-    warehouseName: '이천 풀필먼트',
-    convertibleStock: 52,
-  },
-]
+const buildMatchedConditionIndexes = (matchedConditionCodes = []) =>
+  matchedConditionCodes
+    .map(code => Number(code))
+    .filter(code => Number.isInteger(code) && code >= 1 && code <= conditionItems.length)
 
-const colorOptions = ['검정', '흰색', '그레이', '아이보리']
-const colorCodeMap = { 검정: 'BLK', 흰색: 'WHT', 그레이: 'GRY', 아이보리: 'IVR' }
-const sizeOptions = ['XS', 'S', 'M', 'L', 'XL']
+const buildMatchedConditionTooltip = (matchedConditionIndexes = []) =>
+  matchedConditionIndexes
+    .map(index => `${index}. ${conditionItems[index - 1]}`)
+    .join(' / ')
 
-const buildCandidateSkus = () =>
-  baseCandidates.flatMap((candidate, cIndex) => {
-    const seed = `${candidate.itemCode}-${candidate.warehouseName}`
-      .split('')
-      .reduce((sum, char) => sum + char.charCodeAt(0), 0)
+const mapCandidateRow = (row) => {
+  const matchedConditionIndexes = buildMatchedConditionIndexes(row.matchedConditionCodes)
+  return {
+    id: String(row.inventoryId ?? row.skuCode ?? ''),
+    skuCode: String(row.skuCode ?? ''),
+    itemCode: String(row.itemCode ?? ''),
+    category: `${row.parentCategory ?? ''} > ${row.childCategory ?? ''}`.replace(/^ > | > $/g, ''),
+    itemName: String(row.itemName ?? ''),
+    warehouseName: String(row.warehouseName ?? ''),
+    color: String(row.color ?? ''),
+    size: String(row.size ?? ''),
+    actualStock: Number(row.actualStock ?? 0),
+    availableStock: Number(row.availableStock ?? 0),
+    convertibleStock: Number(row.convertibleStock ?? 0),
+    updatedAt: row.updatedAt ? new Date(row.updatedAt).toLocaleString('ko-KR', { hour12: false }) : '-',
+    matchedConditionIndexes,
+    matchedConditionLabel: matchedConditionIndexes.join('·'),
+    matchedConditionTooltip: buildMatchedConditionTooltip(matchedConditionIndexes),
+  }
+}
 
-    return colorOptions.flatMap((color, colorIndex) =>
-      sizeOptions.map((size, sizeIndex) => {
-        const actualStock = 12 + ((seed + colorIndex * 17 + sizeIndex * 9) % 55)
-        const availableStock = Math.max(actualStock - ((seed + colorIndex * 5 + sizeIndex * 3) % 11), 0)
-        const convertibleStock = Math.max(
-          1,
-          Math.min(availableStock, 1 + ((seed + colorIndex * 13 + sizeIndex * 7 + cIndex) % 18)),
-        )
-        const updatedDay = String(28 - ((cIndex + colorIndex + sizeIndex) % 12)).padStart(2, '0')
-        const updatedHour = String(9 + ((sizeIndex + colorIndex) % 9)).padStart(2, '0')
+const parseCategory = (categoryLabel) => {
+  const [parent = '', child = ''] = String(categoryLabel ?? '').split('>').map(part => part.trim())
+  return { parentCategory: parent, childCategory: child }
+}
 
-        return {
-          id: `${candidate.id}-${color}-${size}`,
-          skuCode: `${candidate.itemCode}-${colorCodeMap[color]}-${size}`,
-          itemCode: candidate.itemCode,
-          category: candidate.category,
-          itemName: candidate.itemName,
-          warehouseName: candidate.warehouseName,
-          color,
-          size,
-          availableStock,
-          convertibleStock,
-          updatedAt: `2026.04.${updatedDay} ${updatedHour}:20`,
-        }
-      }),
-    )
-  })
-
-const categoryOptions = computed(() =>
-  [...new Set(candidateSkus.value.map(row => row.category))].sort((a, b) => a.localeCompare(b, 'ko')),
+const parentCategoryOptions = computed(() =>
+  [...new Set(candidateSkus.value.map(row => parseCategory(row.category).parentCategory).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'ko')),
 )
+
+const childCategoryOptions = computed(() => {
+  if (!selectedParentCategory.value) return []
+
+  return [...new Set(
+    candidateSkus.value
+      .map((row) => {
+        const parsed = parseCategory(row.category)
+        return parsed.parentCategory === selectedParentCategory.value ? parsed.childCategory : ''
+      })
+      .filter(Boolean),
+  )].sort((a, b) => a.localeCompare(b, 'ko'))
+})
 
 const warehouseOptions = computed(() =>
   [...new Set(candidateSkus.value.map(row => row.warehouseName))].sort((a, b) => a.localeCompare(b, 'ko')),
@@ -123,12 +96,14 @@ const filteredSkus = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase()
 
   return candidateSkus.value.filter((row) => {
-    const matchesCategory = !selectedCategory.value || row.category === selectedCategory.value
+    const { parentCategory, childCategory } = parseCategory(row.category)
+    const matchesParentCategory = !selectedParentCategory.value || parentCategory === selectedParentCategory.value
+    const matchesChildCategory = !selectedChildCategory.value || childCategory === selectedChildCategory.value
     const matchesWarehouse = !selectedWarehouse.value || row.warehouseName === selectedWarehouse.value
     const matchesKeyword = !keyword
       || [row.skuCode, row.itemCode, row.itemName].join(' ').toLowerCase().includes(keyword)
 
-    return matchesCategory && matchesWarehouse && matchesKeyword
+    return matchesParentCategory && matchesChildCategory && matchesWarehouse && matchesKeyword
   })
 })
 
@@ -186,17 +161,47 @@ watch(totalPages, (pageCount) => {
   if (currentPage.value > pageCount) currentPage.value = pageCount
 })
 
-watch([selectedCategory, selectedWarehouse, searchTerm], () => {
+watch(selectedParentCategory, () => {
+  selectedChildCategory.value = ''
+})
+
+watch([selectedParentCategory, selectedChildCategory, selectedWarehouse, searchTerm], () => {
   currentPage.value = 1
 })
 
-const refreshCandidates = () => {
-  hasRefreshed.value = true
-  candidateSkus.value = buildCandidateSkus()
-  selectedSkuCodes.value = []
-  currentPage.value = 1
-  sortKey.value = 'convertibleStock'
-  sortDirection.value = 'desc'
+const loadCandidates = async () => {
+  isLoading.value = true
+  loadError.value = ''
+  try {
+    const rows = await getCircularCandidates()
+    candidateSkus.value = Array.isArray(rows) ? rows.map(mapCandidateRow) : []
+    hasRefreshed.value = true
+  } catch (e) {
+    loadError.value = e.message || '순환 재고 후보 조회에 실패했습니다.'
+    candidateSkus.value = []
+    hasRefreshed.value = true
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const refreshCandidates = async () => {
+  isLoading.value = true
+  loadError.value = ''
+  try {
+    await refreshCircularCandidates()
+    await loadCandidates()
+    selectedSkuCodes.value = []
+    selectedParentCategory.value = ''
+    selectedChildCategory.value = ''
+    currentPage.value = 1
+    sortKey.value = 'convertibleStock'
+    sortDirection.value = 'desc'
+  } catch (e) {
+    loadError.value = e.message || '순환 재고 후보 갱신에 실패했습니다.'
+  } finally {
+    isLoading.value = false
+  }
 }
 
 const toggleSort = (key) => {
@@ -238,6 +243,10 @@ function handleLogout() {
   auth.logout()
   router.push('/login')
 }
+
+onMounted(() => {
+  loadCandidates()
+})
 </script>
 
 <template>
@@ -261,9 +270,10 @@ function handleLogout() {
             <button
               type="button"
               class="h-9 border border-gray-300 bg-white px-4 text-xs font-black text-gray-700 hover:bg-gray-50"
+              :disabled="isLoading"
               @click="refreshCandidates"
             >
-              재고 새로고침
+              {{ isLoading ? '갱신 중...' : '재고 새로고침' }}
             </button>
             <button
               type="button"
@@ -291,6 +301,7 @@ function handleLogout() {
             </span>
           </div>
         </div>
+        <p v-if="loadError" class="mt-3 text-xs font-bold text-red-600">{{ loadError }}</p>
       </section>
 
       <section class="min-w-0 border border-gray-200 bg-white shadow-sm">
@@ -308,16 +319,30 @@ function handleLogout() {
 
         <div
           v-if="hasRefreshed"
-          class="grid gap-3 border-b border-gray-100 px-4 py-3 xl:grid-cols-[0.9fr_1fr_1.4fr]"
+          class="grid gap-3 border-b border-gray-100 px-4 py-3 xl:grid-cols-[0.9fr_0.9fr_1fr_1.4fr]"
         >
           <label class="flex flex-col gap-1.5">
-            <span class="text-[11px] font-bold text-gray-500">카테고리</span>
+            <span class="text-[11px] font-bold text-gray-500">대분류</span>
             <select
-              v-model="selectedCategory"
+              v-model="selectedParentCategory"
               class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
             >
-              <option value="">전체</option>
-              <option v-for="category in categoryOptions" :key="category" :value="category">
+              <option value="">전체 대분류</option>
+              <option v-for="category in parentCategoryOptions" :key="category" :value="category">
+                {{ category }}
+              </option>
+            </select>
+          </label>
+
+          <label class="flex flex-col gap-1.5">
+            <span class="text-[11px] font-bold text-gray-500">소분류</span>
+            <select
+              v-model="selectedChildCategory"
+              :disabled="!selectedParentCategory"
+              class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 focus:border-[#004D3C]"
+            >
+              <option value="">전체 소분류</option>
+              <option v-for="category in childCategoryOptions" :key="category" :value="category">
                 {{ category }}
               </option>
             </select>
@@ -388,6 +413,7 @@ function handleLogout() {
                     <span class="text-[9px]">{{ sortIcon('convertibleStock') }}</span>
                   </button>
                 </th>
+                <th class="px-3 py-3 font-black">후보 조건</th>
                 <th class="px-3 py-3 font-black">
                   <button type="button" class="inline-flex items-center gap-1 hover:text-gray-900" @click="toggleSort('updatedAt')">
                     최종 업데이트
@@ -421,10 +447,15 @@ function handleLogout() {
                 <td class="px-3 py-3 text-center font-black text-gray-900">{{ row.size }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ row.availableStock.toLocaleString() }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ row.convertibleStock.toLocaleString() }}</td>
+                <td class="px-3 py-3" :title="row.matchedConditionTooltip">
+                  <span class="inline-flex items-center bg-[#EBF5F5] px-2 py-1 text-[10px] font-black text-[#004D3C]">
+                    {{ row.matchedConditionLabel }}
+                  </span>
+                </td>
                 <td class="px-3 py-3 font-bold text-gray-500">{{ row.updatedAt }}</td>
               </tr>
               <tr v-if="paginatedSkus.length === 0">
-                <td colspan="11" class="px-3 py-14 text-center text-sm font-bold text-gray-400">
+                <td colspan="12" class="px-3 py-14 text-center text-sm font-bold text-gray-400">
                   조건에 맞는 순환 재고 후보가 없습니다.
                 </td>
               </tr>
