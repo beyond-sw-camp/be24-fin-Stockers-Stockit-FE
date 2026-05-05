@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
@@ -12,8 +12,8 @@ const sales = useSalesStore()
 
 const storeMenus = roleMenus.store
 const salesMenus = roleMenus.store.find((menu) => menu.label === '판매 관리')?.children ?? []
-const activeTopMenu = computed(() => '판매 관리')
-const activeSideMenu = ref('판매 분석')
+const activeMainMenu = computed(() => '판매 관리')
+const activeSubMenu = ref('판매 분석')
 
 const topProducts = computed(() => {
   const map = new Map()
@@ -42,10 +42,10 @@ function handleLogout() {
 
 <template>
   <AppLayout
-    :active-top-menu="activeTopMenu"
+    :active-top-menu="activeMainMenu"
     :top-menus="storeMenus"
     :side-menus="salesMenus"
-    v-model:active-side-menu="activeSideMenu"
+    v-model:active-side-menu="activeSubMenu"
     @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">

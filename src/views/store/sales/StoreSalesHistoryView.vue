@@ -1,11 +1,23 @@
-<script setup>
-import { computed, ref } from 'vue'
+﻿<script setup>
+/**
+ * ==============================================================================
+ * 1. IMPORTS
+ * ==============================================================================
+ */
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useSalesStore } from '@/stores/store/storeSales.js'
+import { getSaleDetail, getSales } from '@/api/store/sales.js'
 import { buildHeadline, formatDateTime } from '@/features/store/common/ui.js'
+
+/**
+ * ==============================================================================
+ * 2. STATE & REFS
+ * ==============================================================================
+ */
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -13,49 +25,171 @@ const sales = useSalesStore()
 
 const storeMenus = roleMenus.store
 const salesMenus = roleMenus.store.find((menu) => menu.label === '판매 관리')?.children ?? []
-const activeTopMenu = computed(() => '판매 관리')
-const activeSideMenu = ref('판매 내역')
+const activeMainMenu = computed(() => '판매 관리')
+const activeSubMenu = ref('판매 내역')
 
 const searchTerm = ref('')
 const selectedSaleId = ref('')
+const listQuery = reactive({
+  storeCode: '',
+  from: '',
+  to: '',
+  keyword: '',
+})
 
+/**
+ * ==============================================================================
+ * 3. COMPUTED
+ * ==============================================================================
+ */
 const filteredSales = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase()
   return sales.sortedSales.filter((sale) => {
     if (!keyword) return true
-    const headline = sale.items.length > 1
-      ? `${sale.items[0].productName} 외 ${sale.items.length - 1}건`
-      : sale.items[0]?.productName ?? ''
-    return [
-      sale.saleId,
-      headline,
-      ...sale.items.map((item) => [item.productName, item.mainCategory, item.subCategory, item.color, item.size].join(' ')),
-    ].join(' ').toLowerCase().includes(keyword)
+    return [sale.saleId, sale.headline, sale.storeCode]
+      .join(' ')
+      .toLowerCase()
+      .includes(keyword)
   })
 })
 
-const selectedSale = computed(() =>
-  filteredSales.value.find((sale) => sale.saleId === selectedSaleId.value)
-  ?? filteredSales.value[0]
-  ?? null,
-)
+const selectedSale = computed(() => {
+  if (!sales.selectedSale) return null
+  const id = sales.selectedSale.saleId ?? sales.selectedSale.saleNo
+  return id === selectedSaleId.value ? sales.selectedSale : null
+})
 
+/**
+ * ==============================================================================
+ * 4. METHODS - UI STATE
+ * ==============================================================================
+ */
+// [함수] 판매 건의 대표 문구를 생성한다.
 function headlineLabel(sale) {
+  if (sale?.headline) return sale.headline
   return buildHeadline(sale?.items)
 }
 
+/**
+ * ==============================================================================
+ * 5. METHODS - API SERVICE
+ * ==============================================================================
+ */
+// [함수] 판매 목록 API를 호출하고 화면 상태를 갱신한다.
+async function loadSales() {
+  listQuery.storeCode = auth.user?.storeCode ?? ''
+  listQuery.keyword = searchTerm.value.trim()
+  try {
+    sales.setLoading(true)
+    sales.setError('')
+    const params = {}
+    if (listQuery.storeCode) params.storeCode = listQuery.storeCode
+    if (listQuery.from) params.from = listQuery.from
+    if (listQuery.to) params.to = listQuery.to
+    if (listQuery.keyword) params.keyword = listQuery.keyword
+    const list = await getSales(params)
+    sales.setSales(
+      (list ?? []).map((row) => ({
+        saleNo: row.saleNo,
+        saleId: row.saleNo,
+        storeCode: row.storeCode,
+        soldAt: row.soldAt,
+        totalQuantity: row.totalQuantity,
+        totalAmount: row.totalAmount,
+        headline: row.headline ?? '',
+        items: [],
+      })),
+    )
+    if (filteredSales.value.length > 0) {
+      selectedSaleId.value = filteredSales.value[0].saleId
+    }
+  } catch (e) {
+    sales.setError(e?.message ?? '판매 목록 조회에 실패했습니다.')
+  } finally {
+    sales.setLoading(false)
+  }
+}
+
+// [함수] 선택된 판매번호 기준으로 상세 API를 호출해 상세 패널 상태를 갱신한다.
+async function loadSaleDetail(nextId) {
+  if (!nextId) return
+  try {
+    sales.setLoading(true)
+    sales.setError('')
+    const detail = await getSaleDetail(nextId)
+    sales.setSelectedSale({
+      saleNo: detail.saleNo,
+      saleId: detail.saleNo,
+      storeCode: detail.storeCode,
+      soldAt: detail.soldAt,
+      totalQuantity: detail.totalQuantity,
+      totalAmount: detail.totalAmount,
+      status: detail.status,
+      items: (detail.items ?? []).map((item) => ({
+        skuCode: item.skuCode,
+        skuId: item.skuCode,
+        productCode: item.productCode,
+        productId: item.productCode,
+        productName: item.productName,
+        mainCategory: item.mainCategory,
+        subCategory: item.subCategory,
+        color: item.color,
+        size: item.size,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        lineAmount: item.lineAmount,
+      })),
+    })
+  } catch (e) {
+    sales.setError(e?.message ?? '판매 상세 조회에 실패했습니다.')
+    sales.setSelectedSale(null)
+  } finally {
+    sales.setLoading(false)
+  }
+}
+
+/**
+ * ==============================================================================
+ * 6. METHODS - NAVIGATION
+ * ==============================================================================
+ */
+// [함수] 로그아웃 후 로그인 화면으로 이동한다.
 function handleLogout() {
   auth.logout()
   router.push('/login')
 }
+
+/**
+ * ==============================================================================
+ * 7. WATCHERS
+ * ==============================================================================
+ */
+// [함수] 선택된 판매번호가 바뀌면 상세 API를 호출해 상세 패널 상태를 갱신한다.
+watch(selectedSaleId, async (nextId) => {
+  await loadSaleDetail(nextId)
+})
+
+// [함수] 검색어가 바뀌면 판매 목록 API를 다시 호출한다.
+watch(searchTerm, async () => {
+  await loadSales()
+})
+
+/**
+ * ==============================================================================
+ * 8. LIFECYCLE
+ * ==============================================================================
+ */
+onMounted(async () => {
+  await loadSales()
+})
 </script>
 
 <template>
   <AppLayout
-    :active-top-menu="activeTopMenu"
+    :active-top-menu="activeMainMenu"
     :top-menus="storeMenus"
     :side-menus="salesMenus"
-    v-model:active-side-menu="activeSideMenu"
+    v-model:active-side-menu="activeSubMenu"
     @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
