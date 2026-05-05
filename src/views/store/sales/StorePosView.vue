@@ -10,7 +10,7 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useSalesStore } from '@/stores/store/storeSales.js'
-import { getCompanyWideInventories, getCompanyWideInventorySkus } from '@/api/inventory.js'
+import { getCompanyWideInventories, getCompanyWideInventorySkus } from '@/api/hq/inventory.js'
 import { createSale } from '@/api/store/sales.js'
 
 import { Plus, Ban } from 'lucide-vue-next'
