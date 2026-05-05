@@ -5,7 +5,7 @@ import { ArrowLeft, ChevronRight, Tags } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { createCategory, getCategories } from '@/api/category.js'
+import { createCategory, getCategories } from '@/api/hq/category.js'
 
 const router = useRouter()
 const auth = useAuthStore()

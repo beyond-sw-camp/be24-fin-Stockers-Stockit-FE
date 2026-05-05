@@ -5,7 +5,7 @@ import { ArrowLeft, ChevronRight, Package } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { getCategories } from '@/api/category.js'
+import { getCategories } from '@/api/hq/category.js'
 import { vendorApi } from '@/api/hq/vendor.js'
 import {
   createProduct,
@@ -16,7 +16,7 @@ import {
   getProductDetail,
   getProductSkus,
   updateProduct,
-} from '@/api/productMaster.js'
+} from '@/api/hq/productMaster.js'
 
 const route = useRoute()
 const router = useRouter()

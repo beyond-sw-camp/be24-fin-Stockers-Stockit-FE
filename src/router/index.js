@@ -43,13 +43,13 @@ import HqWarehouseSkuTransferDetailView from '@/views/hq/inventory/HqWarehouseSk
 import HqWarehouseTransferHistoryView from '@/views/hq/inventory/HqWarehouseTransferHistoryView.vue'
 import HqWarehouseTransferHistoryDetailView from '@/views/hq/inventory/HqWarehouseTransferHistoryDetailView.vue'
 import HqCompanyWideInventorySkuDetailView from '@/views/hq/inventory/HqCompanyWideInventorySkuDetailView.vue'
-import HqProductManagementView from '@/views/hq/HqProductManagementView.vue'
-import HqInfrastructureManagementView from '@/views/hq/HqInfrastructureManagementView.vue'
-import HqStoreDetailView from '@/views/hq/HqStoreDetailView.vue'
-import HqWarehouseDetailView from '@/views/hq/HqWarehouseDetailView.vue'
+import HqProductManagementView from '@/views/hq/products/HqProductManagementView.vue'
+import HqInfrastructureManagementView from '@/views/hq/infrastructure/HqInfrastructureManagementView.vue'
+import HqStoreDetailView from '@/views/hq/infrastructure/HqStoreDetailView.vue'
+import HqWarehouseDetailView from '@/views/hq/infrastructure/HqWarehouseDetailView.vue'
 import HqPurchaseOrderView from '@/views/hq/purchase-order/HqPurchaseOrderView.vue'
 import HqVendorManagementView from '@/views/hq/vendor/HqVendorManagementView.vue'
-import HqCategoryAddView from '@/views/hq/HqCategoryAddView.vue'
+import HqCategoryAddView from '@/views/hq/products/HqCategoryAddView.vue'
 import HqCircularStockCandidateView from '@/views/hq/circular-stock/HqCircularStockCandidateView.vue'
 import HqCircularStockInventoryView from '@/views/hq/circular-stock/HqCircularStockInventoryView.vue'
 import HqCircularStockBuyerManagementView from '@/views/hq/circular-stock/HqCircularStockBuyerManagementView.vue'
@@ -116,19 +116,19 @@ const router = createRouter({
     {
       path: '/hq/products/new',
       name: 'hq-product-new',
-      component: () => import('@/views/hq/HqProductCreateView.vue'),
+      component: () => import('@/views/hq/products/HqProductCreateView.vue'),
       meta: { requiresAuth: true, role: 'hq' },
     },
     {
       path: '/hq/products/:productCode/skus',
       name: 'hq-product-sku-detail',
-      component: () => import('@/views/hq/HqProductSkuDetailView.vue'),
+      component: () => import('@/views/hq/products/HqProductSkuDetailView.vue'),
       meta: { requiresAuth: true, role: 'hq' },
     },
     {
       path: '/hq/products/:productCode/edit',
       name: 'hq-product-edit',
-      component: () => import('@/views/hq/HqProductCreateView.vue'),
+      component: () => import('@/views/hq/products/HqProductCreateView.vue'),
       meta: { requiresAuth: true, role: 'hq' },
     },
     { path: '/hq/infrastructure', name: 'hq-infrastructure', component: HqInfrastructureManagementView, meta: { requiresAuth: true, role: 'hq' } },

@@ -4,11 +4,11 @@ import { useRouter, useRoute } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { deleteCategory, getCategories, getCategory, updateCategory } from '@/api/category.js'
+import { deleteCategory, getCategories, getCategory, updateCategory } from '@/api/hq/category.js'
 import { vendorApi } from '@/api/hq/vendor.js'
 import {
   getProducts,
-} from '@/api/productMaster.js'
+} from '@/api/hq/productMaster.js'
 
 const router = useRouter()
 const route = useRoute()
