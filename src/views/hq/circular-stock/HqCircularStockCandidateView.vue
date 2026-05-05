@@ -30,7 +30,7 @@ const sortDirection = ref('desc')
 
 const conditionItems = [
   '최근 24개월 이상 판매 이력이 없는 SKU',
-  '목표 판매 기준 대비 실적이 낮은 SKU',
+  '안전재고 대비 초과 누적 SKU',
   '극단 사이즈 재고 또는 특정 컬러 재고에 편중된 SKU',
 ]
 
