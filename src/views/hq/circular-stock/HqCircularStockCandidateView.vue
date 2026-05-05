@@ -5,6 +5,7 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { getCircularCandidates, refreshCircularCandidates } from '@/api/hq/inventory.js'
+import { getInfrastructures } from '@/api/hq/infrastructure.js'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -18,9 +19,12 @@ const candidateSkus = ref([])
 const selectedSkuCodes = ref([])
 const selectedParentCategory = ref('')
 const selectedChildCategory = ref('')
-const selectedWarehouse = ref('')
+const selectedWarehouseCodes = ref([])
 const selectedConditionCodes = ref([])
 const searchTerm = ref('')
+const warehouseOptions = ref([])
+const isWarehouseDropdownOpen = ref(false)
+const warehouseDropdownRef = ref(null)
 const isConditionDropdownOpen = ref(false)
 const conditionDropdownRef = ref(null)
 const isLoading = ref(false)
@@ -52,6 +56,16 @@ const conditionSummaryLabel = computed(() => {
   if (selectedConditionCodes.value.length === 1) return selectedConditionLabels.value[0]
   return `${selectedConditionCodes.value.length}개 조건 선택됨`
 })
+const selectedWarehouseNames = computed(() =>
+  warehouseOptions.value
+    .filter(option => selectedWarehouseCodes.value.includes(option.code))
+    .map(option => option.name),
+)
+const warehouseSummaryLabel = computed(() => {
+  if (selectedWarehouseCodes.value.length === 0) return '전체 창고'
+  if (selectedWarehouseCodes.value.length === 1) return selectedWarehouseNames.value[0]
+  return `${selectedWarehouseCodes.value.length}개 창고 선택됨`
+})
 
 const buildMatchedConditionIndexes = (matchedConditionCodes = []) =>
   matchedConditionCodes
@@ -71,6 +85,7 @@ const mapCandidateRow = (row) => {
     itemCode: String(row.itemCode ?? ''),
     category: `${row.parentCategory ?? ''} > ${row.childCategory ?? ''}`.replace(/^ > | > $/g, ''),
     itemName: String(row.itemName ?? ''),
+    warehouseCode: String(row.warehouseCode ?? ''),
     warehouseName: String(row.warehouseName ?? ''),
     color: String(row.color ?? ''),
     size: String(row.size ?? ''),
@@ -107,10 +122,6 @@ const childCategoryOptions = computed(() => {
   )].sort((a, b) => a.localeCompare(b, 'ko'))
 })
 
-const warehouseOptions = computed(() =>
-  [...new Set(candidateSkus.value.map(row => row.warehouseName))].sort((a, b) => a.localeCompare(b, 'ko')),
-)
-
 const filteredSkus = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase()
 
@@ -118,7 +129,8 @@ const filteredSkus = computed(() => {
     const { parentCategory, childCategory } = parseCategory(row.category)
     const matchesParentCategory = !selectedParentCategory.value || parentCategory === selectedParentCategory.value
     const matchesChildCategory = !selectedChildCategory.value || childCategory === selectedChildCategory.value
-    const matchesWarehouse = !selectedWarehouse.value || row.warehouseName === selectedWarehouse.value
+    const matchesWarehouse = selectedWarehouseCodes.value.length === 0
+      || selectedWarehouseCodes.value.includes(row.warehouseCode)
     const matchesCondition = selectedConditionCodes.value.length === 0
       || selectedConditionCodes.value.every(code => row.matchedConditionIndexes.includes(Number(code)))
     const matchesKeyword = !keyword
@@ -186,9 +198,23 @@ watch(selectedParentCategory, () => {
   selectedChildCategory.value = ''
 })
 
-watch([selectedParentCategory, selectedChildCategory, selectedWarehouse, selectedConditionCodes, searchTerm], () => {
+watch([selectedParentCategory, selectedChildCategory, selectedWarehouseCodes, selectedConditionCodes, searchTerm], () => {
   currentPage.value = 1
 })
+
+const toggleWarehouseDropdown = () => {
+  isWarehouseDropdownOpen.value = !isWarehouseDropdownOpen.value
+}
+
+const toggleWarehouseCode = (code) => {
+  selectedWarehouseCodes.value = selectedWarehouseCodes.value.includes(code)
+    ? selectedWarehouseCodes.value.filter(value => value !== code)
+    : [...selectedWarehouseCodes.value, code]
+}
+
+const clearWarehouseCodes = () => {
+  selectedWarehouseCodes.value = []
+}
 
 const toggleConditionDropdown = () => {
   isConditionDropdownOpen.value = !isConditionDropdownOpen.value
@@ -205,8 +231,25 @@ const clearConditionCodes = () => {
 }
 
 const handleDocumentClick = (event) => {
+  if (!warehouseDropdownRef.value?.contains(event.target)) {
+    isWarehouseDropdownOpen.value = false
+  }
   if (!conditionDropdownRef.value?.contains(event.target)) {
     isConditionDropdownOpen.value = false
+  }
+}
+
+const loadWarehouseOptions = async () => {
+  try {
+    const rows = await getInfrastructures({ type: 'WAREHOUSE', status: 'ACTIVE' })
+    warehouseOptions.value = Array.isArray(rows)
+      ? rows
+        .map(row => ({ code: String(row.code ?? ''), name: String(row.name ?? '') }))
+        .filter(row => row.code && row.name)
+        .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+      : []
+  } catch {
+    warehouseOptions.value = []
   }
 }
 
@@ -235,6 +278,7 @@ const refreshCandidates = async () => {
     selectedSkuCodes.value = []
     selectedParentCategory.value = ''
     selectedChildCategory.value = ''
+    selectedWarehouseCodes.value = []
     selectedConditionCodes.value = []
     currentPage.value = 1
     sortKey.value = 'convertibleStock'
@@ -288,6 +332,7 @@ function handleLogout() {
 
 onMounted(() => {
   document.addEventListener('click', handleDocumentClick)
+  loadWarehouseOptions()
   loadCandidates()
 })
 
@@ -395,18 +440,47 @@ onBeforeUnmount(() => {
             </select>
           </label>
 
-          <label class="flex flex-col gap-1.5">
+          <div ref="warehouseDropdownRef" class="relative flex flex-col gap-1.5">
             <span class="text-[11px] font-bold text-gray-500">창고</span>
-            <select
-              v-model="selectedWarehouse"
-              class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
+            <button
+              type="button"
+              class="h-9 border border-gray-300 bg-white px-3 text-left text-xs font-bold text-gray-900 outline-none hover:bg-gray-50 focus:border-[#004D3C]"
+              @click.stop="toggleWarehouseDropdown"
             >
-              <option value="">전체</option>
-              <option v-for="warehouse in warehouseOptions" :key="warehouse" :value="warehouse">
-                {{ warehouse }}
-              </option>
-            </select>
-          </label>
+              <span>{{ warehouseSummaryLabel }}</span>
+              <span class="float-right text-[11px] text-gray-500">{{ isWarehouseDropdownOpen ? '▲' : '▼' }}</span>
+            </button>
+
+            <div
+              v-if="isWarehouseDropdownOpen"
+              class="absolute top-[58px] z-20 w-full border border-gray-200 bg-white p-2 shadow-lg"
+              @click.stop
+            >
+              <div class="mb-2 flex items-center justify-between">
+                <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-500">Warehouse</p>
+                <button
+                  type="button"
+                  class="text-[10px] font-black text-gray-500 hover:text-gray-700"
+                  @click="clearWarehouseCodes"
+                >
+                  전체 해제
+                </button>
+              </div>
+              <label
+                v-for="option in warehouseOptions"
+                :key="option.code"
+                class="flex cursor-pointer items-start gap-2 rounded px-2 py-1.5 hover:bg-[#EBF5F5]/60"
+              >
+                <input
+                  type="checkbox"
+                  class="mt-0.5 h-3.5 w-3.5 accent-[#004D3C]"
+                  :checked="selectedWarehouseCodes.includes(option.code)"
+                  @change="toggleWarehouseCode(option.code)"
+                />
+                <span class="text-[11px] font-bold text-gray-700">{{ option.name }}</span>
+              </label>
+            </div>
+          </div>
 
           <div ref="conditionDropdownRef" class="relative flex flex-col gap-1.5">
             <span class="text-[11px] font-bold text-gray-500">후보 조건</span>
