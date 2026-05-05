@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { getCompanyWideInventorySkus } from '@/api/inventory.js'
+import { getCompanyWideInventorySkus } from '@/api/hq/inventory.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -33,6 +33,13 @@ const filterLocations = computed(() => {
   if (typeof route.query.locations !== 'string') return []
   return route.query.locations.split(',').map(location => location.trim()).filter(Boolean)
 })
+const filterLocationIds = computed(() => {
+  if (typeof route.query.locationIds !== 'string') return []
+  return route.query.locationIds
+    .split(',')
+    .map(id => Number(id.trim()))
+    .filter(id => Number.isInteger(id) && id > 0)
+})
 const filterLocationChips = computed(() =>
   filterLocations.value.length > 3 ? filterLocations.value.slice(0, 2) : filterLocations.value,
 )
@@ -52,6 +59,7 @@ const statusClass = (status) => ({
 const backQuery = computed(() => ({
   type: typeof route.query.type === 'string' ? route.query.type : undefined,
   locations: typeof route.query.locations === 'string' ? route.query.locations : undefined,
+  locationIds: typeof route.query.locationIds === 'string' ? route.query.locationIds : undefined,
   parent: typeof route.query.parent === 'string' ? route.query.parent : undefined,
   child: typeof route.query.child === 'string' ? route.query.child : undefined,
   status: typeof route.query.status === 'string' ? route.query.status : undefined,
@@ -65,6 +73,7 @@ async function loadSkuDetails() {
     const type = filterLocationType.value === '창고' ? 'WAREHOUSE' : 'STORE'
     const payload = {
       locationType: type,
+      locationIds: filterLocationIds.value.length > 0 ? filterLocationIds.value : undefined,
       parentCategory: typeof route.query.parent === 'string' ? route.query.parent : undefined,
       childCategory: typeof route.query.child === 'string' ? route.query.child : undefined,
       keyword: typeof route.query.search === 'string' ? route.query.search : undefined,

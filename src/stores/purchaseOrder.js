@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { purchaseOrderApi } from '@/api/hq/purchaseOrder.js'
-import { getInfrastructures } from '@/api/infrastructure.js'
+import { getInfrastructures } from '@/api/hq/infrastructure.js'
 
 // ─── BE ↔ FE 매핑 헬퍼 ─────────────────────────────────────────────────────
 // BE (PurchaseOrder DetailRes/ListRes) ↔ FE store 형식 변환.

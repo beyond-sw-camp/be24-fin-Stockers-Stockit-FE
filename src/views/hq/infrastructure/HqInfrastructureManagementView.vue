@@ -7,7 +7,7 @@ import { useAuthStore } from '@/stores/auth.js'
 import {
   createInfrastructure,
   getInfrastructures,
-} from '@/api/infrastructure.js'
+} from '@/api/hq/infrastructure.js'
 
 const router = useRouter()
 const auth = useAuthStore()

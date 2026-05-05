@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { deleteProductSku, getProductDetail, getProductSkus, updateProductSku } from '@/api/productMaster.js'
+import { deleteProductSku, getProductDetail, getProductSkus, updateProductSku } from '@/api/hq/productMaster.js'
 
 const route = useRoute()
 const router = useRouter()

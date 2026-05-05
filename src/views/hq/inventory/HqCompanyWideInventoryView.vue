@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { getCompanyWideInventories } from '@/api/inventory.js'
+import { getCompanyWideInventories } from '@/api/hq/inventory.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -175,6 +175,7 @@ async function fetchCompanyWideInventory() {
 }
 
 const moveToSkuDetail = (item) => {
+  const locationIds = mapLocationNamesToIds()
   router.push({
     name: 'hq-inventory-sku-detail',
     params: { itemCode: item.itemCode },
@@ -187,6 +188,7 @@ const moveToSkuDetail = (item) => {
       locationName: locationSummary.value,
       type: locationType.value,
       locations: selectedLocations.value.length > 0 ? selectedLocations.value.join(',') : undefined,
+      locationIds: selectedLocations.value.length > 0 ? locationIds.join(',') : undefined,
       parent: selectedParentCategory.value || undefined,
       child: selectedChildCategory.value || undefined,
       status: selectedStatus.value || undefined,
