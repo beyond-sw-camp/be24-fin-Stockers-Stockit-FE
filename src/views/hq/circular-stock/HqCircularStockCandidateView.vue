@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
@@ -19,7 +19,10 @@ const selectedSkuCodes = ref([])
 const selectedParentCategory = ref('')
 const selectedChildCategory = ref('')
 const selectedWarehouse = ref('')
+const selectedConditionCodes = ref([])
 const searchTerm = ref('')
+const isConditionDropdownOpen = ref(false)
+const conditionDropdownRef = ref(null)
 const isLoading = ref(false)
 const loadError = ref('')
 
@@ -33,6 +36,22 @@ const conditionItems = [
   '안전재고 대비 초과 누적 SKU',
   '극단 사이즈 재고 또는 특정 컬러 재고에 편중된 SKU',
 ]
+const conditionOptions = computed(() =>
+  conditionItems.map((label, index) => ({
+    code: String(index + 1),
+    label,
+  })),
+)
+const selectedConditionLabels = computed(() =>
+  conditionOptions.value
+    .filter(option => selectedConditionCodes.value.includes(option.code))
+    .map(option => `${option.code}. ${option.label}`),
+)
+const conditionSummaryLabel = computed(() => {
+  if (selectedConditionCodes.value.length === 0) return '전체 조건'
+  if (selectedConditionCodes.value.length === 1) return selectedConditionLabels.value[0]
+  return `${selectedConditionCodes.value.length}개 조건 선택됨`
+})
 
 const buildMatchedConditionIndexes = (matchedConditionCodes = []) =>
   matchedConditionCodes
@@ -100,10 +119,12 @@ const filteredSkus = computed(() => {
     const matchesParentCategory = !selectedParentCategory.value || parentCategory === selectedParentCategory.value
     const matchesChildCategory = !selectedChildCategory.value || childCategory === selectedChildCategory.value
     const matchesWarehouse = !selectedWarehouse.value || row.warehouseName === selectedWarehouse.value
+    const matchesCondition = selectedConditionCodes.value.length === 0
+      || selectedConditionCodes.value.every(code => row.matchedConditionIndexes.includes(Number(code)))
     const matchesKeyword = !keyword
       || [row.skuCode, row.itemCode, row.itemName].join(' ').toLowerCase().includes(keyword)
 
-    return matchesParentCategory && matchesChildCategory && matchesWarehouse && matchesKeyword
+    return matchesParentCategory && matchesChildCategory && matchesWarehouse && matchesCondition && matchesKeyword
   })
 })
 
@@ -165,9 +186,29 @@ watch(selectedParentCategory, () => {
   selectedChildCategory.value = ''
 })
 
-watch([selectedParentCategory, selectedChildCategory, selectedWarehouse, searchTerm], () => {
+watch([selectedParentCategory, selectedChildCategory, selectedWarehouse, selectedConditionCodes, searchTerm], () => {
   currentPage.value = 1
 })
+
+const toggleConditionDropdown = () => {
+  isConditionDropdownOpen.value = !isConditionDropdownOpen.value
+}
+
+const toggleConditionCode = (code) => {
+  selectedConditionCodes.value = selectedConditionCodes.value.includes(code)
+    ? selectedConditionCodes.value.filter(value => value !== code)
+    : [...selectedConditionCodes.value, code]
+}
+
+const clearConditionCodes = () => {
+  selectedConditionCodes.value = []
+}
+
+const handleDocumentClick = (event) => {
+  if (!conditionDropdownRef.value?.contains(event.target)) {
+    isConditionDropdownOpen.value = false
+  }
+}
 
 const loadCandidates = async () => {
   isLoading.value = true
@@ -194,6 +235,7 @@ const refreshCandidates = async () => {
     selectedSkuCodes.value = []
     selectedParentCategory.value = ''
     selectedChildCategory.value = ''
+    selectedConditionCodes.value = []
     currentPage.value = 1
     sortKey.value = 'convertibleStock'
     sortDirection.value = 'desc'
@@ -245,7 +287,12 @@ function handleLogout() {
 }
 
 onMounted(() => {
+  document.addEventListener('click', handleDocumentClick)
   loadCandidates()
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleDocumentClick)
 })
 </script>
 
@@ -319,7 +366,7 @@ onMounted(() => {
 
         <div
           v-if="hasRefreshed"
-          class="grid gap-3 border-b border-gray-100 px-4 py-3 xl:grid-cols-[0.9fr_0.9fr_1fr_1.4fr]"
+          class="grid gap-3 border-b border-gray-100 px-4 py-3 xl:grid-cols-[0.85fr_0.85fr_0.95fr_1.5fr_1.1fr]"
         >
           <label class="flex flex-col gap-1.5">
             <span class="text-[11px] font-bold text-gray-500">대분류</span>
@@ -360,6 +407,49 @@ onMounted(() => {
               </option>
             </select>
           </label>
+
+          <div ref="conditionDropdownRef" class="relative flex flex-col gap-1.5">
+            <span class="text-[11px] font-bold text-gray-500">후보 조건</span>
+            <button
+              type="button"
+              class="h-9 border border-gray-300 bg-white px-3 text-left text-xs font-bold text-gray-900 outline-none hover:bg-gray-50 focus:border-[#004D3C]"
+              @click.stop="toggleConditionDropdown"
+            >
+              <span>{{ conditionSummaryLabel }}</span>
+              <span class="float-right text-[11px] text-gray-500">{{ isConditionDropdownOpen ? '▲' : '▼' }}</span>
+            </button>
+
+            <div
+              v-if="isConditionDropdownOpen"
+              class="absolute top-[58px] z-20 w-full border border-gray-200 bg-white p-2 shadow-lg"
+              @click.stop
+            >
+              <div class="mb-2 flex items-center justify-between">
+                <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-500">Condition</p>
+                <button
+                  type="button"
+                  class="text-[10px] font-black text-gray-500 hover:text-gray-700"
+                  @click="clearConditionCodes"
+                >
+                  전체 해제
+                </button>
+              </div>
+              <label
+                v-for="option in conditionOptions"
+                :key="option.code"
+                class="flex cursor-pointer items-start gap-2 rounded px-2 py-1.5 hover:bg-[#EBF5F5]/60"
+              >
+                <input
+                  type="checkbox"
+                  class="mt-0.5 h-3.5 w-3.5 accent-[#004D3C]"
+                  :checked="selectedConditionCodes.includes(option.code)"
+                  @change="toggleConditionCode(option.code)"
+                />
+                <span class="text-[11px] font-bold text-gray-700">{{ option.code }}. {{ option.label }}</span>
+              </label>
+            </div>
+
+          </div>
 
           <label class="flex flex-col gap-1.5">
             <span class="text-[11px] font-bold text-gray-500">검색</span>
