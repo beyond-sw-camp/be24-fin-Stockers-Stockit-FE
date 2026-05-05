@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { ShieldCheck, UserPlus, Store, Warehouse, Building2 } from 'lucide-vue-next'
-import { accountApi } from '@/api/account.js' 
+import { userApi } from '@/api/user/user.js'
 
 
 const form = ref({
@@ -85,7 +85,7 @@ async function handleSubmit() {
       role: form.value.role.toUpperCase(),          // 'hq' → 'HQ'
     }
 
-    await accountApi.signup(payload)
+    await userApi.signup(payload)
     submitted.value = true
   } catch (err) {
     alert(err?.message ?? '회원가입에 실패했습니다.')

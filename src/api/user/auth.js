@@ -14,7 +14,7 @@
  *   // 토큰은 Body 가 아닌 Set-Cookie 헤더로 내려옴 (HttpOnly)
  */
 
-import { apiClient, unwrap } from './axios.js'
+import { apiClient, unwrap } from '../axios.js'
 
 export const authApi = {
   /**

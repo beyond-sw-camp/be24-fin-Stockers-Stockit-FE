@@ -13,7 +13,7 @@ import {
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { accountApi } from '@/api/account.js'
+import { accountApi } from '@/api/hq/account.js'
 
 const router = useRouter()
 const auth = useAuthStore()
