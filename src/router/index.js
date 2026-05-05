@@ -2,9 +2,9 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
 import { roleHomeMap } from '@/config/roleMenus.js'
 
-import DevLoginView from '@/views/DevLoginView.vue'
-import LoginView from '@/views/LoginView.vue'
-import SignupView from '@/views/SignupView.vue'
+import DevLoginView from '@/views/user/DevLoginView.vue'
+import LoginView from '@/views/user/LoginView.vue'
+import SignupView from '@/views/user/SignupView.vue'
 
 import StoreDashboardView from '@/views/store/dashboard/StoreDashboardView.vue'
 import StorePosView from '@/views/store/sales/StorePosView.vue'
