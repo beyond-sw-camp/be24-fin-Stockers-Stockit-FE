@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { getCircularCandidates, refreshCircularCandidates } from '@/api/hq/inventory.js'
+import { convertCircularCandidates, getCircularCandidates, refreshCircularCandidates } from '@/api/hq/inventory.js'
 import { getInfrastructures } from '@/api/hq/infrastructure.js'
 
 const router = useRouter()
@@ -29,6 +29,10 @@ const isConditionDropdownOpen = ref(false)
 const conditionDropdownRef = ref(null)
 const isLoading = ref(false)
 const loadError = ref('')
+const convertNotice = ref('')
+const isConvertModalOpen = ref(false)
+const isConverting = ref(false)
+const conversionInputs = ref({})
 
 const PAGE_SIZE = 20
 const currentPage = ref(1)
@@ -181,6 +185,38 @@ const paginatedSkus = computed(() => {
 })
 
 const canConvertInventory = computed(() => selectedRowIds.value.length > 0)
+const selectedRows = computed(() => {
+  const selectedSet = new Set(selectedRowIds.value)
+  return candidateSkus.value.filter(row => selectedSet.has(row.id))
+})
+
+const conversionRows = computed(() =>
+  selectedRows.value.map((row) => {
+    const rawInput = conversionInputs.value[row.id]
+    const quantity = Number(rawInput)
+    const maxQuantity = Math.max(0, Number(row.convertibleStock ?? 0))
+    const hasInvalidNumber = !Number.isInteger(quantity)
+    const hasRangeError = quantity < 1 || quantity > maxQuantity
+    const error = hasInvalidNumber
+      ? '정수를 입력하세요.'
+      : hasRangeError
+        ? `1 ~ ${maxQuantity.toLocaleString()} 사이로 입력하세요.`
+        : ''
+    return {
+      ...row,
+      quantity: Number.isFinite(quantity) ? quantity : 0,
+      maxQuantity,
+      error,
+    }
+  }),
+)
+const totalRequestedQuantity = computed(() =>
+  conversionRows.value.reduce((sum, row) => sum + (row.error ? 0 : row.quantity), 0),
+)
+const canSubmitConversion = computed(() =>
+  conversionRows.value.length > 0
+  && !conversionRows.value.some(row => row.error),
+)
 
 const isAllCurrentPageSelected = computed(() =>
   paginatedSkus.value.length > 0
@@ -280,6 +316,7 @@ const refreshCandidates = async () => {
     selectedChildCategory.value = ''
     selectedWarehouseCodes.value = []
     selectedConditionCodes.value = []
+    convertNotice.value = ''
     currentPage.value = 1
     sortKey.value = 'convertibleStock'
     sortDirection.value = 'desc'
@@ -287,6 +324,48 @@ const refreshCandidates = async () => {
     loadError.value = e.message || '순환 재고 후보 갱신에 실패했습니다.'
   } finally {
     isLoading.value = false
+  }
+}
+
+const openConvertModal = () => {
+  if (!canConvertInventory.value) return
+  conversionInputs.value = Object.fromEntries(
+    selectedRows.value.map(row => [row.id, Math.max(1, Number(row.convertibleStock ?? 0))]),
+  )
+  convertNotice.value = ''
+  isConvertModalOpen.value = true
+}
+
+const closeConvertModal = () => {
+  if (isConverting.value) return
+  isConvertModalOpen.value = false
+}
+
+const submitConversion = async () => {
+  if (!canSubmitConversion.value || isConverting.value) return
+
+  isConverting.value = true
+  convertNotice.value = ''
+  try {
+    const payload = conversionRows.value.map(row => ({
+      inventoryId: Number(row.id),
+      convertQuantity: row.quantity,
+    }))
+    const result = await convertCircularCandidates(payload)
+    const convertedCount = Number(result?.convertedCount ?? 0)
+    const skippedCount = Number(result?.skippedCount ?? 0)
+    convertNotice.value = skippedCount > 0
+      ? `부분 전환 완료: 성공 ${convertedCount}건, 실패 ${skippedCount}건`
+      : `전환 완료: ${convertedCount}건`
+
+    await loadCandidates()
+    selectedRowIds.value = []
+    conversionInputs.value = {}
+    isConvertModalOpen.value = false
+  } catch (e) {
+    convertNotice.value = e.message || '순환 재고 전환에 실패했습니다.'
+  } finally {
+    isConverting.value = false
   }
 }
 
@@ -372,6 +451,7 @@ onBeforeUnmount(() => {
               class="h-9 px-4 text-xs font-black transition"
               :class="canConvertInventory ? 'bg-[#004D3C] text-white hover:bg-[#00382c]' : 'cursor-not-allowed bg-gray-100 text-gray-400'"
               :disabled="!canConvertInventory"
+              @click="openConvertModal"
             >
               순환 재고로 전환
             </button>
@@ -394,6 +474,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <p v-if="loadError" class="mt-3 text-xs font-bold text-red-600">{{ loadError }}</p>
+        <p v-if="convertNotice" class="mt-2 text-xs font-bold text-[#004D3C]">{{ convertNotice }}</p>
       </section>
 
       <section class="min-w-0 border border-gray-200 bg-white shadow-sm">
@@ -664,6 +745,83 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </section>
+    </div>
+
+    <div
+      v-if="isConvertModalOpen"
+      class="fixed inset-0 z-50 flex items-end justify-center bg-black/35 p-4 md:items-center"
+      @click.self="closeConvertModal"
+    >
+      <div class="w-full max-w-4xl border border-gray-200 bg-white shadow-xl">
+        <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+          <div>
+            <p class="text-sm font-black text-gray-900">순환 재고 전환</p>
+            <p class="mt-1 text-[11px] font-bold text-gray-500">
+              선택 {{ conversionRows.length.toLocaleString() }}건 · 입력 합계 {{ totalRequestedQuantity.toLocaleString() }}개
+            </p>
+          </div>
+          <button
+            type="button"
+            class="h-8 border border-gray-300 bg-white px-3 text-[11px] font-black text-gray-600 hover:bg-gray-50"
+            :disabled="isConverting"
+            @click="closeConvertModal"
+          >
+            닫기
+          </button>
+        </div>
+
+        <div class="max-h-[58vh] overflow-y-auto p-4">
+          <table class="w-full border-collapse text-xs">
+            <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.1em] text-gray-500">
+              <tr>
+                <th class="px-3 py-2 text-left font-black">SKU</th>
+                <th class="px-3 py-2 text-left font-black">창고</th>
+                <th class="px-3 py-2 text-right font-black">전환 가능</th>
+                <th class="px-3 py-2 text-right font-black">전환 수량</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr v-for="row in conversionRows" :key="`convert-${row.id}`">
+                <td class="px-3 py-2 font-mono font-bold text-gray-700">{{ row.skuCode }}</td>
+                <td class="px-3 py-2 font-bold text-gray-700">{{ row.warehouseName }}</td>
+                <td class="px-3 py-2 text-right font-black text-gray-900">{{ row.maxQuantity.toLocaleString() }}</td>
+                <td class="px-3 py-2">
+                  <div class="flex flex-col items-end gap-1">
+                    <input
+                      v-model.number="conversionInputs[row.id]"
+                      type="number"
+                      min="1"
+                      :max="row.maxQuantity"
+                      class="h-8 w-32 border border-gray-300 px-2 text-right text-xs font-black text-gray-900 outline-none focus:border-[#004D3C]"
+                    />
+                    <span v-if="row.error" class="text-[10px] font-bold text-red-600">{{ row.error }}</span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 border-t border-gray-100 bg-gray-50 px-4 py-3">
+          <button
+            type="button"
+            class="h-9 border border-gray-300 bg-white px-4 text-xs font-black text-gray-700 hover:bg-gray-100"
+            :disabled="isConverting"
+            @click="closeConvertModal"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            class="h-9 px-4 text-xs font-black text-white transition"
+            :class="canSubmitConversion ? 'bg-[#004D3C] hover:bg-[#00382c]' : 'cursor-not-allowed bg-gray-300'"
+            :disabled="!canSubmitConversion || isConverting"
+            @click="submitConversion"
+          >
+            {{ isConverting ? '전환 중...' : '전환 확정' }}
+          </button>
+        </div>
+      </div>
     </div>
   </AppLayout>
 </template>

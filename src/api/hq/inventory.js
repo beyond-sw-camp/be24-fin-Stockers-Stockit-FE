@@ -19,3 +19,8 @@ export async function getCircularCandidates() {
   const res = await api.get('/api/hq/inventories/circular-candidates')
   return unwrap(res)
 }
+
+export async function convertCircularCandidates(items = []) {
+  const res = await api.post('/api/hq/inventories/circular-candidates/convert', items)
+  return unwrap(res)
+}
