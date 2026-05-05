@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { roleHomeMap } from '@/config/roleMenus.js'
-import { authApi } from '@/api/auth.js'
+import { authApi } from '@/api/user/auth.js'
 
 // HttpOnly Cookie 방식이라 토큰은 JS에서 접근 불가.
 // localStorage 에는 사용자 정보(UI 표시용)만 저장.
