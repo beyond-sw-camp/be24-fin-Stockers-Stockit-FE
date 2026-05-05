@@ -16,7 +16,7 @@ const activeTopMenu = computed(() => '순환 재고 관리')
 const activeSideMenu = ref('순환 재고 후보 조회')
 const hasRefreshed = ref(false)
 const candidateSkus = ref([])
-const selectedSkuCodes = ref([])
+const selectedRowIds = ref([])
 const selectedParentCategory = ref('')
 const selectedChildCategory = ref('')
 const selectedWarehouseCodes = ref([])
@@ -180,11 +180,11 @@ const paginatedSkus = computed(() => {
   return sortedSkus.value.slice(start, start + PAGE_SIZE)
 })
 
-const canConvertInventory = computed(() => selectedSkuCodes.value.length > 0)
+const canConvertInventory = computed(() => selectedRowIds.value.length > 0)
 
 const isAllCurrentPageSelected = computed(() =>
   paginatedSkus.value.length > 0
-  && paginatedSkus.value.every(row => selectedSkuCodes.value.includes(row.skuCode)),
+  && paginatedSkus.value.every(row => selectedRowIds.value.includes(row.id)),
 )
 
 const rangeStart = computed(() => (sortedSkus.value.length === 0 ? 0 : (currentPage.value - 1) * PAGE_SIZE + 1))
@@ -275,7 +275,7 @@ const refreshCandidates = async () => {
   try {
     await refreshCircularCandidates()
     await loadCandidates()
-    selectedSkuCodes.value = []
+    selectedRowIds.value = []
     selectedParentCategory.value = ''
     selectedChildCategory.value = ''
     selectedWarehouseCodes.value = []
@@ -306,18 +306,18 @@ const sortIcon = (key) => {
   return sortDirection.value === 'asc' ? '▲' : '▼'
 }
 
-const toggleSku = (skuCode) => {
-  selectedSkuCodes.value = selectedSkuCodes.value.includes(skuCode)
-    ? selectedSkuCodes.value.filter(code => code !== skuCode)
-    : [...selectedSkuCodes.value, skuCode]
+const toggleRow = (rowId) => {
+  selectedRowIds.value = selectedRowIds.value.includes(rowId)
+    ? selectedRowIds.value.filter(id => id !== rowId)
+    : [...selectedRowIds.value, rowId]
 }
 
 const toggleAllCurrentPage = () => {
-  const pageCodes = paginatedSkus.value.map(row => row.skuCode)
+  const pageRowIds = paginatedSkus.value.map(row => row.id)
 
-  selectedSkuCodes.value = isAllCurrentPageSelected.value
-    ? selectedSkuCodes.value.filter(code => !pageCodes.includes(code))
-    : [...new Set([...selectedSkuCodes.value, ...pageCodes])]
+  selectedRowIds.value = isAllCurrentPageSelected.value
+    ? selectedRowIds.value.filter(id => !pageRowIds.includes(id))
+    : [...new Set([...selectedRowIds.value, ...pageRowIds])]
 }
 
 const goToPage = (page) => {
@@ -401,7 +401,7 @@ onBeforeUnmount(() => {
           <div>
             <h2 class="text-sm font-black text-gray-900">전환 후보 SKU 리스트</h2>
             <p class="mt-1 text-[11px] font-bold text-gray-400">
-              {{ hasRefreshed ? `조회 ${sortedSkus.length.toLocaleString()}건 · 선택 ${selectedSkuCodes.length.toLocaleString()}건` : '재고 새로고침 후 후보가 표시됩니다.' }}
+              {{ hasRefreshed ? `조회 ${sortedSkus.length.toLocaleString()}건 · 선택 ${selectedRowIds.length.toLocaleString()}건` : '재고 새로고침 후 후보가 표시됩니다.' }}
             </p>
           </div>
           <p v-if="hasRefreshed" class="text-[11px] font-bold text-gray-400">
@@ -591,15 +591,15 @@ onBeforeUnmount(() => {
                 v-for="row in paginatedSkus"
                 :key="row.id"
                 class="cursor-pointer transition"
-                :class="selectedSkuCodes.includes(row.skuCode) ? 'bg-[#EBF5F5] font-bold' : 'hover:bg-[#EBF5F5]/60'"
-                @click="toggleSku(row.skuCode)"
+                :class="selectedRowIds.includes(row.id) ? 'bg-[#EBF5F5] font-bold' : 'hover:bg-[#EBF5F5]/60'"
+                @click="toggleRow(row.id)"
               >
                 <td class="px-3 py-3 text-center">
                   <input
                     type="checkbox"
                     class="h-3.5 w-3.5 accent-[#004D3C]"
-                    :checked="selectedSkuCodes.includes(row.skuCode)"
-                    @click.stop="toggleSku(row.skuCode)"
+                    :checked="selectedRowIds.includes(row.id)"
+                    @click.stop="toggleRow(row.id)"
                   />
                 </td>
                 <td class="px-3 py-3 font-mono font-bold text-gray-600">{{ row.skuCode }}</td>
