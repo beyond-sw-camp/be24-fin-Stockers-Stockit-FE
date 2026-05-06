@@ -1,10 +1,11 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { warehouseTransferHistoryRecords } from '@/constants/hqWarehouseTransferHistoryData.js'
+import { getWarehouseTransferDetail } from '@/api/hq/inventory.js'
+import { extractErrorMessage } from '@/api/axios.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -15,9 +16,17 @@ const inventoryMenus = roleMenus.hq.find((menu) => menu.label === '재고 관리
 const activeTopMenu = computed(() => '재고 관리')
 const activeSideMenu = computed(() => '창고간 재고 이동 내역')
 
-const record = computed(() =>
-  warehouseTransferHistoryRecords.find((row) => row.transferNo === route.params.transferNo) ?? null,
-)
+const record = ref(null)
+const loading = ref(false)
+const loadError = ref('')
+
+const toUiStatus = (status) => {
+  if (status === 'IN_PROGRESS') return '출고 준비중'
+  if (status === 'COMPLETED') return '완료'
+  if (status === 'CANCELED') return '취소'
+  if (status === 'REQUESTED') return '요청'
+  return status || '-'
+}
 
 const skuCount = computed(() => record.value?.lines?.length ?? 0)
 const totalQty = computed(() =>
@@ -35,8 +44,8 @@ const lineRows = computed(() => {
   const isCanceled = record.value.status === '취소'
   return record.value.lines.map((line) => ({
     ...line,
-    fromStockAfter: isCanceled ? line.fromStockBefore : line.fromStockBefore - line.qty,
-    toStockAfter: isCanceled ? line.toStockBefore : line.toStockBefore + line.qty,
+    fromStockAfter: isCanceled ? line.fromStockBefore : line.fromStockAfter,
+    toStockAfter: isCanceled ? line.toStockBefore : line.toStockAfter,
     fromDelta: isCanceled ? 0 : -line.qty,
     toDelta: isCanceled ? 0 : line.qty,
   }))
@@ -45,10 +54,31 @@ const lineRows = computed(() => {
 const statusConfig = computed(() => {
   const s = record.value?.status
   if (s === '완료') return { label: '완료', bg: 'bg-[#E8F6F2]', text: 'text-[#0B6D57]', dot: 'bg-[#0B6D57]', banner: null }
-  if (s === '진행중') return { label: '진행중', bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500', banner: { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-800', msg: '현재 이동이 진행 중입니다. 도착 창고의 재고 수치는 예상값입니다.' } }
+  if (s === '출고 준비중') return { label: '출고 준비중', bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500', banner: { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-800', msg: '현재 이동이 진행 중입니다. 도착 창고의 재고 수치는 예상값입니다.' } }
   if (s === '취소') return { label: '취소', bg: 'bg-rose-50', text: 'text-rose-700', dot: 'bg-rose-500', banner: { bg: 'bg-rose-50 border-rose-200', text: 'text-rose-800', msg: '취소된 이동 건입니다. 재고 변동이 발생하지 않았습니다.' } }
   return { label: s ?? '-', bg: 'bg-gray-100', text: 'text-gray-700', dot: 'bg-gray-400', banner: null }
 })
+
+const loadDetail = async () => {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const data = await getWarehouseTransferDetail(route.params.transferNo)
+    record.value = {
+      ...data,
+      requestedAt: data.requestedAt ? new Date(data.requestedAt).toISOString().slice(0, 16).replace('T', ' ') : '',
+      status: toUiStatus(data.status),
+    }
+  } catch (error) {
+    record.value = null
+    loadError.value = extractErrorMessage(error, '이동 상세 조회에 실패했습니다.')
+  } finally {
+    loading.value = false
+  }
+}
+
+watch(() => route.params.transferNo, () => loadDetail())
+onMounted(() => loadDetail())
 
 function handleLogout() {
   auth.logout()
@@ -64,7 +94,10 @@ function handleLogout() {
     :active-side-menu="activeSideMenu"
     @logout="handleLogout"
   >
-    <div v-if="record" class="flex flex-col gap-5">
+    <div v-if="loading" class="bg-white border border-gray-200 shadow-sm flex items-center justify-center py-20">
+      <p class="text-xs font-bold text-gray-400">이동 상세를 불러오는 중입니다.</p>
+    </div>
+    <div v-else-if="record" class="flex flex-col gap-5">
 
       <!-- 상단 헤더 -->
       <section class="bg-white border border-gray-200 shadow-sm">
@@ -171,7 +204,7 @@ function handleLogout() {
             <h2 class="text-sm font-black text-gray-900">SKU 이동 라인</h2>
             <p class="mt-0.5 text-[11px] font-bold text-gray-500">{{ skuCount }}건 SKU · 총 {{ totalQty.toLocaleString() }}개 이동</p>
           </div>
-          <span v-if="record.status === '진행중'" class="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 text-[11px] font-black text-amber-700">
+          <span v-if="record.status === '출고 준비중'" class="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 text-[11px] font-black text-amber-700">
             <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             도착 후 재고는 예상값
           </span>
@@ -211,7 +244,7 @@ function handleLogout() {
                 <th class="px-3 py-2.5 text-right font-black w-[80px] border-r border-gray-200">이후</th>
                 <th class="px-3 py-2.5 text-right font-black w-[80px] bg-[#F7FCFA]">이전</th>
                 <th class="px-3 py-2.5 text-right font-black w-[80px] bg-[#F7FCFA]">
-                  <span v-if="record.status === '진행중'" class="text-amber-600">이후(예상)</span>
+                  <span v-if="record.status === '출고 준비중'" class="text-amber-600">이후(예상)</span>
                   <span v-else>이후</span>
                 </th>
               </tr>
@@ -318,7 +351,7 @@ function handleLogout() {
       </div>
       <div class="text-center">
         <p class="text-sm font-black text-gray-700">존재하지 않는 이동 내역입니다.</p>
-        <p class="mt-1 text-xs font-bold text-gray-400">이동번호를 다시 확인해 주세요.</p>
+        <p class="mt-1 text-xs font-bold text-gray-400">{{ loadError || '이동번호를 다시 확인해 주세요.' }}</p>
       </div>
       <button
         type="button"
