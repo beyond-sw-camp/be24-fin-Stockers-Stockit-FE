@@ -38,11 +38,6 @@ const statusToKor = {
   SUSPENDED: '점검중',
 }
 
-const typeToKor = {
-  DIRECT: '직영점',
-  FRANCHISE: '가맹점',
-}
-
 const statusOptions = [
   { value: 'ACTIVE', label: '활성' },
   { value: 'INACTIVE', label: '비활성' },
@@ -113,7 +108,6 @@ async function saveEdit() {
       locationType: 'STORE',
       name: store.value.name,
       region: store.value.region,
-      storeType: store.value.storeType,
       managerName,
       contact,
       address: store.value.address,
@@ -225,7 +219,7 @@ onMounted(() => {
           <p class="flex items-center justify-between"><span class="font-bold text-gray-500">매장 코드</span><strong class="font-black text-gray-900">{{ store.code }}</strong></p>
           <p class="flex items-center justify-between"><span class="font-bold text-gray-500">매장명</span><strong class="font-black text-gray-900">{{ store.name }}</strong></p>
           <p class="flex items-center justify-between"><span class="font-bold text-gray-500">지역</span><strong class="font-black text-gray-900">{{ store.region }}</strong></p>
-          <p class="flex items-center justify-between"><span class="font-bold text-gray-500">유형</span><strong class="font-black text-gray-900">{{ typeToKor[store.storeType] || store.storeType }}</strong></p>
+          <p class="flex items-center justify-between"><span class="font-bold text-gray-500">유형</span><strong class="font-black text-gray-900">직영점</strong></p>
 
           <template v-if="!isEditMode">
             <p class="flex items-center justify-between"><span class="font-bold text-gray-500">담당자</span><strong class="font-black text-gray-900">{{ store.managerName }}</strong></p>
