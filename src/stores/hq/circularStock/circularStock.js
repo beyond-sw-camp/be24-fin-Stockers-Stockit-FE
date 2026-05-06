@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { circularBuyerApi } from '@/api/hq/circularBuyer.js'
+import { getCircularInventories } from '@/api/hq/inventory.js'
 import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
 import { useEsgStore } from '@/stores/esg.js'
 
@@ -538,19 +539,23 @@ export const useCircularStockStore = defineStore('circularStock', () => {
   const draftItems = ref([])
   const saleStep = ref(1)
   const lockedMaterialType = ref('')
+  const liveCircularInventoryRows = ref([])
 
   // ADR-021 AI 거래처 추천 — Step 1 → Step 2 [다음] 클릭 시 1회 호출 (사용자 결정 2026-04-30).
   const recommendations = ref([])
   const isRecommendationLoading = ref(false)
   const recommendationError = ref(null)
 
-  const inventoryRows = computed(() =>
-    [...inventoryItems.value].sort((a, b) => (
+  const inventoryRows = computed(() => {
+    const source = liveCircularInventoryRows.value.length > 0
+      ? liveCircularInventoryRows.value
+      : inventoryItems.value
+    return [...source].sort((a, b) => (
       a.parentCategory.localeCompare(b.parentCategory, 'ko')
       || a.childCategory.localeCompare(b.childCategory, 'ko')
       || a.itemName.localeCompare(b.itemName, 'ko')
-    )),
-  )
+    ))
+  })
 
   const selectedBuyer = computed(() =>
     buyerStore.getBuyerById(draftBuyerId.value) ?? null,
@@ -675,7 +680,47 @@ export const useCircularStockStore = defineStore('circularStock', () => {
   }
 
   function getInventoryById(inventoryId) {
-    return inventoryItems.value.find(item => item.id === inventoryId) ?? null
+    return inventoryItems.value.find(item => item.id === inventoryId)
+      ?? liveCircularInventoryRows.value.find(item => item.id === inventoryId)
+      ?? null
+  }
+
+  function mapCircularApiRowToInventoryItem(row) {
+    const compositions = Array.isArray(row.materialCompositions) ? row.materialCompositions : []
+    const materials = compositions.map(comp => ({
+      name: String(comp.materialNameKo ?? ''),
+      ratio: Number(comp.ratio ?? 0),
+    }))
+    return {
+      id: String(row.inventoryId ?? ''),
+      itemCode: String(row.itemCode ?? ''),
+      parentCategory: String(row.parentCategory ?? ''),
+      childCategory: String(row.childCategory ?? ''),
+      itemName: String(row.itemName ?? ''),
+      warehouseCode: String(row.warehouseCode ?? ''),
+      warehouseName: String(row.warehouseName ?? ''),
+      materials,
+      quantity: Number(row.availableQuantity ?? 0),
+      weightKg: Number(row.totalWeightKg ?? 0),
+      skuCode: String(row.skuCode ?? ''),
+      color: String(row.color ?? ''),
+      size: String(row.size ?? ''),
+      materialType: String(row.materialType ?? ''),
+      materialKgPrice: Number(row.materialKgPrice ?? 0),
+      circularSalePrice: Number(row.circularSalePrice ?? 0),
+      materialCompositions: compositions,
+      availableQuantity: Number(row.availableQuantity ?? 0),
+      totalWeightKg: Number(row.totalWeightKg ?? 0),
+    }
+  }
+
+  async function loadCircularInventoryRows() {
+    const rows = await getCircularInventories()
+    const mapped = Array.isArray(rows) ? rows.map(mapCircularApiRowToInventoryItem) : []
+    liveCircularInventoryRows.value = mapped
+    inventoryItems.value = mapped.map(enrichInventoryItem)
+    persistInventory()
+    return mapped
   }
 
   function getSaleById(saleId) {
@@ -1036,6 +1081,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     formatWeight,
     filteredBuyers,
     getInventoryById,
+    loadCircularInventoryRows,
     getSaleById,
     getSaleEsgSnapshot,
     getDraftItem,

@@ -1,9 +1,11 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { convertCircularCandidates, getCircularCandidates, refreshCircularCandidates } from '@/api/hq/inventory.js'
+import { getInfrastructures } from '@/api/hq/infrastructure.js'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -14,10 +16,23 @@ const activeTopMenu = computed(() => '순환 재고 관리')
 const activeSideMenu = ref('순환 재고 후보 조회')
 const hasRefreshed = ref(false)
 const candidateSkus = ref([])
-const selectedSkuCodes = ref([])
-const selectedCategory = ref('')
-const selectedWarehouse = ref('')
+const selectedRowIds = ref([])
+const selectedParentCategory = ref('')
+const selectedChildCategory = ref('')
+const selectedWarehouseCodes = ref([])
+const selectedConditionCodes = ref([])
 const searchTerm = ref('')
+const warehouseOptions = ref([])
+const isWarehouseDropdownOpen = ref(false)
+const warehouseDropdownRef = ref(null)
+const isConditionDropdownOpen = ref(false)
+const conditionDropdownRef = ref(null)
+const isLoading = ref(false)
+const loadError = ref('')
+const convertNotice = ref('')
+const isConvertModalOpen = ref(false)
+const isConverting = ref(false)
+const conversionInputs = ref({})
 
 const PAGE_SIZE = 20
 const currentPage = ref(1)
@@ -26,109 +41,106 @@ const sortDirection = ref('desc')
 
 const conditionItems = [
   '최근 24개월 이상 판매 이력이 없는 SKU',
-  '목표 판매 기준 대비 실적이 낮은 SKU',
+  '안전재고 대비 초과 누적 SKU',
   '극단 사이즈 재고 또는 특정 컬러 재고에 편중된 SKU',
 ]
+const conditionOptions = computed(() =>
+  conditionItems.map((label, index) => ({
+    code: String(index + 1),
+    label,
+  })),
+)
+const selectedConditionLabels = computed(() =>
+  conditionOptions.value
+    .filter(option => selectedConditionCodes.value.includes(option.code))
+    .map(option => `${option.code}. ${option.label}`),
+)
+const conditionSummaryLabel = computed(() => {
+  if (selectedConditionCodes.value.length === 0) return '전체 조건'
+  if (selectedConditionCodes.value.length === 1) return selectedConditionLabels.value[0]
+  return `${selectedConditionCodes.value.length}개 조건 선택됨`
+})
+const selectedWarehouseNames = computed(() =>
+  warehouseOptions.value
+    .filter(option => selectedWarehouseCodes.value.includes(option.code))
+    .map(option => option.name),
+)
+const warehouseSummaryLabel = computed(() => {
+  if (selectedWarehouseCodes.value.length === 0) return '전체 창고'
+  if (selectedWarehouseCodes.value.length === 1) return selectedWarehouseNames.value[0]
+  return `${selectedWarehouseCodes.value.length}개 창고 선택됨`
+})
 
-const baseCandidates = [
-  {
-    id: 'CIR-001',
-    itemCode: 'SPA-TOP-004',
-    category: '상의 > 니트',
-    itemName: '라운드넥 소프트 니트',
-    warehouseName: '이천 풀필먼트',
-    convertibleStock: 86,
-  },
-  {
-    id: 'CIR-002',
-    itemCode: 'SPA-PNT-003',
-    category: '바지 > 긴바지',
-    itemName: '와이드 밴딩 팬츠 XXXL',
-    warehouseName: '대전 허브창고',
-    convertibleStock: 24,
-  },
-  {
-    id: 'CIR-003',
-    itemCode: 'SPA-OUT-004',
-    category: '아우터 > 가디건',
-    itemName: '브이넥 니트 가디건 라임',
-    warehouseName: '부산 물류창고',
-    convertibleStock: 37,
-  },
-  {
-    id: 'CIR-004',
-    itemCode: 'SPA-SKT-002',
-    category: '치마 > 롱스커트',
-    itemName: '플리츠 롱스커트 XS',
-    warehouseName: '인천 제1창고',
-    convertibleStock: 19,
-  },
-  {
-    id: 'CIR-005',
-    itemCode: 'SPA-TOP-002',
-    category: '상의 > 긴팔',
-    itemName: '슬림핏 긴팔 티셔츠 머스타드',
-    warehouseName: '이천 풀필먼트',
-    convertibleStock: 52,
-  },
-]
+const buildMatchedConditionIndexes = (matchedConditionCodes = []) =>
+  matchedConditionCodes
+    .map(code => Number(code))
+    .filter(code => Number.isInteger(code) && code >= 1 && code <= conditionItems.length)
 
-const colorOptions = ['검정', '흰색', '그레이', '아이보리']
-const colorCodeMap = { 검정: 'BLK', 흰색: 'WHT', 그레이: 'GRY', 아이보리: 'IVR' }
-const sizeOptions = ['XS', 'S', 'M', 'L', 'XL']
+const buildMatchedConditionTooltip = (matchedConditionIndexes = []) =>
+  matchedConditionIndexes
+    .map(index => `${index}. ${conditionItems[index - 1]}`)
+    .join(' / ')
 
-const buildCandidateSkus = () =>
-  baseCandidates.flatMap((candidate, cIndex) => {
-    const seed = `${candidate.itemCode}-${candidate.warehouseName}`
-      .split('')
-      .reduce((sum, char) => sum + char.charCodeAt(0), 0)
+const mapCandidateRow = (row) => {
+  const matchedConditionIndexes = buildMatchedConditionIndexes(row.matchedConditionCodes)
+  return {
+    id: String(row.inventoryId ?? row.skuCode ?? ''),
+    skuCode: String(row.skuCode ?? ''),
+    itemCode: String(row.itemCode ?? ''),
+    category: `${row.parentCategory ?? ''} > ${row.childCategory ?? ''}`.replace(/^ > | > $/g, ''),
+    itemName: String(row.itemName ?? ''),
+    warehouseCode: String(row.warehouseCode ?? ''),
+    warehouseName: String(row.warehouseName ?? ''),
+    color: String(row.color ?? ''),
+    size: String(row.size ?? ''),
+    actualStock: Number(row.actualStock ?? 0),
+    availableStock: Number(row.availableStock ?? 0),
+    convertibleStock: Number(row.convertibleStock ?? 0),
+    updatedAt: row.updatedAt ? new Date(row.updatedAt).toLocaleString('ko-KR', { hour12: false }) : '-',
+    matchedConditionIndexes,
+    matchedConditionLabel: matchedConditionIndexes.join('·'),
+    matchedConditionTooltip: buildMatchedConditionTooltip(matchedConditionIndexes),
+  }
+}
 
-    return colorOptions.flatMap((color, colorIndex) =>
-      sizeOptions.map((size, sizeIndex) => {
-        const actualStock = 12 + ((seed + colorIndex * 17 + sizeIndex * 9) % 55)
-        const availableStock = Math.max(actualStock - ((seed + colorIndex * 5 + sizeIndex * 3) % 11), 0)
-        const convertibleStock = Math.max(
-          1,
-          Math.min(availableStock, 1 + ((seed + colorIndex * 13 + sizeIndex * 7 + cIndex) % 18)),
-        )
-        const updatedDay = String(28 - ((cIndex + colorIndex + sizeIndex) % 12)).padStart(2, '0')
-        const updatedHour = String(9 + ((sizeIndex + colorIndex) % 9)).padStart(2, '0')
+const parseCategory = (categoryLabel) => {
+  const [parent = '', child = ''] = String(categoryLabel ?? '').split('>').map(part => part.trim())
+  return { parentCategory: parent, childCategory: child }
+}
 
-        return {
-          id: `${candidate.id}-${color}-${size}`,
-          skuCode: `${candidate.itemCode}-${colorCodeMap[color]}-${size}`,
-          itemCode: candidate.itemCode,
-          category: candidate.category,
-          itemName: candidate.itemName,
-          warehouseName: candidate.warehouseName,
-          color,
-          size,
-          availableStock,
-          convertibleStock,
-          updatedAt: `2026.04.${updatedDay} ${updatedHour}:20`,
-        }
-      }),
-    )
-  })
-
-const categoryOptions = computed(() =>
-  [...new Set(candidateSkus.value.map(row => row.category))].sort((a, b) => a.localeCompare(b, 'ko')),
+const parentCategoryOptions = computed(() =>
+  [...new Set(candidateSkus.value.map(row => parseCategory(row.category).parentCategory).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'ko')),
 )
 
-const warehouseOptions = computed(() =>
-  [...new Set(candidateSkus.value.map(row => row.warehouseName))].sort((a, b) => a.localeCompare(b, 'ko')),
-)
+const childCategoryOptions = computed(() => {
+  if (!selectedParentCategory.value) return []
+
+  return [...new Set(
+    candidateSkus.value
+      .map((row) => {
+        const parsed = parseCategory(row.category)
+        return parsed.parentCategory === selectedParentCategory.value ? parsed.childCategory : ''
+      })
+      .filter(Boolean),
+  )].sort((a, b) => a.localeCompare(b, 'ko'))
+})
 
 const filteredSkus = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase()
 
   return candidateSkus.value.filter((row) => {
-    const matchesCategory = !selectedCategory.value || row.category === selectedCategory.value
-    const matchesWarehouse = !selectedWarehouse.value || row.warehouseName === selectedWarehouse.value
+    const { parentCategory, childCategory } = parseCategory(row.category)
+    const matchesParentCategory = !selectedParentCategory.value || parentCategory === selectedParentCategory.value
+    const matchesChildCategory = !selectedChildCategory.value || childCategory === selectedChildCategory.value
+    const matchesWarehouse = selectedWarehouseCodes.value.length === 0
+      || selectedWarehouseCodes.value.includes(row.warehouseCode)
+    const matchesCondition = selectedConditionCodes.value.length === 0
+      || selectedConditionCodes.value.every(code => row.matchedConditionIndexes.includes(Number(code)))
     const matchesKeyword = !keyword
       || [row.skuCode, row.itemCode, row.itemName].join(' ').toLowerCase().includes(keyword)
 
-    return matchesCategory && matchesWarehouse && matchesKeyword
+    return matchesParentCategory && matchesChildCategory && matchesWarehouse && matchesCondition && matchesKeyword
   })
 })
 
@@ -172,11 +184,43 @@ const paginatedSkus = computed(() => {
   return sortedSkus.value.slice(start, start + PAGE_SIZE)
 })
 
-const canConvertInventory = computed(() => selectedSkuCodes.value.length > 0)
+const canConvertInventory = computed(() => selectedRowIds.value.length > 0)
+const selectedRows = computed(() => {
+  const selectedSet = new Set(selectedRowIds.value)
+  return candidateSkus.value.filter(row => selectedSet.has(row.id))
+})
+
+const conversionRows = computed(() =>
+  selectedRows.value.map((row) => {
+    const rawInput = conversionInputs.value[row.id]
+    const quantity = Number(rawInput)
+    const maxQuantity = Math.max(0, Number(row.convertibleStock ?? 0))
+    const hasInvalidNumber = !Number.isInteger(quantity)
+    const hasRangeError = quantity < 1 || quantity > maxQuantity
+    const error = hasInvalidNumber
+      ? '정수를 입력하세요.'
+      : hasRangeError
+        ? `1 ~ ${maxQuantity.toLocaleString()} 사이로 입력하세요.`
+        : ''
+    return {
+      ...row,
+      quantity: Number.isFinite(quantity) ? quantity : 0,
+      maxQuantity,
+      error,
+    }
+  }),
+)
+const totalRequestedQuantity = computed(() =>
+  conversionRows.value.reduce((sum, row) => sum + (row.error ? 0 : row.quantity), 0),
+)
+const canSubmitConversion = computed(() =>
+  conversionRows.value.length > 0
+  && !conversionRows.value.some(row => row.error),
+)
 
 const isAllCurrentPageSelected = computed(() =>
   paginatedSkus.value.length > 0
-  && paginatedSkus.value.every(row => selectedSkuCodes.value.includes(row.skuCode)),
+  && paginatedSkus.value.every(row => selectedRowIds.value.includes(row.id)),
 )
 
 const rangeStart = computed(() => (sortedSkus.value.length === 0 ? 0 : (currentPage.value - 1) * PAGE_SIZE + 1))
@@ -186,17 +230,143 @@ watch(totalPages, (pageCount) => {
   if (currentPage.value > pageCount) currentPage.value = pageCount
 })
 
-watch([selectedCategory, selectedWarehouse, searchTerm], () => {
+watch(selectedParentCategory, () => {
+  selectedChildCategory.value = ''
+})
+
+watch([selectedParentCategory, selectedChildCategory, selectedWarehouseCodes, selectedConditionCodes, searchTerm], () => {
   currentPage.value = 1
 })
 
-const refreshCandidates = () => {
-  hasRefreshed.value = true
-  candidateSkus.value = buildCandidateSkus()
-  selectedSkuCodes.value = []
-  currentPage.value = 1
-  sortKey.value = 'convertibleStock'
-  sortDirection.value = 'desc'
+const toggleWarehouseDropdown = () => {
+  isWarehouseDropdownOpen.value = !isWarehouseDropdownOpen.value
+}
+
+const toggleWarehouseCode = (code) => {
+  selectedWarehouseCodes.value = selectedWarehouseCodes.value.includes(code)
+    ? selectedWarehouseCodes.value.filter(value => value !== code)
+    : [...selectedWarehouseCodes.value, code]
+}
+
+const clearWarehouseCodes = () => {
+  selectedWarehouseCodes.value = []
+}
+
+const toggleConditionDropdown = () => {
+  isConditionDropdownOpen.value = !isConditionDropdownOpen.value
+}
+
+const toggleConditionCode = (code) => {
+  selectedConditionCodes.value = selectedConditionCodes.value.includes(code)
+    ? selectedConditionCodes.value.filter(value => value !== code)
+    : [...selectedConditionCodes.value, code]
+}
+
+const clearConditionCodes = () => {
+  selectedConditionCodes.value = []
+}
+
+const handleDocumentClick = (event) => {
+  if (!warehouseDropdownRef.value?.contains(event.target)) {
+    isWarehouseDropdownOpen.value = false
+  }
+  if (!conditionDropdownRef.value?.contains(event.target)) {
+    isConditionDropdownOpen.value = false
+  }
+}
+
+const loadWarehouseOptions = async () => {
+  try {
+    const rows = await getInfrastructures({ type: 'WAREHOUSE', status: 'ACTIVE' })
+    warehouseOptions.value = Array.isArray(rows)
+      ? rows
+        .map(row => ({ code: String(row.code ?? ''), name: String(row.name ?? '') }))
+        .filter(row => row.code && row.name)
+        .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+      : []
+  } catch {
+    warehouseOptions.value = []
+  }
+}
+
+const loadCandidates = async () => {
+  isLoading.value = true
+  loadError.value = ''
+  try {
+    const rows = await getCircularCandidates()
+    candidateSkus.value = Array.isArray(rows) ? rows.map(mapCandidateRow) : []
+    hasRefreshed.value = true
+  } catch (e) {
+    loadError.value = e.message || '순환 재고 후보 조회에 실패했습니다.'
+    candidateSkus.value = []
+    hasRefreshed.value = true
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const refreshCandidates = async () => {
+  isLoading.value = true
+  loadError.value = ''
+  try {
+    await refreshCircularCandidates()
+    await loadCandidates()
+    selectedRowIds.value = []
+    selectedParentCategory.value = ''
+    selectedChildCategory.value = ''
+    selectedWarehouseCodes.value = []
+    selectedConditionCodes.value = []
+    convertNotice.value = ''
+    currentPage.value = 1
+    sortKey.value = 'convertibleStock'
+    sortDirection.value = 'desc'
+  } catch (e) {
+    loadError.value = e.message || '순환 재고 후보 갱신에 실패했습니다.'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const openConvertModal = () => {
+  if (!canConvertInventory.value) return
+  conversionInputs.value = Object.fromEntries(
+    selectedRows.value.map(row => [row.id, Math.max(1, Number(row.convertibleStock ?? 0))]),
+  )
+  convertNotice.value = ''
+  isConvertModalOpen.value = true
+}
+
+const closeConvertModal = () => {
+  if (isConverting.value) return
+  isConvertModalOpen.value = false
+}
+
+const submitConversion = async () => {
+  if (!canSubmitConversion.value || isConverting.value) return
+
+  isConverting.value = true
+  convertNotice.value = ''
+  try {
+    const payload = conversionRows.value.map(row => ({
+      inventoryId: Number(row.id),
+      convertQuantity: row.quantity,
+    }))
+    const result = await convertCircularCandidates(payload)
+    const convertedCount = Number(result?.convertedCount ?? 0)
+    const skippedCount = Number(result?.skippedCount ?? 0)
+    convertNotice.value = skippedCount > 0
+      ? `부분 전환 완료: 성공 ${convertedCount}건, 실패 ${skippedCount}건`
+      : `전환 완료: ${convertedCount}건`
+
+    await loadCandidates()
+    selectedRowIds.value = []
+    conversionInputs.value = {}
+    isConvertModalOpen.value = false
+  } catch (e) {
+    convertNotice.value = e.message || '순환 재고 전환에 실패했습니다.'
+  } finally {
+    isConverting.value = false
+  }
 }
 
 const toggleSort = (key) => {
@@ -215,18 +385,18 @@ const sortIcon = (key) => {
   return sortDirection.value === 'asc' ? '▲' : '▼'
 }
 
-const toggleSku = (skuCode) => {
-  selectedSkuCodes.value = selectedSkuCodes.value.includes(skuCode)
-    ? selectedSkuCodes.value.filter(code => code !== skuCode)
-    : [...selectedSkuCodes.value, skuCode]
+const toggleRow = (rowId) => {
+  selectedRowIds.value = selectedRowIds.value.includes(rowId)
+    ? selectedRowIds.value.filter(id => id !== rowId)
+    : [...selectedRowIds.value, rowId]
 }
 
 const toggleAllCurrentPage = () => {
-  const pageCodes = paginatedSkus.value.map(row => row.skuCode)
+  const pageRowIds = paginatedSkus.value.map(row => row.id)
 
-  selectedSkuCodes.value = isAllCurrentPageSelected.value
-    ? selectedSkuCodes.value.filter(code => !pageCodes.includes(code))
-    : [...new Set([...selectedSkuCodes.value, ...pageCodes])]
+  selectedRowIds.value = isAllCurrentPageSelected.value
+    ? selectedRowIds.value.filter(id => !pageRowIds.includes(id))
+    : [...new Set([...selectedRowIds.value, ...pageRowIds])]
 }
 
 const goToPage = (page) => {
@@ -238,6 +408,16 @@ function handleLogout() {
   auth.logout()
   router.push('/login')
 }
+
+onMounted(() => {
+  document.addEventListener('click', handleDocumentClick)
+  loadWarehouseOptions()
+  loadCandidates()
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleDocumentClick)
+})
 </script>
 
 <template>
@@ -261,15 +441,17 @@ function handleLogout() {
             <button
               type="button"
               class="h-9 border border-gray-300 bg-white px-4 text-xs font-black text-gray-700 hover:bg-gray-50"
+              :disabled="isLoading"
               @click="refreshCandidates"
             >
-              재고 새로고침
+              {{ isLoading ? '갱신 중...' : '재고 새로고침' }}
             </button>
             <button
               type="button"
               class="h-9 px-4 text-xs font-black transition"
               :class="canConvertInventory ? 'bg-[#004D3C] text-white hover:bg-[#00382c]' : 'cursor-not-allowed bg-gray-100 text-gray-400'"
               :disabled="!canConvertInventory"
+              @click="openConvertModal"
             >
               순환 재고로 전환
             </button>
@@ -291,6 +473,8 @@ function handleLogout() {
             </span>
           </div>
         </div>
+        <p v-if="loadError" class="mt-3 text-xs font-bold text-red-600">{{ loadError }}</p>
+        <p v-if="convertNotice" class="mt-2 text-xs font-bold text-[#004D3C]">{{ convertNotice }}</p>
       </section>
 
       <section class="min-w-0 border border-gray-200 bg-white shadow-sm">
@@ -298,7 +482,7 @@ function handleLogout() {
           <div>
             <h2 class="text-sm font-black text-gray-900">전환 후보 SKU 리스트</h2>
             <p class="mt-1 text-[11px] font-bold text-gray-400">
-              {{ hasRefreshed ? `조회 ${sortedSkus.length.toLocaleString()}건 · 선택 ${selectedSkuCodes.length.toLocaleString()}건` : '재고 새로고침 후 후보가 표시됩니다.' }}
+              {{ hasRefreshed ? `조회 ${sortedSkus.length.toLocaleString()}건 · 선택 ${selectedRowIds.length.toLocaleString()}건` : '재고 새로고침 후 후보가 표시됩니다.' }}
             </p>
           </div>
           <p v-if="hasRefreshed" class="text-[11px] font-bold text-gray-400">
@@ -308,33 +492,119 @@ function handleLogout() {
 
         <div
           v-if="hasRefreshed"
-          class="grid gap-3 border-b border-gray-100 px-4 py-3 xl:grid-cols-[0.9fr_1fr_1.4fr]"
+          class="grid gap-3 border-b border-gray-100 px-4 py-3 xl:grid-cols-[0.85fr_0.85fr_0.95fr_1.5fr_1.1fr]"
         >
           <label class="flex flex-col gap-1.5">
-            <span class="text-[11px] font-bold text-gray-500">카테고리</span>
+            <span class="text-[11px] font-bold text-gray-500">대분류</span>
             <select
-              v-model="selectedCategory"
+              v-model="selectedParentCategory"
               class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
             >
-              <option value="">전체</option>
-              <option v-for="category in categoryOptions" :key="category" :value="category">
+              <option value="">전체 대분류</option>
+              <option v-for="category in parentCategoryOptions" :key="category" :value="category">
                 {{ category }}
               </option>
             </select>
           </label>
 
           <label class="flex flex-col gap-1.5">
-            <span class="text-[11px] font-bold text-gray-500">창고</span>
+            <span class="text-[11px] font-bold text-gray-500">소분류</span>
             <select
-              v-model="selectedWarehouse"
-              class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
+              v-model="selectedChildCategory"
+              :disabled="!selectedParentCategory"
+              class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 focus:border-[#004D3C]"
             >
-              <option value="">전체</option>
-              <option v-for="warehouse in warehouseOptions" :key="warehouse" :value="warehouse">
-                {{ warehouse }}
+              <option value="">전체 소분류</option>
+              <option v-for="category in childCategoryOptions" :key="category" :value="category">
+                {{ category }}
               </option>
             </select>
           </label>
+
+          <div ref="warehouseDropdownRef" class="relative flex flex-col gap-1.5">
+            <span class="text-[11px] font-bold text-gray-500">창고</span>
+            <button
+              type="button"
+              class="h-9 border border-gray-300 bg-white px-3 text-left text-xs font-bold text-gray-900 outline-none hover:bg-gray-50 focus:border-[#004D3C]"
+              @click.stop="toggleWarehouseDropdown"
+            >
+              <span>{{ warehouseSummaryLabel }}</span>
+              <span class="float-right text-[11px] text-gray-500">{{ isWarehouseDropdownOpen ? '▲' : '▼' }}</span>
+            </button>
+
+            <div
+              v-if="isWarehouseDropdownOpen"
+              class="absolute top-[58px] z-20 w-full border border-gray-200 bg-white p-2 shadow-lg"
+              @click.stop
+            >
+              <div class="mb-2 flex items-center justify-between">
+                <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-500">Warehouse</p>
+                <button
+                  type="button"
+                  class="text-[10px] font-black text-gray-500 hover:text-gray-700"
+                  @click="clearWarehouseCodes"
+                >
+                  전체 해제
+                </button>
+              </div>
+              <label
+                v-for="option in warehouseOptions"
+                :key="option.code"
+                class="flex cursor-pointer items-start gap-2 rounded px-2 py-1.5 hover:bg-[#EBF5F5]/60"
+              >
+                <input
+                  type="checkbox"
+                  class="mt-0.5 h-3.5 w-3.5 accent-[#004D3C]"
+                  :checked="selectedWarehouseCodes.includes(option.code)"
+                  @change="toggleWarehouseCode(option.code)"
+                />
+                <span class="text-[11px] font-bold text-gray-700">{{ option.name }}</span>
+              </label>
+            </div>
+          </div>
+
+          <div ref="conditionDropdownRef" class="relative flex flex-col gap-1.5">
+            <span class="text-[11px] font-bold text-gray-500">후보 조건</span>
+            <button
+              type="button"
+              class="h-9 border border-gray-300 bg-white px-3 text-left text-xs font-bold text-gray-900 outline-none hover:bg-gray-50 focus:border-[#004D3C]"
+              @click.stop="toggleConditionDropdown"
+            >
+              <span>{{ conditionSummaryLabel }}</span>
+              <span class="float-right text-[11px] text-gray-500">{{ isConditionDropdownOpen ? '▲' : '▼' }}</span>
+            </button>
+
+            <div
+              v-if="isConditionDropdownOpen"
+              class="absolute top-[58px] z-20 w-full border border-gray-200 bg-white p-2 shadow-lg"
+              @click.stop
+            >
+              <div class="mb-2 flex items-center justify-between">
+                <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-500">Condition</p>
+                <button
+                  type="button"
+                  class="text-[10px] font-black text-gray-500 hover:text-gray-700"
+                  @click="clearConditionCodes"
+                >
+                  전체 해제
+                </button>
+              </div>
+              <label
+                v-for="option in conditionOptions"
+                :key="option.code"
+                class="flex cursor-pointer items-start gap-2 rounded px-2 py-1.5 hover:bg-[#EBF5F5]/60"
+              >
+                <input
+                  type="checkbox"
+                  class="mt-0.5 h-3.5 w-3.5 accent-[#004D3C]"
+                  :checked="selectedConditionCodes.includes(option.code)"
+                  @change="toggleConditionCode(option.code)"
+                />
+                <span class="text-[11px] font-bold text-gray-700">{{ option.code }}. {{ option.label }}</span>
+              </label>
+            </div>
+
+          </div>
 
           <label class="flex flex-col gap-1.5">
             <span class="text-[11px] font-bold text-gray-500">검색</span>
@@ -388,6 +658,7 @@ function handleLogout() {
                     <span class="text-[9px]">{{ sortIcon('convertibleStock') }}</span>
                   </button>
                 </th>
+                <th class="px-3 py-3 font-black">후보 조건</th>
                 <th class="px-3 py-3 font-black">
                   <button type="button" class="inline-flex items-center gap-1 hover:text-gray-900" @click="toggleSort('updatedAt')">
                     최종 업데이트
@@ -401,15 +672,15 @@ function handleLogout() {
                 v-for="row in paginatedSkus"
                 :key="row.id"
                 class="cursor-pointer transition"
-                :class="selectedSkuCodes.includes(row.skuCode) ? 'bg-[#EBF5F5] font-bold' : 'hover:bg-[#EBF5F5]/60'"
-                @click="toggleSku(row.skuCode)"
+                :class="selectedRowIds.includes(row.id) ? 'bg-[#EBF5F5] font-bold' : 'hover:bg-[#EBF5F5]/60'"
+                @click="toggleRow(row.id)"
               >
                 <td class="px-3 py-3 text-center">
                   <input
                     type="checkbox"
                     class="h-3.5 w-3.5 accent-[#004D3C]"
-                    :checked="selectedSkuCodes.includes(row.skuCode)"
-                    @click.stop="toggleSku(row.skuCode)"
+                    :checked="selectedRowIds.includes(row.id)"
+                    @click.stop="toggleRow(row.id)"
                   />
                 </td>
                 <td class="px-3 py-3 font-mono font-bold text-gray-600">{{ row.skuCode }}</td>
@@ -421,10 +692,15 @@ function handleLogout() {
                 <td class="px-3 py-3 text-center font-black text-gray-900">{{ row.size }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ row.availableStock.toLocaleString() }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ row.convertibleStock.toLocaleString() }}</td>
+                <td class="px-3 py-3" :title="row.matchedConditionTooltip">
+                  <span class="inline-flex items-center bg-[#EBF5F5] px-2 py-1 text-[10px] font-black text-[#004D3C]">
+                    {{ row.matchedConditionLabel }}
+                  </span>
+                </td>
                 <td class="px-3 py-3 font-bold text-gray-500">{{ row.updatedAt }}</td>
               </tr>
               <tr v-if="paginatedSkus.length === 0">
-                <td colspan="11" class="px-3 py-14 text-center text-sm font-bold text-gray-400">
+                <td colspan="12" class="px-3 py-14 text-center text-sm font-bold text-gray-400">
                   조건에 맞는 순환 재고 후보가 없습니다.
                 </td>
               </tr>
@@ -469,6 +745,83 @@ function handleLogout() {
           </div>
         </div>
       </section>
+    </div>
+
+    <div
+      v-if="isConvertModalOpen"
+      class="fixed inset-0 z-50 flex items-end justify-center bg-black/35 p-4 md:items-center"
+      @click.self="closeConvertModal"
+    >
+      <div class="w-full max-w-4xl border border-gray-200 bg-white shadow-xl">
+        <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+          <div>
+            <p class="text-sm font-black text-gray-900">순환 재고 전환</p>
+            <p class="mt-1 text-[11px] font-bold text-gray-500">
+              선택 {{ conversionRows.length.toLocaleString() }}건 · 입력 합계 {{ totalRequestedQuantity.toLocaleString() }}개
+            </p>
+          </div>
+          <button
+            type="button"
+            class="h-8 border border-gray-300 bg-white px-3 text-[11px] font-black text-gray-600 hover:bg-gray-50"
+            :disabled="isConverting"
+            @click="closeConvertModal"
+          >
+            닫기
+          </button>
+        </div>
+
+        <div class="max-h-[58vh] overflow-y-auto p-4">
+          <table class="w-full border-collapse text-xs">
+            <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.1em] text-gray-500">
+              <tr>
+                <th class="px-3 py-2 text-left font-black">SKU</th>
+                <th class="px-3 py-2 text-left font-black">창고</th>
+                <th class="px-3 py-2 text-right font-black">전환 가능</th>
+                <th class="px-3 py-2 text-right font-black">전환 수량</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr v-for="row in conversionRows" :key="`convert-${row.id}`">
+                <td class="px-3 py-2 font-mono font-bold text-gray-700">{{ row.skuCode }}</td>
+                <td class="px-3 py-2 font-bold text-gray-700">{{ row.warehouseName }}</td>
+                <td class="px-3 py-2 text-right font-black text-gray-900">{{ row.maxQuantity.toLocaleString() }}</td>
+                <td class="px-3 py-2">
+                  <div class="flex flex-col items-end gap-1">
+                    <input
+                      v-model.number="conversionInputs[row.id]"
+                      type="number"
+                      min="1"
+                      :max="row.maxQuantity"
+                      class="h-8 w-32 border border-gray-300 px-2 text-right text-xs font-black text-gray-900 outline-none focus:border-[#004D3C]"
+                    />
+                    <span v-if="row.error" class="text-[10px] font-bold text-red-600">{{ row.error }}</span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 border-t border-gray-100 bg-gray-50 px-4 py-3">
+          <button
+            type="button"
+            class="h-9 border border-gray-300 bg-white px-4 text-xs font-black text-gray-700 hover:bg-gray-100"
+            :disabled="isConverting"
+            @click="closeConvertModal"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            class="h-9 px-4 text-xs font-black text-white transition"
+            :class="canSubmitConversion ? 'bg-[#004D3C] hover:bg-[#00382c]' : 'cursor-not-allowed bg-gray-300'"
+            :disabled="!canSubmitConversion || isConverting"
+            @click="submitConversion"
+          >
+            {{ isConverting ? '전환 중...' : '전환 확정' }}
+          </button>
+        </div>
+      </div>
     </div>
   </AppLayout>
 </template>

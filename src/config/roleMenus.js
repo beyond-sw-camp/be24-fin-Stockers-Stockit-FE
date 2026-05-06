@@ -53,6 +53,7 @@ export const roleMenus = {
       icon: 'store',
       children: [
         { label: '매장/창고 정보 관리', path: '/hq/infrastructure' },
+        { label: '매장/창고 매핑 관리', path: '/hq/infrastructure/mappings' },
       ],
     },
     {

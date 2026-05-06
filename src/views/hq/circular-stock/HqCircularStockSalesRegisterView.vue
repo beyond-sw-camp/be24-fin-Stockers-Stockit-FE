@@ -29,6 +29,8 @@ const showFinalReviewModal = ref(false)
 const priceEditModes = ref({})
 const toastMessage = ref('')
 const toastTone = ref('success')
+const inventoryLoadError = ref('')
+const isInventoryLoading = ref(false)
 let toastTimer = null
 
 // ADR-021 AI 거래처 추천 — Step 2 좌측 영역 모드 토글. 'ai' | 'manual'.
@@ -237,6 +239,18 @@ function materialFitLabel(value) {
   return buyerStore.materialFitLabel(value)
 }
 
+async function loadCircularInventoryRows() {
+  isInventoryLoading.value = true
+  inventoryLoadError.value = ''
+  try {
+    await circularStockStore.loadCircularInventoryRows()
+  } catch (e) {
+    inventoryLoadError.value = e.message || '순환 재고 불러오기에 실패했습니다.'
+  } finally {
+    isInventoryLoading.value = false
+  }
+}
+
 watch(toastMessage, (message) => {
   if (!message) return
   if (toastTimer) clearTimeout(toastTimer)
@@ -247,6 +261,7 @@ watch(toastMessage, (message) => {
 
 onMounted(() => {
   document.addEventListener('mousedown', handleDocumentClick)
+  loadCircularInventoryRows()
   if (draftItems.value.length > 0) {
     isDrawerOpen.value = true
   }
@@ -275,6 +290,7 @@ onBeforeUnmount(() => {
             <p class="mt-1 text-xs font-bold text-gray-500">
               SKU를 먼저 선택하고, 거래처를 매칭한 뒤 판매 kg/단가를 확정해 요청서를 등록합니다.
             </p>
+            <p v-if="inventoryLoadError" class="mt-2 text-xs font-bold text-red-600">{{ inventoryLoadError }}</p>
           </div>
 
           <button
@@ -289,7 +305,7 @@ onBeforeUnmount(() => {
 
       <CircularStockInventoryBrowseSection
         title="판매 대상 순환 재고 리스트"
-        description="순환 재고 조회 화면과 동일한 기준으로 SKU를 탐색하고, Step 1에 담을 항목을 선택합니다."
+        :description="isInventoryLoading ? '순환 재고를 불러오는 중입니다.' : '순환 재고 조회 화면과 동일한 기준으로 SKU를 탐색하고, Step 1에 담을 항목을 선택합니다.'"
         :summary-text="browseSummaryText"
         :show-circular-sale-price-column="true"
         :inventory-rows="circularStockStore.inventoryRows"
