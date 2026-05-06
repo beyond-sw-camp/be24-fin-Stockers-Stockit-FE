@@ -68,7 +68,7 @@ export const useWarehouseStockStore = defineStore('warehouseStock', () => {
     if (!base) return null
 
     const incoming = poStore.purchaseOrders
-      .filter((o) => o.status === 'SHIPPING' && o.warehouseId === warehouseId)
+      .filter((o) => o.status === 'IN_TRANSIT' && o.warehouseId === warehouseId)
       .flatMap((o) => o.items ?? [])
       .filter((it) => it.productCode === productCode)
       .reduce((sum, it) => sum + (Number(it.quantity) || 0), 0)
@@ -184,7 +184,7 @@ export const useWarehouseStockStore = defineStore('warehouseStock', () => {
     if (!warehouseId || !skuCode) return null
     const base = defaultSkuStock(warehouseId, skuCode)
     const incoming = poStore.purchaseOrders
-      .filter((o) => o.status === 'SHIPPING' && o.warehouseId === warehouseId)
+      .filter((o) => o.status === 'IN_TRANSIT' && o.warehouseId === warehouseId)
       .flatMap((o) => o.items ?? [])
       .filter((it) => it.skuCode && it.skuCode === skuCode)
       .reduce((sum, it) => sum + (Number(it.quantity) || 0), 0)

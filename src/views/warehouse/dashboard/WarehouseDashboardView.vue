@@ -136,7 +136,7 @@ const kpiStats = computed(() => [
     label: '입고 예정',
     value: String(shippingCount.value),
     unit: '건',
-    caption: 'SHIPPING',
+    caption: 'IN_PROGRESS',
     tone: 'blue',
   },
   {

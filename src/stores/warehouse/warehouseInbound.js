@@ -15,13 +15,15 @@ import { inboundApi } from '@/api/warehouse/inbound.js'
  */
 export const useWarehouseInboundStore = defineStore('warehouseInbound', () => {
   // --- state ---
-  const items = ref([])           // 입고 후보 발주 목록 (DELIVERED + COMPLETED)
+  const items = ref([])           // 입고 후보 발주 목록 (READY_TO_SHIP/IN_TRANSIT/ARRIVED/COMPLETED)
   const selectedDetail = ref(null) // 선택된 발주의 상세 (items + statusHistory 포함)
   const loading = ref(false)
   const error = ref(null)
 
-  // 'DELIVERED' = 배송완료(도착됨, 입고 확정 대기) / 'COMPLETED' = 입고완료
-  const activeStatusTab = ref('DELIVERED')
+  // 창고 화면 4탭 — 거래처 책임 단계도 노출 (사용자 결정: READY_TO_SHIP 부터 보여야 함).
+  // READY_TO_SHIP/IN_TRANSIT/ARRIVED 는 거래처 단계 가시화용, COMPLETED 는 입고 완료.
+  // 입고 확정([입고 완료] 액션) 은 ARRIVED 일 때만 가능.
+  const activeStatusTab = ref('READY_TO_SHIP')
   const selectedOrderId = ref(null)
   const searchKeyword = ref('')
   const dateFrom = ref('')
@@ -85,7 +87,10 @@ export const useWarehouseInboundStore = defineStore('warehouseInbound', () => {
   })
 
   const inboundList = computed(() => {
-    let list = items.value.filter((o) => o.status === activeStatusTab.value)
+    // '전체' 탭은 모든 입고 후보(READY_TO_SHIP/IN_TRANSIT/ARRIVED/COMPLETED) 노출.
+    let list = activeStatusTab.value === '전체'
+      ? items.value
+      : items.value.filter((o) => o.status === activeStatusTab.value)
 
     if (searchKeyword.value.trim()) {
       const k = searchKeyword.value.trim().toLowerCase()
@@ -123,7 +128,10 @@ export const useWarehouseInboundStore = defineStore('warehouseInbound', () => {
 
   // 탭 카운트는 항상 전체 기준 (검색·기간 무관)
   const counts = computed(() => ({
-    DELIVERED: items.value.filter((o) => o.status === 'DELIVERED').length,
+    전체: items.value.length,
+    READY_TO_SHIP: items.value.filter((o) => o.status === 'READY_TO_SHIP').length,
+    IN_TRANSIT: items.value.filter((o) => o.status === 'IN_TRANSIT').length,
+    ARRIVED: items.value.filter((o) => o.status === 'ARRIVED').length,
     COMPLETED: items.value.filter((o) => o.status === 'COMPLETED').length,
   }))
 
@@ -174,7 +182,7 @@ export const useWarehouseInboundStore = defineStore('warehouseInbound', () => {
     }
   }
 
-  // 입고 확정 (WHS-007) — DELIVERED → COMPLETED.
+  // 입고 확정 (WHS-007) — ARRIVED → COMPLETED.
   // BE: POST /api/warehouse/inbound/{code}/confirm (내부적으로 PurchaseOrderService.complete 위임).
   async function confirmInbound(id) {
     await inboundApi.confirm(id)
