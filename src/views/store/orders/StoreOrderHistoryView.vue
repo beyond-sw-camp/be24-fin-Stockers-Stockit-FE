@@ -100,7 +100,6 @@ function statusClass(status) {
 // [함수] 상태 탭을 변경하고 목록을 즉시 재조회한다.
 function changeTab(key) {
   activeStatusTab.value = key
-  fetchOrders()
 }
 
 /**
@@ -120,7 +119,6 @@ async function fetchOrders() {
 
     const result = await getStoreOrders({
       storeCode: auth.user.storeCode,
-      status: activeStatusTab.value === '전체' ? undefined : activeStatusTab.value,
       from: dateFrom.value || undefined,
       to: dateTo.value || undefined,
       keyword: searchKeyword.value?.trim() || undefined,
