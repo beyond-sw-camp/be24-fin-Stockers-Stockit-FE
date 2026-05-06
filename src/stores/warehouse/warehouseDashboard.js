@@ -26,7 +26,16 @@ export const useWarehouseDashboardStore = defineStore('warehouseDashboard', () =
     return Math.round(r * 100)
   })
 
-  const shippingCount = computed(() => statusBreakdown.value.SHIPPING ?? 0)
+  // 입고 예정 = 거래처 책임 단계 합산 (READY_TO_SHIP + IN_TRANSIT + ARRIVED).
+  // BE 가 kpi.scheduledCount 로 이미 합산하지만 statusBreakdown 으로도 fallback 계산.
+  const shippingCount = computed(() => {
+    if (kpi.value.scheduledCount !== undefined && kpi.value.scheduledCount !== null) {
+      return kpi.value.scheduledCount
+    }
+    return (statusBreakdown.value.READY_TO_SHIP ?? 0)
+      + (statusBreakdown.value.IN_TRANSIT ?? 0)
+      + (statusBreakdown.value.ARRIVED ?? 0)
+  })
   const completedCount = computed(() => statusBreakdown.value.COMPLETED ?? 0)
   const stageTotal = computed(() => shippingCount.value + completedCount.value)
 
@@ -49,8 +58,8 @@ export const useWarehouseDashboardStore = defineStore('warehouseDashboard', () =
     try {
       const [progressRes, listRes] = await Promise.all([
         dashboardApi.getInboundProgress(params),
-        // 입고 예정 = DELIVERED(배송완료, 도착됨) — SHIPPING 은 공급처 단계라 창고 화면 미노출
-        inboundApi.list({ ...params, status: 'DELIVERED' }),
+        // 입고 예정 테이블 = ARRIVED(배송 완료, 입고 확정 대기) 발주만 — 도착 임박 강조
+        inboundApi.list({ ...params, status: 'ARRIVED' }),
       ])
       progress.value = progressRes
       // 입고 예정 테이블 — 도착 임박 (오래된 순) 노출 위해 createdAt asc 로 재정렬

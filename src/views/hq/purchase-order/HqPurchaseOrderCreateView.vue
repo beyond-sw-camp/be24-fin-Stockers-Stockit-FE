@@ -742,7 +742,7 @@ async function confirmSubmitOrder() {
     if (isEditMode.value) {
       // 가드 재검증 — 다른 곳에서 상태 바뀌었을 수 있음
       const order = poStore.purchaseOrders.find((o) => o.id === editingOrderId.value)
-      if (!order || order.status !== 'PENDING') {
+      if (!order || order.status !== 'REQUESTED') {
         triggerToast('상태가 변경되어 수정할 수 없습니다')
         setTimeout(() => router.replace({ name: 'hq-purchase-orders' }), 900)
         return
@@ -785,7 +785,7 @@ function initEditMode() {
     setTimeout(() => router.replace({ name: 'hq-purchase-orders' }), 900)
     return
   }
-  if (order.status !== 'PENDING') {
+  if (order.status !== 'REQUESTED') {
     triggerToast('승인 대기 상태의 발주만 수정할 수 있습니다')
     setTimeout(() => router.replace({ name: 'hq-purchase-orders' }), 900)
     return

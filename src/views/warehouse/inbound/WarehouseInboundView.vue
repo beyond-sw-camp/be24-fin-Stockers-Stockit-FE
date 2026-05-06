@@ -55,8 +55,12 @@ function handleLogout() {
 }
 
 // ─── 상태 탭 ────────────────────────────────────────────────────────────────
+// 4탭 — 거래처 책임 단계도 가시화 (사용자 결정: READY_TO_SHIP 부터 보여야 함).
+// [입고 확정] 액션은 ARRIVED 일 때만 가능.
 const STATUS_TABS = [
-  { key: 'DELIVERED', label: '입고 예정' },
+  { key: 'READY_TO_SHIP', label: '배송 준비 중' },
+  { key: 'IN_TRANSIT', label: '배송 중' },
+  { key: 'ARRIVED', label: '입고 예정' },
   { key: 'COMPLETED', label: '입고 완료' },
 ]
 
@@ -70,8 +74,8 @@ function changeTab(key) {
 const showConfirmInbound = ref(false)
 
 function openConfirmInbound() {
-  // DELIVERED(배송완료, 도착됨) 상태에서만 입고 확정 가능 — markCompleted 검증
-  if (inbound.selectedOrder?.status !== 'DELIVERED') return
+  // ARRIVED(배송 완료, 도착됨) 상태에서만 입고 확정 가능 — markCompleted 검증
+  if (inbound.selectedOrder?.status !== 'ARRIVED') return
   showConfirmInbound.value = true
 }
 function cancelConfirmInbound() {
@@ -103,24 +107,27 @@ function triggerToast(message) {
 // ─── 헬퍼 ────────────────────────────────────────────────────────────────────
 function statusClass(status) {
   const map = {
-    PENDING: 'bg-amber-50 text-amber-700',
+    REQUESTED: 'bg-amber-50 text-amber-700',
     APPROVED: 'bg-emerald-50 text-emerald-700',
-    SHIPPING: 'bg-blue-50 text-blue-600',
-    DELIVERED: 'bg-violet-50 text-violet-700',
+    READY_TO_SHIP: 'bg-sky-50 text-sky-700',
+    IN_TRANSIT: 'bg-blue-50 text-blue-600',
+    ARRIVED: 'bg-violet-50 text-violet-700',
     COMPLETED: 'bg-gray-100 text-gray-500',
-    REJECTED: 'bg-red-50 text-red-600',
+    CANCELLED: 'bg-red-50 text-red-600',
   }
   return map[status] ?? 'bg-gray-100 text-gray-500'
 }
 
+// 창고 화면 시점 라벨 (COMPLETED = "입고 완료", 본사 화면은 "종료")
 function statusLabel(status) {
   const map = {
-    PENDING: '승인 대기',
+    REQUESTED: '승인 대기',
     APPROVED: '승인 완료',
-    SHIPPING: '배송 중',
-    DELIVERED: '배송 완료',
+    READY_TO_SHIP: '배송 준비 중',
+    IN_TRANSIT: '배송 중',
+    ARRIVED: '배송 완료',
     COMPLETED: '입고 완료',
-    REJECTED: '취소',
+    CANCELLED: '취소',
   }
   return map[status] ?? status
 }
@@ -135,24 +142,26 @@ function formatDate(iso) {
 
 function historyDotClass(status) {
   const map = {
-    PENDING: 'bg-amber-500',
+    REQUESTED: 'bg-amber-500',
     APPROVED: 'bg-emerald-500',
-    SHIPPING: 'bg-blue-500',
-    DELIVERED: 'bg-violet-500',
+    READY_TO_SHIP: 'bg-sky-500',
+    IN_TRANSIT: 'bg-blue-500',
+    ARRIVED: 'bg-violet-500',
     COMPLETED: 'bg-gray-700',
-    REJECTED: 'bg-red-600',
+    CANCELLED: 'bg-red-600',
   }
   return map[status] ?? 'bg-gray-400'
 }
 
 function historyTextClass(status) {
   const map = {
-    PENDING: 'text-amber-700',
+    REQUESTED: 'text-amber-700',
     APPROVED: 'text-emerald-700',
-    SHIPPING: 'text-blue-600',
-    DELIVERED: 'text-violet-700',
+    READY_TO_SHIP: 'text-sky-700',
+    IN_TRANSIT: 'text-blue-600',
+    ARRIVED: 'text-violet-700',
     COMPLETED: 'text-gray-700',
-    REJECTED: 'text-red-700',
+    CANCELLED: 'text-red-700',
   }
   return map[status] ?? 'text-gray-700'
 }
@@ -161,10 +170,16 @@ function selectOrder(id) {
   inbound.selectOrder(id)
 }
 
-// 창고 관점 진행 이력 — DELIVERED/COMPLETED 만 (PENDING/APPROVED/SHIPPING 은 공급처 영역, 노이즈)
+// 창고 관점 진행 이력 — 거래처 단계(READY_TO_SHIP/IN_TRANSIT/ARRIVED) + COMPLETED 노출.
+// REQUESTED/APPROVED 는 본사 승인 영역, CANCELLED 는 창고 화면 미노출이라 필터.
 const visibleHistory = computed(() => {
   const list = inbound.selectedOrder?.statusHistory ?? []
-  return list.filter((h) => h.status === 'DELIVERED' || h.status === 'COMPLETED')
+  return list.filter((h) =>
+    h.status === 'READY_TO_SHIP'
+    || h.status === 'IN_TRANSIT'
+    || h.status === 'ARRIVED'
+    || h.status === 'COMPLETED'
+  )
 })
 
 // ─── ESC 키로 상세 패널 닫기 ────────────────────────────────────────────────
@@ -546,7 +561,19 @@ const CheckIcon = IconBase([{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12'
 
           <!-- 액션/안내 (상태별 분기) -->
           <div class="space-y-3 px-4 pb-6 pt-2">
-            <template v-if="inbound.selectedOrder.status === 'DELIVERED'">
+            <template v-if="inbound.selectedOrder.status === 'READY_TO_SHIP'">
+              <p class="pt-2 text-center text-xs leading-relaxed text-gray-500">
+                공급처에서 배송 준비 중입니다. 배송 시작 시 자동으로 다음 단계로 전환됩니다.
+              </p>
+            </template>
+
+            <template v-else-if="inbound.selectedOrder.status === 'IN_TRANSIT'">
+              <p class="pt-2 text-center text-xs leading-relaxed text-gray-500">
+                배송 중입니다. 도착 시 자동으로 [배송 완료] 단계로 전환됩니다.
+              </p>
+            </template>
+
+            <template v-else-if="inbound.selectedOrder.status === 'ARRIVED'">
               <button
                 type="button"
                 class="inline-flex w-full items-center justify-center gap-1.5 border border-[#004D3C] bg-[#004D3C] px-2 py-3 text-[11px] font-black text-white hover:bg-[#1f4b3a]"

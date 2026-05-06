@@ -201,12 +201,13 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     const all = purchaseOrders.value
     return {
       전체: all.length,
-      PENDING: all.filter((o) => o.status === 'PENDING').length,
+      REQUESTED: all.filter((o) => o.status === 'REQUESTED').length,
       APPROVED: all.filter((o) => o.status === 'APPROVED').length,
-      SHIPPING: all.filter((o) => o.status === 'SHIPPING').length,
-      DELIVERED: all.filter((o) => o.status === 'DELIVERED').length,
+      READY_TO_SHIP: all.filter((o) => o.status === 'READY_TO_SHIP').length,
+      IN_TRANSIT: all.filter((o) => o.status === 'IN_TRANSIT').length,
+      ARRIVED: all.filter((o) => o.status === 'ARRIVED').length,
       COMPLETED: all.filter((o) => o.status === 'COMPLETED').length,
-      REJECTED: all.filter((o) => o.status === 'REJECTED').length,
+      CANCELLED: all.filter((o) => o.status === 'CANCELLED').length,
     }
   })
 
@@ -221,8 +222,8 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
   })
 
   const summary = computed(() => {
-    // 취소된(REJECTED) 발주는 총 발주 합계에서 제외 — 실제 처리되지 않은 금액.
-    let base = purchaseOrders.value.filter((o) => o.status !== 'REJECTED')
+    // 취소된(CANCELLED) 발주는 총 발주 합계에서 제외 — 실제 처리되지 않은 금액.
+    let base = purchaseOrders.value.filter((o) => o.status !== 'CANCELLED')
     if (vendorFilter.value) {
       base = base.filter((o) => o.vendorId === vendorFilter.value)
     }

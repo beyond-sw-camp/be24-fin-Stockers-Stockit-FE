@@ -27,14 +27,16 @@ function handleLogout() {
 }
 
 // ─── 상태 탭 ────────────────────────────────────────────────────────────────
+// 본사 화면이라 COMPLETED 라벨은 "종료" (창고 화면은 "입고 완료")
 const STATUS_TABS = [
   { label: '전체', key: '전체' },
-  { label: '승인 대기', key: 'PENDING' },
+  { label: '승인 대기', key: 'REQUESTED' },
   { label: '승인 완료', key: 'APPROVED' },
-  { label: '배송 중', key: 'SHIPPING' },
-  { label: '배송 완료', key: 'DELIVERED' },
-  { label: '입고 완료', key: 'COMPLETED' },
-  { label: '취소', key: 'REJECTED' },
+  { label: '배송 준비 중', key: 'READY_TO_SHIP' },
+  { label: '배송 중', key: 'IN_TRANSIT' },
+  { label: '배송 완료', key: 'ARRIVED' },
+  { label: '종료', key: 'COMPLETED' },
+  { label: '취소', key: 'CANCELLED' },
 ]
 
 // ─── 발주 목록/상세 ──────────────────────────────────────────────────────────
@@ -59,19 +61,23 @@ function triggerToast(message) {
 }
 
 // ─── SYS-001 배치 강제 트리거 (시연·QA용) ─────────────────────────────────
-// 30분 대기 조건을 무시하고 PENDING/APPROVED 모두 즉시 다음 단계로 넘긴다.
+// 30분 대기 조건을 무시하고 거래처 책임 4단계(REQUESTED/APPROVED/READY_TO_SHIP/IN_TRANSIT)
+// 모두 즉시 다음 단계로 넘긴다.
 const isRunningBatch = ref(false)
 async function runBatchTrigger() {
   if (isRunningBatch.value) return
   isRunningBatch.value = true
   try {
     const result = await poStore.runBatch()
-    const total = (result?.approved ?? 0) + (result?.shipping ?? 0) + (result?.delivered ?? 0)
+    const total = (result?.approved ?? 0)
+      + (result?.readyToShip ?? 0)
+      + (result?.inTransit ?? 0)
+      + (result?.arrived ?? 0)
     if (total === 0) {
       triggerToast('자동 전환 대상 발주가 없습니다')
     } else {
       triggerToast(
-        `자동 전환 ${total}건 (승인 ${result.approved} · 출고 ${result.shipping} · 배송완료 ${result.delivered ?? 0})`,
+        `자동 전환 ${total}건 (승인 ${result.approved} · 배송준비 ${result.readyToShip} · 배송중 ${result.inTransit} · 배송완료 ${result.arrived})`,
       )
     }
   } catch (e) {
@@ -82,8 +88,9 @@ async function runBatchTrigger() {
 }
 
 // ─── 발주 취소 (CEN-038) ────────────────────────────────────────────────────
+// REQUESTED (승인 대기) 단계에서만 취소 가능. 그 이후는 거래처가 이미 받았으므로 차단.
 function openCancelConfirm() {
-  if (poStore.selectedOrder?.status !== 'PENDING') return
+  if (poStore.selectedOrder?.status !== 'REQUESTED') return
   cancelReason.value = '' // 모달 열 때마다 초기화
   showCancelConfirm.value = true
 }
@@ -113,25 +120,27 @@ function changeTab(key) {
 // 상태 뱃지 클래스
 function statusClass(status) {
   const map = {
-    PENDING: 'bg-amber-50 text-amber-700',
+    REQUESTED: 'bg-amber-50 text-amber-700',
     APPROVED: 'bg-emerald-50 text-emerald-700',
-    SHIPPING: 'bg-blue-50 text-blue-600',
-    DELIVERED: 'bg-violet-50 text-violet-700',
+    READY_TO_SHIP: 'bg-sky-50 text-sky-700',
+    IN_TRANSIT: 'bg-blue-50 text-blue-600',
+    ARRIVED: 'bg-violet-50 text-violet-700',
     COMPLETED: 'bg-gray-100 text-gray-500',
-    REJECTED: 'bg-red-50 text-red-600',
+    CANCELLED: 'bg-red-50 text-red-600',
   }
   return map[status] ?? 'bg-gray-100 text-gray-500'
 }
 
-// 상태 한국어 라벨
+// 상태 한국어 라벨 — 본사 화면 시점 (COMPLETED = "종료")
 function statusLabel(status) {
   const map = {
-    PENDING: '승인 대기',
+    REQUESTED: '승인 대기',
     APPROVED: '승인 완료',
-    SHIPPING: '배송 중',
-    DELIVERED: '배송 완료',
-    COMPLETED: '입고 완료',
-    REJECTED: '취소',
+    READY_TO_SHIP: '배송 준비 중',
+    IN_TRANSIT: '배송 중',
+    ARRIVED: '배송 완료',
+    COMPLETED: '종료',
+    CANCELLED: '취소',
   }
   return map[status] ?? status
 }
@@ -148,24 +157,26 @@ function formatDate(iso) {
 // 진행 이력 타임라인 — 점/텍스트 색상
 function historyDotClass(status) {
   const map = {
-    PENDING: 'bg-amber-500',
+    REQUESTED: 'bg-amber-500',
     APPROVED: 'bg-emerald-500',
-    SHIPPING: 'bg-blue-500',
-    DELIVERED: 'bg-violet-500',
+    READY_TO_SHIP: 'bg-sky-500',
+    IN_TRANSIT: 'bg-blue-500',
+    ARRIVED: 'bg-violet-500',
     COMPLETED: 'bg-gray-700',
-    REJECTED: 'bg-red-600',
+    CANCELLED: 'bg-red-600',
   }
   return map[status] ?? 'bg-gray-400'
 }
 
 function historyTextClass(status) {
   const map = {
-    PENDING: 'text-amber-700',
+    REQUESTED: 'text-amber-700',
     APPROVED: 'text-emerald-700',
-    SHIPPING: 'text-blue-600',
-    DELIVERED: 'text-violet-700',
+    READY_TO_SHIP: 'text-sky-700',
+    IN_TRANSIT: 'text-blue-600',
+    ARRIVED: 'text-violet-700',
     COMPLETED: 'text-gray-700',
-    REJECTED: 'text-red-700',
+    CANCELLED: 'text-red-700',
   }
   return map[status] ?? 'text-gray-700'
 }
@@ -177,7 +188,7 @@ function goCreatePage() {
 
 function goEditPage() {
   const order = poStore.selectedOrder
-  if (!order || order.status !== 'PENDING') return
+  if (!order || order.status !== 'REQUESTED') return
   router.push({ name: 'hq-purchase-order-edit', params: { id: order.id } })
 }
 
@@ -624,9 +635,9 @@ const TruckIcon = IconBase([
           </div>
 
           <!-- 액션/안내 (상태별 조건부) -->
-          <!-- PENDING 단계에서만 본사 권한(수정/취소) 노출. 승인 이후 단계는 시스템 자동화(RQ-001/002) 및 창고관리자(PO-003/004) 영역이므로 조회만. -->
+          <!-- REQUESTED 단계에서만 본사 권한(수정/취소) 노출. 승인 이후 단계는 SYS-001 자동 전환 및 창고관리자 영역이라 조회만. -->
           <div class="space-y-4 px-4 pb-6 pt-2">
-            <template v-if="poStore.selectedOrder.status === 'PENDING'">
+            <template v-if="poStore.selectedOrder.status === 'REQUESTED'">
               <div class="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -653,19 +664,31 @@ const TruckIcon = IconBase([
 
             <template v-else-if="poStore.selectedOrder.status === 'APPROVED'">
               <p class="text-center text-xs leading-relaxed text-gray-500">
-                승인 완료 · 30분 후 시스템이 자동으로 공급처 출고 처리합니다.
+                승인 완료 · 30분 후 시스템이 자동으로 배송 준비 처리합니다.
               </p>
             </template>
 
-            <template v-else-if="poStore.selectedOrder.status === 'SHIPPING'">
+            <template v-else-if="poStore.selectedOrder.status === 'READY_TO_SHIP'">
+              <p class="text-center text-xs leading-relaxed text-gray-500">
+                배송 준비 중 · 30분 후 시스템이 자동으로 배송 시작 처리합니다.
+              </p>
+            </template>
+
+            <template v-else-if="poStore.selectedOrder.status === 'IN_TRANSIT'">
+              <p class="text-center text-xs leading-relaxed text-gray-500">
+                배송 중 · 30분 후 시스템이 자동으로 배송 완료 처리합니다.
+              </p>
+            </template>
+
+            <template v-else-if="poStore.selectedOrder.status === 'ARRIVED'">
               <p class="text-center text-xs text-gray-500">
-                배송 중 · 창고 입고 검수 대기
+                배송 완료 · 창고 입고 확정 대기
               </p>
             </template>
 
             <template v-else>
               <p
-                v-if="poStore.selectedOrder.status === 'REJECTED' && poStore.selectedOrder.cancelReason"
+                v-if="poStore.selectedOrder.status === 'CANCELLED' && poStore.selectedOrder.cancelReason"
                 class="border border-red-200 bg-red-50 px-3 py-2.5 text-[11px] font-bold leading-relaxed text-red-700"
               >
                 취소 사유: {{ poStore.selectedOrder.cancelReason }}
@@ -673,7 +696,7 @@ const TruckIcon = IconBase([
               <p class="pt-2 text-center text-xs text-gray-400">
                 {{
                   poStore.selectedOrder.status === 'COMPLETED'
-                    ? '입고 완료된 발주입니다.'
+                    ? '종료된 발주입니다.'
                     : '취소된 발주입니다.'
                 }}
               </p>
