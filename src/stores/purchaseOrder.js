@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { purchaseOrderApi } from '@/api/hq/purchaseOrder.js'
 import { getInfrastructures } from '@/api/hq/infrastructure.js'
+import { useAuthStore } from '@/stores/auth.js'
 
 // ─── BE ↔ FE 매핑 헬퍼 ─────────────────────────────────────────────────────
 // BE (PurchaseOrder DetailRes/ListRes) ↔ FE store 형식 변환.
@@ -445,13 +446,19 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     }
   }
 
-  // 스토어 생성 시 자동 fetch (vendor store 패턴)
-  fetchOrders().catch(() => {
-    // fetchOrders 안에서 이미 처리
-  })
-  fetchWarehouses().catch(() => {
-    // fetchWarehouses 안에서 이미 처리
-  })
+  // 스토어 생성 시 자동 fetch (vendor store 패턴) — 본사 도메인 API(/api/hq/**)
+  // 호출이라 role=hq 일 때만 트리거. 다른 권한군(warehouse/store) 화면이 이 store
+  // 를 의존해도(예: warehouseStock) SecurityConfig 가 401/403 차단하지 않도록 안전망.
+  // 본사 화면은 명시적으로 fetchOrders/fetchWarehouses 호출 가능.
+  const auth = useAuthStore()
+  if (auth.user?.role === 'hq') {
+    fetchOrders().catch(() => {
+      // fetchOrders 안에서 이미 처리
+    })
+    fetchWarehouses().catch(() => {
+      // fetchWarehouses 안에서 이미 처리
+    })
+  }
 
   return {
     // state
