@@ -80,6 +80,7 @@ function fillFormFromBuyer(buyer) {
     primaryMaterialFit: buyer.primaryMaterialFit,
     managerName: buyer.managerName,
     phone: buyer.phone,
+    partnerType: buyer.partnerType ?? 'general',
   }
   productKeywordInput.value = ''
 }
@@ -134,10 +135,10 @@ function cancelEditMode() {
 }
 
 async function submitForm() {
-  const result =
-    panelMode.value === 'create'
-      ? await buyerStore.createBuyer(form.value)
-      : await buyerStore.updateBuyer(selectedBuyerId.value, form.value)
+  const isCreate = panelMode.value === 'create'
+  const result = isCreate
+    ? await buyerStore.createBuyer(form.value)
+    : await buyerStore.updateBuyer(selectedBuyerId.value, form.value)
 
   if (!result.success) {
     errors.value = result.errors ?? {}
@@ -147,11 +148,15 @@ async function submitForm() {
   }
 
   errors.value = {}
-  toastMessage.value =
-    panelMode.value === 'create'
-      ? '순환재고 거래처를 등록했습니다.'
-      : '순환재고 거래처 정보를 수정했습니다.'
+  toastMessage.value = isCreate
+    ? '순환재고 거래처를 등록했습니다.'
+    : '순환재고 거래처 정보를 수정했습니다.'
   toastTone.value = 'success'
+  // 등록 직후 좌측 리스트에서 새 거래처가 보이도록 검색어·필터 초기화.
+  if (isCreate) {
+    searchKeyword.value = ''
+    materialFitFilter.value = ''
+  }
   handleSelectBuyer(result.buyer.id)
 }
 
@@ -159,6 +164,12 @@ function materialFitBadgeClass(value) {
   if (value === 'natural-single') return 'bg-[#e5f4ec] text-[#1b6a47]'
   if (value === 'synthetic') return 'bg-[#e7eefb] text-[#2f578f]'
   if (value === 'blended') return 'bg-[#f9eadb] text-[#9b5d1b]'
+  return 'bg-gray-100 text-gray-500'
+}
+
+function partnerTypeBadgeClass(value) {
+  if (value === 'local_small') return 'bg-[#fef3c7] text-[#92400e]'
+  if (value === 'social_enterprise') return 'bg-[#ede9fe] text-[#5b21b6]'
   return 'bg-gray-100 text-gray-500'
 }
 
@@ -478,7 +489,7 @@ function handleLogout() {
               </button>
             </div>
 
-            <section class="grid gap-3 md:grid-cols-3">
+            <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <div class="border border-[#e5ece8] bg-white px-3 py-3">
                 <p class="text-[11px] font-black text-gray-400">거래처 코드</p>
                 <p class="mt-1 text-sm font-black text-gray-900">{{ selectedBuyer.code }}</p>
@@ -493,6 +504,15 @@ function handleLogout() {
                 <p class="text-[11px] font-black text-gray-400">담당자 / 연락처</p>
                 <p class="mt-1 text-sm font-black text-gray-900">{{ selectedBuyer.managerName }}</p>
                 <p class="mt-1 text-sm font-bold text-gray-600">{{ selectedBuyer.phone }}</p>
+              </div>
+              <div class="border border-[#e5ece8] bg-white px-3 py-3">
+                <p class="text-[11px] font-black text-gray-400">파트너 유형</p>
+                <span
+                  class="mt-1 inline-flex w-fit px-2.5 py-1 text-[10px] font-black"
+                  :class="partnerTypeBadgeClass(selectedBuyer.partnerType)"
+                >
+                  {{ buyerStore.partnerTypeLabel(selectedBuyer.partnerType) }}
+                </span>
               </div>
             </section>
 
@@ -619,6 +639,27 @@ function handleLogout() {
                     class="text-[11px] font-bold text-red-500"
                     >{{ errors.primaryMaterialFit }}</span
                   >
+                </label>
+              </section>
+
+              <section class="grid gap-4 md:grid-cols-2">
+                <label class="flex flex-col gap-1.5">
+                  <span class="text-[11px] font-bold text-gray-500">파트너 유형</span>
+                  <select
+                    v-model="form.partnerType"
+                    class="h-11 border border-gray-300 bg-[#fafaf8] px-3 text-sm font-bold text-gray-900 outline-none focus:border-[#19352c] focus:bg-white"
+                  >
+                    <option
+                      v-for="option in buyerStore.PARTNER_TYPE_OPTIONS"
+                      :key="option.value"
+                      :value="option.value"
+                    >
+                      {{ option.label }}
+                    </option>
+                  </select>
+                  <span v-if="errors.partnerType" class="text-[11px] font-bold text-red-500">{{
+                    errors.partnerType
+                  }}</span>
                 </label>
               </section>
 
