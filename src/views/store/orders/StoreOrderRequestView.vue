@@ -11,7 +11,6 @@ import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { createStoreOrder, getStoreOrderDetail, updateStoreOrder } from '@/api/store/orders.js'
 import { getStoreInventories, getStoreInventorySkus } from '@/api/store/inventory.js'
-import { getProductSkus } from '@/api/hq/productMaster.js'
 
 /**
  * ==============================================================================
@@ -341,20 +340,13 @@ async function loadSkuRows() {
     const items = await getStoreInventories()
 
     const skuGroups = await Promise.all(items.map((item) => getStoreInventorySkus(item.itemCode)))
-    const productSkuGroups = await Promise.all(items.map((item) => getProductSkus(item.itemCode)))
-
     const rows = []
     items.forEach((item, index) => {
       const skus = skuGroups[index] ?? []
-      const productSkus = productSkuGroups[index] ?? []
-      const unitPriceBySkuCode = new Map(
-        productSkus.map((productSku) => [productSku.skuCode, Number(productSku.unitPrice ?? 0)]),
-      )
 
       skus.forEach((sku) => {
         const stock = Number(sku.actualStock ?? 0)
         const safetyStock = Number(sku.safetyStock ?? 0)
-        const inboundExpectedQuantity = Number(sku.inboundExpectedQuantity ?? 0)
 
         rows.push({
           skuId: sku.skuCode,
@@ -365,7 +357,7 @@ async function loadSkuRows() {
           subCategory: item.childCategory,
           color: sku.color,
           size: sku.size,
-          unitPrice: Number(sku.unitPrice ?? unitPriceBySkuCode.get(sku.skuCode) ?? 0),
+          unitPrice: Number(sku.unitPrice ?? 0),
           stock,
           safetyStock,
           inboundExpectedQuantity: Number(sku.inboundExpectedQuantity ?? 0),
