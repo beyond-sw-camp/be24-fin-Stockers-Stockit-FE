@@ -37,6 +37,8 @@ export const useAuthStore = defineStore('auth', () => {
         employeeCode: result.employeeCode,
         name: result.name,
         role,
+        locationCode: result.locationCode ?? '',     // 스토어/매장/창고/본사 코드 (예: ST-SL-0001)
+        locationName: result.locationName ?? '',     // 매장명/지점명 (예: 강남 플래그십점)
       }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(user.value))
       sessionStorage.removeItem('stockit:openTopMenus')
