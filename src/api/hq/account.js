@@ -6,6 +6,7 @@
  *   GET    /api/hq/account/pending                   (대기 회원 목록, HQ)
  *   POST   /api/hq/account/{id}/approve              (가입 승인, HQ)
  *   POST   /api/hq/account/{id}/reject               (가입 거절, HQ)
+ *   POST   /api/hq/account/{id}/withdraw             (탈퇴 처리, HQ)
  *
  * 응답: BaseResponse<T>. unwrap() 으로 result 만 추출.
  *
@@ -15,7 +16,7 @@
 import { apiClient, unwrap } from '../axios.js'
 
 export const accountApi = {
-  /** 전체 회원 목록 조회 (PENDING/APPROVED/REJECTED) */
+  /** 전체 회원 목록 조회 (PENDING/APPROVED/REJECTED/WITHDRAWN) */
   listAll: () => apiClient.get('/api/hq/account').then(unwrap),
 
   /** 대기 회원 목록 조회 */
@@ -26,4 +27,11 @@ export const accountApi = {
 
   /** 가입 신청 거절 */
   reject: (id) => apiClient.post(`/api/hq/account/${id}/reject`).then(unwrap),
+
+  /**
+   * 본사 관리자가 사용자 계정을 탈퇴 처리.
+   * 승인된(APPROVED) 사용자만 탈퇴 가능.
+   * BE 가 RefreshToken 모두 삭제 → 즉시 강제 로그아웃 효과.
+   */
+  withdraw: (id) => apiClient.post(`/api/hq/account/${id}/withdraw`).then(unwrap),
 }
