@@ -5,6 +5,7 @@ import { roleHomeMap } from '@/config/roleMenus.js'
 import DevLoginView from '@/views/user/DevLoginView.vue'
 import LoginView from '@/views/user/LoginView.vue'
 import SignupView from '@/views/user/SignupView.vue'
+import MyPageView from '@/views/user/MyPageView.vue'
 
 import StoreDashboardView from '@/views/store/dashboard/StoreDashboardView.vue'
 import StorePosView from '@/views/store/sales/StorePosView.vue'
@@ -76,6 +77,8 @@ const router = createRouter({
       meta: { requiresAuth: false },
     },
     { path: '/signup', name: 'signup', component: SignupView, meta: { requiresAuth: false } },
+    // 마이페이지 — 모든 권한 공통 (HQ/STORE/WAREHOUSE 동일 라우트, 페이지 내부에서 권한별 분기 표시)
+    { path: '/mypage', name: 'mypage', component: MyPageView, meta: { requiresAuth: true } },
     { path: '/hq/dashboard', name: 'hq-dashboard', component: OperationStatusView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/dashboard/inventory-risk', name: 'hq-dashboard-inventory-risk', component: InventoryRiskView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/dashboard/flow', name: 'hq-dashboard-flow', component: InboundOutboundFlowView, meta: { requiresAuth: true, role: 'hq' } },
