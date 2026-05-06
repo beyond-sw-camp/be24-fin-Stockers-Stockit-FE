@@ -2,10 +2,8 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  BarChart3,
   CheckCircle2,
   Clock,
-  Package,
   TrendingUp,
   Truck,
 } from 'lucide-vue-next'
@@ -13,7 +11,6 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useWarehouseDashboardStore } from '@/stores/warehouse/warehouseDashboard.js'
-import { useWarehouseSpaceStore } from '@/stores/warehouse/warehouseSpace.js'
 import { useVendorStore } from '@/stores/vendor.js'
 import { useWarehouseStockStore } from '@/stores/warehouse/warehouseStock.js'
 
@@ -100,13 +97,13 @@ watch(range, () => {
   dashStore.fetchInboundProgress(rangeParams.value)
 })
 
-// ─── 단일 창고 컨텍스트 (창고관리자가 본인 창고 1개 담당, 인증 도입 시 me.warehouseId 로 교체) ──
-const space = useWarehouseSpaceStore()
+// ─── 단일 창고 컨텍스트 (창고관리자가 본인 창고 1개 담당, 인증 도입 시 auth.user.warehouseId 로 교체) ──
+const warehouseId = 'WH-001'
 
 // 안전재고 미달 카운트 — 이 창고의 vendor_product 중 가용재고 < safetyStock × 1.5 행 개수
 const shortageCount = computed(() => {
   const codes = (vendorStore.allVendorProducts ?? []).map((vp) => vp.productCode)
-  return stockStore.getShortageCount(space.warehouseId, codes)
+  return stockStore.getShortageCount(warehouseId, codes)
 })
 
 // ─── KPI / breakdown — store getter 직접 사용 ───────────────────────────────
@@ -122,10 +119,6 @@ const avgProcessingHours = computed(() => {
   const v = dashStore.kpi.avgProcessingHours
   return v === null || v === undefined ? null : v
 })
-
-// 안전재고 미달 카운트 — 이 창고의 vendor_product 중 가용재고 < safetyStock × 1.5 행 개수
-// (space.warehouseId 가 단일 창고 시드 — 인증 도입 후 me.warehouseId 로 마이그레이션)
-// 주: useWarehouseSpaceStore 인스턴스는 아래 공간 점유율 섹션에서 const space 로 선언됨
 
 // KPI 카드 — 본사 대시보드 패턴 (라벨 + 값/단위 + 우상단 점 + 캡션)
 const kpiStats = computed(() => [
@@ -191,40 +184,6 @@ function formatDate(iso) {
   const pad = (n) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
-
-// ─── 공간 점유율 (WHS-003) ──────────────────────────────────────────────────
-const thresholdLabel = computed(
-  () =>
-    ({
-      normal: '정상',
-      warning: '주의',
-      critical: '경고',
-    })[space.threshold],
-)
-const thresholdChipClass = computed(
-  () =>
-    ({
-      normal: 'bg-emerald-50 text-emerald-700',
-      warning: 'bg-amber-50 text-amber-700',
-      critical: 'bg-red-50 text-red-700',
-    })[space.threshold],
-)
-const thresholdTextClass = computed(
-  () =>
-    ({
-      normal: 'text-emerald-600',
-      warning: 'text-amber-600',
-      critical: 'text-red-600',
-    })[space.threshold],
-)
-const thresholdBarClass = computed(
-  () =>
-    ({
-      normal: 'bg-emerald-500',
-      warning: 'bg-amber-500',
-      critical: 'bg-red-500',
-    })[space.threshold],
-)
 </script>
 
 <template>
@@ -461,104 +420,6 @@ const thresholdBarClass = computed(
         </article>
       </section>
 
-      <!-- 공간 점유율 (WHS-003) -->
-      <section class="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.35fr)]">
-        <!-- 좌: 큰 % + 진행 바 + 임계 칩 -->
-        <article class="border border-gray-200 bg-white shadow-sm">
-          <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-            <h2 class="inline-flex items-center gap-2 text-sm font-black text-gray-900">
-              <Package :size="16" />
-              공간 점유율
-            </h2>
-            <span
-              class="px-2 py-1 text-[11px] font-black"
-              :class="thresholdChipClass"
-            >
-              {{ thresholdLabel }}
-            </span>
-          </div>
-          <div class="space-y-3 p-4">
-            <p class="text-xs font-bold text-gray-500">
-              {{ space.warehouseName }} ({{ space.warehouseId }})
-            </p>
-            <div class="flex items-baseline gap-2">
-              <p class="text-3xl font-black" :class="thresholdTextClass">
-                {{ space.percent }}%
-              </p>
-              <p class="text-xs font-bold text-gray-500">
-                {{ space.totalUsed.toLocaleString() }} /
-                {{ space.maxCapacity.toLocaleString() }} EA
-              </p>
-            </div>
-            <div class="h-3 w-full bg-gray-100">
-              <div
-                class="h-full transition-all duration-300"
-                :class="thresholdBarClass"
-                :style="{ width: Math.min(space.percent, 100) + '%' }"
-              />
-            </div>
-            <p class="text-[11px] font-bold text-gray-400">
-              80% 주의 · 90% 경고
-            </p>
-          </div>
-        </article>
-
-        <!-- 우: 카테고리별 분포 -->
-        <article class="border border-gray-200 bg-white shadow-sm">
-          <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-            <h2 class="inline-flex items-center gap-2 text-sm font-black text-gray-900">
-              <BarChart3 :size="16" />
-              카테고리별 분포
-            </h2>
-            <span class="text-[11px] font-bold text-gray-400">
-              합계 {{ space.totalUsed.toLocaleString() }} EA
-            </span>
-          </div>
-          <div class="space-y-4 p-4">
-            <!-- 세그먼트 스택 막대 -->
-            <div
-              v-if="space.totalUsed > 0"
-              class="flex h-9 w-full overflow-hidden border border-gray-100"
-            >
-              <div
-                v-for="c in space.categoryWithPct"
-                :key="c.name"
-                class="flex items-center justify-center transition-all duration-300"
-                :class="c.color"
-                :style="{ width: (c.used / space.totalUsed) * 100 + '%' }"
-              >
-                <span
-                  v-if="(c.used / space.totalUsed) * 100 >= 12"
-                  class="text-[11px] font-black text-white"
-                >
-                  {{ c.name }}
-                </span>
-              </div>
-            </div>
-            <!-- 색 범례 grid -->
-            <div class="grid grid-cols-2 gap-3 border-t border-gray-100 pt-3">
-              <div
-                v-for="c in space.categoryWithPct"
-                :key="c.name"
-                class="flex items-start gap-2"
-              >
-                <span class="mt-1 block h-2.5 w-2.5 shrink-0" :class="c.color" />
-                <div class="min-w-0 flex-1">
-                  <p class="text-[10px] font-bold uppercase text-gray-500">
-                    {{ c.name }}
-                  </p>
-                  <p class="mt-0.5 text-sm font-black text-gray-900">
-                    {{ c.used.toLocaleString() }} EA
-                    <span class="ml-0.5 text-[10px] font-bold text-gray-400">
-                      ({{ c.pct }}%)
-                    </span>
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </article>
-      </section>
     </div>
   </AppLayout>
 </template>
