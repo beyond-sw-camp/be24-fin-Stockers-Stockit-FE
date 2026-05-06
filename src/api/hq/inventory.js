@@ -39,3 +39,8 @@ export async function convertCircularCandidates(items = []) {
   const res = await api.post('/api/hq/inventories/circular-candidates/convert', items)
   return unwrap(res)
 }
+
+export async function getWarehouseTransferImbalancedSkus() {
+  const res = await api.get('/api/hq/warehouse-transfers/imbalanced-skus')
+  return unwrap(res)
+}
