@@ -595,4 +595,26 @@ function onInfraChange() {
 <style scoped>
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s, transform 0.2s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(4px); }
+
+input,
+textarea,
+select {
+  color: #111827;
+  caret-color: #111827;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #9ca3af;
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: #111827;
+  transition: background-color 9999s ease-out 0s;
+  box-shadow: 0 0 0px 1000px #ffffff inset;
+}
 </style>

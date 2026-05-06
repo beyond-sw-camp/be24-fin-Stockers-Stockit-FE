@@ -1,15 +1,19 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useInventoryStore } from '@/stores/inventory.js'
+import { getStoreInventorySkus } from '@/api/store/inventory.js'
+import { extractErrorMessage } from '@/api/axios.js'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
-const inventory = useInventoryStore()
+const skuData = ref([])
+const isLoading = ref(false)
+const loadError = ref('')
+const requestSeq = ref(0)
 
 const storeTopMenus = roleMenus.store
 const storeSideMenus = roleMenus.store.find((menu) => menu.label === '재고 관리')?.children ?? []
@@ -17,40 +21,20 @@ const storeSideMenus = roleMenus.store.find((menu) => menu.label === '재고 관
 const activeSideMenu = ref('매장 재고 조회')
 const activeTopMenu = computed(() => '재고 관리')
 
-function toItemCode(productId, mainCategory) {
-  if (productId) {
-    const match = productId.match(/^PRD-([A-Z]+)-[A-Z]+-(\d+)$/)
-    if (match) return `SPA-${match[1]}-${match[2]}`
-  }
-
-  const fallbackMap = {
-    상의: 'TOP',
-    바지: 'PNT',
-    치마: 'SKT',
-    아우터: 'OUT',
-  }
-  return `SPA-${fallbackMap[mainCategory] ?? 'SKU'}-000`
-}
-
 const itemCode = computed(() => String(route.params.itemCode ?? route.query.itemCode ?? ''))
 const itemName = computed(() => String(route.query.itemName ?? '선택 품목'))
 const parentCategory = computed(() => String(route.query.parentCategory ?? '-'))
 const childCategory = computed(() => String(route.query.childCategory ?? '-'))
 
 const skuRows = computed(() =>
-  inventory.skus
-    .filter((sku) => toItemCode(sku.productId, sku.mainCategory) === itemCode.value)
+  skuData.value
     .map((sku) => ({
-      skuCode: sku.skuId,
-      color: sku.color,
-      size: sku.size,
-      actualStock: sku.stock,
-      availableStock: sku.stock,
-      safetyStock: sku.safetyStock,
-      status: sku.stock === 0 ? '품절' : sku.stock <= sku.safetyStock ? '부족' : '정상',
-      updatedAt: new Date().toISOString(),
+      ...sku,
+      actualStock: Number(sku.actualStock ?? 0),
+      availableStock: Number(sku.availableStock ?? 0),
+      safetyStock: Number(sku.safetyStock ?? 0),
     }))
-    .sort((a, b) => a.color.localeCompare(b.color, 'ko') || a.size.localeCompare(b.size, 'ko')),
+    .sort((a, b) => String(a.color ?? '').localeCompare(String(b.color ?? ''), 'ko') || String(a.size ?? '').localeCompare(String(b.size ?? ''), 'ko')),
 )
 
 const statusClass = (status) => ({
@@ -84,6 +68,39 @@ function handleLogout() {
   auth.logout()
   router.push('/dev-login')
 }
+
+async function loadSkuRows() {
+  const seq = ++requestSeq.value
+  if (!itemCode.value) {
+    skuData.value = []
+    return
+  }
+  isLoading.value = true
+  loadError.value = ''
+  try {
+    const rows = await getStoreInventorySkus(itemCode.value)
+    if (seq !== requestSeq.value) return
+    skuData.value = rows
+  } catch (e) {
+    if (seq !== requestSeq.value) return
+    skuData.value = []
+    loadError.value = extractErrorMessage(e, 'SKU 재고를 불러오지 못했습니다.')
+  } finally {
+    if (seq !== requestSeq.value) return
+    isLoading.value = false
+  }
+}
+
+onMounted(() => {
+  loadSkuRows()
+})
+
+watch(
+  () => route.fullPath,
+  () => {
+    loadSkuRows()
+  },
+)
 </script>
 
 <template>
@@ -104,6 +121,7 @@ function handleLogout() {
             <p class="mt-1 text-xs font-bold text-gray-500">
               {{ itemCode }} · {{ parentCategory }} &gt; {{ childCategory }}
             </p>
+            <p v-if="loadError" class="mt-2 text-xs font-bold text-red-600">{{ loadError }}</p>
           </div>
           <button
             type="button"
@@ -147,7 +165,7 @@ function handleLogout() {
               </tr>
               <tr v-if="skuRows.length === 0">
                 <td colspan="8" class="px-3 py-14 text-center text-sm font-bold text-gray-400">
-                  조회 가능한 SKU 재고가 없습니다.
+                  {{ isLoading ? 'SKU 재고를 불러오는 중입니다.' : '조회 가능한 SKU 재고가 없습니다.' }}
                 </td>
               </tr>
             </tbody>
