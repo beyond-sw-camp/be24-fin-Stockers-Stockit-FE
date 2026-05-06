@@ -153,7 +153,7 @@ async function loadStores() {
     manager: s.managerName,
     contact: s.contact,
     address: s.address,
-    warehouse: s.mappedWarehouseCode,
+    warehouse: '-',
     status: statusToKor[s.status] ?? s.status,
     stockCapacity: 1000,
     remainingStock: 700,
@@ -212,7 +212,6 @@ async function quickCreateStore() {
       managerName: '담당자',
       contact: '010-0000-0000',
       address: '서울시 강남구',
-      mappedWarehouseCode: warehouseData.value[0]?.code || 'WH-0001',
       status: 'ACTIVE',
     })
     await loadStores()

@@ -117,7 +117,6 @@ async function saveEdit() {
       managerName,
       contact,
       address: store.value.address,
-      mappedWarehouseCode: store.value.mappedWarehouseCode,
       status: editForm.value.status,
     })
 
@@ -262,7 +261,7 @@ onMounted(() => {
             </label>
           </template>
 
-          <p class="flex items-center justify-between"><span class="font-bold text-gray-500">담당 창고</span><strong class="font-black text-gray-900">{{ store.mappedWarehouseCode }}</strong></p>
+          <p class="flex items-center justify-between"><span class="font-bold text-gray-500">담당 창고</span><strong class="font-black text-gray-900">매핑 관리에서 설정</strong></p>
           <p class="flex items-start justify-between gap-3"><span class="font-bold text-gray-500">주소</span><strong class="text-right font-black text-gray-900">{{ store.address }}</strong></p>
         </div>
       </section>
