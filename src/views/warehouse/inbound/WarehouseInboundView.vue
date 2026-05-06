@@ -55,9 +55,10 @@ function handleLogout() {
 }
 
 // ─── 상태 탭 ────────────────────────────────────────────────────────────────
-// 4탭 — 거래처 책임 단계도 가시화 (사용자 결정: READY_TO_SHIP 부터 보여야 함).
+// 5탭 — [전체] + 거래처 책임 4단계 (사용자 결정: READY_TO_SHIP 부터 보여야 함).
 // [입고 확정] 액션은 ARRIVED 일 때만 가능.
 const STATUS_TABS = [
+  { key: '전체', label: '전체' },
   { key: 'READY_TO_SHIP', label: '배송 준비 중' },
   { key: 'IN_TRANSIT', label: '배송 중' },
   { key: 'ARRIVED', label: '입고 예정' },
@@ -188,7 +189,11 @@ function handleKeydown(e) {
     inbound.selectedOrderId = null
   }
 }
-onMounted(() => window.addEventListener('keydown', handleKeydown))
+// 화면 진입 시 입고 목록 강제 fetch — 다른 화면에서 status 변경됐을 수 있으므로 stale 방지.
+onMounted(() => {
+  window.addEventListener('keydown', handleKeydown)
+  inbound.fetchAll().catch(() => {})
+})
 onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
 
 // ─── inline SVG 아이콘 ────────────────────────────────────────────────────

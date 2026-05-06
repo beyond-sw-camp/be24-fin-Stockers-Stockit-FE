@@ -87,7 +87,10 @@ export const useWarehouseInboundStore = defineStore('warehouseInbound', () => {
   })
 
   const inboundList = computed(() => {
-    let list = items.value.filter((o) => o.status === activeStatusTab.value)
+    // '전체' 탭은 모든 입고 후보(READY_TO_SHIP/IN_TRANSIT/ARRIVED/COMPLETED) 노출.
+    let list = activeStatusTab.value === '전체'
+      ? items.value
+      : items.value.filter((o) => o.status === activeStatusTab.value)
 
     if (searchKeyword.value.trim()) {
       const k = searchKeyword.value.trim().toLowerCase()
@@ -125,6 +128,7 @@ export const useWarehouseInboundStore = defineStore('warehouseInbound', () => {
 
   // 탭 카운트는 항상 전체 기준 (검색·기간 무관)
   const counts = computed(() => ({
+    전체: items.value.length,
     READY_TO_SHIP: items.value.filter((o) => o.status === 'READY_TO_SHIP').length,
     IN_TRANSIT: items.value.filter((o) => o.status === 'IN_TRANSIT').length,
     ARRIVED: items.value.filter((o) => o.status === 'ARRIVED').length,

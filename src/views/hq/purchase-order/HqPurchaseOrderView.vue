@@ -198,7 +198,12 @@ function handleKeydown(e) {
     poStore.selectedOrderId = null
   }
 }
-onMounted(() => window.addEventListener('keydown', handleKeydown))
+// 화면 진입 시 발주 목록 강제 fetch — 다른 화면(창고 입고 확정 등)에서 status 가
+// 변경됐을 수 있으므로 stale data 방지. store 의 마운트 자동 fetch 는 첫 인스턴스에만 실행됨.
+onMounted(() => {
+  window.addEventListener('keydown', handleKeydown)
+  poStore.fetchOrders().catch(() => {})
+})
 onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
 
 // ─── inline SVG 아이콘 (render 함수 방식) ────────────────────────────────────
