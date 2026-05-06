@@ -75,8 +75,13 @@ const moveToSkuDetail = (sku) => {
     name: 'hq-inventory-warehouse-transfer-detail',
     params: { skuCode: sku.skuCode },
     query: {
+      itemCode: sku.itemCode || undefined,
+      itemName: sku.itemName || undefined,
+      category: sku.category || undefined,
+      color: sku.color || undefined,
+      size: sku.size || undefined,
       search: searchTerm.value || undefined,
-      category: selectedCategory.value !== '전체' ? selectedCategory.value : undefined,
+      filterCategory: selectedCategory.value !== '전체' ? selectedCategory.value : undefined,
       warehouseGroup: selectedWarehouseGroup.value !== '전체' ? selectedWarehouseGroup.value : undefined,
     },
   })

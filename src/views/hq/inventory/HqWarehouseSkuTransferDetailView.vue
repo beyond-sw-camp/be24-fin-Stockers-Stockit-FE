@@ -29,7 +29,22 @@ const toastMessage = ref('')
 const toastShowHistoryAction = ref(false)
 let toastTimer = null
 
-const selectedSku = computed(() => transferSkuCatalog.find(sku => sku.skuCode === route.params.skuCode) ?? null)
+const selectedSku = computed(() => {
+  const matched = transferSkuCatalog.find((sku) => sku.skuCode === route.params.skuCode)
+  if (matched) return matched
+
+  const skuCode = String(route.params.skuCode || '')
+  if (!skuCode) return null
+
+  return {
+    skuCode,
+    itemCode: String(route.query.itemCode || ''),
+    itemName: String(route.query.itemName || ''),
+    category: String(route.query.category || route.query.filterCategory || ''),
+    color: String(route.query.color || ''),
+    size: String(route.query.size || ''),
+  }
+})
 const warehouseRows = ref([])
 
 watch(selectedSku, (sku) => {
@@ -249,7 +264,7 @@ const moveBack = () => {
     name: 'hq-inventory-warehouse-comparison',
     query: {
       search: route.query.search || undefined,
-      category: route.query.category || undefined,
+      category: route.query.filterCategory || route.query.category || undefined,
       status: route.query.status || undefined,
       warehouseGroup: route.query.warehouseGroup || undefined,
     },
