@@ -1,14 +1,26 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { usePurchaseOrderStore } from '../purchaseOrder.js'
 import { inboundApi } from '@/api/warehouse/inbound.js'
 
+/**
+ * WHS-005/007/008 창고 관리자 입고 store.
+ *
+ * 단일 진실 원천(ADR-015) — BE InboundController(`/api/warehouse/inbound`) 가 직접 응답.
+ * 권한군 격리 — 본사 도메인 store(`purchaseOrder.js`) 의존 X. 그 store 는
+ * 마운트 시 `/api/hq/**` 자동 fetch 라 창고 관리자(role=WAREHOUSE) 권한으로 호출 시
+ * SecurityConfig 가 차단(401/403). 자체 axios 호출로 분리.
+ *
+ * BE 응답(PurchaseOrderDto.ListRes / DetailRes) 의 code 를 FE 의 id 로 매핑해
+ * 컴포넌트의 `order.id` 호환 유지.
+ */
 export const useWarehouseInboundStore = defineStore('warehouseInbound', () => {
-  const poStore = usePurchaseOrderStore()
+  // --- state ---
+  const items = ref([])           // 입고 후보 발주 목록 (DELIVERED + COMPLETED)
+  const selectedDetail = ref(null) // 선택된 발주의 상세 (items + statusHistory 포함)
+  const loading = ref(false)
+  const error = ref(null)
 
-  // --- view state (입고 화면 전용) ---
   // 'DELIVERED' = 배송완료(도착됨, 입고 확정 대기) / 'COMPLETED' = 입고완료
-  // SHIPPING(배송중) 은 공급처 단계라 창고 화면에 노출 안 함 (BE InboundService 도 차단)
   const activeStatusTab = ref('DELIVERED')
   const selectedOrderId = ref(null)
   const searchKeyword = ref('')
@@ -16,91 +28,184 @@ export const useWarehouseInboundStore = defineStore('warehouseInbound', () => {
   const dateTo = ref('')
   const sortBy = ref('latest') // 'latest' | 'oldest' | 'priceAsc' | 'priceDesc'
 
+  // --- BE 응답 매핑 ---
+  // BE list/detail 응답의 code 를 FE id 로 노출, snake/camel 키 통일.
+  function fromListApi(po) {
+    return {
+      id: po.code,
+      code: po.code,
+      vendorId: po.vendorCode,
+      vendorName: po.vendorName,
+      warehouseId: po.warehouseId,
+      warehouseName: po.warehouseName,
+      warehouseCode: po.warehouseCode,
+      status: po.status,
+      totalPrice: po.totalAmount,
+      itemCount: po.itemCount,
+      productNames: po.productNames ?? [],
+      createdAt: po.createdAt,
+      updatedAt: po.updatedAt,
+      // detail 채워질 때까지 빈 배열로 노출
+      items: [],
+      statusHistory: [],
+    }
+  }
+
+  function fromDetailApi(po) {
+    return {
+      ...fromListApi(po),
+      items: (po.items ?? []).map((it) => ({
+        skuCode: it.skuCode,
+        productName: it.productName,
+        color: it.color,
+        size: it.size,
+        displayOption: it.displayOption,
+        quantity: it.quantity,
+        unitPrice: it.unitPrice,
+        subtotal: it.subtotal,
+      })),
+      statusHistory: (po.statusHistory ?? []).map((h) => ({
+        status: h.status,
+        at: h.changedAt,
+        byName: h.changedByName,
+        note: h.note,
+      })),
+      vendorContactName: po.vendorContactName,
+      cancelReason: po.cancelReason,
+    }
+  }
+
   // --- getters ---
-  const selectedOrder = computed(
-    () => poStore.purchaseOrders.find((o) => o.id === selectedOrderId.value) ?? null,
-  )
+  const selectedOrder = computed(() => {
+    if (!selectedOrderId.value) return null
+    if (selectedDetail.value && selectedDetail.value.id === selectedOrderId.value) {
+      return selectedDetail.value
+    }
+    return items.value.find((o) => o.id === selectedOrderId.value) ?? null
+  })
 
   const inboundList = computed(() => {
-    let list = poStore.purchaseOrders.filter((o) => o.status === activeStatusTab.value)
+    let list = items.value.filter((o) => o.status === activeStatusTab.value)
 
     if (searchKeyword.value.trim()) {
       const k = searchKeyword.value.trim().toLowerCase()
       list = list.filter(
         (o) =>
           o.id.toLowerCase().includes(k)
-          || o.vendorName.toLowerCase().includes(k)
+          || (o.vendorName ?? '').toLowerCase().includes(k)
           || (o.productNames ?? []).some((name) => (name ?? '').toLowerCase().includes(k)),
       )
     }
 
     if (dateFrom.value) {
-      list = list.filter((o) => o.createdAt.slice(0, 10) >= dateFrom.value)
+      list = list.filter((o) => (o.createdAt ?? '').slice(0, 10) >= dateFrom.value)
     }
     if (dateTo.value) {
-      list = list.filter((o) => o.createdAt.slice(0, 10) <= dateTo.value)
+      list = list.filter((o) => (o.createdAt ?? '').slice(0, 10) <= dateTo.value)
     }
 
     const sorted = [...list]
     switch (sortBy.value) {
       case 'oldest':
-        sorted.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        sorted.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
         break
       case 'priceAsc':
-        sorted.sort((a, b) => a.totalPrice - b.totalPrice)
+        sorted.sort((a, b) => (a.totalPrice ?? 0) - (b.totalPrice ?? 0))
         break
       case 'priceDesc':
-        sorted.sort((a, b) => b.totalPrice - a.totalPrice)
+        sorted.sort((a, b) => (b.totalPrice ?? 0) - (a.totalPrice ?? 0))
         break
       default:
-        sorted.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        sorted.sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
     }
     return sorted
   })
 
   // 탭 카운트는 항상 전체 기준 (검색·기간 무관)
   const counts = computed(() => ({
-    DELIVERED: poStore.purchaseOrders.filter((o) => o.status === 'DELIVERED').length,
-    COMPLETED: poStore.purchaseOrders.filter((o) => o.status === 'COMPLETED').length,
+    DELIVERED: items.value.filter((o) => o.status === 'DELIVERED').length,
+    COMPLETED: items.value.filter((o) => o.status === 'COMPLETED').length,
   }))
 
   // --- actions ---
-  // 발주 선택 — items/statusHistory 가 비어있으면(list 시점) detail 자동 fetch.
-  // purchaseOrder store 의 selectOrder 와 같은 패턴 — 단일 진실 원천(ADR-015).
-  function selectOrder(id) {
-    selectedOrderId.value = id
-    if (id) {
-      const order = poStore.purchaseOrders.find((o) => o.id === id)
-      if (order && (order.items.length === 0 || order.statusHistory.length === 0)) {
-        poStore.fetchDetail(id).catch(() => {
-          // fetchDetail 안에서 이미 처리
-        })
-      }
+  async function fetchAll() {
+    loading.value = true
+    error.value = null
+    try {
+      const list = await inboundApi.list()
+      items.value = (list ?? []).map(fromListApi)
+    } catch (e) {
+      error.value = e?.message ?? '입고 목록을 불러오지 못했습니다.'
+    } finally {
+      loading.value = false
     }
   }
 
-  // 입고 확정 (WHS-007) — 창고 권한군 entry-point 로 갈아끼움.
-  // BE: POST /api/warehouse/inbound/{code}/confirm → 내부적으로 PurchaseOrderService.complete
-  // (SHIPPING→COMPLETED 검증 + statusHistory append).
-  // 단일 진실 원천(ADR-015) 정합을 위해 confirm 후 poStore.fetchDetail 로 단건 갱신.
+  async function fetchDetail(id) {
+    try {
+      const detail = await inboundApi.detail(id)
+      const mapped = fromDetailApi(detail)
+      selectedDetail.value = mapped
+      // 목록에도 반영 (창고 정보 등 동기화)
+      const idx = items.value.findIndex((o) => o.id === id)
+      if (idx >= 0) {
+        items.value[idx] = { ...items.value[idx], ...mapped }
+      }
+      return mapped
+    } catch (e) {
+      error.value = e?.message ?? '입고 상세를 불러오지 못했습니다.'
+      throw e
+    }
+  }
+
+  function selectOrder(id) {
+    selectedOrderId.value = id
+    if (id) {
+      const order = items.value.find((o) => o.id === id)
+      if (!order || order.items.length === 0 || order.statusHistory.length === 0) {
+        fetchDetail(id).catch(() => {
+          // fetchDetail 안에서 이미 처리
+        })
+      } else {
+        selectedDetail.value = order
+      }
+    } else {
+      selectedDetail.value = null
+    }
+  }
+
+  // 입고 확정 (WHS-007) — DELIVERED → COMPLETED.
+  // BE: POST /api/warehouse/inbound/{code}/confirm (내부적으로 PurchaseOrderService.complete 위임).
   async function confirmInbound(id) {
     await inboundApi.confirm(id)
-    return poStore.fetchDetail(id)
+    await fetchDetail(id)
+    // 상태 전이 후 목록 status 갱신 — 단순화 위해 전체 재조회.
+    await fetchAll()
   }
+
+  // 마운트 자동 fetch — vendor/circularInventoryBuyers store 패턴 일관.
+  fetchAll().catch((err) => {
+    console.error('[warehouseInbound] fetchAll 실패', err)
+  })
 
   return {
     // state
+    items,
     activeStatusTab,
     selectedOrderId,
     searchKeyword,
     dateFrom,
     dateTo,
     sortBy,
+    loading,
+    error,
     // getters
     selectedOrder,
     inboundList,
     counts,
     // actions
+    fetchAll,
+    fetchDetail,
     selectOrder,
     confirmInbound,
   }
