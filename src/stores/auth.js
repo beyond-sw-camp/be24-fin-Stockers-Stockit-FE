@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { roleHomeMap } from '@/config/roleMenus.js'
 import { authApi } from '@/api/user/auth.js'
+import { extractErrorMessage } from '@/api/axios.js'
 
 // HttpOnly Cookie 방식이라 토큰은 JS에서 접근 불가.
 // localStorage 에는 사용자 정보(UI 표시용)만 저장.
@@ -92,7 +93,7 @@ export const useAuthStore = defineStore('auth', () => {
     } catch (err) {
       return {
         success: false,
-        message: err?.message ?? '사원번호 또는 비밀번호가 올바르지 않습니다.',
+        message: extractErrorMessage(err, '사원번호 또는 비밀번호가 올바르지 않습니다.'),
       }
     }
   }
