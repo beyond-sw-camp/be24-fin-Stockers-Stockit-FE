@@ -166,7 +166,7 @@ function clearErr(field) {
         <p class="mt-2 text-[13px] leading-relaxed text-gray-500">
           중앙 관리자가 신청 내용을 검토한 후 입력하신 이메일로 결과를 안내드립니다.
         </p>
-        <router-link to="/login" class="mt-6 inline-flex h-10 items-center justify-center bg-[#004D3C] px-6 text-[13px] font-bold !text-white transition hover:bg-[#003d30]">
+        <router-link to="/dev-login" class="mt-6 inline-flex h-10 items-center justify-center bg-[#004D3C] px-6 text-[13px] font-bold !text-white transition hover:bg-[#003d30]">
           로그인으로 돌아가기
         </router-link>
       </div>
@@ -337,7 +337,7 @@ function clearErr(field) {
 
           <div class="mt-3 text-center">
             <span class="text-[12px] font-bold text-gray-500">이미 계정이 있으신가요? </span>
-            <router-link to="/login" class="text-[12px] font-bold text-[#004D3C] hover:underline">
+            <router-link to="/dev-login" class="text-[12px] font-bold text-[#004D3C] hover:underline">
               로그인으로 돌아가기
             </router-link>
           </div>

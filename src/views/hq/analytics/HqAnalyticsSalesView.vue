@@ -30,7 +30,7 @@ const activeSideMenu = ref('판매량 통계')
 
 function handleLogout() {
   auth.logout()
-  router.push('/login')
+  router.push('/dev-login')
 }
 
 // ─── 탭 (URL 쿼리스트링과 동기화) ──────────────────────────────────────

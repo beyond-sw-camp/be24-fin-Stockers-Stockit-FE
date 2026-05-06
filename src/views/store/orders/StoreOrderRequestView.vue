@@ -398,7 +398,7 @@ async function loadSkuRows() {
 // [함수] 로그아웃 처리 후 로그인 화면으로 이동한다.
 function handleLogout() {
   auth.logout()
-  router.push('/login')
+  router.push('/dev-login')
 }
 
 /**

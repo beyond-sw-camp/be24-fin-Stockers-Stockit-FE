@@ -38,7 +38,7 @@ const regionOptions = computed(() => ['전체 지역', ...new Set(rows.value.map
 
 function handleLogout() {
   auth.logout()
-  router.push('/login')
+  router.push('/dev-login')
 }
 
 async function loadOptions() {
