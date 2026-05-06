@@ -70,7 +70,8 @@ import HqAnalyticsVendorView from '@/views/hq/analytics/HqAnalyticsVendorView.vu
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
-    { path: '/login', name: 'login', component: LoginView, meta: { requiresAuth: false } },
+    // 기존 /login 진입은 모두 /dev-login 으로 통합 (LoginView 는 호환성 유지를 위해 import 만 보존)
+    { path: '/login', redirect: '/dev-login' },
     {
       path: '/dev-login',
       name: 'dev-login',
@@ -247,8 +248,10 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'warehouse' },
     },
 
-    { path: '/', redirect: '/login' },
-    { path: '/:pathMatch(.*)*', redirect: '/login' },
+    // 첫 진입 — dev-login 으로 (인증된 상태면 router.beforeEach 에서 권한별 홈으로 재이동)
+    { path: '/', redirect: '/dev-login' },
+    // 알 수 없는 경로 — dev-login 으로
+    { path: '/:pathMatch(.*)*', redirect: '/dev-login' },
   ],
 })
 
@@ -260,7 +263,7 @@ router.beforeEach((to) => {
     return true
   }
 
-  if (!auth.isAuthenticated) return { name: 'login' }
+  if (!auth.isAuthenticated) return { name: 'dev-login' }
 
   if (to.meta.role && to.meta.role !== auth.user.role) {
     return roleHomeMap[auth.user.role]

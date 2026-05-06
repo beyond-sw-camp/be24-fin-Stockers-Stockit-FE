@@ -71,7 +71,7 @@ export const useAuthStore = defineStore('auth', () => {
       }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(user.value))
       sessionStorage.removeItem('stockit:openTopMenus')
-      return { success: true, redirectTo: roleHomeMap[dummy.role] ?? '/login' }
+      return { success: true, redirectTo: roleHomeMap[dummy.role] ?? '/dev-login' }
     }
 
     // 2) 실제 BE 호출 (employeeCode + password)
@@ -89,7 +89,7 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(user.value))
       sessionStorage.removeItem('stockit:openTopMenus')
 
-      return { success: true, redirectTo: roleHomeMap[role] ?? '/login' }
+      return { success: true, redirectTo: roleHomeMap[role] ?? '/dev-login' }
     } catch (err) {
       return {
         success: false,
