@@ -97,13 +97,10 @@ watch(range, () => {
   dashStore.fetchInboundProgress(rangeParams.value)
 })
 
-// ─── 단일 창고 컨텍스트 (창고관리자가 본인 창고 1개 담당, 인증 도입 시 auth.user.warehouseId 로 교체) ──
-const warehouseId = 'WH-001'
-
-// 안전재고 미달 카운트 — 이 창고의 vendor_product 중 가용재고 < safetyStock × 1.5 행 개수
+// 안전재고 미달 카운트 — 인증 사용자의 자기 창고 vendor_product 중 가용재고 < safetyStock × 1.5 행 개수
 const shortageCount = computed(() => {
   const codes = (vendorStore.allVendorProducts ?? []).map((vp) => vp.productCode)
-  return stockStore.getShortageCount(warehouseId, codes)
+  return stockStore.getShortageCount(auth.user?.locationCode ?? '', codes)
 })
 
 // ─── KPI / breakdown — store getter 직접 사용 ───────────────────────────────
