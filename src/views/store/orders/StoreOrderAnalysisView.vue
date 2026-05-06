@@ -54,9 +54,9 @@ const activeTopMenu = computed(() => '발주 관리')
 // [함수] 발주 분석 API를 호출해 요약/랭킹 데이터를 갱신한다.
 async function fetchAnalytics() {
   try {
-    if (!auth.user?.storeCode || !auth.user?.storeLocationId) return
+    if (!auth.user?.locationCode) return
 
-    const res = await getStoreOrderAnalytics({ storeCode: auth.user.storeCode })
+    const res = await getStoreOrderAnalytics()
     analyticsSummary.value = {
       totalOrders: Number(res?.totalOrders ?? 0),
       totalRequestedQuantity: Number(res?.totalRequestedQuantity ?? 0),

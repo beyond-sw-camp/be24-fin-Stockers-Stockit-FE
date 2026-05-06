@@ -31,7 +31,6 @@ const activeSubMenu = ref('판매 내역')
 const searchTerm = ref('')
 const selectedSaleId = ref('')
 const listQuery = reactive({
-  storeCode: '',
   from: '',
   to: '',
   keyword: '',
@@ -77,13 +76,16 @@ function headlineLabel(sale) {
  */
 // [함수] 판매 목록 API를 호출하고 화면 상태를 갱신한다.
 async function loadSales() {
-  listQuery.storeCode = auth.user?.storeCode ?? ''
+  if (!auth.user?.locationCode) {
+    sales.setError('로그인 매장 정보가 없어 판매 내역을 조회할 수 없습니다.')
+    sales.setSales([])
+    return
+  }
   listQuery.keyword = searchTerm.value.trim()
   try {
     sales.setLoading(true)
     sales.setError('')
     const params = {}
-    if (listQuery.storeCode) params.storeCode = listQuery.storeCode
     if (listQuery.from) params.from = listQuery.from
     if (listQuery.to) params.to = listQuery.to
     if (listQuery.keyword) params.keyword = listQuery.keyword

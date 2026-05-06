@@ -113,12 +113,11 @@ async function fetchOrders() {
   errorMessage.value = ''
 
   try {
-    if (!auth.user?.storeCode || !auth.user?.storeLocationId) {
+    if (!auth.user?.locationCode) {
       throw new Error('로그인 매장 정보가 없어 발주 내역을 조회할 수 없습니다.')
     }
 
     const result = await getStoreOrders({
-      storeCode: auth.user.storeCode,
       from: dateFrom.value || undefined,
       to: dateTo.value || undefined,
       keyword: searchKeyword.value?.trim() || undefined,

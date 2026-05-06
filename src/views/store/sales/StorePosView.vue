@@ -10,7 +10,7 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useSalesStore } from '@/stores/store/storeSales.js'
-import { getCompanyWideInventories, getCompanyWideInventorySkus } from '@/api/hq/inventory.js'
+import { getStoreInventories, getStoreInventorySkus } from '@/api/store/inventory.js'
 import { getProductSkus } from '@/api/hq/productMaster.js'
 import { createSale } from '@/api/store/sales.js'
 
@@ -36,10 +36,7 @@ const selectedSubCategory = ref('전체')
 const selectedColor = ref('전체')
 const searchTerm = ref('')
 const salesLines = ref([])
-const saleRequest = reactive({
-  storeCode: '',
-  items: [],
-})
+const saleRequest = reactive({ items: [] })
 const feedbackMessage = ref('')
 const isSuccessModalOpen = ref(false)
 const completedSale = ref(null)
@@ -205,12 +202,7 @@ function clearSalesList() {
 // [함수] 판매 등록 API를 호출하고 성공/실패 상태를 처리한다.
 async function confirmSale() {
   feedbackMessage.value = ''
-  saleRequest.storeCode = auth.user?.storeCode ?? ''
   saleRequest.items = salesLines.value.map((line) => ({ skuCode: line.skuId, quantity: line.quantity }))
-  if (!saleRequest.storeCode) {
-    feedbackMessage.value = '매장 코드가 없어 판매를 진행할 수 없습니다.'
-    return
-  }
   if (saleRequest.items.length === 0) {
     feedbackMessage.value = '판매 목록이 비어 있습니다.'
     return
@@ -288,8 +280,7 @@ function stockStatus(sku) {
 
 // [함수] 로그인 매장의 상품/SKU 재고 데이터를 조회해 POS 테이블 모델로 매핑한다.
 async function loadStoreSkus() {
-  const locationId = auth.user?.storeLocationId
-  if (!locationId) {
+  if (!auth.user?.locationCode) {
     feedbackMessage.value = '매장 위치 정보가 없어 상품/재고를 불러올 수 없습니다.'
     return
   }
@@ -297,12 +288,10 @@ async function loadStoreSkus() {
   loadingSkus.value = true
   feedbackMessage.value = ''
   try {
-    const params = { locationType: 'STORE', locationIds: [locationId] }
-    const page = await getCompanyWideInventories(params)
-    const items = page?.items ?? []
+    const items = await getStoreInventories()
 
     const skuLists = await Promise.all(
-      items.map((item) => getCompanyWideInventorySkus(item.itemCode, params)),
+      items.map((item) => getStoreInventorySkus(item.itemCode)),
     )
     const productSkuLists = await Promise.all(
       items.map((item) => getProductSkus(item.itemCode)),
@@ -325,7 +314,7 @@ async function loadStoreSkus() {
           color: sku.color,
           size: sku.size,
           unitPrice: Number(sku.unitPrice ?? unitPriceBySkuCode.get(sku.skuCode) ?? 0),
-          stock: sku.actualStock ?? 0,
+          stock: Number(sku.actualStock ?? 0),
           safetyStock: sku.safetyStock ?? 0,
           status: sku.status,
         })
