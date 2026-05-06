@@ -39,3 +39,30 @@ export async function convertCircularCandidates(items = []) {
   const res = await api.post('/api/hq/inventories/circular-candidates/convert', items)
   return unwrap(res)
 }
+
+export async function getWarehouseTransferImbalancedSkus() {
+  const res = await api.get('/api/hq/warehouse-transfers/imbalanced-skus')
+  return unwrap(res)
+}
+
+export async function executeWarehouseTransfers(payload = {}) {
+  const res = await api.post('/api/hq/warehouse-transfers/execute', payload)
+  return unwrap(res)
+}
+
+export async function getWarehouseTransfers(params = {}) {
+  const res = await api.get('/api/hq/warehouse-transfers', { params })
+  return unwrap(res)
+}
+
+export async function getWarehouseTransferDetail(transferNo) {
+  const res = await api.get(`/api/hq/warehouse-transfers/${transferNo}`)
+  return unwrap(res)
+}
+
+export async function getWarehouseSkuDistribution(skuCode) {
+  const res = await api.get('/api/hq/warehouse-transfers/sku-distribution', {
+    params: { skuCode },
+  })
+  return unwrap(res)
+}

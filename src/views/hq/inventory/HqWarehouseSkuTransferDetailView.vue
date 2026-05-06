@@ -5,7 +5,9 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useWarehouseTransferCartStore } from '@/stores/hq/warehouseTransferCart.js'
-import { transferSkuCatalog, buildWarehouseRows } from '@/constants/hqWarehouseTransferData.js'
+import { transferSkuCatalog } from '@/constants/hqWarehouseTransferData.js'
+import { executeWarehouseTransfers, getWarehouseSkuDistribution } from '@/api/hq/inventory.js'
+import { extractErrorMessage } from '@/api/axios.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -27,13 +29,29 @@ const sheetOpen = ref(false)
 const cartDrawerOpen = ref(false)
 const toastMessage = ref('')
 const toastShowHistoryAction = ref(false)
+const warehouseLoading = ref(false)
 let toastTimer = null
 
-const selectedSku = computed(() => transferSkuCatalog.find(sku => sku.skuCode === route.params.skuCode) ?? null)
+const selectedSku = computed(() => {
+  const matched = transferSkuCatalog.find((sku) => sku.skuCode === route.params.skuCode)
+  if (matched) return matched
+
+  const skuCode = String(route.params.skuCode || '')
+  if (!skuCode) return null
+
+  return {
+    skuCode,
+    itemCode: String(route.query.itemCode || ''),
+    itemName: String(route.query.itemName || ''),
+    category: String(route.query.category || route.query.filterCategory || ''),
+    color: String(route.query.color || ''),
+    size: String(route.query.size || ''),
+  }
+})
 const warehouseRows = ref([])
 
 watch(selectedSku, (sku) => {
-  warehouseRows.value = sku ? buildWarehouseRows(sku.skuCode) : []
+  loadWarehouseRows(sku?.skuCode)
   selectedWarehouseCodes.value = []
   transferQty.value = ''
   transferReason.value = '재고 불균형 해소'
@@ -42,6 +60,33 @@ watch(selectedSku, (sku) => {
   sortDirection.value = 'desc'
   sheetOpen.value = false
 }, { immediate: true })
+
+async function loadWarehouseRows(skuCode) {
+  if (!skuCode) {
+    warehouseRows.value = []
+    return
+  }
+  warehouseLoading.value = true
+  try {
+    const rows = await getWarehouseSkuDistribution(skuCode)
+    warehouseRows.value = (rows || []).map((row) => ({
+      warehouseCode: row.warehouseCode,
+      warehouseName: row.warehouseName,
+      location: row.location,
+      onHandStock: Number(row.onHandStock || 0),
+      reservedStock: Number(row.reservedStock || 0),
+      availableStock: Number(row.availableStock || 0),
+      safetyStock: Number(row.safetyStock || 0),
+      status: row.status || '정상',
+      updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString().slice(0, 16).replace('T', ' ') : '-',
+    }))
+  } catch (error) {
+    warehouseRows.value = []
+    showToast(extractErrorMessage(error, '창고별 SKU 재고를 불러오지 못했습니다.'))
+  } finally {
+    warehouseLoading.value = false
+  }
+}
 
 const statusWeight = {
   품절: 3,
@@ -184,40 +229,38 @@ const addToCart = () => {
   showToast('장바구니에 이동 항목을 추가했습니다.')
 }
 
-const applyTransferToRows = (line) => {
-  const fromIndex = warehouseRows.value.findIndex((row) => row.warehouseCode === line.fromWarehouseCode)
-  const toIndex = warehouseRows.value.findIndex((row) => row.warehouseCode === line.toWarehouseCode)
-
-  if (fromIndex < 0 || toIndex < 0) {
-    return { success: false, message: '현재 SKU 분포에 없는 창고 경로입니다.' }
-  }
-
-  const fromRow = warehouseRows.value[fromIndex]
-  const toRow = warehouseRows.value[toIndex]
-
-  if (line.qty > fromRow.availableStock) {
-    return { success: false, message: '출발 창고 가용재고가 부족합니다.' }
-  }
-
-  warehouseRows.value[fromIndex].onHandStock -= line.qty
-  warehouseRows.value[fromIndex].availableStock -= line.qty
-  warehouseRows.value[toIndex].onHandStock += line.qty
-  warehouseRows.value[toIndex].availableStock += line.qty
-
-  return { success: true }
-}
-
 const executeCartTransfers = async () => {
   if (!cartLineCount.value) return
+  try {
+    const payload = {
+      requestedBy: auth.user?.name || '본사 관리자',
+      lines: cartStore.lines.map((line) => ({
+        lineId: line.lineId,
+        skuCode: line.skuCode,
+        fromWarehouseCode: line.fromWarehouseCode,
+        toWarehouseCode: line.toWarehouseCode,
+        qty: Number(line.qty),
+        reason: line.reason,
+        memo: line.memo,
+      })),
+    }
+    const result = await executeWarehouseTransfers(payload)
+    const lineResults = Array.isArray(result?.lineResults) ? result.lineResults : []
+    const successLineIds = lineResults.filter((row) => row.success).map((row) => row.lineId).filter(Boolean)
+    if (successLineIds.length) {
+      successLineIds.forEach((lineId) => cartStore.removeLine(lineId))
+    }
 
-  const result = await cartStore.executeAll(async (line) => applyTransferToRows(line))
-
-  if (result.failureCount === 0) {
-    showToast(`장바구니 실행 완료: ${result.successCount}건 처리됨`, true)
-    return
+    const successCount = Number(result?.successCount || successLineIds.length || 0)
+    const failureCount = Number(result?.failureCount || Math.max(0, cartLineCount.value - successCount))
+    if (failureCount === 0) {
+      showToast(`장바구니 실행 완료: ${successCount}건 처리됨`, true)
+    } else {
+      showToast(`부분 완료: 성공 ${successCount}건 / 실패 ${failureCount}건`)
+    }
+  } catch (error) {
+    showToast(extractErrorMessage(error, '재고 이동 실행에 실패했습니다.'))
   }
-
-  showToast(`부분 완료: 성공 ${result.successCount}건 / 실패 ${result.failureCount}건`)
 }
 
 const updateCartLineQty = (lineId, event) => {
@@ -249,7 +292,7 @@ const moveBack = () => {
     name: 'hq-inventory-warehouse-comparison',
     query: {
       search: route.query.search || undefined,
-      category: route.query.category || undefined,
+      category: route.query.filterCategory || route.query.category || undefined,
       status: route.query.status || undefined,
       warehouseGroup: route.query.warehouseGroup || undefined,
     },
@@ -361,6 +404,16 @@ function handleLogout() {
                   <span class="inline-flex min-w-12 justify-center px-2 py-1 text-[11px] font-black" :class="statusClass(row.status)">{{ row.status }}</span>
                 </td>
                 <td class="px-3 py-3 font-bold text-gray-500">{{ row.updatedAt }}</td>
+              </tr>
+              <tr v-if="warehouseLoading">
+                <td colspan="10" class="px-4 py-8 text-center text-xs font-bold text-gray-400">
+                  창고별 재고를 불러오는 중입니다.
+                </td>
+              </tr>
+              <tr v-else-if="sortedWarehouseRows.length === 0">
+                <td colspan="10" class="px-4 py-8 text-center text-xs font-bold text-gray-400">
+                  표시할 창고 재고 데이터가 없습니다.
+                </td>
               </tr>
             </tbody>
           </table>

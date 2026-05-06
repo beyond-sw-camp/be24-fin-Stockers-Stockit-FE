@@ -1,11 +1,11 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useWarehouseTransferCartStore } from '@/stores/hq/warehouseTransferCart.js'
-import { transferSkuCatalog, buildWarehouseRows } from '@/constants/hqWarehouseTransferData.js'
+import { getWarehouseTransferImbalancedSkus } from '@/api/hq/inventory.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -20,47 +20,18 @@ const activeSideMenu = ref('창고간 재고 이동')
 const searchTerm = ref(String(route.query.search || ''))
 const selectedCategory = ref(String(route.query.category || '전체'))
 const selectedWarehouseGroup = ref(String(route.query.warehouseGroup || '전체'))
+const skuRows = ref([])
+const loading = ref(false)
 
-const categoryOptions = computed(() => ['전체', ...new Set(transferSkuCatalog.map(sku => sku.category))])
+const categoryOptions = computed(() => ['전체', ...new Set(skuRows.value.map(sku => sku.category).filter(Boolean))])
 const warehouseGroupOptions = ['전체', '수도권', '충청권', '영남권']
 
-const warehouseGroupByCode = {
-  'WH-ICN-01': '수도권',
-  'WH-ICH-01': '수도권',
-  'WH-GMP-01': '수도권',
-  'WH-SUW-01': '수도권',
-  'WH-DJN-01': '충청권',
-  'WH-CJU-01': '충청권',
-  'WH-BSN-01': '영남권',
-  'WH-ULS-01': '영남권',
-  'WH-GWJ-01': '영남권',
-  'WH-JJU-01': '영남권',
-}
-
-const skuRows = computed(() => transferSkuCatalog.map((sku) => {
-  const rows = buildWarehouseRows(sku.skuCode)
-  const totalOnHand = rows.reduce((sum, row) => sum + row.onHandStock, 0)
-  const totalAvailable = rows.reduce((sum, row) => sum + row.availableStock, 0)
-  const shortageWarehouseCount = rows.filter((row) => row.availableStock < row.safetyStock).length
-  const totalShortageQty = rows.reduce((sum, row) => {
-    if (row.availableStock >= row.safetyStock) return sum
-    return sum + (row.safetyStock - row.availableStock)
-  }, 0)
-
-  return {
-    ...sku,
-    totalOnHand,
-    totalAvailable,
-    shortageWarehouseCount,
-    totalShortageQty,
-    warehouseGroups: [...new Set(rows.map(row => warehouseGroupByCode[row.warehouseCode]).filter(Boolean))],
-  }
-}))
+const inferWarehouseGroups = () => ['수도권', '충청권', '영남권']
 
 const filteredSkuRows = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase()
 
-  return skuRows.value
+  return [...skuRows.value]
     .filter((row) => {
       if (selectedCategory.value !== '전체' && row.category !== selectedCategory.value) return false
       if (selectedWarehouseGroup.value !== '전체' && !row.warehouseGroups.includes(selectedWarehouseGroup.value)) return false
@@ -79,13 +50,38 @@ const filteredSkuRows = computed(() => {
     })
 })
 
+const loadImbalancedSkus = async () => {
+  loading.value = true
+  try {
+    const items = await getWarehouseTransferImbalancedSkus()
+    skuRows.value = (items ?? []).map((item) => ({
+      ...item,
+      warehouseGroups: inferWarehouseGroups(item.itemCode),
+    }))
+  } catch (error) {
+    skuRows.value = []
+    console.error('불균형 SKU 목록 조회 실패', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  loadImbalancedSkus()
+})
+
 const moveToSkuDetail = (sku) => {
   router.push({
     name: 'hq-inventory-warehouse-transfer-detail',
     params: { skuCode: sku.skuCode },
     query: {
+      itemCode: sku.itemCode || undefined,
+      itemName: sku.itemName || undefined,
+      category: sku.category || undefined,
+      color: sku.color || undefined,
+      size: sku.size || undefined,
       search: searchTerm.value || undefined,
-      category: selectedCategory.value !== '전체' ? selectedCategory.value : undefined,
+      filterCategory: selectedCategory.value !== '전체' ? selectedCategory.value : undefined,
       warehouseGroup: selectedWarehouseGroup.value !== '전체' ? selectedWarehouseGroup.value : undefined,
     },
   })
@@ -202,9 +198,14 @@ function handleLogout() {
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ row.totalShortageQty.toLocaleString() }}개</td>
               </tr>
 
-              <tr v-if="filteredSkuRows.length === 0">
+              <tr v-if="!loading && filteredSkuRows.length === 0">
                 <td colspan="10" class="px-4 py-10 text-center text-xs font-bold text-gray-400">
                   조건에 맞는 SKU가 없습니다.
+                </td>
+              </tr>
+              <tr v-if="loading">
+                <td colspan="10" class="px-4 py-10 text-center text-xs font-bold text-gray-400">
+                  불균형 SKU 데이터를 불러오는 중입니다.
                 </td>
               </tr>
             </tbody>
