@@ -298,7 +298,12 @@ const iconMap = {
           <button type="button" class="p-1.5 text-white/80 transition-colors hover:bg-white/10">
             <BellIcon :size="16" />
           </button>
-          <button type="button" class="ml-2 flex items-center gap-2 p-1 transition-colors hover:bg-white/10">
+          <button
+            type="button"
+            class="ml-2 flex items-center gap-2 p-1 transition-colors hover:bg-white/10"
+            title="마이페이지"
+            @click="router.push('/mypage')"
+          >
             <span class="flex h-6 w-6 items-center justify-center bg-white/20 text-[10px] font-bold text-white">
               {{ userInitials }}
             </span>
