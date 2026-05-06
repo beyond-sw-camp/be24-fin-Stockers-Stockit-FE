@@ -1,13 +1,25 @@
 ﻿<script setup>
-import { computed, ref } from 'vue'
+/**
+ * ==============================================================================
+ * 1. IMPORTS
+ * ==============================================================================
+ */
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { getStoreOrderAnalytics } from '@/api/store/orders.js'
 
+/**
+ * ==============================================================================
+ * 2. STATE & REFS
+ * ==============================================================================
+ */
 const router = useRouter()
 const auth = useAuthStore()
+
+const activeSideMenu = ref('발주 분석')
 const analyticsSummary = ref({
   totalOrders: 0,
   totalRequestedQuantity: 0,
@@ -19,19 +31,31 @@ const analyticsSummary = ref({
 const analyticsTopSkus = ref([])
 const analyticsCategoryBreakdown = ref([])
 
+/**
+ * ==============================================================================
+ * 3. COMPUTED
+ * ==============================================================================
+ */
 const storeMenus = roleMenus.store
 const orderMenus = roleMenus.store.find((menu) => menu.label === '발주 관리')?.children ?? []
 const activeTopMenu = computed(() => '발주 관리')
-const activeSideMenu = ref('발주 분석')
 
-function handleLogout() {
-  auth.logout()
-  router.push('/login')
-}
+/**
+ * ==============================================================================
+ * 5. METHODS - UI STATE
+ * ==============================================================================
+ */
 
+/**
+ * ==============================================================================
+ * 6. METHODS - API SERVICE
+ * ==============================================================================
+ */
+// [함수] 발주 분석 API를 호출해 요약/랭킹 데이터를 갱신한다.
 async function fetchAnalytics() {
   try {
     if (!auth.user?.storeCode || !auth.user?.storeLocationId) return
+
     const res = await getStoreOrderAnalytics({ storeCode: auth.user.storeCode })
     analyticsSummary.value = {
       totalOrders: Number(res?.totalOrders ?? 0),
@@ -57,7 +81,23 @@ async function fetchAnalytics() {
   }
 }
 
-fetchAnalytics()
+/**
+ * ==============================================================================
+ * 7. METHODS - NAVIGATION
+ * ==============================================================================
+ */
+// [함수] 로그아웃 처리 후 로그인 화면으로 이동한다.
+function handleLogout() {
+  auth.logout()
+  router.push('/login')
+}
+
+/**
+ * ==============================================================================
+ * 9. LIFECYCLE
+ * ==============================================================================
+ */
+onMounted(fetchAnalytics)
 </script>
 
 <template>

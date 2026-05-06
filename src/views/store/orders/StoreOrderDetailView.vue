@@ -1,5 +1,10 @@
 ﻿<script setup>
-import { computed, ref } from 'vue'
+/**
+ * ==============================================================================
+ * 1. IMPORTS
+ * ==============================================================================
+ */
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
@@ -7,27 +12,43 @@ import { useAuthStore } from '@/stores/auth.js'
 import { formatDateTime, storeInboundStatusClass, storeOrderStatusClass } from '@/features/store/common/ui.js'
 import { cancelStoreOrder, getStoreOrderDetail } from '@/api/store/orders.js'
 
+/**
+ * ==============================================================================
+ * 2. STATE & REFS
+ * ==============================================================================
+ */
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 
-const storeMenus = roleMenus.store
-const orderMenus = roleMenus.store.find((menu) => menu.label === '발주 관리')?.children ?? []
-const activeTopMenu = computed(() => '발주 관리')
 const activeSideMenu = ref('발주 내역')
-
 const showCancelConfirm = ref(false)
 const cancelReason = ref('')
 const toastMessage = ref('')
-
-const orderNo = computed(() => String(route.params.orderNo ?? ''))
 const selectedOrder = ref(null)
+
+/**
+ * ==============================================================================
+ * 3. COMPUTED
+ * ==============================================================================
+ */
+const storeMenus = roleMenus.store
+const orderMenus = roleMenus.store.find((menu) => menu.label === '발주 관리')?.children ?? []
+const activeTopMenu = computed(() => '발주 관리')
+const orderNo = computed(() => String(route.params.orderNo ?? ''))
+
+/**
+ * ==============================================================================
+ * 4. CONSTANTS
+ * ==============================================================================
+ */
 const statusLabelMap = {
   REQUESTED: '승인 대기',
   APPROVED: '승인 완료',
   COMPLETED: '완료',
   CANCELLED: '취소',
 }
+
 const inboundStatusLabelMap = {
   READY_TO_SHIP: '배송 준비중',
   IN_TRANSIT: '배송 중',
@@ -35,14 +56,22 @@ const inboundStatusLabelMap = {
   RECEIVED: '입고 완료',
 }
 
+/**
+ * ==============================================================================
+ * 5. METHODS - UI STATE
+ * ==============================================================================
+ */
+// [함수] 주문 상태에 맞는 칩 스타일 클래스를 반환한다.
 function statusClass(status) {
   return storeOrderStatusClass(status)
 }
 
+// [함수] 이행 상태에 맞는 칩 스타일 클래스를 반환한다.
 function inboundStatusClass(status) {
   return storeInboundStatusClass(status)
 }
 
+// [함수] 상태 이력 타임라인 점 색상을 반환한다.
 function historyDotClass(status) {
   return {
     REQUESTED: 'bg-amber-500',
@@ -52,6 +81,7 @@ function historyDotClass(status) {
   }[status] ?? 'bg-gray-400'
 }
 
+// [함수] 상태 이력 텍스트 색상을 반환한다.
 function historyTextClass(status) {
   return {
     REQUESTED: 'text-amber-700',
@@ -61,14 +91,22 @@ function historyTextClass(status) {
   }[status] ?? 'text-gray-700'
 }
 
+// [함수] 요청 상태 주문에서만 취소 확인 모달을 연다.
 function openCancelConfirm() {
   if (!selectedOrder.value || selectedOrder.value.status !== 'REQUESTED') return
   cancelReason.value = ''
   showCancelConfirm.value = true
 }
 
+/**
+ * ==============================================================================
+ * 6. METHODS - API SERVICE
+ * ==============================================================================
+ */
+// [함수] 발주 취소 API를 호출하고 성공 시 상세를 재조회한다.
 async function confirmCancelOrder() {
   if (!selectedOrder.value) return
+
   try {
     await cancelStoreOrder(selectedOrder.value.orderId, {
       cancelReason: cancelReason.value,
@@ -83,15 +121,12 @@ async function confirmCancelOrder() {
   }
 }
 
-function goEditPage() {
-  if (!selectedOrder.value || selectedOrder.value.status !== 'REQUESTED') return
-  router.push({ name: 'store-order-edit', params: { orderNo: selectedOrder.value.orderId } })
-}
-
+// [함수] 발주 상세 API를 호출해 화면 표시용 모델로 매핑한다.
 async function fetchDetail() {
   try {
     const res = await getStoreOrderDetail(orderNo.value)
     const order = res?.order
+
     selectedOrder.value = order
       ? {
           orderId: order.orderId,
@@ -129,12 +164,29 @@ async function fetchDetail() {
   }
 }
 
+/**
+ * ==============================================================================
+ * 7. METHODS - NAVIGATION
+ * ==============================================================================
+ */
+// [함수] 요청 상태 주문의 수정 화면으로 이동한다.
+function goEditPage() {
+  if (!selectedOrder.value || selectedOrder.value.status !== 'REQUESTED') return
+  router.push({ name: 'store-order-edit', params: { orderNo: selectedOrder.value.orderId } })
+}
+
+// [함수] 로그아웃 처리 후 로그인 화면으로 이동한다.
 function handleLogout() {
   auth.logout()
   router.push('/login')
 }
 
-fetchDetail()
+/**
+ * ==============================================================================
+ * 9. LIFECYCLE
+ * ==============================================================================
+ */
+onMounted(fetchDetail)
 </script>
 
 <template>

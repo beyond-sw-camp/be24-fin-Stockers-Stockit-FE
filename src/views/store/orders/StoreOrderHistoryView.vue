@@ -1,5 +1,10 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+/**
+ * ==============================================================================
+ * 1. IMPORTS
+ * ==============================================================================
+ */
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
@@ -7,14 +12,15 @@ import { useAuthStore } from '@/stores/auth.js'
 import { formatDateTime, storeOrderStatusClass } from '@/features/store/common/ui.js'
 import { getStoreOrders } from '@/api/store/orders.js'
 
+/**
+ * ==============================================================================
+ * 2. STATE & REFS
+ * ==============================================================================
+ */
 const router = useRouter()
 const auth = useAuthStore()
 
-const storeMenus = roleMenus.store
-const orderMenus = roleMenus.store.find((menu) => menu.label === '발주 관리')?.children ?? []
-const activeTopMenu = computed(() => '발주 관리')
 const activeSideMenu = ref('발주 내역')
-
 const loading = ref(false)
 const errorMessage = ref('')
 const orders = ref([])
@@ -24,6 +30,48 @@ const dateFrom = ref('')
 const dateTo = ref('')
 const sortBy = ref('latest')
 
+/**
+ * ==============================================================================
+ * 3. COMPUTED
+ * ==============================================================================
+ */
+const storeMenus = roleMenus.store
+const orderMenus = roleMenus.store.find((menu) => menu.label === '발주 관리')?.children ?? []
+const activeTopMenu = computed(() => '발주 관리')
+
+const statusCounts = computed(() => ({
+  전체: orders.value.length,
+  REQUESTED: orders.value.filter((order) => order.status === 'REQUESTED').length,
+  APPROVED: orders.value.filter((order) => order.status === 'APPROVED').length,
+  COMPLETED: orders.value.filter((order) => order.status === 'COMPLETED').length,
+  CANCELLED: orders.value.filter((order) => order.status === 'CANCELLED').length,
+}))
+
+const filteredOrders = computed(() => {
+  let list = [...orders.value]
+
+  if (activeStatusTab.value !== '전체') {
+    list = list.filter((order) => order.status === activeStatusTab.value)
+  }
+
+  if (sortBy.value === 'oldest') list.sort((a, b) => new Date(a.requestedAt) - new Date(b.requestedAt))
+  if (sortBy.value === 'latest') list.sort((a, b) => new Date(b.requestedAt) - new Date(a.requestedAt))
+  if (sortBy.value === 'qtyDesc') list.sort((a, b) => Number(b.totalRequestedQuantity) - Number(a.totalRequestedQuantity))
+  if (sortBy.value === 'qtyAsc') list.sort((a, b) => Number(a.totalRequestedQuantity) - Number(b.totalRequestedQuantity))
+
+  return list
+})
+
+const summary = computed(() => ({
+  totalOrders: orders.value.length,
+  totalRequestedQuantity: orders.value.reduce((sum, order) => sum + Number(order.totalRequestedQuantity ?? 0), 0),
+}))
+
+/**
+ * ==============================================================================
+ * 4. CONSTANTS
+ * ==============================================================================
+ */
 const STATUS_TABS = [
   { label: '전체', key: '전체' },
   { label: '승인 대기', key: 'REQUESTED' },
@@ -39,42 +87,37 @@ const statusLabelMap = {
   CANCELLED: '취소',
 }
 
+/**
+ * ==============================================================================
+ * 5. METHODS - UI STATE
+ * ==============================================================================
+ */
+// [함수] 발주 상태값에 맞는 칩 스타일 클래스를 반환한다.
 function statusClass(status) {
   return storeOrderStatusClass(status)
 }
 
-const statusCounts = computed(() => ({
-  전체: orders.value.length,
-  REQUESTED: orders.value.filter((order) => order.status === 'REQUESTED').length,
-  APPROVED: orders.value.filter((order) => order.status === 'APPROVED').length,
-  COMPLETED: orders.value.filter((order) => order.status === 'COMPLETED').length,
-  CANCELLED: orders.value.filter((order) => order.status === 'CANCELLED').length,
-}))
+// [함수] 상태 탭을 변경하고 목록을 즉시 재조회한다.
+function changeTab(key) {
+  activeStatusTab.value = key
+  fetchOrders()
+}
 
-const filteredOrders = computed(() => {
-  let list = [...orders.value]
-  if (activeStatusTab.value !== '전체') {
-    list = list.filter((order) => order.status === activeStatusTab.value)
-  }
-  if (sortBy.value === 'oldest') list.sort((a, b) => new Date(a.requestedAt) - new Date(b.requestedAt))
-  if (sortBy.value === 'latest') list.sort((a, b) => new Date(b.requestedAt) - new Date(a.requestedAt))
-  if (sortBy.value === 'qtyDesc') list.sort((a, b) => Number(b.totalRequestedQuantity) - Number(a.totalRequestedQuantity))
-  if (sortBy.value === 'qtyAsc') list.sort((a, b) => Number(a.totalRequestedQuantity) - Number(b.totalRequestedQuantity))
-  return list
-})
-
-const summary = computed(() => ({
-  totalOrders: orders.value.length,
-  totalRequestedQuantity: orders.value.reduce((sum, order) => sum + Number(order.totalRequestedQuantity ?? 0), 0),
-}))
-
+/**
+ * ==============================================================================
+ * 6. METHODS - API SERVICE
+ * ==============================================================================
+ */
+// [함수] 매장 발주 목록 API를 호출해 화면 리스트를 갱신한다.
 async function fetchOrders() {
   loading.value = true
   errorMessage.value = ''
+
   try {
     if (!auth.user?.storeCode || !auth.user?.storeLocationId) {
       throw new Error('로그인 매장 정보가 없어 발주 내역을 조회할 수 없습니다.')
     }
+
     const result = await getStoreOrders({
       storeCode: auth.user.storeCode,
       status: activeStatusTab.value === '전체' ? undefined : activeStatusTab.value,
@@ -82,6 +125,7 @@ async function fetchOrders() {
       to: dateTo.value || undefined,
       keyword: searchKeyword.value?.trim() || undefined,
     })
+
     orders.value = (Array.isArray(result) ? result : []).map((row) => ({
       orderId: row.orderId,
       requestedAt: row.requestedAt,
@@ -97,18 +141,30 @@ async function fetchOrders() {
   }
 }
 
-function changeTab(key) {
-  activeStatusTab.value = key
-  fetchOrders()
-}
-
+/**
+ * ==============================================================================
+ * 7. METHODS - NAVIGATION
+ * ==============================================================================
+ */
+// [함수] 로그아웃 처리 후 로그인 화면으로 이동한다.
 function handleLogout() {
   auth.logout()
   router.push('/login')
 }
 
+/**
+ * ==============================================================================
+ * 8. WATCHERS
+ * ==============================================================================
+ */
 watch([searchKeyword, dateFrom, dateTo, sortBy], fetchOrders)
-fetchOrders()
+
+/**
+ * ==============================================================================
+ * 9. LIFECYCLE
+ * ==============================================================================
+ */
+onMounted(fetchOrders)
 </script>
 
 <template>

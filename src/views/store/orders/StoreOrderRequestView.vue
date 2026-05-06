@@ -1,5 +1,10 @@
 ﻿<script setup>
-import { computed, ref } from 'vue'
+/**
+ * ==============================================================================
+ * 1. IMPORTS
+ * ==============================================================================
+ */
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
@@ -8,14 +13,14 @@ import { createStoreOrder, getStoreOrderDetail, updateStoreOrder } from '@/api/s
 import { getCompanyWideInventories, getCompanyWideInventorySkus } from '@/api/hq/inventory.js'
 import { getProductSkus } from '@/api/hq/productMaster.js'
 
+/**
+ * ==============================================================================
+ * 2. STATE & REFS
+ * ==============================================================================
+ */
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
-
-const storeMenus = roleMenus.store
-const orderMenus = roleMenus.store.find((menu) => menu.label === '발주 관리')?.children ?? []
-const activeTopMenu = computed(() => '발주 관리')
-const activeSideMenu = ref('발주 요청')
 
 const selectedMainCategory = ref('전체')
 const selectedSubCategory = ref('전체')
@@ -29,22 +34,19 @@ const feedbackType = ref('info')
 const loading = ref(false)
 const requestSortBy = ref('priority')
 const skuRows = ref([])
+const editingOrder = ref(null)
+const activeSideMenu = ref('발주 요청')
 
+/**
+ * ==============================================================================
+ * 3. COMPUTED
+ * ==============================================================================
+ */
+const storeMenus = roleMenus.store
+const orderMenus = roleMenus.store.find((menu) => menu.label === '발주 관리')?.children ?? []
+const activeTopMenu = computed(() => '발주 관리')
 const isEditMode = computed(() => route.name === 'store-order-edit')
 const editingOrderNo = computed(() => String(route.params.orderNo ?? ''))
-const editingOrder = ref(null)
-
-const MAIN_CATEGORY_ORDER = ['상의', '바지', '치마', '아우터']
-
-function compareMainCategory(aCategory, bCategory) {
-  const rankA = MAIN_CATEGORY_ORDER.indexOf(aCategory)
-  const rankB = MAIN_CATEGORY_ORDER.indexOf(bCategory)
-  const normalizedRankA = rankA === -1 ? MAIN_CATEGORY_ORDER.length : rankA
-  const normalizedRankB = rankB === -1 ? MAIN_CATEGORY_ORDER.length : rankB
-
-  if (normalizedRankA !== normalizedRankB) return normalizedRankA - normalizedRankB
-  return String(aCategory ?? '').localeCompare(String(bCategory ?? ''), 'ko')
-}
 
 const availableMainCategories = computed(() => [
   '전체',
@@ -54,8 +56,8 @@ const availableMainCategories = computed(() => [
 const availableSubCategories = computed(() => {
   if (selectedMainCategory.value === '전체') return ['전체']
   return [
-      '전체',
-      ...new Set(
+    '전체',
+    ...new Set(
       skuRows.value
         .filter((sku) => sku.mainCategory === selectedMainCategory.value)
         .map((sku) => sku.subCategory),
@@ -63,23 +65,14 @@ const availableSubCategories = computed(() => {
   ]
 })
 
-const availableColors = computed(() => [
-  '전체',
-  ...new Set(skuRows.value.map((sku) => sku.color)),
-])
-
-const availableSizes = computed(() => [
-  '전체',
-  ...new Set(skuRows.value.map((sku) => sku.size)),
-])
+const availableColors = computed(() => ['전체', ...new Set(skuRows.value.map((sku) => sku.color))])
+const availableSizes = computed(() => ['전체', ...new Set(skuRows.value.map((sku) => sku.size))])
 
 const filteredSkus = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase()
   const list = skuRows.value.filter((sku) => {
-    const matchMain =
-      selectedMainCategory.value === '전체' || sku.mainCategory === selectedMainCategory.value
-    const matchSub =
-      selectedSubCategory.value === '전체' || sku.subCategory === selectedSubCategory.value
+    const matchMain = selectedMainCategory.value === '전체' || sku.mainCategory === selectedMainCategory.value
+    const matchSub = selectedSubCategory.value === '전체' || sku.subCategory === selectedSubCategory.value
     const matchColor = selectedColor.value === '전체' || sku.color === selectedColor.value
     const matchSize = selectedSize.value === '전체' || sku.size === selectedSize.value
     const matchKeyword =
@@ -88,14 +81,17 @@ const filteredSkus = computed(() => {
         .join(' ')
         .toLowerCase()
         .includes(keyword)
+
     return matchMain && matchSub && matchColor && matchSize && matchKeyword
   })
+
   const sorted = [...list]
   if (requestSortBy.value === 'category') {
-    sorted.sort((a, b) =>
-      compareMainCategory(a.mainCategory, b.mainCategory)
-      || String(a.subCategory ?? '').localeCompare(String(b.subCategory ?? ''), 'ko')
-      || String(a.productName ?? '').localeCompare(String(b.productName ?? ''), 'ko'),
+    sorted.sort(
+      (a, b) =>
+        compareMainCategory(a.mainCategory, b.mainCategory) ||
+        String(a.subCategory ?? '').localeCompare(String(b.subCategory ?? ''), 'ko') ||
+        String(a.productName ?? '').localeCompare(String(b.productName ?? ''), 'ko'),
     )
   } else if (requestSortBy.value === 'name') {
     sorted.sort((a, b) => String(a.productName ?? '').localeCompare(String(b.productName ?? ''), 'ko'))
@@ -111,28 +107,62 @@ const filteredSkus = computed(() => {
       return Number(b.recommendedQuantity ?? 0) - Number(a.recommendedQuantity ?? 0)
     })
   }
+
   return sorted
 })
 
-const totalRequestedQuantity = computed(() =>
-  requestLines.value.reduce((sum, line) => sum + line.requestedQuantity, 0),
-)
+const totalRequestedQuantity = computed(() => requestLines.value.reduce((sum, line) => sum + line.requestedQuantity, 0))
+const totalRecommendedQuantity = computed(() => requestLines.value.reduce((sum, line) => sum + line.recommendedQuantity, 0))
 
-const totalRecommendedQuantity = computed(() =>
-  requestLines.value.reduce((sum, line) => sum + line.recommendedQuantity, 0),
-)
+/**
+ * ==============================================================================
+ * 4. CONSTANTS
+ * ==============================================================================
+ */
+const MAIN_CATEGORY_ORDER = ['상의', '바지', '치마', '아우터']
 
+const statusClass = {
+  out: 'bg-red-100 text-red-700',
+  low: 'bg-orange-100 text-orange-700',
+  normal: 'bg-[#EBF5F5] text-black',
+}
+
+const statusLabel = {
+  out: '품절',
+  low: '부족',
+  normal: '정상',
+}
+
+/**
+ * ==============================================================================
+ * 5. METHODS - UI STATE
+ * ==============================================================================
+ */
+// [함수] 대분류 정렬 우선순위와 이름순 비교를 수행한다.
+function compareMainCategory(aCategory, bCategory) {
+  const rankA = MAIN_CATEGORY_ORDER.indexOf(aCategory)
+  const rankB = MAIN_CATEGORY_ORDER.indexOf(bCategory)
+  const normalizedRankA = rankA === -1 ? MAIN_CATEGORY_ORDER.length : rankA
+  const normalizedRankB = rankB === -1 ? MAIN_CATEGORY_ORDER.length : rankB
+
+  if (normalizedRankA !== normalizedRankB) return normalizedRankA - normalizedRankB
+  return String(aCategory ?? '').localeCompare(String(bCategory ?? ''), 'ko')
+}
+
+// [함수] 대분류 변경 시 소분류 선택값을 유효한 값으로 맞춘다.
 function syncSubCategory() {
   if (!availableSubCategories.value.includes(selectedSubCategory.value)) {
     selectedSubCategory.value = '전체'
   }
 }
 
+// [함수] 화면 피드백 메시지와 타입을 갱신한다.
 function showFeedback(message, type = 'info') {
   feedbackMessage.value = message
   feedbackType.value = type
 }
 
+// [함수] SKU를 발주 요청 라인에 추가한다.
 function addToRequest(sku) {
   feedbackMessage.value = ''
   const existing = requestLines.value.find((line) => line.skuId === sku.skuId)
@@ -162,16 +192,19 @@ function addToRequest(sku) {
   ]
 }
 
+// [함수] 발주 요청 라인에서 특정 SKU를 제거한다.
 function removeLine(skuId) {
   requestLines.value = requestLines.value.filter((line) => line.skuId !== skuId)
 }
 
+// [함수] 요청 라인과 메모/피드백 상태를 초기화한다.
 function clearRequest() {
   requestLines.value = []
   memo.value = ''
   feedbackMessage.value = ''
 }
 
+// [함수] 요청 수량 입력값을 검증해 최소 1 이상으로 보정한다.
 function updateRequestedQuantity(line, value) {
   const next = Number.parseInt(value, 10)
   if (Number.isNaN(next) || next < 1) {
@@ -181,21 +214,31 @@ function updateRequestedQuantity(line, value) {
   line.requestedQuantity = next
 }
 
+// [함수] 발주 요청 라인의 수량을 1 증가시킨다.
 function increaseLine(line) {
   line.requestedQuantity += 1
 }
 
+// [함수] 발주 요청 라인의 수량을 1 감소시킨다.
 function decreaseLine(line) {
   if (line.requestedQuantity <= 1) return
   line.requestedQuantity -= 1
 }
 
+/**
+ * ==============================================================================
+ * 6. METHODS - API SERVICE
+ * ==============================================================================
+ */
+// [함수] 발주 생성 또는 수정 API를 호출하고 완료 후 목록 화면으로 이동한다.
 async function submitRequest() {
   feedbackMessage.value = ''
+
   if (!auth.user?.storeCode || !auth.user?.storeLocationId) {
     showFeedback('로그인 매장 정보가 없어 발주를 진행할 수 없습니다.', 'error')
     return
   }
+
   if (requestLines.value.length === 0) {
     showFeedback('발주 요청서를 먼저 채워주세요.', 'error')
     return
@@ -241,6 +284,7 @@ async function submitRequest() {
         requestedQuantity: Number(line.requestedQuantity),
       })),
     })
+
     requestLines.value = []
     memo.value = ''
     showFeedback(`${result.orderId} 발주 요청이 등록되었습니다.`, 'success')
@@ -250,14 +294,17 @@ async function submitRequest() {
   }
 }
 
+// [함수] 수정 모드인 경우 발주 상세를 조회해 요청 라인 초기값을 구성한다.
 async function loadEditingOrder() {
   if (!isEditMode.value) return
+
   loading.value = true
   try {
     const res = await getStoreOrderDetail(editingOrderNo.value)
     const order = res?.order
     if (!order) throw new Error('수정할 발주건을 찾을 수 없습니다.')
     if (order.status !== 'REQUESTED') throw new Error('요청 상태에서만 수정할 수 있습니다.')
+
     editingOrder.value = order
     requestLines.value = (order.items ?? []).map((item) => ({
       skuId: item.skuCode,
@@ -283,6 +330,7 @@ async function loadEditingOrder() {
   }
 }
 
+// [함수] 로그인 매장 기준으로 발주 가능 SKU 목록을 조회해 화면 상태를 갱신한다.
 async function loadSkuRows() {
   const locationId = auth.user?.storeLocationId
   if (!locationId) {
@@ -296,12 +344,9 @@ async function loadSkuRows() {
     const params = { locationType: 'STORE', locationIds: [locationId] }
     const page = await getCompanyWideInventories(params)
     const items = page?.items ?? []
-    const skuGroups = await Promise.all(
-      items.map((item) => getCompanyWideInventorySkus(item.itemCode, params)),
-    )
-    const productSkuGroups = await Promise.all(
-      items.map((item) => getProductSkus(item.itemCode)),
-    )
+
+    const skuGroups = await Promise.all(items.map((item) => getCompanyWideInventorySkus(item.itemCode, params)))
+    const productSkuGroups = await Promise.all(items.map((item) => getProductSkus(item.itemCode)))
 
     const rows = []
     items.forEach((item, index) => {
@@ -315,6 +360,7 @@ async function loadSkuRows() {
         const stock = Number(sku.actualStock ?? 0)
         const safetyStock = Number(sku.safetyStock ?? 0)
         const inboundExpectedQuantity = Number(sku.inboundExpectedQuantity ?? 0)
+
         rows.push({
           skuId: sku.skuCode,
           productId: item.itemCode,
@@ -334,6 +380,7 @@ async function loadSkuRows() {
         })
       })
     })
+
     skuRows.value = rows
   } catch (error) {
     showFeedback(error?.message ?? 'SKU 목록을 불러오지 못했습니다.', 'error')
@@ -343,25 +390,33 @@ async function loadSkuRows() {
   }
 }
 
-loadEditingOrder()
-loadSkuRows()
-
-const statusClass = {
-  out: 'bg-red-100 text-red-700',
-  low: 'bg-orange-100 text-orange-700',
-  normal: 'bg-[#EBF5F5] text-black',
-}
-
-const statusLabel = {
-  out: '품절',
-  low: '부족',
-  normal: '정상',
-}
-
+/**
+ * ==============================================================================
+ * 7. METHODS - NAVIGATION
+ * ==============================================================================
+ */
+// [함수] 로그아웃 처리 후 로그인 화면으로 이동한다.
 function handleLogout() {
   auth.logout()
   router.push('/login')
 }
+
+/**
+ * ==============================================================================
+ * 8. WATCHERS
+ * ==============================================================================
+ */
+watch(selectedMainCategory, syncSubCategory)
+
+/**
+ * ==============================================================================
+ * 9. LIFECYCLE
+ * ==============================================================================
+ */
+onMounted(async () => {
+  await loadEditingOrder()
+  await loadSkuRows()
+})
 </script>
 
 <template>
