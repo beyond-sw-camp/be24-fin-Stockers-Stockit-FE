@@ -46,22 +46,50 @@ const isSubmitting = ref(false)
 const submitted = ref(false)
 const errors = ref({})
 
+// 검증 정규식 — 마이페이지와 동일 정책
+const EMAIL_REGEX    = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const PHONE_REGEX    = /^010\d{8}$/                                          // 하이픈 없이 010 + 숫자 8자리
+const PASSWORD_REGEX = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%&*^]).{8,}$/
+
 function validate() {
   const e = {}
-  if (!form.value.name.trim())         e.name        = '이름을 입력해주세요.'
+
+  // 이름
+  if (!form.value.name.trim()) e.name = '이름을 입력해주세요.'
+
+  // 이메일
   if (!form.value.email.trim()) {
     e.email = '이메일을 입력해주세요.'
-  } else if (!/^[a-zA-Z0-9]+@[^\s@]+\.[^\s@]+$/.test(form.value.email)) {
-    e.email = '이메일 앞부분은 영문·숫자만 허용됩니다.'
+  } else if (!EMAIL_REGEX.test(form.value.email)) {
+    e.email = '이메일 형식이 아닙니다.'
   }
-  if (!form.value.phone.trim())        e.phone       = '전화번호를 입력해주세요.'
-  if (!form.value.password)            e.password    = '비밀번호를 입력해주세요.'
-  else if (form.value.password.length < 8) e.password = '비밀번호는 8자 이상이어야 합니다.'
-  if (!form.value.passwordConfirm)     e.passwordConfirm = '비밀번호 확인을 입력해주세요.'
-  else if (form.value.password !== form.value.passwordConfirm) e.passwordConfirm = '비밀번호가 일치하지 않습니다.'
-  if (!form.value.storeCode.trim())    e.storeCode   = '지점 코드를 입력해주세요.'
-  if (!form.value.storeName.trim())    e.storeName   = '지점명을 입력해주세요.'
-  if (!form.value.role)                e.role        = '권한을 선택해주세요.'
+
+  // 전화번호 (하이픈 없이 숫자만)
+  if (!form.value.phone.trim()) {
+    e.phone = '전화번호를 입력해주세요.'
+  } else if (!PHONE_REGEX.test(form.value.phone)) {
+    e.phone = '전화번호는 하이픈(-) 없이 숫자만 입력해주세요. 예) 01012345678'
+  }
+
+  // 비밀번호 (대소문자/숫자/특수문자 8자 이상)
+  if (!form.value.password) {
+    e.password = '비밀번호를 입력해주세요.'
+  } else if (!PASSWORD_REGEX.test(form.value.password)) {
+    e.password = '대문자, 소문자, 숫자, 특수문자(!@#$%&*^) 포함 8자 이상이어야 합니다.'
+  }
+
+  // 비밀번호 확인
+  if (!form.value.passwordConfirm) {
+    e.passwordConfirm = '비밀번호 확인을 입력해주세요.'
+  } else if (form.value.password !== form.value.passwordConfirm) {
+    e.passwordConfirm = '비밀번호가 일치하지 않습니다.'
+  }
+
+  // 지점 정보 / 권한
+  if (!form.value.storeCode.trim()) e.storeCode = '지점 코드를 입력해주세요.'
+  if (!form.value.storeName.trim()) e.storeName = '지점명을 입력해주세요.'
+  if (!form.value.role)             e.role      = '권한을 선택해주세요.'
+
   errors.value = e
   return Object.keys(e).length === 0
 }
@@ -168,7 +196,7 @@ function clearErr(field) {
               <label class="flex flex-col gap-1.5">
                 <span class="text-[12px] font-bold text-gray-600">휴대폰 <em class="not-italic text-red-500">*</em></span>
                 <div :class="['flex h-9 items-center border bg-gray-50 px-3 transition focus-within:bg-white focus-within:border-[#004D3C]', errors.phone ? 'border-red-400' : 'border-gray-300']">
-                  <input v-model="form.phone" type="tel" placeholder="010-0000-0000" class="w-full bg-transparent text-sm outline-none placeholder:text-gray-400" @input="clearErr('phone')" />
+                  <input v-model="form.phone" type="tel" inputmode="numeric" maxlength="11" placeholder="01012345678" class="w-full bg-transparent text-sm outline-none placeholder:text-gray-400" @input="clearErr('phone')" />
                 </div>
                 <p v-if="errors.phone" class="text-[11px] font-bold text-red-600">{{ errors.phone }}</p>
               </label>
@@ -188,7 +216,7 @@ function clearErr(field) {
               <label class="flex flex-col gap-1.5">
                 <span class="text-[12px] font-bold text-gray-600">비밀번호 <em class="not-italic text-red-500">*</em></span>
                 <div :class="['flex h-9 items-center border bg-gray-50 px-3 transition focus-within:bg-white focus-within:border-[#004D3C]', errors.password ? 'border-red-400' : 'border-gray-300']">
-                  <input v-model="form.password" type="password" placeholder="8자 이상" class="w-full bg-transparent text-sm outline-none placeholder:text-gray-400" @input="clearErr('password')" />
+                  <input v-model="form.password" type="password" placeholder="대소문자/숫자/특수문자 8자+" class="w-full bg-transparent text-sm outline-none placeholder:text-gray-400" @input="clearErr('password')" />
                 </div>
                 <p v-if="errors.password" class="text-[11px] font-bold text-red-600">{{ errors.password }}</p>
               </label>

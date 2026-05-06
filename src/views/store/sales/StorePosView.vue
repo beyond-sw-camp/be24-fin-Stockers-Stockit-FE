@@ -11,6 +11,7 @@ import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useSalesStore } from '@/stores/store/storeSales.js'
 import { getCompanyWideInventories, getCompanyWideInventorySkus } from '@/api/hq/inventory.js'
+import { getProductSkus } from '@/api/hq/productMaster.js'
 import { createSale } from '@/api/store/sales.js'
 
 import { Plus, Ban } from 'lucide-vue-next'
@@ -303,10 +304,17 @@ async function loadStoreSkus() {
     const skuLists = await Promise.all(
       items.map((item) => getCompanyWideInventorySkus(item.itemCode, params)),
     )
+    const productSkuLists = await Promise.all(
+      items.map((item) => getProductSkus(item.itemCode)),
+    )
 
     const rows = []
     items.forEach((item, idx) => {
       const skus = skuLists[idx] ?? []
+      const productSkus = productSkuLists[idx] ?? []
+      const unitPriceBySkuCode = new Map(
+        productSkus.map((productSku) => [productSku.skuCode, Number(productSku.unitPrice ?? 0)]),
+      )
       skus.forEach((sku) => {
         rows.push({
           skuId: sku.skuCode,
@@ -316,7 +324,7 @@ async function loadStoreSkus() {
           subCategory: item.childCategory,
           color: sku.color,
           size: sku.size,
-          unitPrice: 0,
+          unitPrice: Number(sku.unitPrice ?? unitPriceBySkuCode.get(sku.skuCode) ?? 0),
           stock: sku.actualStock ?? 0,
           safetyStock: sku.safetyStock ?? 0,
           status: sku.status,

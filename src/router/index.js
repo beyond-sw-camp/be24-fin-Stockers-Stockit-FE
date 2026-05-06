@@ -5,6 +5,7 @@ import { roleHomeMap } from '@/config/roleMenus.js'
 import DevLoginView from '@/views/user/DevLoginView.vue'
 import LoginView from '@/views/user/LoginView.vue'
 import SignupView from '@/views/user/SignupView.vue'
+import MyPageView from '@/views/user/MyPageView.vue'
 
 import StoreDashboardView from '@/views/store/dashboard/StoreDashboardView.vue'
 import StorePosView from '@/views/store/sales/StorePosView.vue'
@@ -77,6 +78,8 @@ const router = createRouter({
       meta: { requiresAuth: false },
     },
     { path: '/signup', name: 'signup', component: SignupView, meta: { requiresAuth: false } },
+    // 마이페이지 — 모든 권한 공통 (HQ/STORE/WAREHOUSE 동일 라우트, 페이지 내부에서 권한별 분기 표시)
+    { path: '/mypage', name: 'mypage', component: MyPageView, meta: { requiresAuth: true } },
     { path: '/hq/dashboard', name: 'hq-dashboard', component: OperationStatusView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/dashboard/inventory-risk', name: 'hq-dashboard-inventory-risk', component: InventoryRiskView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/dashboard/flow', name: 'hq-dashboard-flow', component: InboundOutboundFlowView, meta: { requiresAuth: true, role: 'hq' } },
@@ -187,9 +190,9 @@ const router = createRouter({
     { path: '/store/sales/analysis', name: 'store-sales-analysis', component: StoreSalesAnalysisView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/orders', redirect: { name: 'store-order-request' } },
     { path: '/store/orders/request', name: 'store-order-request', component: StoreOrderRequestView, meta: { requiresAuth: true, role: 'store' } },
-    { path: '/store/orders/request/:id/edit', name: 'store-order-edit', component: StoreOrderRequestView, meta: { requiresAuth: true, role: 'store' } },
+    { path: '/store/orders/request/:orderNo/edit', name: 'store-order-edit', component: StoreOrderRequestView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/orders/history', name: 'store-order-history', component: StoreOrderHistoryView, meta: { requiresAuth: true, role: 'store' } },
-    { path: '/store/orders/history/:id', name: 'store-order-detail', component: StoreOrderDetailView, meta: { requiresAuth: true, role: 'store' } },
+    { path: '/store/orders/history/:orderNo', name: 'store-order-detail', component: StoreOrderDetailView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/orders/analysis', name: 'store-order-analysis', component: StoreOrderAnalysisView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/inventory', name: 'store-inventory', component: StoreInventoryView, meta: { requiresAuth: true, role: 'store' } },
     {

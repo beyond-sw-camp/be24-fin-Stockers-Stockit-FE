@@ -9,6 +9,7 @@ import {
   XCircle,
   AlertCircle,
   X,
+  UserMinus,
 } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
@@ -91,15 +92,26 @@ const pendingCount = computed(() => requests.value.filter(r => r.status === 'PEN
 // 처리 컬럼은 PENDING이 보이는 화면(전체/대기중)에서만 노출
 const showActionColumn = computed(() => filterStatus.value === 'ALL' || filterStatus.value === 'PENDING')
 
-const statusLabel = (s) => ({ PENDING: '대기중', APPROVED: '승인완료', REJECTED: '거절됨' })[s] ?? s
+const statusLabel = (s) => ({
+  PENDING:   '대기중',
+  APPROVED:  '승인완료',
+  REJECTED:  '거절됨',
+  WITHDRAWN: '탈퇴처리',
+})[s] ?? s
 
 const statusStyle = (s) => ({
-  PENDING:  'bg-amber-50 text-amber-700 border border-amber-200',
-  APPROVED: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-  REJECTED: 'bg-red-50 text-red-600 border border-red-200',
+  PENDING:   'bg-amber-50 text-amber-700 border border-amber-200',
+  APPROVED:  'bg-emerald-50 text-emerald-700 border border-emerald-200',
+  REJECTED:  'bg-red-50 text-red-600 border border-red-200',
+  WITHDRAWN: 'bg-gray-100 text-gray-500 border border-gray-300',
 })[s] ?? 'bg-gray-100 text-gray-500'
 
-const statusIcon = (s) => ({ PENDING: Clock, APPROVED: CheckCircle2, REJECTED: XCircle })[s] ?? Clock
+const statusIcon = (s) => ({
+  PENDING:   Clock,
+  APPROVED:  CheckCircle2,
+  REJECTED:  XCircle,
+  WITHDRAWN: UserMinus,
+})[s] ?? Clock
 
 /** ISO 8601 → 'YYYY-MM-DD HH:mm' */
 const formatDateTime = (iso) => {
