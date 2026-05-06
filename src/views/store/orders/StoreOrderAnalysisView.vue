@@ -4,18 +4,17 @@ import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useStoreOrderStore } from '@/stores/store/storeOrder.js'
 import { getStoreOrderAnalytics } from '@/api/store/orders.js'
 
 const router = useRouter()
 const auth = useAuthStore()
-const storeOrders = useStoreOrderStore()
 const analyticsSummary = ref({
   totalOrders: 0,
   totalRequestedQuantity: 0,
   requestedCount: 0,
   approvedCount: 0,
   completedCount: 0,
+  cancelledCount: 0,
 })
 const analyticsTopSkus = ref([])
 const analyticsCategoryBreakdown = ref([])
@@ -40,6 +39,7 @@ async function fetchAnalytics() {
       requestedCount: Number(res?.requestedCount ?? 0),
       approvedCount: Number(res?.approvedCount ?? 0),
       completedCount: Number(res?.completedCount ?? 0),
+      cancelledCount: Number(res?.cancelledCount ?? 0),
     }
     analyticsTopSkus.value = Array.isArray(res?.topSkus) ? res.topSkus : []
     analyticsCategoryBreakdown.value = Array.isArray(res?.categoryBreakdown) ? res.categoryBreakdown : []
@@ -50,6 +50,7 @@ async function fetchAnalytics() {
       requestedCount: 0,
       approvedCount: 0,
       completedCount: 0,
+      cancelledCount: 0,
     }
     analyticsTopSkus.value = []
     analyticsCategoryBreakdown.value = []
@@ -76,7 +77,7 @@ fetchAnalytics()
         </p>
       </section>
 
-      <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         <article class="border border-gray-300 bg-white p-4 shadow-sm">
           <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">발주건 수</p>
           <p class="mt-2 text-2xl font-black text-gray-900">{{ analyticsSummary.totalOrders }}</p>
@@ -96,6 +97,10 @@ fetchAnalytics()
         <article class="border border-gray-300 bg-white p-4 shadow-sm">
           <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">종료</p>
           <p class="mt-2 text-2xl font-black text-gray-900">{{ analyticsSummary.completedCount }}</p>
+        </article>
+        <article class="border border-gray-300 bg-white p-4 shadow-sm">
+          <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">취소</p>
+          <p class="mt-2 text-2xl font-black text-gray-900">{{ analyticsSummary.cancelledCount }}</p>
         </article>
       </section>
 

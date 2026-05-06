@@ -4,14 +4,12 @@ import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useStoreOrderStore } from '@/stores/store/storeOrder.js'
 import { formatDateTime, storeInboundStatusClass, storeOrderStatusClass } from '@/features/store/common/ui.js'
 import { cancelStoreOrder, getStoreOrderDetail } from '@/api/store/orders.js'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
-const storeOrders = useStoreOrderStore()
 
 const storeMenus = roleMenus.store
 const orderMenus = roleMenus.store.find((menu) => menu.label === '발주 관리')?.children ?? []
@@ -24,6 +22,18 @@ const toastMessage = ref('')
 
 const orderNo = computed(() => String(route.params.orderNo ?? ''))
 const selectedOrder = ref(null)
+const statusLabelMap = {
+  REQUESTED: '승인 대기',
+  APPROVED: '승인 완료',
+  COMPLETED: '완료',
+  CANCELLED: '취소',
+}
+const inboundStatusLabelMap = {
+  READY_TO_SHIP: '배송 준비중',
+  IN_TRANSIT: '배송 중',
+  ARRIVED: '배송 완료',
+  RECEIVED: '입고 완료',
+}
 
 function statusClass(status) {
   return storeOrderStatusClass(status)
@@ -168,14 +178,14 @@ fetchDetail()
           </div>
           <div class="flex items-center gap-2">
             <span class="inline-flex px-2 py-1 text-[10px] font-black" :class="statusClass(selectedOrder.status)">
-              {{ storeOrders.statusLabelMap[selectedOrder.status] }}
+              {{ statusLabelMap[selectedOrder.status] }}
             </span>
             <span
               v-if="selectedOrder.inboundStatus"
               class="inline-flex px-2 py-1 text-[10px] font-black"
               :class="inboundStatusClass(selectedOrder.inboundStatus)"
             >
-              {{ storeOrders.inboundStatusLabelMap[selectedOrder.inboundStatus] }}
+              {{ inboundStatusLabelMap[selectedOrder.inboundStatus] }}
             </span>
           </div>
         </div>
@@ -201,10 +211,7 @@ fetchDetail()
                     <th class="w-[20%] px-2 py-2.5 text-left font-black">상품명</th>
                     <th class="w-[17%] px-2 py-2.5 text-left font-black">옵션</th>
                     <th class="w-[18%] px-2 py-2.5 text-left font-black">카테고리</th>
-                    <th class="w-[10%] px-2 py-2.5 text-center font-black">실재고</th>
-                    <th class="w-[10%] px-2 py-2.5 text-center font-black">가용재고</th>
-                    <th class="w-[10%] px-2 py-2.5 text-center font-black">안전재고</th>
-                    <th class="w-[10%] px-2 py-2.5 text-center font-black">요청</th>
+                    <th class="w-[10%] px-2 py-2.5 text-center font-black">요청 발주량</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -217,9 +224,6 @@ fetchDetail()
                     <td class="px-2 py-2.5 font-bold text-gray-500">
                       {{ item.mainCategory }} &gt; {{ item.subCategory }}
                     </td>
-                    <td class="px-2 py-2.5 text-center font-black text-gray-800">{{ item.currentStoreStock }}</td>
-                    <td class="px-2 py-2.5 text-center font-black text-gray-900">{{ item.availableStoreStock }}</td>
-                    <td class="px-2 py-2.5 text-center font-black text-gray-700">{{ item.safetyStock }}</td>
                     <td class="px-3 py-2.5 text-center font-black text-gray-900">{{ item.requestedQuantity }}</td>
                   </tr>
                 </tbody>
@@ -259,7 +263,7 @@ fetchDetail()
                     class="absolute bottom-0 left-[4px] top-3.5 w-px bg-gray-300"
                   />
                   <p class="text-[11px] font-black" :class="historyTextClass(history.status)">
-                    {{ storeOrders.statusLabelMap[history.status] ?? history.status }}
+                    {{ statusLabelMap[history.status] ?? history.status }}
                   </p>
                   <p class="text-[10px] text-gray-500">
                     {{ formatDateTime(history.at) }} · {{ history.byName }}

@@ -1,21 +1,28 @@
-﻿<script setup>
-import { computed, ref } from 'vue'
+<script setup>
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useStoreOrderStore } from '@/stores/store/storeOrder.js'
-import { buildHeadline, formatDateTime, storeOrderStatusClass } from '@/features/store/common/ui.js'
+import { formatDateTime, storeOrderStatusClass } from '@/features/store/common/ui.js'
 import { getStoreOrders } from '@/api/store/orders.js'
 
 const router = useRouter()
 const auth = useAuthStore()
-const storeOrders = useStoreOrderStore()
 
 const storeMenus = roleMenus.store
 const orderMenus = roleMenus.store.find((menu) => menu.label === '발주 관리')?.children ?? []
 const activeTopMenu = computed(() => '발주 관리')
 const activeSideMenu = ref('발주 내역')
+
+const loading = ref(false)
+const errorMessage = ref('')
+const orders = ref([])
+const activeStatusTab = ref('전체')
+const searchKeyword = ref('')
+const dateFrom = ref('')
+const dateTo = ref('')
+const sortBy = ref('latest')
 
 const STATUS_TABS = [
   { label: '전체', key: '전체' },
@@ -25,49 +32,74 @@ const STATUS_TABS = [
   { label: '취소', key: 'CANCELLED' },
 ]
 
-function headlineLabel(order) {
-  return buildHeadline(order?.items)
+const statusLabelMap = {
+  REQUESTED: '승인 대기',
+  APPROVED: '승인 완료',
+  COMPLETED: '완료',
+  CANCELLED: '취소',
 }
 
 function statusClass(status) {
   return storeOrderStatusClass(status)
 }
 
-function changeTab(key) {
-  storeOrders.activeStatusTab = key
-  fetchOrders()
-}
+const statusCounts = computed(() => ({
+  전체: orders.value.length,
+  REQUESTED: orders.value.filter((order) => order.status === 'REQUESTED').length,
+  APPROVED: orders.value.filter((order) => order.status === 'APPROVED').length,
+  COMPLETED: orders.value.filter((order) => order.status === 'COMPLETED').length,
+  CANCELLED: orders.value.filter((order) => order.status === 'CANCELLED').length,
+}))
+
+const filteredOrders = computed(() => {
+  let list = [...orders.value]
+  if (activeStatusTab.value !== '전체') {
+    list = list.filter((order) => order.status === activeStatusTab.value)
+  }
+  if (sortBy.value === 'oldest') list.sort((a, b) => new Date(a.requestedAt) - new Date(b.requestedAt))
+  if (sortBy.value === 'latest') list.sort((a, b) => new Date(b.requestedAt) - new Date(a.requestedAt))
+  if (sortBy.value === 'qtyDesc') list.sort((a, b) => Number(b.totalRequestedQuantity) - Number(a.totalRequestedQuantity))
+  if (sortBy.value === 'qtyAsc') list.sort((a, b) => Number(a.totalRequestedQuantity) - Number(b.totalRequestedQuantity))
+  return list
+})
+
+const summary = computed(() => ({
+  totalOrders: orders.value.length,
+  totalRequestedQuantity: orders.value.reduce((sum, order) => sum + Number(order.totalRequestedQuantity ?? 0), 0),
+}))
 
 async function fetchOrders() {
+  loading.value = true
+  errorMessage.value = ''
   try {
-    if (!auth.user?.storeCode || !auth.user?.storeLocationId) return
+    if (!auth.user?.storeCode || !auth.user?.storeLocationId) {
+      throw new Error('로그인 매장 정보가 없어 발주 내역을 조회할 수 없습니다.')
+    }
     const result = await getStoreOrders({
       storeCode: auth.user.storeCode,
-      status: storeOrders.activeStatusTab === '전체' ? undefined : storeOrders.activeStatusTab,
-      from: storeOrders.dateFrom || undefined,
-      to: storeOrders.dateTo || undefined,
-      keyword: storeOrders.searchKeyword?.trim() || undefined,
+      status: activeStatusTab.value === '전체' ? undefined : activeStatusTab.value,
+      from: dateFrom.value || undefined,
+      to: dateTo.value || undefined,
+      keyword: searchKeyword.value?.trim() || undefined,
     })
-    const mapped = (Array.isArray(result) ? result : []).map((row) => ({
+    orders.value = (Array.isArray(result) ? result : []).map((row) => ({
       orderId: row.orderId,
-      storeId: auth.user.storeCode,
-      storeName: row.storeName,
       requestedAt: row.requestedAt,
-      requestedBy: row.requestedBy,
       status: row.status,
       totalSkuCount: Number(row.totalSkuCount ?? 0),
       totalRequestedQuantity: Number(row.totalRequestedQuantity ?? 0),
-      memo: row.memo ?? '',
-      cancelReason: row.cancelReason ?? '',
-      items: [{ productName: row.headline ?? '-' }],
-      statusHistory: [],
-      inboundStatus: row.inboundStatus ?? null,
-      inboundStatusHistory: [],
+      headline: row.headline ?? '-',
     }))
-    storeOrders.orders = mapped
   } catch (error) {
-    // keep previous list and let UX remain stable
+    errorMessage.value = error?.message ?? '발주 내역을 다시 조회해 주세요.'
+  } finally {
+    loading.value = false
   }
+}
+
+function changeTab(key) {
+  activeStatusTab.value = key
+  fetchOrders()
 }
 
 function handleLogout() {
@@ -75,6 +107,7 @@ function handleLogout() {
   router.push('/login')
 }
 
+watch([searchKeyword, dateFrom, dateTo, sortBy], fetchOrders)
 fetchOrders()
 </script>
 
@@ -97,8 +130,8 @@ fetchOrders()
             </p>
           </div>
           <div class="text-right text-[11px] font-bold text-gray-500">
-            <p>전체 {{ storeOrders.summary.totalOrders }}건</p>
-            <p class="mt-1 text-gray-400">누적 요청 수량 {{ storeOrders.summary.totalRequestedQuantity }}개</p>
+            <p>전체 {{ summary.totalOrders }}건</p>
+            <p class="mt-1 text-gray-400">누적 요청 수량 {{ summary.totalRequestedQuantity }}개</p>
           </div>
         </div>
       </section>
@@ -111,7 +144,7 @@ fetchOrders()
             type="button"
             class="inline-flex items-center gap-1.5 border px-3 py-1.5 text-xs font-black transition-colors"
             :class="
-              storeOrders.activeStatusTab === tab.key
+              activeStatusTab === tab.key
                 ? 'border-[#004D3C] bg-[#004D3C] text-white'
                 : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
             "
@@ -121,23 +154,26 @@ fetchOrders()
             <span
               class="min-w-[18px] px-1 py-0.5 text-center text-[10px]"
               :class="
-                storeOrders.activeStatusTab === tab.key
+                activeStatusTab === tab.key
                   ? 'bg-white/20 text-white'
                   : 'bg-gray-100 text-gray-500'
               "
             >
-              {{ storeOrders.statusCounts[tab.key] }}
+              {{ statusCounts[tab.key] }}
             </span>
           </button>
         </div>
       </section>
 
       <section class="border border-gray-300 bg-white shadow-sm">
+        <p v-if="errorMessage" class="border-b border-red-200 bg-red-50 px-3 py-2 text-xs font-black text-red-700">
+          {{ errorMessage }}
+        </p>
         <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-white px-3 py-2">
-          <span class="text-xs font-bold text-gray-600">총 {{ storeOrders.filteredOrders.length }}건</span>
+          <span class="text-xs font-bold text-gray-600">총 {{ filteredOrders.length }}건</span>
           <div class="flex flex-wrap items-center gap-2">
             <input
-              v-model="storeOrders.searchKeyword"
+              v-model="searchKeyword"
               type="search"
               placeholder="발주번호, 상품명, 카테고리"
               class="w-60 border border-gray-300 bg-white px-3 py-1.5 text-xs font-bold outline-none focus:border-[#004D3C]"
@@ -147,18 +183,18 @@ fetchOrders()
 
         <div class="flex flex-wrap items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2">
           <input
-            v-model="storeOrders.dateFrom"
+            v-model="dateFrom"
             type="date"
             class="border border-gray-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-[#004D3C]"
           />
           <span class="text-xs text-gray-400">~</span>
           <input
-            v-model="storeOrders.dateTo"
+            v-model="dateTo"
             type="date"
             class="border border-gray-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-[#004D3C]"
           />
           <select
-            v-model="storeOrders.sortBy"
+            v-model="sortBy"
             class="ml-auto border border-gray-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-[#004D3C]"
           >
             <option value="latest">최신순</option>
@@ -182,7 +218,7 @@ fetchOrders()
             </thead>
             <tbody class="divide-y divide-gray-100">
               <tr
-                v-for="order in storeOrders.filteredOrders"
+                v-for="order in filteredOrders"
                 :key="order.orderId"
                 class="cursor-pointer transition-colors hover:bg-gray-50"
                 @click="router.push({ name: 'store-order-detail', params: { orderNo: order.orderId } })"
@@ -190,17 +226,17 @@ fetchOrders()
                 <td class="px-2 py-2.5 font-bold text-gray-600">{{ formatDateTime(order.requestedAt) }}</td>
                 <td class="px-2 py-2.5 font-mono font-black text-gray-800">{{ order.orderId }}</td>
                 <td class="px-2 py-2.5 font-black text-gray-900">
-                  <p class="truncate">{{ headlineLabel(order) }}</p>
+                  <p class="truncate">{{ order.headline }}</p>
                 </td>
                 <td class="px-2 py-2.5 text-right font-black text-gray-700">{{ order.totalSkuCount }}</td>
                 <td class="px-2 py-2.5 text-right font-black text-gray-900">{{ order.totalRequestedQuantity }}</td>
                 <td class="px-2 py-2.5 text-center">
                   <span class="inline-flex px-2 py-1 text-[10px] font-black" :class="statusClass(order.status)">
-                    {{ storeOrders.statusLabelMap[order.status] }}
+                    {{ statusLabelMap[order.status] }}
                   </span>
                 </td>
               </tr>
-              <tr v-if="storeOrders.filteredOrders.length === 0">
+              <tr v-if="filteredOrders.length === 0">
                 <td colspan="6" class="px-4 py-12 text-center text-gray-400">조회 가능한 발주 내역이 없습니다.</td>
               </tr>
             </tbody>

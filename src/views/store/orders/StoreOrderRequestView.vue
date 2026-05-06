@@ -4,13 +4,13 @@ import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useStoreOrderStore } from '@/stores/store/storeOrder.js'
 import { createStoreOrder, getStoreOrderDetail, updateStoreOrder } from '@/api/store/orders.js'
+import { getCompanyWideInventories, getCompanyWideInventorySkus } from '@/api/hq/inventory.js'
+import { getProductSkus } from '@/api/hq/productMaster.js'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
-const storeOrders = useStoreOrderStore()
 
 const storeMenus = roleMenus.store
 const orderMenus = roleMenus.store.find((menu) => menu.label === '발주 관리')?.children ?? []
@@ -27,6 +27,8 @@ const memo = ref('')
 const feedbackMessage = ref('')
 const feedbackType = ref('info')
 const loading = ref(false)
+const requestSortBy = ref('priority')
+const skuRows = ref([])
 
 const isEditMode = computed(() => route.name === 'store-order-edit')
 const editingOrderNo = computed(() => String(route.params.orderNo ?? ''))
@@ -46,15 +48,15 @@ function compareMainCategory(aCategory, bCategory) {
 
 const availableMainCategories = computed(() => [
   '전체',
-  ...[...new Set(storeOrders.requestableSkus.map((sku) => sku.mainCategory))].sort(compareMainCategory),
+  ...[...new Set(skuRows.value.map((sku) => sku.mainCategory))].sort(compareMainCategory),
 ])
 
 const availableSubCategories = computed(() => {
   if (selectedMainCategory.value === '전체') return ['전체']
   return [
-    '전체',
-    ...new Set(
-      storeOrders.requestableSkus
+      '전체',
+      ...new Set(
+      skuRows.value
         .filter((sku) => sku.mainCategory === selectedMainCategory.value)
         .map((sku) => sku.subCategory),
     ),
@@ -63,17 +65,17 @@ const availableSubCategories = computed(() => {
 
 const availableColors = computed(() => [
   '전체',
-  ...new Set(storeOrders.requestableSkus.map((sku) => sku.color)),
+  ...new Set(skuRows.value.map((sku) => sku.color)),
 ])
 
 const availableSizes = computed(() => [
   '전체',
-  ...new Set(storeOrders.requestableSkus.map((sku) => sku.size)),
+  ...new Set(skuRows.value.map((sku) => sku.size)),
 ])
 
 const filteredSkus = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase()
-  return storeOrders.requestableSkus.filter((sku) => {
+  const list = skuRows.value.filter((sku) => {
     const matchMain =
       selectedMainCategory.value === '전체' || sku.mainCategory === selectedMainCategory.value
     const matchSub =
@@ -88,6 +90,28 @@ const filteredSkus = computed(() => {
         .includes(keyword)
     return matchMain && matchSub && matchColor && matchSize && matchKeyword
   })
+  const sorted = [...list]
+  if (requestSortBy.value === 'category') {
+    sorted.sort((a, b) =>
+      compareMainCategory(a.mainCategory, b.mainCategory)
+      || String(a.subCategory ?? '').localeCompare(String(b.subCategory ?? ''), 'ko')
+      || String(a.productName ?? '').localeCompare(String(b.productName ?? ''), 'ko'),
+    )
+  } else if (requestSortBy.value === 'name') {
+    sorted.sort((a, b) => String(a.productName ?? '').localeCompare(String(b.productName ?? ''), 'ko'))
+  } else if (requestSortBy.value === 'stockAsc') {
+    sorted.sort((a, b) => Number(a.stock ?? 0) - Number(b.stock ?? 0))
+  } else if (requestSortBy.value === 'stockDesc') {
+    sorted.sort((a, b) => Number(b.stock ?? 0) - Number(a.stock ?? 0))
+  } else {
+    sorted.sort((a, b) => {
+      const aPriority = Number(a.recommendedQuantity ?? 0) > 0 || a.stockStatus !== 'normal' ? 0 : 1
+      const bPriority = Number(b.recommendedQuantity ?? 0) > 0 || b.stockStatus !== 'normal' ? 0 : 1
+      if (aPriority !== bPriority) return aPriority - bPriority
+      return Number(b.recommendedQuantity ?? 0) - Number(a.recommendedQuantity ?? 0)
+    })
+  }
+  return sorted
 })
 
 const totalRequestedQuantity = computed(() =>
@@ -259,7 +283,68 @@ async function loadEditingOrder() {
   }
 }
 
+async function loadSkuRows() {
+  const locationId = auth.user?.storeLocationId
+  if (!locationId) {
+    showFeedback('매장 위치 정보가 없어 SKU 목록을 불러올 수 없습니다.', 'error')
+    skuRows.value = []
+    return
+  }
+
+  loading.value = true
+  try {
+    const params = { locationType: 'STORE', locationIds: [locationId] }
+    const page = await getCompanyWideInventories(params)
+    const items = page?.items ?? []
+    const skuGroups = await Promise.all(
+      items.map((item) => getCompanyWideInventorySkus(item.itemCode, params)),
+    )
+    const productSkuGroups = await Promise.all(
+      items.map((item) => getProductSkus(item.itemCode)),
+    )
+
+    const rows = []
+    items.forEach((item, index) => {
+      const skus = skuGroups[index] ?? []
+      const productSkus = productSkuGroups[index] ?? []
+      const unitPriceBySkuCode = new Map(
+        productSkus.map((productSku) => [productSku.skuCode, Number(productSku.unitPrice ?? 0)]),
+      )
+
+      skus.forEach((sku) => {
+        const stock = Number(sku.actualStock ?? 0)
+        const safetyStock = Number(sku.safetyStock ?? 0)
+        const inboundExpectedQuantity = Number(sku.inboundExpectedQuantity ?? 0)
+        rows.push({
+          skuId: sku.skuCode,
+          productId: item.itemCode,
+          itemCode: item.itemCode,
+          productName: item.itemName,
+          mainCategory: item.parentCategory,
+          subCategory: item.childCategory,
+          color: sku.color,
+          size: sku.size,
+          unitPrice: Number(sku.unitPrice ?? unitPriceBySkuCode.get(sku.skuCode) ?? 0),
+          stock,
+          safetyStock,
+          inboundExpectedQuantity,
+          availableStoreStock: stock + inboundExpectedQuantity,
+          recommendedQuantity: Math.max(0, safetyStock - stock),
+          stockStatus: stock === 0 ? 'out' : stock <= safetyStock ? 'low' : 'normal',
+        })
+      })
+    })
+    skuRows.value = rows
+  } catch (error) {
+    showFeedback(error?.message ?? 'SKU 목록을 불러오지 못했습니다.', 'error')
+    skuRows.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
 loadEditingOrder()
+loadSkuRows()
 
 const statusClass = {
   out: 'bg-red-100 text-red-700',
@@ -389,7 +474,7 @@ function handleLogout() {
             <label class="flex flex-col gap-1.5">
               <span class="text-[11px] font-bold text-gray-500">정렬</span>
               <select
-                v-model="storeOrders.requestSortBy"
+                v-model="requestSortBy"
                 class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
               >
                 <option value="priority">부족 SKU 우선</option>
