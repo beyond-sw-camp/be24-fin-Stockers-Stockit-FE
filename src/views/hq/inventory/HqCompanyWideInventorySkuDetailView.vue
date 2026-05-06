@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
@@ -18,6 +18,7 @@ const activeSideMenu = ref('전사 재고 조회')
 const loadError = ref('')
 const isLoading = ref(false)
 const skuRows = ref([])
+const requestSeq = ref(0)
 
 const itemCode = computed(() => String(route.params.itemCode ?? route.query.itemCode ?? ''))
 const itemName = computed(() => String(route.query.itemName ?? '선택 품목'))
@@ -67,6 +68,7 @@ const backQuery = computed(() => ({
 }))
 
 async function loadSkuDetails() {
+  const seq = ++requestSeq.value
   isLoading.value = true
   loadError.value = ''
   try {
@@ -74,18 +76,18 @@ async function loadSkuDetails() {
     const payload = {
       locationType: type,
       locationIds: filterLocationIds.value.length > 0 ? filterLocationIds.value : undefined,
-      parentCategory: typeof route.query.parent === 'string' ? route.query.parent : undefined,
-      childCategory: typeof route.query.child === 'string' ? route.query.child : undefined,
-      keyword: typeof route.query.search === 'string' ? route.query.search : undefined,
     }
     const rows = await getCompanyWideInventorySkus(itemCode.value, payload)
+    if (seq !== requestSeq.value) return
     skuRows.value = Array.isArray(rows)
       ? rows.map(r => ({ ...r, updatedAt: r.updatedAt ? new Date(r.updatedAt).toLocaleString('ko-KR', { hour12: false }) : '-' }))
       : []
   } catch (e) {
+    if (seq !== requestSeq.value) return
     loadError.value = e.message || 'SKU 재고 상세 조회에 실패했습니다.'
     skuRows.value = []
   } finally {
+    if (seq !== requestSeq.value) return
     isLoading.value = false
   }
 }
@@ -105,6 +107,13 @@ function handleLogout() {
 onMounted(() => {
   loadSkuDetails()
 })
+
+watch(
+  () => route.fullPath,
+  () => {
+    loadSkuDetails()
+  },
+)
 </script>
 
 <template>
