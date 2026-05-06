@@ -392,13 +392,13 @@ onMounted(() => {
             <span class="text-[10px] font-bold text-gray-400">총 {{ totalCategoryCount }}개 (대분류 {{ categories.length }}개)</span>
           </div>
           <div class="overflow-auto">
-            <table class="w-full min-w-[640px] text-xs">
+            <table class="w-full min-w-[820px] text-xs">
               <thead class="bg-gray-100 text-[10px] text-gray-500">
                 <tr>
-                  <th class="w-28 px-3 py-2 text-center font-bold">분류 코드</th>
+                  <th class="w-44 px-3 py-2 text-center font-bold">분류 코드</th>
                   <th class="px-3 py-2 text-left font-bold">카테고리명</th>
                   <th class="w-20 px-3 py-2 text-center font-bold">단계</th>
-                  <th class="w-32 px-3 py-2 text-center font-bold">소분류 수 / 상위 분류</th>
+                  <th class="w-40 px-3 py-2 text-center font-bold">소분류 수 / 상위 분류</th>
                   <th class="w-24 px-3 py-2 text-center font-bold">상태</th>
                   <th class="w-32 px-3 py-2 text-center font-bold">최종 수정일</th>
                 </tr>
@@ -411,7 +411,7 @@ onMounted(() => {
                     :class="selectedCategory?.id === cat.id ? 'bg-[#E6F2F0]' : ''"
                     @click="selectCategory(cat.id)"
                   >
-                    <td class="px-3 py-3 text-center font-bold text-gray-400">{{ cat.id }}</td>
+                    <td class="whitespace-nowrap px-3 py-3 text-center font-mono font-bold text-gray-500">{{ cat.id }}</td>
                     <td class="px-3 py-3">
                       <div class="flex items-center gap-2">
                         <button
@@ -442,7 +442,7 @@ onMounted(() => {
                       :class="selectedCategory?.id === child.id ? 'bg-[#E6F2F0]' : ''"
                       @click="selectCategory(child.id)"
                     >
-                      <td class="px-3 py-2.5 text-center font-bold text-gray-400">{{ child.id }}</td>
+                      <td class="whitespace-nowrap px-3 py-2.5 text-center font-mono font-bold text-gray-500">{{ child.id }}</td>
                       <td class="px-3 py-2.5">
                         <div class="flex items-center gap-1 pl-7">
                           <span class="text-gray-300">└</span>
@@ -559,10 +559,10 @@ onMounted(() => {
             </div>
           </div>
           <div class="overflow-auto">
-            <table class="w-full min-w-[860px] text-xs">
+            <table class="w-full min-w-[980px] text-xs">
               <thead class="bg-gray-100 text-[10px] uppercase tracking-wider text-gray-500">
                 <tr>
-                  <th class="w-24 px-3 py-2 text-center font-black">제품 코드</th>
+                  <th class="w-44 px-3 py-2 text-center font-black">제품 코드</th>
                   <th class="px-3 py-2 text-left font-black">제품명</th>
                   <th class="w-44 px-3 py-2 text-left font-black">카테고리</th>
                   <th class="w-28 px-3 py-2 text-right font-black">표준 단가</th>
@@ -579,7 +579,7 @@ onMounted(() => {
                   class="cursor-pointer hover:bg-gray-50"
                   @click="router.push({ name: 'hq-product-sku-detail', params: { productCode: prod.id } })"
                 >
-                  <td class="px-3 py-3 text-center font-bold text-gray-400">{{ prod.id }}</td>
+                  <td class="whitespace-nowrap px-3 py-3 text-center font-mono font-bold text-gray-500">{{ prod.id }}</td>
                   <td class="px-3 py-3 font-black text-gray-800">{{ prod.name }}</td>
                   <td class="px-3 py-3 text-gray-600">{{ prod.parentCategory }} &gt; {{ prod.childCategory }}</td>
                   <td class="px-3 py-3 text-right font-black text-gray-800">₩{{ prod.price.toLocaleString() }}</td>
