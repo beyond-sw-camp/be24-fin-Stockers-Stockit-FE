@@ -67,7 +67,6 @@ function fromApi(v) {
 
 function createEmptyBuyerForm() {
   return {
-    code: '',
     companyName: '',
     industryGroup: '',
     productTypes: [],
@@ -107,7 +106,6 @@ function materialFitLabel(value) {
 
 function normalizeBuyerPayload(payload) {
   return {
-    code: String(payload.code ?? '').trim(),
     companyName: String(payload.companyName ?? '').trim(),
     industryGroup: String(payload.industryGroup ?? '').trim(),
     productTypes: normalizeProductTypes(payload.productTypes),
@@ -119,24 +117,15 @@ function normalizeBuyerPayload(payload) {
   }
 }
 
-// FE 1차 검증 — BE 가 4001(REQUEST_ERROR) / 4401(DUPLICATE_CIRCULAR_BUYER_CODE) 로도 막지만 즉시 피드백 용도.
-function validateBuyerPayload(payload, existingBuyers, currentBuyerId = '') {
+// FE 1차 검증 — BE 가 4001(REQUEST_ERROR) 로도 막지만 즉시 피드백 용도. 거래처 코드는 BE 자동 부여라 검증 X.
+function validateBuyerPayload(payload) {
   const errors = {}
 
   if (!payload.companyName) errors.companyName = '업체명을 입력해주세요.'
-  if (!payload.code) errors.code = '거래처 코드를 입력해주세요.'
   if (!payload.industryGroup) errors.industryGroup = '산업군을 선택해주세요.'
   if (!payload.primaryMaterialFit) errors.primaryMaterialFit = '대표 소재 적합도를 선택해주세요.'
   if (!payload.managerName) errors.managerName = '담당자명을 입력해주세요.'
   if (!payload.phone) errors.phone = '연락처를 입력해주세요.'
-
-  const duplicateCode = existingBuyers.find(
-    (buyer) =>
-      buyer.code.toLowerCase() === payload.code.toLowerCase() && buyer.id !== currentBuyerId,
-  )
-  if (duplicateCode) {
-    errors.code = '이미 등록된 거래처 코드입니다.'
-  }
 
   return errors
 }
@@ -195,7 +184,7 @@ export const useCircularStockBuyerStore = defineStore('circularStockBuyers', () 
 
   async function createBuyer(payload) {
     const normalizedPayload = normalizeBuyerPayload(payload)
-    const errors = validateBuyerPayload(normalizedPayload, buyers.value)
+    const errors = validateBuyerPayload(normalizedPayload)
     if (Object.keys(errors).length > 0) {
       return { success: false, errors, message: '필수 입력값을 확인해주세요.' }
     }
@@ -217,15 +206,13 @@ export const useCircularStockBuyerStore = defineStore('circularStockBuyers', () 
     }
 
     const normalizedPayload = normalizeBuyerPayload(payload)
-    const errors = validateBuyerPayload(normalizedPayload, buyers.value, id)
+    const errors = validateBuyerPayload(normalizedPayload)
     if (Object.keys(errors).length > 0) {
       return { success: false, errors, message: '필수 입력값을 확인해주세요.' }
     }
 
     try {
-      // BE PATCH — code 는 path 에 있으니 body 에서 제외 (변경 불가).
-      const { code: _omit, ...updateBody } = normalizedPayload
-      const updated = await circularBuyerApi.update(currentBuyer.code, updateBody)
+      const updated = await circularBuyerApi.update(currentBuyer.code, normalizedPayload)
       const buyer = fromApi(updated)
       buyers.value = buyers.value.map((b) => (b.id === id ? buyer : b))
       return { success: true, buyer }
