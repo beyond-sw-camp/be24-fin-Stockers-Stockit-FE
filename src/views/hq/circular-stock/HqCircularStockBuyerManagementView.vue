@@ -72,7 +72,6 @@ function resetForm() {
 
 function fillFormFromBuyer(buyer) {
   form.value = {
-    code: buyer.code,
     companyName: buyer.companyName,
     industryGroup: buyer.industryGroup,
     productTypes: [...(buyer.productTypes ?? [])],
@@ -568,16 +567,14 @@ function handleLogout() {
                   }}</span>
                 </label>
 
-                <label class="flex flex-col gap-1.5">
+                <label v-if="panelMode === 'edit' && selectedBuyer" class="flex flex-col gap-1.5">
                   <span class="text-[11px] font-bold text-gray-500">거래처 코드</span>
                   <input
-                    v-model="form.code"
+                    :value="selectedBuyer.code"
                     type="text"
-                    class="h-11 border border-gray-300 bg-[#fafaf8] px-3 text-sm font-bold text-gray-900 outline-none focus:border-[#19352c] focus:bg-white"
+                    disabled
+                    class="h-11 cursor-not-allowed border border-gray-200 bg-gray-100 px-3 text-sm font-bold text-gray-500 outline-none"
                   />
-                  <span v-if="errors.code" class="text-[11px] font-bold text-red-500">{{
-                    errors.code
-                  }}</span>
                 </label>
               </section>
 
