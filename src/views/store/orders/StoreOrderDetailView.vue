@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
@@ -6,6 +6,7 @@ import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useStoreOrderStore } from '@/stores/store/storeOrder.js'
 import { formatDateTime, storeInboundStatusClass, storeOrderStatusClass } from '@/features/store/common/ui.js'
+import { cancelStoreOrder, getStoreOrderDetail } from '@/api/store/orders.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -21,8 +22,8 @@ const showCancelConfirm = ref(false)
 const cancelReason = ref('')
 const toastMessage = ref('')
 
-const orderId = computed(() => String(route.params.id ?? ''))
-const selectedOrder = computed(() => storeOrders.getOrderById(orderId.value))
+const orderNo = computed(() => String(route.params.orderNo ?? ''))
+const selectedOrder = ref(null)
 
 function statusClass(status) {
   return storeOrderStatusClass(status)
@@ -56,30 +57,74 @@ function openCancelConfirm() {
   showCancelConfirm.value = true
 }
 
-function confirmCancelOrder() {
+async function confirmCancelOrder() {
   if (!selectedOrder.value) return
-  const result = storeOrders.cancelOrder(
-    selectedOrder.value.orderId,
-    cancelReason.value,
-    auth.user?.name,
-  )
-  showCancelConfirm.value = false
-  if (!result.success) {
-    toastMessage.value = result.message
-    return
+  try {
+    await cancelStoreOrder(selectedOrder.value.orderId, {
+      cancelReason: cancelReason.value,
+      cancelledByMemberId: auth.user?.employeeCode ?? '',
+      cancelledByName: auth.user?.name ?? '매장 관리자',
+    })
+    showCancelConfirm.value = false
+    toastMessage.value = '발주 요청이 취소되었습니다.'
+    await fetchDetail()
+  } catch (error) {
+    toastMessage.value = error?.message ?? '발주 취소 중 오류가 발생했습니다.'
   }
-  toastMessage.value = '발주 요청이 취소되었습니다.'
 }
 
 function goEditPage() {
   if (!selectedOrder.value || selectedOrder.value.status !== 'REQUESTED') return
-  router.push({ name: 'store-order-edit', params: { id: selectedOrder.value.orderId } })
+  router.push({ name: 'store-order-edit', params: { orderNo: selectedOrder.value.orderId } })
+}
+
+async function fetchDetail() {
+  try {
+    const res = await getStoreOrderDetail(orderNo.value)
+    const order = res?.order
+    selectedOrder.value = order
+      ? {
+          orderId: order.orderId,
+          storeName: order.storeName,
+          requestedAt: order.requestedAt,
+          requestedBy: order.requestedBy,
+          status: order.status,
+          inboundStatus: order.inboundStatus ?? null,
+          totalRequestedQuantity: Number(order.totalRequestedQuantity ?? 0),
+          memo: order.memo ?? '',
+          cancelReason: order.cancelReason ?? '',
+          items: (order.items ?? []).map((item) => ({
+            skuId: item.skuCode,
+            itemCode: item.skuCode,
+            productName: item.productName,
+            mainCategory: item.mainCategory,
+            subCategory: item.subCategory,
+            color: item.color,
+            size: item.size,
+            currentStoreStock: '-',
+            availableStoreStock: '-',
+            safetyStock: '-',
+            requestedQuantity: item.requestedQuantity,
+          })),
+          statusHistory: (order.statusHistory ?? []).map((h) => ({
+            status: h.status,
+            at: h.changedAt,
+            byName: h.changedByName,
+            note: h.reason,
+          })),
+        }
+      : null
+  } catch {
+    selectedOrder.value = null
+  }
 }
 
 function handleLogout() {
   auth.logout()
   router.push('/login')
 }
+
+fetchDetail()
 </script>
 
 <template>

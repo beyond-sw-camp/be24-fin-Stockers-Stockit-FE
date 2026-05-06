@@ -1,10 +1,11 @@
-<script setup>
+﻿<script setup>
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useStoreOrderStore } from '@/stores/store/storeOrder.js'
+import { createStoreOrder, getStoreOrderDetail, updateStoreOrder } from '@/api/store/orders.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -25,12 +26,11 @@ const requestLines = ref([])
 const memo = ref('')
 const feedbackMessage = ref('')
 const feedbackType = ref('info')
+const loading = ref(false)
 
 const isEditMode = computed(() => route.name === 'store-order-edit')
-const editingOrderId = computed(() => String(route.params.id ?? ''))
-const editingOrder = computed(() =>
-  isEditMode.value && editingOrderId.value ? storeOrders.getOrderById(editingOrderId.value) : null,
-)
+const editingOrderNo = computed(() => String(route.params.orderNo ?? ''))
+const editingOrder = ref(null)
 
 const MAIN_CATEGORY_ORDER = ['상의', '바지', '치마', '아우터']
 
@@ -166,8 +166,12 @@ function decreaseLine(line) {
   line.requestedQuantity -= 1
 }
 
-function submitRequest() {
+async function submitRequest() {
   feedbackMessage.value = ''
+  if (!auth.user?.storeCode || !auth.user?.storeLocationId) {
+    showFeedback('로그인 매장 정보가 없어 발주를 진행할 수 없습니다.', 'error')
+    return
+  }
   if (requestLines.value.length === 0) {
     showFeedback('발주 요청서를 먼저 채워주세요.', 'error')
     return
@@ -184,68 +188,75 @@ function submitRequest() {
       return
     }
 
-    const result = storeOrders.updateOrder(currentOrder.orderId, {
-      items: requestLines.value,
-      memo: memo.value,
-    })
-
-    if (!result.success) {
-      showFeedback(result.message, 'error')
+    try {
+      await updateStoreOrder(currentOrder.orderId, {
+        items: requestLines.value.map((line) => ({
+          skuCode: line.skuId,
+          requestedQuantity: Number(line.requestedQuantity),
+        })),
+        memo: memo.value,
+      })
+      showFeedback(`${currentOrder.orderId} 발주 요청이 수정되었습니다.`, 'success')
+      router.push({ name: 'store-order-history' })
+      return
+    } catch (error) {
+      showFeedback(error?.message ?? '발주 수정 중 오류가 발생했습니다.', 'error')
       return
     }
+  }
 
-    showFeedback(`${currentOrder.orderId} 발주 요청이 수정되었습니다.`, 'success')
+  try {
+    const result = await createStoreOrder({
+      storeCode: auth.user.storeCode,
+      storeLocationId: String(auth.user.storeLocationId),
+      requestedByMemberId: auth.user.employeeCode ?? '',
+      requestedByName: auth.user.name ?? '매장 관리자',
+      memo: memo.value,
+      items: requestLines.value.map((line) => ({
+        skuCode: line.skuId,
+        requestedQuantity: Number(line.requestedQuantity),
+      })),
+    })
+    requestLines.value = []
+    memo.value = ''
+    showFeedback(`${result.orderId} 발주 요청이 등록되었습니다.`, 'success')
     router.push({ name: 'store-order-history' })
-    return
+  } catch (error) {
+    showFeedback(error?.message ?? '발주 등록 중 오류가 발생했습니다.', 'error')
   }
-
-  const result = storeOrders.createOrder({
-    items: requestLines.value,
-    memo: memo.value,
-    storeId: auth.user?.storeId,
-    storeName: auth.user?.storeName,
-    requestedBy: auth.user?.name,
-  })
-
-  if (!result.success) {
-    showFeedback(result.message, 'error')
-    return
-  }
-
-  requestLines.value = []
-  memo.value = ''
-  showFeedback(`${result.order.orderId} 발주 요청이 등록되었습니다.`, 'success')
-  router.push({ name: 'store-order-history' })
 }
 
-function loadEditingOrder() {
-  const order = editingOrder.value
+async function loadEditingOrder() {
   if (!isEditMode.value) return
-  if (!order) {
-    showFeedback('수정할 발주건을 찾을 수 없습니다.', 'error')
-    return
+  loading.value = true
+  try {
+    const res = await getStoreOrderDetail(editingOrderNo.value)
+    const order = res?.order
+    if (!order) throw new Error('수정할 발주건을 찾을 수 없습니다.')
+    if (order.status !== 'REQUESTED') throw new Error('요청 상태에서만 수정할 수 있습니다.')
+    editingOrder.value = order
+    requestLines.value = (order.items ?? []).map((item) => ({
+      skuId: item.skuCode,
+      productId: item.productCode,
+      itemCode: item.skuCode,
+      productName: item.productName,
+      mainCategory: item.mainCategory,
+      subCategory: item.subCategory,
+      color: item.color,
+      size: item.size,
+      currentStoreStock: 0,
+      inboundExpectedQuantity: 0,
+      availableStoreStock: 0,
+      safetyStock: 0,
+      recommendedQuantity: 0,
+      requestedQuantity: item.requestedQuantity,
+    }))
+    memo.value = order.memo ?? ''
+  } catch (error) {
+    showFeedback(error?.message ?? '발주 상세를 불러오지 못했습니다.', 'error')
+  } finally {
+    loading.value = false
   }
-  if (order.status !== 'REQUESTED') {
-    showFeedback('요청 상태에서만 수정할 수 있습니다.', 'error')
-    return
-  }
-  requestLines.value = order.items.map((item) => ({
-    skuId: item.skuId,
-    productId: item.productId,
-    itemCode: item.itemCode,
-    productName: item.productName,
-    mainCategory: item.mainCategory,
-    subCategory: item.subCategory,
-    color: item.color,
-    size: item.size,
-    currentStoreStock: item.currentStoreStock,
-    inboundExpectedQuantity: item.inboundExpectedQuantity ?? 0,
-    availableStoreStock: item.availableStoreStock ?? item.currentStoreStock,
-    safetyStock: item.safetyStock,
-    recommendedQuantity: item.recommendedQuantity,
-    requestedQuantity: item.requestedQuantity,
-  }))
-  memo.value = order.memo
 }
 
 loadEditingOrder()

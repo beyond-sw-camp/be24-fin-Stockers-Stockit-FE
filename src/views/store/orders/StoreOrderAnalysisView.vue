@@ -5,10 +5,20 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useStoreOrderStore } from '@/stores/store/storeOrder.js'
+import { getStoreOrderAnalytics } from '@/api/store/orders.js'
 
 const router = useRouter()
 const auth = useAuthStore()
 const storeOrders = useStoreOrderStore()
+const analyticsSummary = ref({
+  totalOrders: 0,
+  totalRequestedQuantity: 0,
+  requestedCount: 0,
+  approvedCount: 0,
+  completedCount: 0,
+})
+const analyticsTopSkus = ref([])
+const analyticsCategoryBreakdown = ref([])
 
 const storeMenus = roleMenus.store
 const orderMenus = roleMenus.store.find((menu) => menu.label === '발주 관리')?.children ?? []
@@ -19,6 +29,34 @@ function handleLogout() {
   auth.logout()
   router.push('/login')
 }
+
+async function fetchAnalytics() {
+  try {
+    if (!auth.user?.storeCode || !auth.user?.storeLocationId) return
+    const res = await getStoreOrderAnalytics({ storeCode: auth.user.storeCode })
+    analyticsSummary.value = {
+      totalOrders: Number(res?.totalOrders ?? 0),
+      totalRequestedQuantity: Number(res?.totalRequestedQuantity ?? 0),
+      requestedCount: Number(res?.requestedCount ?? 0),
+      approvedCount: Number(res?.approvedCount ?? 0),
+      completedCount: Number(res?.completedCount ?? 0),
+    }
+    analyticsTopSkus.value = Array.isArray(res?.topSkus) ? res.topSkus : []
+    analyticsCategoryBreakdown.value = Array.isArray(res?.categoryBreakdown) ? res.categoryBreakdown : []
+  } catch {
+    analyticsSummary.value = {
+      totalOrders: 0,
+      totalRequestedQuantity: 0,
+      requestedCount: 0,
+      approvedCount: 0,
+      completedCount: 0,
+    }
+    analyticsTopSkus.value = []
+    analyticsCategoryBreakdown.value = []
+  }
+}
+
+fetchAnalytics()
 </script>
 
 <template>
@@ -41,23 +79,23 @@ function handleLogout() {
       <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <article class="border border-gray-300 bg-white p-4 shadow-sm">
           <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">발주건 수</p>
-          <p class="mt-2 text-2xl font-black text-gray-900">{{ storeOrders.summary.totalOrders }}</p>
+          <p class="mt-2 text-2xl font-black text-gray-900">{{ analyticsSummary.totalOrders }}</p>
         </article>
         <article class="border border-gray-300 bg-white p-4 shadow-sm">
           <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">누적 요청 수량</p>
-          <p class="mt-2 text-2xl font-black text-gray-900">{{ storeOrders.summary.totalRequestedQuantity }}</p>
+          <p class="mt-2 text-2xl font-black text-gray-900">{{ analyticsSummary.totalRequestedQuantity }}</p>
         </article>
         <article class="border border-gray-300 bg-white p-4 shadow-sm">
           <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">승인 대기</p>
-          <p class="mt-2 text-2xl font-black text-gray-900">{{ storeOrders.summary.requestedCount }}</p>
+          <p class="mt-2 text-2xl font-black text-gray-900">{{ analyticsSummary.requestedCount }}</p>
         </article>
         <article class="border border-gray-300 bg-white p-4 shadow-sm">
           <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">승인 완료</p>
-          <p class="mt-2 text-2xl font-black text-gray-900">{{ storeOrders.summary.approvedCount }}</p>
+          <p class="mt-2 text-2xl font-black text-gray-900">{{ analyticsSummary.approvedCount }}</p>
         </article>
         <article class="border border-gray-300 bg-white p-4 shadow-sm">
           <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">종료</p>
-          <p class="mt-2 text-2xl font-black text-gray-900">{{ storeOrders.summary.completedCount }}</p>
+          <p class="mt-2 text-2xl font-black text-gray-900">{{ analyticsSummary.completedCount }}</p>
         </article>
       </section>
 
@@ -78,14 +116,14 @@ function handleLogout() {
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">
-                <tr v-for="row in storeOrders.analytics.topSkus" :key="row.skuId">
+                <tr v-for="row in analyticsTopSkus" :key="row.skuCode">
                   <td class="px-4 py-3 font-black text-gray-900">{{ row.productName }}</td>
-                  <td class="px-4 py-3 font-bold text-gray-700">{{ row.optionLabel }}</td>
+                  <td class="px-4 py-3 font-bold text-gray-700">{{ row.skuCode }}</td>
                   <td class="px-4 py-3 font-bold text-gray-600">{{ row.categoryLabel }}</td>
                   <td class="px-4 py-3 text-right font-black text-gray-900">{{ row.requestedQuantity }}</td>
                   <td class="px-4 py-3 text-right font-black text-gray-700">{{ row.orderCount }}</td>
                 </tr>
-                <tr v-if="storeOrders.analytics.topSkus.length === 0">
+                <tr v-if="analyticsTopSkus.length === 0">
                   <td colspan="5" class="px-4 py-12 text-center text-gray-400">
                     아직 분석할 발주 데이터가 없습니다.
                   </td>
@@ -101,7 +139,7 @@ function handleLogout() {
           </div>
           <div class="flex flex-col gap-3 p-4">
             <div
-              v-for="row in storeOrders.analytics.categoryBreakdown"
+              v-for="row in analyticsCategoryBreakdown"
               :key="row.label"
               class="border border-gray-200 bg-gray-50 px-3 py-3"
             >
@@ -111,7 +149,7 @@ function handleLogout() {
               </div>
             </div>
             <div
-              v-if="storeOrders.analytics.categoryBreakdown.length === 0"
+              v-if="analyticsCategoryBreakdown.length === 0"
               class="flex min-h-[220px] items-center justify-center text-center text-sm font-bold text-gray-400"
             >
               아직 분석할 발주 데이터가 없습니다.

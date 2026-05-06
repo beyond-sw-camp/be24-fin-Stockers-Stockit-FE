@@ -6,6 +6,7 @@ import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useStoreOrderStore } from '@/stores/store/storeOrder.js'
 import { buildHeadline, formatDateTime, storeOrderStatusClass } from '@/features/store/common/ui.js'
+import { getStoreOrders } from '@/api/store/orders.js'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -34,12 +35,47 @@ function statusClass(status) {
 
 function changeTab(key) {
   storeOrders.activeStatusTab = key
+  fetchOrders()
+}
+
+async function fetchOrders() {
+  try {
+    if (!auth.user?.storeCode || !auth.user?.storeLocationId) return
+    const result = await getStoreOrders({
+      storeCode: auth.user.storeCode,
+      status: storeOrders.activeStatusTab === '전체' ? undefined : storeOrders.activeStatusTab,
+      from: storeOrders.dateFrom || undefined,
+      to: storeOrders.dateTo || undefined,
+      keyword: storeOrders.searchKeyword?.trim() || undefined,
+    })
+    const mapped = (Array.isArray(result) ? result : []).map((row) => ({
+      orderId: row.orderId,
+      storeId: auth.user.storeCode,
+      storeName: row.storeName,
+      requestedAt: row.requestedAt,
+      requestedBy: row.requestedBy,
+      status: row.status,
+      totalSkuCount: Number(row.totalSkuCount ?? 0),
+      totalRequestedQuantity: Number(row.totalRequestedQuantity ?? 0),
+      memo: row.memo ?? '',
+      cancelReason: row.cancelReason ?? '',
+      items: [{ productName: row.headline ?? '-' }],
+      statusHistory: [],
+      inboundStatus: row.inboundStatus ?? null,
+      inboundStatusHistory: [],
+    }))
+    storeOrders.orders = mapped
+  } catch (error) {
+    // keep previous list and let UX remain stable
+  }
 }
 
 function handleLogout() {
   auth.logout()
   router.push('/login')
 }
+
+fetchOrders()
 </script>
 
 <template>
@@ -149,7 +185,7 @@ function handleLogout() {
                 v-for="order in storeOrders.filteredOrders"
                 :key="order.orderId"
                 class="cursor-pointer transition-colors hover:bg-gray-50"
-                @click="router.push({ name: 'store-order-detail', params: { id: order.orderId } })"
+                @click="router.push({ name: 'store-order-detail', params: { orderNo: order.orderId } })"
               >
                 <td class="px-2 py-2.5 font-bold text-gray-600">{{ formatDateTime(order.requestedAt) }}</td>
                 <td class="px-2 py-2.5 font-mono font-black text-gray-800">{{ order.orderId }}</td>
