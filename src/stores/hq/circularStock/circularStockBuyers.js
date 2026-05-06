@@ -15,6 +15,14 @@ export const MATERIAL_FIT_OPTIONS = [
   { value: 'blended', label: '혼방' },
 ]
 
+// 사이클 2 — 파트너 유형 분류 데이터 (점수 가산 룰은 사이클 3 거래 이력 합류 후).
+export const PARTNER_TYPE_OPTIONS = [
+  { value: 'general', label: '일반' },
+  { value: 'local_small', label: '지역 소규모' },
+  { value: 'social_enterprise', label: '사회적기업' },
+]
+const PARTNER_TYPE_SET = new Set(PARTNER_TYPE_OPTIONS.map((o) => o.value))
+
 export const INDUSTRY_GROUP_OPTIONS = [
   '재생원사',
   '홈텍스타일',
@@ -60,6 +68,7 @@ function fromApi(v) {
     primaryMaterialFit: v.primaryMaterialFit,
     managerName: v.managerName,
     phone: v.phone,
+    partnerType: v.partnerType ?? 'general',
     createdAt: v.createdAt,
     updatedAt: v.updatedAt,
   }
@@ -75,6 +84,7 @@ function createEmptyBuyerForm() {
     primaryMaterialFit: '',
     managerName: '',
     phone: '',
+    partnerType: 'general',
   }
 }
 
@@ -104,7 +114,12 @@ function materialFitLabel(value) {
   return MATERIAL_FIT_OPTIONS.find((option) => option.value === value)?.label ?? '-'
 }
 
+function partnerTypeLabel(value) {
+  return PARTNER_TYPE_OPTIONS.find((option) => option.value === value)?.label ?? '-'
+}
+
 function normalizeBuyerPayload(payload) {
+  const partnerTypeRaw = String(payload.partnerType ?? 'general').trim()
   return {
     companyName: String(payload.companyName ?? '').trim(),
     industryGroup: String(payload.industryGroup ?? '').trim(),
@@ -114,6 +129,7 @@ function normalizeBuyerPayload(payload) {
     primaryMaterialFit: String(payload.primaryMaterialFit ?? '').trim(),
     managerName: String(payload.managerName ?? '').trim(),
     phone: String(payload.phone ?? '').trim(),
+    partnerType: partnerTypeRaw || 'general',
   }
 }
 
@@ -126,6 +142,9 @@ function validateBuyerPayload(payload) {
   if (!payload.primaryMaterialFit) errors.primaryMaterialFit = '대표 소재 적합도를 선택해주세요.'
   if (!payload.managerName) errors.managerName = '담당자명을 입력해주세요.'
   if (!payload.phone) errors.phone = '연락처를 입력해주세요.'
+  if (!PARTNER_TYPE_SET.has(payload.partnerType)) {
+    errors.partnerType = '파트너 유형을 선택해주세요.'
+  }
 
   return errors
 }
@@ -247,8 +266,10 @@ export const useCircularStockBuyerStore = defineStore('circularStockBuyers', () 
     error,
     MATERIAL_FIT_OPTIONS,
     INDUSTRY_GROUP_OPTIONS,
+    PARTNER_TYPE_OPTIONS,
     createEmptyBuyerForm,
     materialFitLabel,
+    partnerTypeLabel,
     getBuyerById,
     filteredBuyers,
     fetchAll,
