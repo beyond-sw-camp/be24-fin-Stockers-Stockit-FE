@@ -21,7 +21,7 @@ const outbound = computed(() => outboundStore.getOutboundById(outboundId.value))
 
 function handleLogout() {
   auth.logout()
-  router.push('/login')
+  router.push('/dev-login')
 }
 
 function goList() {

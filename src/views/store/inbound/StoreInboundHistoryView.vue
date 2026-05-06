@@ -24,7 +24,7 @@ function headlineLabel(order) {
 
 function handleLogout() {
   auth.logout()
-  router.push('/login')
+  router.push('/dev-login')
 }
 </script>
 

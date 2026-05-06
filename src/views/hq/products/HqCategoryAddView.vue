@@ -13,7 +13,7 @@ const hqMenus = roleMenus.hq
 
 function handleLogout() {
   auth.logout()
-  router.push('/login')
+  router.push('/dev-login')
 }
 
 const activeTopMenu = computed(() => '상품 관리')

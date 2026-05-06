@@ -26,7 +26,7 @@ const hqMenus = roleMenus.hq
 
 function handleLogout() {
   auth.logout()
-  router.push('/login')
+  router.push('/dev-login')
 }
 
 const isEditMode = computed(() => Boolean(route.params.productCode))

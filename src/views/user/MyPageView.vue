@@ -191,7 +191,7 @@ async function submitPasswordChange() {
     // BE 가 모든 Refresh Token 을 삭제했으므로 로컬 상태도 정리하고 /login 으로 이동
     alert('비밀번호가 변경되었습니다. 보안을 위해 다시 로그인해주세요.')
     auth.logout()
-    router.push('/login')
+    router.push('/dev-login')
   } catch (err) {
     pwError.value = extractErrorMessage(err, '비밀번호 변경에 실패했습니다.')
   } finally {
@@ -207,7 +207,7 @@ const activeSideMenu = ref('')
 
 function handleLogout() {
   auth.logout()
-  router.push('/login')
+  router.push('/dev-login')
 }
 function goHome() {
   const homePath = roleHomeMap[feRoleKey.value]

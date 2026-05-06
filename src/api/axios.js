@@ -31,7 +31,7 @@ function forceLogout() {
   }
   const path = window.location.pathname
   if (!LOGIN_PATHS.some(p => path.includes(p))) {
-    window.location.href = '/login'
+    window.location.href = '/dev-login'
   }
 }
 
