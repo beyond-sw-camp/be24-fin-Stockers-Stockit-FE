@@ -470,7 +470,15 @@ const CheckIcon = IconBase([{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12'
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                   <tr v-for="item in inbound.selectedOrder.items" :key="item.id">
-                    <td class="px-2 py-2 font-bold text-gray-800">{{ item.productName }}</td>
+                    <td class="px-2 py-2 font-bold text-gray-800">
+                      <div>{{ item.productName }}</div>
+                      <div
+                        v-if="item.displayOption"
+                        class="mt-0.5 text-[10px] font-bold text-[#004D3C]"
+                      >
+                        {{ item.displayOption }}
+                      </div>
+                    </td>
                     <td class="px-2 py-2 text-right font-bold text-gray-700">
                       {{ item.quantity }}
                     </td>
