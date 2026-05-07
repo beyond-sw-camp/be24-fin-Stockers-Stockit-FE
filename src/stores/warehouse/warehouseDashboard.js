@@ -50,7 +50,8 @@ export const useWarehouseDashboardStore = defineStore('warehouseDashboard', () =
 
   // ─── actions ──────────────────────────────────────────────────────────────
   /**
-   * @param {{warehouseId?: string, from?: string, to?: string}} params
+   * @param {{from?: string, to?: string}} params
+   * 자기 창고 데이터 격리는 BE 가 @AuthenticationPrincipal locationCode 로 자동 처리.
    */
   async function fetchInboundProgress(params = {}) {
     isLoading.value = true
