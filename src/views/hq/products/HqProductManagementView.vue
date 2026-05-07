@@ -52,9 +52,7 @@ const selectedParentFilter = ref('all')
 const selectedChildFilter = ref('all')
 const parentCategoryOptions = computed(() => categories.value.map((cat) => cat.name))
 const childCategoryOptions = computed(() => {
-  if (selectedParentFilter.value === 'all') {
-    return categories.value.flatMap((cat) => cat.children.map((child) => child.name))
-  }
+  if (selectedParentFilter.value === 'all') return []
   const target = categories.value.find((cat) => cat.name === selectedParentFilter.value)
   return target ? target.children.map((child) => child.name) : []
 })
@@ -286,7 +284,6 @@ async function loadProducts() {
     const vendorNameByCode = new Map(vendors.value.map(v => [v.code, v.name]))
     const list = await getProducts({
       keyword: productKeyword.value || undefined,
-      categoryCode: selectedParentFilter.value === 'all' ? undefined : selectedParentFilter.value,
     })
     productMasterData.value = list.map((p) => ({
       ...resolveCategoryNames(p.categoryCode),
@@ -309,9 +306,6 @@ async function loadVendors() {
 }
 
 watch(productKeyword, () => {
-  if (activeSideMenu.value !== '카테고리 관리') loadProducts()
-})
-watch([selectedParentFilter, selectedChildFilter], () => {
   if (activeSideMenu.value !== '카테고리 관리') loadProducts()
 })
 
@@ -343,7 +337,7 @@ onMounted(() => {
           </label>
 
           <label v-if="activeSideMenu !== '카테고리 관리'" class="flex items-center gap-2 text-[11px] font-bold text-gray-500">
-            대분류
+            카테고리 1단계
             <select
               :value="selectedParentFilter"
               class="border border-gray-300 bg-gray-50 px-3 py-1.5 text-xs font-bold text-gray-700 outline-none focus:border-[#004D3C] focus:bg-white"
@@ -355,12 +349,13 @@ onMounted(() => {
           </label>
 
           <label v-if="activeSideMenu !== '카테고리 관리'" class="flex items-center gap-2 text-[11px] font-bold text-gray-500">
-            소분류
+            카테고리 2단계
             <select
               v-model="selectedChildFilter"
+              :disabled="selectedParentFilter === 'all'"
               class="border border-gray-300 bg-gray-50 px-3 py-1.5 text-xs font-bold text-gray-700 outline-none focus:border-[#004D3C] focus:bg-white"
             >
-              <option value="all">전체</option>
+              <option value="all">{{ selectedParentFilter === 'all' ? '1단계 먼저 선택' : '전체' }}</option>
               <option v-for="child in childCategoryOptions" :key="child" :value="child">{{ child }}</option>
             </select>
           </label>
