@@ -1,53 +1,77 @@
-<script setup>
-import { computed, ref } from 'vue'
+﻿<script setup>
+/**
+ * ==============================================================================
+ * 1. IMPORTS
+ * ==============================================================================
+ */
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useStoreOrdersStore } from '@/stores/storeOrders.js'
+import { formatDateTime, storeInboundStatusClass, storeOrderStatusClass } from '@/features/store/common/ui.js'
+import { cancelStoreOrder, getStoreOrderDetail } from '@/api/store/orders.js'
 
+/**
+ * ==============================================================================
+ * 2. STATE & REFS
+ * ==============================================================================
+ */
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
-const storeOrders = useStoreOrdersStore()
 
-const storeMenus = roleMenus.store
-const orderMenus = roleMenus.store.find((menu) => menu.label === '발주 관리')?.children ?? []
-const activeTopMenu = computed(() => '발주 관리')
 const activeSideMenu = ref('발주 내역')
-
 const showCancelConfirm = ref(false)
 const cancelReason = ref('')
 const toastMessage = ref('')
+const selectedOrder = ref(null)
 
-const orderId = computed(() => String(route.params.id ?? ''))
-const selectedOrder = computed(() => storeOrders.getOrderById(orderId.value))
+/**
+ * ==============================================================================
+ * 3. COMPUTED
+ * ==============================================================================
+ */
+const storeMenus = roleMenus.store
+const orderMenus = roleMenus.store.find((menu) => menu.label === '발주 관리')?.children ?? []
+const activeTopMenu = computed(() => '발주 관리')
+const orderNo = computed(() => String(route.params.orderNo ?? ''))
 
-function formatDateTime(iso) {
-  if (!iso) return '-'
-  const date = new Date(iso)
-  const pad = (value) => String(value).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+/**
+ * ==============================================================================
+ * 4. CONSTANTS
+ * ==============================================================================
+ */
+const statusLabelMap = {
+  REQUESTED: '승인 대기',
+  APPROVED: '승인 완료',
+  COMPLETED: '완료',
+  CANCELLED: '취소',
 }
 
+const inboundStatusLabelMap = {
+  READY_TO_SHIP: '배송 준비중',
+  IN_TRANSIT: '배송 중',
+  ARRIVED: '배송 완료',
+  RECEIVED: '입고 완료',
+}
+
+/**
+ * ==============================================================================
+ * 5. METHODS - UI STATE
+ * ==============================================================================
+ */
+// [함수] 주문 상태에 맞는 칩 스타일 클래스를 반환한다.
 function statusClass(status) {
-  return {
-    REQUESTED: 'bg-amber-100 text-amber-700',
-    APPROVED: 'bg-[#EBF5F5] text-black',
-    COMPLETED: 'bg-slate-200 text-slate-800',
-    CANCELLED: 'bg-red-100 text-red-700',
-  }[status] ?? 'bg-gray-100 text-gray-600'
+  return storeOrderStatusClass(status)
 }
 
+// [함수] 이행 상태에 맞는 칩 스타일 클래스를 반환한다.
 function inboundStatusClass(status) {
-  return {
-    READY_TO_SHIP: 'bg-slate-100 text-slate-700',
-    IN_TRANSIT: 'bg-blue-100 text-blue-700',
-    ARRIVED: 'bg-amber-100 text-amber-700',
-    RECEIVED: 'bg-[#EBF5F5] text-black',
-  }[status] ?? 'bg-gray-100 text-gray-600'
+  return storeInboundStatusClass(status)
 }
 
+// [함수] 상태 이력 타임라인 점 색상을 반환한다.
 function historyDotClass(status) {
   return {
     REQUESTED: 'bg-amber-500',
@@ -57,6 +81,7 @@ function historyDotClass(status) {
   }[status] ?? 'bg-gray-400'
 }
 
+// [함수] 상태 이력 텍스트 색상을 반환한다.
 function historyTextClass(status) {
   return {
     REQUESTED: 'text-amber-700',
@@ -66,36 +91,102 @@ function historyTextClass(status) {
   }[status] ?? 'text-gray-700'
 }
 
+// [함수] 요청 상태 주문에서만 취소 확인 모달을 연다.
 function openCancelConfirm() {
   if (!selectedOrder.value || selectedOrder.value.status !== 'REQUESTED') return
   cancelReason.value = ''
   showCancelConfirm.value = true
 }
 
-function confirmCancelOrder() {
+/**
+ * ==============================================================================
+ * 6. METHODS - API SERVICE
+ * ==============================================================================
+ */
+// [함수] 발주 취소 API를 호출하고 성공 시 상세를 재조회한다.
+async function confirmCancelOrder() {
   if (!selectedOrder.value) return
-  const result = storeOrders.cancelOrder(
-    selectedOrder.value.orderId,
-    cancelReason.value,
-    auth.user?.name,
-  )
-  showCancelConfirm.value = false
-  if (!result.success) {
-    toastMessage.value = result.message
-    return
+
+  try {
+    await cancelStoreOrder(selectedOrder.value.orderId, {
+      cancelReason: cancelReason.value,
+      cancelledByMemberId: auth.user?.employeeCode ?? '',
+      cancelledByName: auth.user?.name ?? '매장 관리자',
+    })
+    showCancelConfirm.value = false
+    toastMessage.value = '발주 요청이 취소되었습니다.'
+    await fetchDetail()
+  } catch (error) {
+    toastMessage.value = error?.message ?? '발주 취소 중 오류가 발생했습니다.'
   }
-  toastMessage.value = '발주 요청이 취소되었습니다.'
 }
 
+// [함수] 발주 상세 API를 호출해 화면 표시용 모델로 매핑한다.
+async function fetchDetail() {
+  try {
+    const res = await getStoreOrderDetail(orderNo.value)
+    const order = res?.order
+
+    selectedOrder.value = order
+      ? {
+          orderId: order.orderId,
+          storeName: order.storeName,
+          requestedAt: order.requestedAt,
+          requestedBy: order.requestedBy,
+          status: order.status,
+          inboundStatus: order.inboundStatus ?? null,
+          totalRequestedQuantity: Number(order.totalRequestedQuantity ?? 0),
+          memo: order.memo ?? '',
+          cancelReason: order.cancelReason ?? '',
+          items: (order.items ?? []).map((item) => ({
+            skuId: item.skuCode,
+            itemCode: item.skuCode,
+            productName: item.productName,
+            mainCategory: item.mainCategory,
+            subCategory: item.subCategory,
+            color: item.color,
+            size: item.size,
+            currentStoreStock: '-',
+            availableStoreStock: '-',
+            safetyStock: '-',
+            requestedQuantity: item.requestedQuantity,
+          })),
+          statusHistory: (order.statusHistory ?? []).map((h) => ({
+            status: h.status,
+            at: h.changedAt,
+            byName: h.changedByName,
+            note: h.reason,
+          })),
+        }
+      : null
+  } catch {
+    selectedOrder.value = null
+  }
+}
+
+/**
+ * ==============================================================================
+ * 7. METHODS - NAVIGATION
+ * ==============================================================================
+ */
+// [함수] 요청 상태 주문의 수정 화면으로 이동한다.
 function goEditPage() {
   if (!selectedOrder.value || selectedOrder.value.status !== 'REQUESTED') return
-  router.push({ name: 'store-order-edit', params: { id: selectedOrder.value.orderId } })
+  router.push({ name: 'store-order-edit', params: { orderNo: selectedOrder.value.orderId } })
 }
 
+// [함수] 로그아웃 처리 후 로그인 화면으로 이동한다.
 function handleLogout() {
   auth.logout()
-  router.push('/login')
+  router.push('/dev-login')
 }
+
+/**
+ * ==============================================================================
+ * 9. LIFECYCLE
+ * ==============================================================================
+ */
+onMounted(fetchDetail)
 </script>
 
 <template>
@@ -139,14 +230,14 @@ function handleLogout() {
           </div>
           <div class="flex items-center gap-2">
             <span class="inline-flex px-2 py-1 text-[10px] font-black" :class="statusClass(selectedOrder.status)">
-              {{ storeOrders.statusLabelMap[selectedOrder.status] }}
+              {{ statusLabelMap[selectedOrder.status] }}
             </span>
             <span
               v-if="selectedOrder.inboundStatus"
               class="inline-flex px-2 py-1 text-[10px] font-black"
               :class="inboundStatusClass(selectedOrder.inboundStatus)"
             >
-              {{ storeOrders.inboundStatusLabelMap[selectedOrder.inboundStatus] }}
+              {{ inboundStatusLabelMap[selectedOrder.inboundStatus] }}
             </span>
           </div>
         </div>
@@ -172,10 +263,7 @@ function handleLogout() {
                     <th class="w-[20%] px-2 py-2.5 text-left font-black">상품명</th>
                     <th class="w-[17%] px-2 py-2.5 text-left font-black">옵션</th>
                     <th class="w-[18%] px-2 py-2.5 text-left font-black">카테고리</th>
-                    <th class="w-[10%] px-2 py-2.5 text-center font-black">실재고</th>
-                    <th class="w-[10%] px-2 py-2.5 text-center font-black">가용재고</th>
-                    <th class="w-[10%] px-2 py-2.5 text-center font-black">안전재고</th>
-                    <th class="w-[10%] px-2 py-2.5 text-center font-black">요청</th>
+                    <th class="w-[10%] px-2 py-2.5 text-center font-black">요청 발주량</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
@@ -188,9 +276,6 @@ function handleLogout() {
                     <td class="px-2 py-2.5 font-bold text-gray-500">
                       {{ item.mainCategory }} &gt; {{ item.subCategory }}
                     </td>
-                    <td class="px-2 py-2.5 text-center font-black text-gray-800">{{ item.currentStoreStock }}</td>
-                    <td class="px-2 py-2.5 text-center font-black text-gray-900">{{ item.availableStoreStock }}</td>
-                    <td class="px-2 py-2.5 text-center font-black text-gray-700">{{ item.safetyStock }}</td>
                     <td class="px-3 py-2.5 text-center font-black text-gray-900">{{ item.requestedQuantity }}</td>
                   </tr>
                 </tbody>
@@ -230,7 +315,7 @@ function handleLogout() {
                     class="absolute bottom-0 left-[4px] top-3.5 w-px bg-gray-300"
                   />
                   <p class="text-[11px] font-black" :class="historyTextClass(history.status)">
-                    {{ storeOrders.statusLabelMap[history.status] ?? history.status }}
+                    {{ statusLabelMap[history.status] ?? history.status }}
                   </p>
                   <p class="text-[10px] text-gray-500">
                     {{ formatDateTime(history.at) }} · {{ history.byName }}

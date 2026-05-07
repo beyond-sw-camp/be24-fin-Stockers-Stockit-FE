@@ -1,20 +1,18 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { roleHomeMap } from '@/config/roleMenus.js'
+import { authApi } from '@/api/user/auth.js'
+import { extractErrorMessage } from '@/api/axios.js'
 
-const DUMMY_USERS = [
-  { email: 'hq@stockit.com',        password: 'hq1234',    role: 'hq',        name: '본사 관리자', memberId: 'MB-900', storeId: 'HQ-001', storeName: '본사' },
-  { email: 'store@stockit.com',     password: 'store1234', role: 'store',     name: '매장 관리자', memberId: 'MB-003', storeId: 'STORE-GANGNAM-01', storeName: '강남 서초점' },
-  { email: 'warehouse@stockit.com', password: 'wh1234',    role: 'warehouse', name: '창고 관리자', memberId: 'MB-700', storeId: 'WH-001', storeName: '서울 1센터' },
-]
-
-const STORAGE_KEY = 'stockit_auth'
+// HttpOnly Cookie 방식이라 토큰은 JS에서 접근 불가.
+// localStorage 에는 사용자 정보(UI 표시용)만 저장.
+const STORAGE_KEY = 'stockit_user'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
-
   const isAuthenticated = computed(() => user.value !== null)
 
+  /** 새로고침 시 localStorage 에서 사용자 정보 복원 */
   function init() {
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
@@ -24,27 +22,47 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  function login(email, password) {
-    const found = DUMMY_USERS.find(u => u.email === email && u.password === password)
-    if (!found) return { success: false, message: '이메일 또는 비밀번호가 올바르지 않습니다.' }
+  /**
+   * 로그인 — BE 호출 단일 경로 (employeeCode + password).
+   * 응답 쿠키(Atoken/Rtoken) 는 axios 가 자동 처리.
+   */
+  async function login(employeeCode, password) {
+    try {
+      const result = await authApi.login({ employeeCode, password })
 
-    user.value = {
-      email: found.email,
-      name: found.name,
-      role: found.role,
-      memberId: found.memberId,
-      storeId: found.storeId,
-      storeName: found.storeName,
+      // BE role(HQ/STORE/WAREHOUSE) → FE role(hq/store/warehouse)
+      const role = (result.role ?? '').toLowerCase()
+
+      user.value = {
+        employeeCode: result.employeeCode,
+        name: result.name,
+        role,
+        locationCode: result.locationCode ?? '',     // 스토어/매장/창고/본사 코드 (예: ST-SL-0001)
+        locationName: result.locationName ?? '',     // 매장명/지점명 (예: 강남 플래그십점)
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(user.value))
+      sessionStorage.removeItem('stockit:openTopMenus')
+
+      return { success: true, redirectTo: roleHomeMap[role] ?? '/dev-login' }
+    } catch (err) {
+      return {
+        success: false,
+        message: extractErrorMessage(err, '사원번호 또는 비밀번호가 올바르지 않습니다.'),
+      }
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(user.value))
-    sessionStorage.removeItem('stockit:openTopMenus')
-    return { success: true, redirectTo: roleHomeMap[found.role] }
   }
 
+  /**
+   * 로그아웃 — 클라이언트 상태를 먼저 비우고, BE 쿠키 만료는 fire-and-forget.
+   */
   function logout() {
     user.value = null
     localStorage.removeItem(STORAGE_KEY)
     sessionStorage.removeItem('stockit:openTopMenus')
+
+    authApi.logout().catch(() => {
+      // 쿠키 만료/네트워크 에러는 무시 — 클라이언트 상태는 이미 비웠음
+    })
   }
 
   init()

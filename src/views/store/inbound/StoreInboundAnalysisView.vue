@@ -4,11 +4,11 @@ import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useStoreOrdersStore } from '@/stores/storeOrders.js'
+import { useStoreInboundStore } from '@/stores/store/storeInbound.js'
 
 const router = useRouter()
 const auth = useAuthStore()
-const storeOrders = useStoreOrdersStore()
+const storeOrders = useStoreInboundStore()
 
 const storeMenus = roleMenus.store
 const inboundMenus = roleMenus.store.find((menu) => menu.label === '입고 관리')?.children ?? []
@@ -24,7 +24,7 @@ const statusRows = computed(() => [
 
 function handleLogout() {
   auth.logout()
-  router.push('/login')
+  router.push('/dev-login')
 }
 </script>
 

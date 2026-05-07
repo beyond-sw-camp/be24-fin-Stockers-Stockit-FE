@@ -1,34 +1,78 @@
-<script setup>
-import { computed, ref } from 'vue'
+﻿<script setup>
+/**
+ * ==============================================================================
+ * 1. IMPORTS
+ * ==============================================================================
+ */
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useInventoryStore } from '@/stores/inventory.js'
-import { useSalesStore } from '@/stores/sales.js'
+import { useSalesStore } from '@/stores/store/storeSales.js'
+import { getStoreInventories, getStoreInventorySkus } from '@/api/store/inventory.js'
+import { createSale } from '@/api/store/sales.js'
+
+import { Plus, Ban } from 'lucide-vue-next'
+
+/**
+ * ==============================================================================
+ * 2. STATE & REFS
+ * ==============================================================================
+ */
 
 const router = useRouter()
 const auth = useAuthStore()
-const inventory = useInventoryStore()
 const sales = useSalesStore()
 
 const storeMenus = roleMenus.store
 const salesMenus = roleMenus.store.find((menu) => menu.label === '판매 관리')?.children ?? []
-const activeTopMenu = computed(() => '판매 관리')
-const activeSideMenu = ref('판매 등록')
+const activeMainMenu = computed(() => '판매 관리')
+const activeSubMenu = ref('POS / 판매 등록')
 
 const selectedMainCategory = ref('전체')
 const selectedSubCategory = ref('전체')
 const selectedColor = ref('전체')
 const searchTerm = ref('')
 const salesLines = ref([])
+const saleRequest = reactive({ items: [] })
 const feedbackMessage = ref('')
+const isSuccessModalOpen = ref(false)
+const completedSale = ref(null)
+const loadingSkus = ref(false)
+const submitState = ref('idle')
+const skuRows = ref([])
 
-const subCategoryOptions = computed(() => inventory.getSubCategories(selectedMainCategory.value))
+/**
+ * ==============================================================================
+ * 3. COMPUTED
+ * ==============================================================================
+ */
+const mainCategories = computed(() => [
+  '전체',
+  ...new Set(skuRows.value.map((sku) => sku.mainCategory)),
+])
+
+const subCategoryOptions = computed(() => {
+  if (!selectedMainCategory.value || selectedMainCategory.value === '전체') return ['전체']
+  return [
+    '전체',
+    ...new Set(
+      skuRows.value
+        .filter((sku) => sku.mainCategory === selectedMainCategory.value)
+        .map((sku) => sku.subCategory),
+    ),
+  ]
+})
+
+const colorOptions = computed(() => [
+  '전체',
+  ...new Set(skuRows.value.map((sku) => sku.color)),
+])
 
 const filteredSkus = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase()
-  return inventory.skus.filter((sku) => {
+  return skuRows.value.filter((sku) => {
     const matchMain =
       selectedMainCategory.value === '전체' || sku.mainCategory === selectedMainCategory.value
     const matchSub =
@@ -50,12 +94,31 @@ const totalAmount = computed(() =>
   salesLines.value.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0),
 )
 
+/**
+ * ==============================================================================
+ * 4. CONSTANTS
+ * ==============================================================================
+ */
+const statusLabel = { out: '품절', low: '부족', normal: '정상' }
+const statusClass = {
+  out: 'bg-red-100 text-red-700',
+  low: 'bg-orange-100 text-orange-700',
+  normal: 'bg-[#EBF5F5] text-black',
+}
+
+/**
+ * ==============================================================================
+ * 5. METHODS - UI STATE
+ * ==============================================================================
+ */
+// [함수] 대분류 변경 시 소분류 선택값 유효성을 보정한다.
 function resetSubCategoryIfNeeded() {
   if (!subCategoryOptions.value.includes(selectedSubCategory.value)) {
     selectedSubCategory.value = '전체'
   }
 }
 
+// [함수] 선택한 SKU를 판매 목록에 추가한다.
 function addToSalesList(sku) {
   feedbackMessage.value = ''
 
@@ -90,8 +153,14 @@ function addToSalesList(sku) {
   ]
 }
 
+// [함수] SKU 코드로 화면의 SKU 행 데이터를 찾는다.
+function getSkuById(skuId) {
+  return skuRows.value.find((sku) => sku.skuId === skuId) ?? null
+}
+
+// [함수] 판매 라인의 수량 입력값을 검증 후 반영한다.
 function updateLineQuantity(line, value) {
-  const sku = inventory.getSkuById(line.skuId)
+  const sku = getSkuById(line.skuId)
   const next = Number.parseInt(value, 10)
   if (!sku) return
   if (Number.isNaN(next) || next < 1) {
@@ -101,59 +170,183 @@ function updateLineQuantity(line, value) {
   line.quantity = Math.min(next, sku.stock)
 }
 
+// [함수] 판매 라인의 수량을 1 증가시킨다.
 function increaseLine(line) {
-  const sku = inventory.getSkuById(line.skuId)
+  const sku = getSkuById(line.skuId)
   if (!sku || line.quantity >= sku.stock) return
   line.quantity += 1
 }
 
+// [함수] 판매 라인의 수량을 1 감소시킨다.
 function decreaseLine(line) {
   if (line.quantity <= 1) return
   line.quantity -= 1
 }
 
+// [함수] 판매 목록에서 특정 SKU 라인을 제거한다.
 function removeLine(skuId) {
   salesLines.value = salesLines.value.filter((line) => line.skuId !== skuId)
 }
 
+// [함수] 현재 판매 목록을 전체 비운다.
 function clearSalesList() {
   salesLines.value = []
 }
 
-function confirmSale() {
+/**
+ * ==============================================================================
+ * 6. METHODS - API SERVICE
+ * ==============================================================================
+ */
+// [함수] 판매 등록 API를 호출하고 성공/실패 상태를 처리한다.
+async function confirmSale() {
   feedbackMessage.value = ''
-  const result = sales.createSale({
-    items: salesLines.value.map((line) => ({ skuId: line.skuId, quantity: line.quantity })),
-  })
-
-  if (!result.success) {
-    feedbackMessage.value = result.message
+  saleRequest.items = salesLines.value.map((line) => ({ skuCode: line.skuId, quantity: line.quantity }))
+  if (saleRequest.items.length === 0) {
+    feedbackMessage.value = '판매 목록이 비어 있습니다.'
     return
   }
 
-  salesLines.value = []
-  feedbackMessage.value = `${result.sale.saleId} 판매가 등록되었습니다.`
+  try {
+    submitState.value = 'submitting'
+    sales.setLoading(true)
+    sales.setError('')
+    const created = await createSale(saleRequest)
+    const sale = {
+      saleNo: created.saleNo,
+      saleId: created.saleNo,
+      storeCode: created.storeCode,
+      soldAt: created.soldAt,
+      totalQuantity: created.totalQuantity,
+      totalAmount: created.totalAmount,
+      headline: (created.items?.[0]?.productName ?? '') + ((created.items?.length ?? 0) > 1 ? ` 외 ${created.items.length - 1}건` : ''),
+      items: (created.items ?? []).map((item) => ({
+        skuCode: item.skuCode,
+        skuId: item.skuCode,
+        productCode: item.productCode,
+        productId: item.productCode,
+        productName: item.productName,
+        mainCategory: item.mainCategory,
+        subCategory: item.subCategory,
+        color: item.color,
+        size: item.size,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        lineAmount: item.lineAmount,
+      })),
+    }
+    sales.prependSale({
+      saleNo: sale.saleNo,
+      saleId: sale.saleId,
+      storeCode: sale.storeCode,
+      soldAt: sale.soldAt,
+      totalQuantity: sale.totalQuantity,
+      totalAmount: sale.totalAmount,
+      headline: sale.headline,
+      items: [],
+    })
+    sales.setSelectedSale(sale)
+    completedSale.value = sale
+    salesLines.value = []
+    saleRequest.items = []
+    isSuccessModalOpen.value = true
+    submitState.value = 'success'
+    feedbackMessage.value = `${sale.saleNo} 판매가 등록되었습니다.`
+    await loadStoreSkus()
+  } catch (e) {
+    const message = e?.message ?? '판매 등록에 실패했습니다.'
+    sales.setError(message)
+    submitState.value = 'error'
+    feedbackMessage.value = message
+  } finally {
+    sales.setLoading(false)
+    if (submitState.value === 'submitting') submitState.value = 'idle'
+  }
 }
 
-const statusLabel = { out: '품절', low: '부족', normal: '정상' }
-const statusClass = {
-  out: 'bg-red-100 text-red-700',
-  low: 'bg-orange-100 text-orange-700',
-  normal: 'bg-[#EBF5F5] text-black',
+// [함수] 판매 완료 모달 상태를 초기화하고 닫는다.
+function closeSuccessModal() {
+  isSuccessModalOpen.value = false
+  completedSale.value = null
 }
 
+// [함수] 현재 재고/안전재고 기준으로 재고 상태(out/low/normal)를 계산한다.
+function stockStatus(sku) {
+  if (sku.stock === 0) return 'out'
+  if (sku.stock <= sku.safetyStock) return 'low'
+  return 'normal'
+}
+
+// [함수] 로그인 매장의 상품/SKU 재고 데이터를 조회해 POS 테이블 모델로 매핑한다.
+async function loadStoreSkus() {
+  if (!auth.user?.locationCode) {
+    feedbackMessage.value = '매장 위치 정보가 없어 상품/재고를 불러올 수 없습니다.'
+    return
+  }
+
+  loadingSkus.value = true
+  feedbackMessage.value = ''
+  try {
+    const items = await getStoreInventories()
+
+    const skuLists = await Promise.all(
+      items.map((item) => getStoreInventorySkus(item.itemCode)),
+    )
+
+    const rows = []
+    items.forEach((item, idx) => {
+      const skus = skuLists[idx] ?? []
+      skus.forEach((sku) => {
+        rows.push({
+          skuId: sku.skuCode,
+          productId: item.itemCode,
+          productName: item.itemName,
+          mainCategory: item.parentCategory,
+          subCategory: item.childCategory,
+          color: sku.color,
+          size: sku.size,
+          unitPrice: Number(sku.unitPrice ?? 0),
+          stock: Number(sku.actualStock ?? 0),
+          safetyStock: sku.safetyStock ?? 0,
+          status: sku.status,
+        })
+      })
+    })
+    skuRows.value = rows
+  } catch (e) {
+    feedbackMessage.value = e?.message ?? '상품/재고 조회에 실패했습니다.'
+  } finally {
+    loadingSkus.value = false
+  }
+}
+
+/**
+ * ==============================================================================
+ * 7. METHODS - NAVIGATION
+ * ==============================================================================
+ */
+// [함수] 로그아웃 후 로그인 화면으로 이동한다.
 function handleLogout() {
   auth.logout()
-  router.push('/login')
+  router.push('/dev-login')
 }
+
+/**
+ * ==============================================================================
+ * 8. LIFECYCLE
+ * ==============================================================================
+ */
+onMounted(async () => {
+  await loadStoreSkus()
+})
 </script>
 
 <template>
   <AppLayout
-    :active-top-menu="activeTopMenu"
+    :active-top-menu="activeMainMenu"
     :top-menus="storeMenus"
     :side-menus="salesMenus"
-    v-model:active-side-menu="activeSideMenu"
+    v-model:active-side-menu="activeSubMenu"
     @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
@@ -189,11 +382,7 @@ function handleLogout() {
                 class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
                 @change="resetSubCategoryIfNeeded"
               >
-                <option
-                  v-for="category in inventory.mainCategories"
-                  :key="category"
-                  :value="category"
-                >
+                <option v-for="category in mainCategories" :key="category" :value="category">
                   {{ category }}
                 </option>
               </select>
@@ -217,7 +406,7 @@ function handleLogout() {
                 v-model="selectedColor"
                 class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
               >
-                <option v-for="color in inventory.colorOptions" :key="color" :value="color">
+                <option v-for="color in colorOptions" :key="color" :value="color">
                   {{ color }}
                 </option>
               </select>
@@ -238,6 +427,7 @@ function handleLogout() {
             <table class="min-w-[840px] w-full border-collapse text-xs">
               <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
                 <tr>
+                  <th class="px-4 py-3 text-left font-black">SKU 코드</th>
                   <th class="px-4 py-3 text-left font-black">상품명</th>
                   <th class="px-4 py-3 text-left font-black">카테고리</th>
                   <th class="px-4 py-3 text-left font-black">옵션</th>
@@ -253,6 +443,9 @@ function handleLogout() {
                   :key="sku.skuId"
                   class="transition-colors hover:bg-gray-50"
                 >
+                  <td class="px-4 py-3 font-mono font-bold text-gray-500">
+                    {{ sku.skuId }}
+                  </td>
                   <td class="px-4 py-3">
                     <p class="font-black text-gray-900">{{ sku.productName }}</p>
                   </td>
@@ -269,29 +462,40 @@ function handleLogout() {
                   <td class="px-4 py-3 text-center">
                     <span
                       class="inline-flex min-w-12 justify-center px-2 py-1 text-[11px] font-black"
-                      :class="statusClass[inventory.stockStatus(sku)]"
+                      :class="statusClass[stockStatus(sku)]"
                     >
-                      {{ statusLabel[inventory.stockStatus(sku)] }}
+                      {{ statusLabel[stockStatus(sku)] }}
                     </span>
                   </td>
                   <td class="px-4 py-3 text-center">
                     <button
                       type="button"
-                      class="inline-flex min-w-[72px] items-center justify-center border px-3 py-2 text-[11px] font-black shadow-sm transition-all"
+                      class="group inline-flex h-8 min-w-[74px] items-center justify-center gap-1.5 rounded-full border px-3 text-[11px] font-semibold transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-100"
                       :class="
                         sku.stock === 0
-                          ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400 shadow-none'
-                          : 'border-[#004D3C] bg-[#004D3C] !text-white hover:-translate-y-px hover:bg-[#003d30] hover:shadow-[0_8px_18px_rgba(32,140,28,0.22)]'
+                          ? 'border-red-100 bg-red-50/50 text-red-400 shadow-none'
+                          : 'border-[#97BFB4]/30 bg-[#97BFB4]/10 text-[#6B8E85] hover:border-[#97BFB4]/50 hover:bg-[#97BFB4]/20 hover:text-[#5A7F75] active:scale-95'
                       "
                       :disabled="sku.stock === 0"
                       @click="addToSalesList(sku)"
                     >
-                      담기
+                      <span
+                        class="flex h-4 w-4 items-center justify-center rounded-full shadow-sm transition-colors"
+                        :class="
+                          sku.stock === 0
+                            ? 'bg-white/50 text-red-300'
+                            : 'bg-white text-[#97BFB4] group-hover:bg-[#004D3C] group-hover:text-white'
+                        "
+                      >
+                        <Plus v-if="sku.stock > 0" :size="10" stroke-width="3" />
+                        <Ban v-else :size="10" stroke-width="3" />
+                      </span>
+                      <span>{{ sku.stock === 0 ? '품절' : '담기' }}</span>
                     </button>
                   </td>
                 </tr>
                 <tr v-if="filteredSkus.length === 0">
-                  <td colspan="7" class="px-4 py-12 text-center text-gray-400">
+                  <td colspan="8" class="px-4 py-12 text-center text-gray-400">
                     조건에 맞는 상품이 없습니다.
                   </td>
                 </tr>
@@ -361,7 +565,7 @@ function handleLogout() {
                     :value="line.quantity"
                     type="number"
                     min="1"
-                    :max="inventory.getSkuById(line.skuId)?.stock ?? 1"
+                    :max="getSkuById(line.skuId)?.stock ?? 1"
                     class="h-8 w-16 border-x border-gray-300 text-center text-xs font-black text-gray-900 outline-none"
                     @input="updateLineQuantity(line, $event.target.value)"
                   />
@@ -420,6 +624,54 @@ function handleLogout() {
             </button>
           </div>
         </section>
+      </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div
+      v-if="isSuccessModalOpen"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+    >
+      <div class="w-full max-w-sm border border-gray-300 bg-white shadow-2xl">
+        <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
+          <h3 class="text-sm font-black text-gray-900">판매 등록 완료</h3>
+        </div>
+        <div class="p-6 text-center">
+          <div
+            class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600"
+          >
+            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M5 13l4 4L19 7"
+              />
+            </svg>
+          </div>
+          <p class="text-sm font-bold text-gray-500">정상적으로 판매가 등록되었습니다.</p>
+          <div class="mt-4 border-y border-gray-100 py-3">
+            <p class="text-[10px] font-black uppercase tracking-widest text-gray-400">판매번호</p>
+            <p class="mt-1 font-mono text-lg font-black text-gray-900">
+              {{ completedSale?.saleId }}
+            </p>
+          </div>
+          <div class="mt-3 flex items-center justify-between text-xs font-bold text-gray-600">
+            <span>결제 금액</span>
+            <span class="text-sm font-black text-[#004D3C]"
+              >₩{{ completedSale?.totalAmount.toLocaleString() }}</span
+            >
+          </div>
+        </div>
+        <div class="p-4">
+          <button
+            type="button"
+            class="h-11 w-full bg-[#004D3C] text-sm font-black text-white transition-colors hover:bg-[#003d30]"
+            @click="closeSuccessModal"
+          >
+            확인
+          </button>
+        </div>
       </div>
     </div>
   </AppLayout>

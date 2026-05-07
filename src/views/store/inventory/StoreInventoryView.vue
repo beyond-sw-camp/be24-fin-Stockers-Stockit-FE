@@ -1,15 +1,18 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useInventoryStore } from '@/stores/inventory.js'
+import { getStoreInventories } from '@/api/store/inventory.js'
+import { extractErrorMessage } from '@/api/axios.js'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
-const inventory = useInventoryStore()
+const inventoryData = ref([])
+const isLoading = ref(false)
+const loadError = ref('')
 
 const storeMenus = roleMenus.store
 const sideMenus = roleMenus.store.find((menu) => menu.label === '재고 관리')?.children ?? []
@@ -35,59 +38,20 @@ function compareMainCategory(a, b) {
   return String(a ?? '').localeCompare(String(b ?? ''), 'ko')
 }
 
-function toItemCode(productId, mainCategory) {
-  if (productId) {
-    const match = productId.match(/^PRD-([A-Z]+)-[A-Z]+-(\d+)$/)
-    if (match) return `SPA-${match[1]}-${match[2]}`
-  }
-
-  const fallbackMap = {
-    상의: 'TOP',
-    바지: 'PNT',
-    치마: 'SKT',
-    아우터: 'OUT',
-  }
-  return `SPA-${fallbackMap[mainCategory] ?? 'SKU'}-000`
-}
-
-const inventoryRows = computed(() => {
-  const grouped = new Map()
-
-  inventory.skus.forEach((sku) => {
-    const itemCode = toItemCode(sku.productId, sku.mainCategory)
-    const existing = grouped.get(itemCode) ?? {
-      itemCode,
-      parentCategory: sku.mainCategory,
-      childCategory: sku.subCategory,
-      itemName: sku.productName,
-      actualStock: 0,
-      availableStock: 0,
-      safetyStock: 0,
-      updatedAt: new Date().toISOString(),
-    }
-
-    existing.actualStock += sku.stock
-    existing.availableStock += sku.stock
-    existing.safetyStock += sku.safetyStock
-    grouped.set(itemCode, existing)
-  })
-
-  return [...grouped.values()]
-    .map((item) => ({
+const inventoryRows = computed(() =>
+  inventoryData.value
+    .map(item => ({
       ...item,
-      status:
-        item.actualStock === 0
-          ? '품절'
-          : item.actualStock <= item.safetyStock
-            ? '부족'
-            : '정상',
+      actualStock: Number(item.actualStock ?? 0),
+      availableStock: Number(item.availableStock ?? 0),
+      safetyStock: Number(item.safetyStock ?? 0),
     }))
     .sort((a, b) => (
       compareMainCategory(a.parentCategory, b.parentCategory)
-      || a.childCategory.localeCompare(b.childCategory, 'ko')
-      || a.itemName.localeCompare(b.itemName, 'ko')
-    ))
-})
+      || String(a.childCategory ?? '').localeCompare(String(b.childCategory ?? ''), 'ko')
+      || String(a.itemName ?? '').localeCompare(String(b.itemName ?? ''), 'ko')
+    )),
+)
 
 const parentCategoryOptions = computed(() => [
   ...new Set(inventoryRows.value.map((item) => item.parentCategory)),
@@ -164,8 +128,25 @@ function moveToSkuDetail(item) {
 
 function handleLogout() {
   auth.logout()
-  router.push('/login')
+  router.push('/dev-login')
 }
+
+async function loadInventories() {
+  isLoading.value = true
+  loadError.value = ''
+  try {
+    inventoryData.value = await getStoreInventories()
+  } catch (e) {
+    inventoryData.value = []
+    loadError.value = extractErrorMessage(e, '매장 재고를 불러오지 못했습니다.')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+onMounted(() => {
+  loadInventories()
+})
 </script>
 
 <template>
@@ -184,10 +165,11 @@ function handleLogout() {
             <h1 class="mt-1 text-lg font-black text-gray-900">매장 재고 조회</h1>
           </div>
           <div class="text-right text-[11px] font-bold text-gray-500">
-            <p>{{ auth.user?.storeId ?? 'STORE' }} · {{ auth.user?.storeName ?? '매장' }}</p>
+            <p>{{ auth.user?.locationCode ?? 'STORE' }} · {{ auth.user?.locationName ?? '매장' }}</p>
             <p class="mt-1 text-gray-400">기준일 {{ today }} · 조회 {{ filteredInventory.length }}건</p>
           </div>
         </div>
+        <p v-if="loadError" class="mb-3 text-xs font-bold text-red-600">{{ loadError }}</p>
 
         <div class="grid gap-3 xl:grid-cols-[1.2fr_1fr_1fr_1fr_1.2fr]">
           <label class="flex flex-col gap-1.5">
@@ -289,11 +271,11 @@ function handleLogout() {
                   </td>
                   <td class="px-3 py-3 font-bold text-gray-500">{{ formatDateTime(item.updatedAt) }}</td>
                 </tr>
-                <tr v-if="filteredInventory.length === 0">
-                  <td colspan="8" class="px-3 py-14 text-center text-sm font-bold text-gray-400">
-                    조건에 맞는 매장 재고가 없습니다.
-                  </td>
-                </tr>
+              <tr v-if="filteredInventory.length === 0">
+                <td colspan="8" class="px-3 py-14 text-center text-sm font-bold text-gray-400">
+                  {{ isLoading ? '매장 재고를 불러오는 중입니다.' : '조건에 맞는 매장 재고가 없습니다.' }}
+                </td>
+              </tr>
               </tbody>
             </table>
           </div>

@@ -1,7 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { purchaseOrderApi } from '@/api/purchaseOrder.js'
-import { getWarehouses } from '@/api/infrastructure.js'
+import { purchaseOrderApi } from '@/api/hq/purchaseOrder.js'
+import { getInfrastructures } from '@/api/hq/infrastructure.js'
+import { useAuthStore } from '@/stores/auth.js'
+
+// SYS-001 배치가 자동 처리하는 공급처 책임 단계 묶음.
+// 본사 관리자는 액션 불가 — UI 탭에서 하나로 그루핑한다.
+export const VENDOR_PROCESSING_STATUSES = ['APPROVED', 'READY_TO_SHIP', 'IN_TRANSIT', 'ARRIVED']
 
 // ─── BE ↔ FE 매핑 헬퍼 ─────────────────────────────────────────────────────
 // BE (PurchaseOrder DetailRes/ListRes) ↔ FE store 형식 변환.
@@ -17,8 +22,7 @@ import { getWarehouses } from '@/api/infrastructure.js'
 function toFeOrder(beOrder) {
   if (!beOrder) return null
   // BE ListRes 는 itemCount + productNames, DetailRes 는 items 배열만 보내므로 fallback 처리.
-  const itemCount =
-    beOrder.itemCount ?? (Array.isArray(beOrder.items) ? beOrder.items.length : 0)
+  const itemCount = beOrder.itemCount ?? (Array.isArray(beOrder.items) ? beOrder.items.length : 0)
   // ListRes 의 productNames 우선, DetailRes 면 items.productName 으로 fallback (목록 검색·표시 일관성).
   const productNames = Array.isArray(beOrder.productNames)
     ? beOrder.productNames
@@ -54,8 +58,9 @@ function toFeItem(beItem) {
     productCode: beItem.productCode,
     productName: beItem.productName,
     skuCode: beItem.skuCode ?? '',
-    optionName: beItem.optionName ?? '',
-    optionValue: beItem.optionValue ?? '',
+    color: beItem.color ?? '',
+    size: beItem.size ?? '',
+    displayOption: beItem.displayOption ?? [beItem.color, beItem.size].filter(Boolean).join('/'),
     quantity: beItem.quantity,
     unitPrice: beItem.unitPrice,
     subtotal: beItem.subtotal,
@@ -86,12 +91,15 @@ function toFeCatalogMaster(beMaster) {
     contractUnitPrice: beMaster.contractUnitPrice,
     minSkuUnitPrice: beMaster.minSkuUnitPrice,
     maxSkuUnitPrice: beMaster.maxSkuUnitPrice,
-    skus: Array.isArray(beMaster.skus) ? beMaster.skus.map((s) => ({
-      skuCode: s.skuCode,
-      optionName: s.optionName ?? '',
-      optionValue: s.optionValue ?? '',
-      unitPrice: s.unitPrice,
-    })) : [],
+    skus: Array.isArray(beMaster.skus)
+      ? beMaster.skus.map((s) => ({
+          skuCode: s.skuCode,
+          color: s.color ?? '',
+          size: s.size ?? '',
+          displayOption: s.displayOption ?? [s.color, s.size].filter(Boolean).join('/'),
+          unitPrice: s.unitPrice,
+        }))
+      : [],
   }
 }
 
@@ -152,7 +160,9 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
   const filteredOrders = computed(() => {
     let list = purchaseOrders.value
 
-    if (activeStatusTab.value !== '전체') {
+    if (activeStatusTab.value === 'VENDOR_PROCESSING') {
+      list = list.filter((o) => VENDOR_PROCESSING_STATUSES.includes(o.status))
+    } else if (activeStatusTab.value !== '전체') {
       list = list.filter((o) => o.status === activeStatusTab.value)
     }
 
@@ -198,12 +208,14 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     const all = purchaseOrders.value
     return {
       전체: all.length,
-      PENDING: all.filter((o) => o.status === 'PENDING').length,
+      REQUESTED: all.filter((o) => o.status === 'REQUESTED').length,
       APPROVED: all.filter((o) => o.status === 'APPROVED').length,
-      SHIPPING: all.filter((o) => o.status === 'SHIPPING').length,
-      DELIVERED: all.filter((o) => o.status === 'DELIVERED').length,
+      READY_TO_SHIP: all.filter((o) => o.status === 'READY_TO_SHIP').length,
+      IN_TRANSIT: all.filter((o) => o.status === 'IN_TRANSIT').length,
+      ARRIVED: all.filter((o) => o.status === 'ARRIVED').length,
       COMPLETED: all.filter((o) => o.status === 'COMPLETED').length,
-      REJECTED: all.filter((o) => o.status === 'REJECTED').length,
+      CANCELLED: all.filter((o) => o.status === 'CANCELLED').length,
+      VENDOR_PROCESSING: all.filter((o) => VENDOR_PROCESSING_STATUSES.includes(o.status)).length,
     }
   })
 
@@ -218,8 +230,8 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
   })
 
   const summary = computed(() => {
-    // 취소된(REJECTED) 발주는 총 발주 합계에서 제외 — 실제 처리되지 않은 금액.
-    let base = purchaseOrders.value.filter((o) => o.status !== 'REJECTED')
+    // 취소된(CANCELLED) 발주는 총 발주 합계에서 제외 — 실제 처리되지 않은 금액.
+    let base = purchaseOrders.value.filter((o) => o.status !== 'CANCELLED')
     if (vendorFilter.value) {
       base = base.filter((o) => o.vendorId === vendorFilter.value)
     }
@@ -235,7 +247,7 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     }
   })
 
-  // 창고 목록 — BE 에서 fetch (Warehouse 테이블, Long ID)
+  // 창고 목록 — BE infrastructure(type=WAREHOUSE)에서 fetch
   const warehouseList = ref([])
   const warehouses = computed(() =>
     warehouseList.value.map((w) => ({ id: w.id, name: w.name, code: w.code })),
@@ -253,7 +265,7 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
   // row 형식:
   //   { type: 'header', masterKey, vendorCode, vendorName, vendorProductCode, productCode,
   //     productName, contractUnitPrice, minSkuUnitPrice, maxSkuUnitPrice, skuCount }
-  //   { type: 'sku',    masterKey, skuCode, optionName, optionValue, unitPrice,
+  //   { type: 'sku',    masterKey, skuCode, color, size, displayOption, unitPrice,
   //     vendorCode, vendorName, vendorProductCode, productCode, productName }
   // 정렬 — vendorName 가나다 → productName 가나다 → SKU 는 BE id asc 순서 그대로
   const catalogSkuRows = computed(() => {
@@ -282,8 +294,9 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
           type: 'sku',
           masterKey: m.masterKey,
           skuCode: s.skuCode,
-          optionName: s.optionName,
-          optionValue: s.optionValue,
+          color: s.color,
+          size: s.size,
+          displayOption: s.displayOption,
           unitPrice: s.unitPrice,
           vendorCode: m.vendorCode,
           vendorName: m.vendorName,
@@ -301,9 +314,7 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     catalogError.value = null
     try {
       const res = await purchaseOrderApi.getCatalog({ vendorCode, warehouseCode })
-      catalogMasters.value = Array.isArray(res?.masters)
-        ? res.masters.map(toFeCatalogMaster)
-        : []
+      catalogMasters.value = Array.isArray(res?.masters) ? res.masters.map(toFeCatalogMaster) : []
       catalogFacets.value = Array.isArray(res?.optionFacets)
         ? res.optionFacets.map(toFeCatalogFacet)
         : []
@@ -319,7 +330,7 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
 
   async function fetchWarehouses() {
     try {
-      const list = await getWarehouses()
+      const list = await getInfrastructures({ type: 'WAREHOUSE' })
       warehouseList.value = Array.isArray(list) ? list : []
     } catch (e) {
       console.error('[purchaseOrder] fetchWarehouses 실패', e)
@@ -442,13 +453,19 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     }
   }
 
-  // 스토어 생성 시 자동 fetch (vendor store 패턴)
-  fetchOrders().catch(() => {
-    // fetchOrders 안에서 이미 처리
-  })
-  fetchWarehouses().catch(() => {
-    // fetchWarehouses 안에서 이미 처리
-  })
+  // 스토어 생성 시 자동 fetch (vendor store 패턴) — 본사 도메인 API(/api/hq/**)
+  // 호출이라 role=hq 일 때만 트리거. 다른 권한군(warehouse/store) 화면이 이 store
+  // 를 의존해도(예: warehouseStock) SecurityConfig 가 401/403 차단하지 않도록 안전망.
+  // 본사 화면은 명시적으로 fetchOrders/fetchWarehouses 호출 가능.
+  const auth = useAuthStore()
+  if (auth.user?.role === 'hq') {
+    fetchOrders().catch(() => {
+      // fetchOrders 안에서 이미 처리
+    })
+    fetchWarehouses().catch(() => {
+      // fetchWarehouses 안에서 이미 처리
+    })
+  }
 
   return {
     // state

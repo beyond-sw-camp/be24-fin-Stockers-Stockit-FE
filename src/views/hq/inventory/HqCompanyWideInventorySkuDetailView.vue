@@ -1,9 +1,10 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { getCompanyWideInventorySkus } from '@/api/hq/inventory.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -14,10 +15,10 @@ const inventoryMenus = roleMenus.hq.find(menu => menu.label === '재고 관리')
 
 const activeTopMenu = computed(() => '재고 관리')
 const activeSideMenu = ref('전사 재고 조회')
-
-const colorOptions = ['검정', '흰색', '그레이', '아이보리']
-const colorCodeMap = { 검정: 'BLK', 흰색: 'WHT', 그레이: 'GRY', 아이보리: 'IVR' }
-const sizeOptions = ['XS', 'S', 'M', 'L', 'XL']
+const loadError = ref('')
+const isLoading = ref(false)
+const skuRows = ref([])
+const requestSeq = ref(0)
 
 const itemCode = computed(() => String(route.params.itemCode ?? route.query.itemCode ?? ''))
 const itemName = computed(() => String(route.query.itemName ?? '선택 품목'))
@@ -33,6 +34,13 @@ const filterLocations = computed(() => {
   if (typeof route.query.locations !== 'string') return []
   return route.query.locations.split(',').map(location => location.trim()).filter(Boolean)
 })
+const filterLocationIds = computed(() => {
+  if (typeof route.query.locationIds !== 'string') return []
+  return route.query.locationIds
+    .split(',')
+    .map(id => Number(id.trim()))
+    .filter(id => Number.isInteger(id) && id > 0)
+})
 const filterLocationChips = computed(() =>
   filterLocations.value.length > 3 ? filterLocations.value.slice(0, 2) : filterLocations.value,
 )
@@ -41,34 +49,6 @@ const hiddenFilterLocationCount = computed(() =>
 )
 const filterScopeLabel = computed(() =>
   filterLocations.value.length > 0 ? `${filterLocationType.value} 기준` : `전체${filterLocationType.value}`,
-)
-
-const seed = computed(() =>
-  `${itemCode.value}-${locationName.value}`.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0),
-)
-
-const skuRows = computed(() =>
-  colorOptions.flatMap((color, colorIndex) =>
-    sizeOptions.map((size, sizeIndex) => {
-      const actualStock = 14 + ((seed.value + colorIndex * 19 + sizeIndex * 7) % 85)
-      const reservedStock = (seed.value + colorIndex * 11 + sizeIndex * 5) % 14
-      const availableStock = Math.max(actualStock - reservedStock, 0)
-      const safetyStock = 20 + (sizeIndex % 3) * 6
-      const status = availableStock === 0 ? '품절' : availableStock < safetyStock ? '부족' : '정상'
-      const updatedAt = `2026.04.${String(25 - (colorIndex % 3)).padStart(2, '0')} ${String(10 + sizeIndex).padStart(2, '0')}:40`
-
-      return {
-        skuCode: `${itemCode.value}-${colorCodeMap[color]}-${size}`,
-        color,
-        size,
-        actualStock,
-        availableStock,
-        safetyStock,
-        status,
-        updatedAt,
-      }
-    }),
-  ),
 )
 
 const statusClass = (status) => ({
@@ -80,11 +60,37 @@ const statusClass = (status) => ({
 const backQuery = computed(() => ({
   type: typeof route.query.type === 'string' ? route.query.type : undefined,
   locations: typeof route.query.locations === 'string' ? route.query.locations : undefined,
+  locationIds: typeof route.query.locationIds === 'string' ? route.query.locationIds : undefined,
   parent: typeof route.query.parent === 'string' ? route.query.parent : undefined,
   child: typeof route.query.child === 'string' ? route.query.child : undefined,
   status: typeof route.query.status === 'string' ? route.query.status : undefined,
   search: typeof route.query.search === 'string' ? route.query.search : undefined,
 }))
+
+async function loadSkuDetails() {
+  const seq = ++requestSeq.value
+  isLoading.value = true
+  loadError.value = ''
+  try {
+    const type = filterLocationType.value === '창고' ? 'WAREHOUSE' : 'STORE'
+    const payload = {
+      locationType: type,
+      locationIds: filterLocationIds.value.length > 0 ? filterLocationIds.value : undefined,
+    }
+    const rows = await getCompanyWideInventorySkus(itemCode.value, payload)
+    if (seq !== requestSeq.value) return
+    skuRows.value = Array.isArray(rows)
+      ? rows.map(r => ({ ...r, updatedAt: r.updatedAt ? new Date(r.updatedAt).toLocaleString('ko-KR', { hour12: false }) : '-' }))
+      : []
+  } catch (e) {
+    if (seq !== requestSeq.value) return
+    loadError.value = e.message || 'SKU 재고 상세 조회에 실패했습니다.'
+    skuRows.value = []
+  } finally {
+    if (seq !== requestSeq.value) return
+    isLoading.value = false
+  }
+}
 
 function goBackToInventory() {
   router.push({
@@ -95,8 +101,19 @@ function goBackToInventory() {
 
 function handleLogout() {
   auth.logout()
-  router.push('/login')
+  router.push('/dev-login')
 }
+
+onMounted(() => {
+  loadSkuDetails()
+})
+
+watch(
+  () => route.fullPath,
+  () => {
+    loadSkuDetails()
+  },
+)
 </script>
 
 <template>

@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-// import { getKauPrice } from '@/api/esg.js'  // BE 연동 시 활성화
+// import { getKauPrice } from '@/api/hq/esg.js'  // BE 연동 시 활성화
 
 const POINTS_PER_STAGE = 1500
 const MAX_STAGE = 10

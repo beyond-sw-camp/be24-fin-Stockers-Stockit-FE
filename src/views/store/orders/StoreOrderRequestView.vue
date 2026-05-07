@@ -1,20 +1,25 @@
-<script setup>
-import { computed, ref } from 'vue'
+﻿<script setup>
+/**
+ * ==============================================================================
+ * 1. IMPORTS
+ * ==============================================================================
+ */
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useStoreOrdersStore } from '@/stores/storeOrders.js'
+import { createStoreOrder, getStoreOrderDetail, updateStoreOrder } from '@/api/store/orders.js'
+import { getStoreInventories, getStoreInventorySkus } from '@/api/store/inventory.js'
 
+/**
+ * ==============================================================================
+ * 2. STATE & REFS
+ * ==============================================================================
+ */
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
-const storeOrders = useStoreOrdersStore()
-
-const storeMenus = roleMenus.store
-const orderMenus = roleMenus.store.find((menu) => menu.label === '발주 관리')?.children ?? []
-const activeTopMenu = computed(() => '발주 관리')
-const activeSideMenu = ref('발주 요청')
 
 const selectedMainCategory = ref('전체')
 const selectedSubCategory = ref('전체')
@@ -25,15 +30,114 @@ const requestLines = ref([])
 const memo = ref('')
 const feedbackMessage = ref('')
 const feedbackType = ref('info')
+const loading = ref(false)
+const requestSortBy = ref('priority')
+const skuRows = ref([])
+const editingOrder = ref(null)
+const activeSideMenu = ref('발주 요청')
 
+/**
+ * ==============================================================================
+ * 3. COMPUTED
+ * ==============================================================================
+ */
+const storeMenus = roleMenus.store
+const orderMenus = roleMenus.store.find((menu) => menu.label === '발주 관리')?.children ?? []
+const activeTopMenu = computed(() => '발주 관리')
 const isEditMode = computed(() => route.name === 'store-order-edit')
-const editingOrderId = computed(() => String(route.params.id ?? ''))
-const editingOrder = computed(() =>
-  isEditMode.value && editingOrderId.value ? storeOrders.getOrderById(editingOrderId.value) : null,
-)
+const editingOrderNo = computed(() => String(route.params.orderNo ?? ''))
 
+const availableMainCategories = computed(() => [
+  '전체',
+  ...[...new Set(skuRows.value.map((sku) => sku.mainCategory))].sort(compareMainCategory),
+])
+
+const availableSubCategories = computed(() => {
+  if (selectedMainCategory.value === '전체') return ['전체']
+  return [
+    '전체',
+    ...new Set(
+      skuRows.value
+        .filter((sku) => sku.mainCategory === selectedMainCategory.value)
+        .map((sku) => sku.subCategory),
+    ),
+  ]
+})
+
+const availableColors = computed(() => ['전체', ...new Set(skuRows.value.map((sku) => sku.color))])
+const availableSizes = computed(() => ['전체', ...new Set(skuRows.value.map((sku) => sku.size))])
+
+const filteredSkus = computed(() => {
+  const keyword = searchTerm.value.trim().toLowerCase()
+  const list = skuRows.value.filter((sku) => {
+    const matchMain = selectedMainCategory.value === '전체' || sku.mainCategory === selectedMainCategory.value
+    const matchSub = selectedSubCategory.value === '전체' || sku.subCategory === selectedSubCategory.value
+    const matchColor = selectedColor.value === '전체' || sku.color === selectedColor.value
+    const matchSize = selectedSize.value === '전체' || sku.size === selectedSize.value
+    const matchKeyword =
+      !keyword ||
+      [sku.productName, sku.mainCategory, sku.subCategory, sku.color, sku.size]
+        .join(' ')
+        .toLowerCase()
+        .includes(keyword)
+
+    return matchMain && matchSub && matchColor && matchSize && matchKeyword
+  })
+
+  const sorted = [...list]
+  if (requestSortBy.value === 'category') {
+    sorted.sort(
+      (a, b) =>
+        compareMainCategory(a.mainCategory, b.mainCategory) ||
+        String(a.subCategory ?? '').localeCompare(String(b.subCategory ?? ''), 'ko') ||
+        String(a.productName ?? '').localeCompare(String(b.productName ?? ''), 'ko'),
+    )
+  } else if (requestSortBy.value === 'name') {
+    sorted.sort((a, b) => String(a.productName ?? '').localeCompare(String(b.productName ?? ''), 'ko'))
+  } else if (requestSortBy.value === 'stockAsc') {
+    sorted.sort((a, b) => Number(a.stock ?? 0) - Number(b.stock ?? 0))
+  } else if (requestSortBy.value === 'stockDesc') {
+    sorted.sort((a, b) => Number(b.stock ?? 0) - Number(a.stock ?? 0))
+  } else {
+    sorted.sort((a, b) => {
+      const aPriority = Number(a.recommendedQuantity ?? 0) > 0 || a.stockStatus !== 'normal' ? 0 : 1
+      const bPriority = Number(b.recommendedQuantity ?? 0) > 0 || b.stockStatus !== 'normal' ? 0 : 1
+      if (aPriority !== bPriority) return aPriority - bPriority
+      return Number(b.recommendedQuantity ?? 0) - Number(a.recommendedQuantity ?? 0)
+    })
+  }
+
+  return sorted
+})
+
+const totalRequestedQuantity = computed(() => requestLines.value.reduce((sum, line) => sum + line.requestedQuantity, 0))
+const totalRecommendedQuantity = computed(() => requestLines.value.reduce((sum, line) => sum + line.recommendedQuantity, 0))
+
+/**
+ * ==============================================================================
+ * 4. CONSTANTS
+ * ==============================================================================
+ */
 const MAIN_CATEGORY_ORDER = ['상의', '바지', '치마', '아우터']
 
+const statusClass = {
+  out: 'bg-red-100 text-red-700',
+  low: 'bg-orange-100 text-orange-700',
+  normal: 'bg-[#EBF5F5] text-black',
+}
+
+const statusLabel = {
+  out: '품절',
+  low: '부족',
+  normal: '정상',
+}
+
+/**
+ * ==============================================================================
+ * 5. METHODS - UI STATE
+ * ==============================================================================
+ */
+// [함수] 대분류 정렬 우선순위와 이름순 비교를 수행한다.
 function compareMainCategory(aCategory, bCategory) {
   const rankA = MAIN_CATEGORY_ORDER.indexOf(aCategory)
   const rankB = MAIN_CATEGORY_ORDER.indexOf(bCategory)
@@ -44,71 +148,20 @@ function compareMainCategory(aCategory, bCategory) {
   return String(aCategory ?? '').localeCompare(String(bCategory ?? ''), 'ko')
 }
 
-const availableMainCategories = computed(() => [
-  '전체',
-  ...[...new Set(storeOrders.requestableSkus.map((sku) => sku.mainCategory))].sort(compareMainCategory),
-])
-
-const availableSubCategories = computed(() => {
-  if (selectedMainCategory.value === '전체') return ['전체']
-  return [
-    '전체',
-    ...new Set(
-      storeOrders.requestableSkus
-        .filter((sku) => sku.mainCategory === selectedMainCategory.value)
-        .map((sku) => sku.subCategory),
-    ),
-  ]
-})
-
-const availableColors = computed(() => [
-  '전체',
-  ...new Set(storeOrders.requestableSkus.map((sku) => sku.color)),
-])
-
-const availableSizes = computed(() => [
-  '전체',
-  ...new Set(storeOrders.requestableSkus.map((sku) => sku.size)),
-])
-
-const filteredSkus = computed(() => {
-  const keyword = searchTerm.value.trim().toLowerCase()
-  return storeOrders.requestableSkus.filter((sku) => {
-    const matchMain =
-      selectedMainCategory.value === '전체' || sku.mainCategory === selectedMainCategory.value
-    const matchSub =
-      selectedSubCategory.value === '전체' || sku.subCategory === selectedSubCategory.value
-    const matchColor = selectedColor.value === '전체' || sku.color === selectedColor.value
-    const matchSize = selectedSize.value === '전체' || sku.size === selectedSize.value
-    const matchKeyword =
-      !keyword ||
-      [sku.productName, sku.mainCategory, sku.subCategory, sku.color, sku.size]
-        .join(' ')
-        .toLowerCase()
-        .includes(keyword)
-    return matchMain && matchSub && matchColor && matchSize && matchKeyword
-  })
-})
-
-const totalRequestedQuantity = computed(() =>
-  requestLines.value.reduce((sum, line) => sum + line.requestedQuantity, 0),
-)
-
-const totalRecommendedQuantity = computed(() =>
-  requestLines.value.reduce((sum, line) => sum + line.recommendedQuantity, 0),
-)
-
+// [함수] 대분류 변경 시 소분류 선택값을 유효한 값으로 맞춘다.
 function syncSubCategory() {
   if (!availableSubCategories.value.includes(selectedSubCategory.value)) {
     selectedSubCategory.value = '전체'
   }
 }
 
+// [함수] 화면 피드백 메시지와 타입을 갱신한다.
 function showFeedback(message, type = 'info') {
   feedbackMessage.value = message
   feedbackType.value = type
 }
 
+// [함수] SKU를 발주 요청 라인에 추가한다.
 function addToRequest(sku) {
   feedbackMessage.value = ''
   const existing = requestLines.value.find((line) => line.skuId === sku.skuId)
@@ -138,16 +191,19 @@ function addToRequest(sku) {
   ]
 }
 
+// [함수] 발주 요청 라인에서 특정 SKU를 제거한다.
 function removeLine(skuId) {
   requestLines.value = requestLines.value.filter((line) => line.skuId !== skuId)
 }
 
+// [함수] 요청 라인과 메모/피드백 상태를 초기화한다.
 function clearRequest() {
   requestLines.value = []
   memo.value = ''
   feedbackMessage.value = ''
 }
 
+// [함수] 요청 수량 입력값을 검증해 최소 1 이상으로 보정한다.
 function updateRequestedQuantity(line, value) {
   const next = Number.parseInt(value, 10)
   if (Number.isNaN(next) || next < 1) {
@@ -157,17 +213,31 @@ function updateRequestedQuantity(line, value) {
   line.requestedQuantity = next
 }
 
+// [함수] 발주 요청 라인의 수량을 1 증가시킨다.
 function increaseLine(line) {
   line.requestedQuantity += 1
 }
 
+// [함수] 발주 요청 라인의 수량을 1 감소시킨다.
 function decreaseLine(line) {
   if (line.requestedQuantity <= 1) return
   line.requestedQuantity -= 1
 }
 
-function submitRequest() {
+/**
+ * ==============================================================================
+ * 6. METHODS - API SERVICE
+ * ==============================================================================
+ */
+// [함수] 발주 생성 또는 수정 API를 호출하고 완료 후 목록 화면으로 이동한다.
+async function submitRequest() {
   feedbackMessage.value = ''
+
+  if (!auth.user?.locationCode) {
+    showFeedback('로그인 매장 정보가 없어 발주를 진행할 수 없습니다.', 'error')
+    return
+  }
+
   if (requestLines.value.length === 0) {
     showFeedback('발주 요청서를 먼저 채워주세요.', 'error')
     return
@@ -184,88 +254,156 @@ function submitRequest() {
       return
     }
 
-    const result = storeOrders.updateOrder(currentOrder.orderId, {
-      items: requestLines.value,
-      memo: memo.value,
-    })
-
-    if (!result.success) {
-      showFeedback(result.message, 'error')
+    try {
+      await updateStoreOrder(currentOrder.orderId, {
+        items: requestLines.value.map((line) => ({
+          skuCode: line.skuId,
+          requestedQuantity: Number(line.requestedQuantity),
+        })),
+        memo: memo.value,
+      })
+      showFeedback(`${currentOrder.orderId} 발주 요청이 수정되었습니다.`, 'success')
+      router.push({ name: 'store-order-history' })
+      return
+    } catch (error) {
+      showFeedback(error?.message ?? '발주 수정 중 오류가 발생했습니다.', 'error')
       return
     }
+  }
 
-    showFeedback(`${currentOrder.orderId} 발주 요청이 수정되었습니다.`, 'success')
+  try {
+    const result = await createStoreOrder({
+      requestedByMemberId: auth.user.employeeCode ?? '',
+      requestedByName: auth.user.name ?? '매장 관리자',
+      memo: memo.value,
+      items: requestLines.value.map((line) => ({
+        skuCode: line.skuId,
+        requestedQuantity: Number(line.requestedQuantity),
+      })),
+    })
+
+    requestLines.value = []
+    memo.value = ''
+    showFeedback(`${result.orderId} 발주 요청이 등록되었습니다.`, 'success')
     router.push({ name: 'store-order-history' })
-    return
+  } catch (error) {
+    showFeedback(error?.message ?? '발주 등록 중 오류가 발생했습니다.', 'error')
   }
-
-  const result = storeOrders.createOrder({
-    items: requestLines.value,
-    memo: memo.value,
-    storeId: auth.user?.storeId,
-    storeName: auth.user?.storeName,
-    requestedBy: auth.user?.name,
-  })
-
-  if (!result.success) {
-    showFeedback(result.message, 'error')
-    return
-  }
-
-  requestLines.value = []
-  memo.value = ''
-  showFeedback(`${result.order.orderId} 발주 요청이 등록되었습니다.`, 'success')
-  router.push({ name: 'store-order-history' })
 }
 
-function loadEditingOrder() {
-  const order = editingOrder.value
+// [함수] 수정 모드인 경우 발주 상세를 조회해 요청 라인 초기값을 구성한다.
+async function loadEditingOrder() {
   if (!isEditMode.value) return
-  if (!order) {
-    showFeedback('수정할 발주건을 찾을 수 없습니다.', 'error')
+
+  loading.value = true
+  try {
+    const res = await getStoreOrderDetail(editingOrderNo.value)
+    const order = res?.order
+    if (!order) throw new Error('수정할 발주건을 찾을 수 없습니다.')
+    if (order.status !== 'REQUESTED') throw new Error('요청 상태에서만 수정할 수 있습니다.')
+
+    editingOrder.value = order
+    requestLines.value = (order.items ?? []).map((item) => ({
+      skuId: item.skuCode,
+      productId: item.productCode,
+      itemCode: item.skuCode,
+      productName: item.productName,
+      mainCategory: item.mainCategory,
+      subCategory: item.subCategory,
+      color: item.color,
+      size: item.size,
+      currentStoreStock: 0,
+      inboundExpectedQuantity: 0,
+      availableStoreStock: 0,
+      safetyStock: 0,
+      recommendedQuantity: 0,
+      requestedQuantity: item.requestedQuantity,
+    }))
+    memo.value = order.memo ?? ''
+  } catch (error) {
+    showFeedback(error?.message ?? '발주 상세를 불러오지 못했습니다.', 'error')
+  } finally {
+    loading.value = false
+  }
+}
+
+// [함수] 로그인 매장 기준으로 발주 가능 SKU 목록을 조회해 화면 상태를 갱신한다.
+async function loadSkuRows() {
+  if (!auth.user?.locationCode) {
+    showFeedback('매장 위치 정보가 없어 SKU 목록을 불러올 수 없습니다.', 'error')
+    skuRows.value = []
     return
   }
-  if (order.status !== 'REQUESTED') {
-    showFeedback('요청 상태에서만 수정할 수 있습니다.', 'error')
-    return
+
+  loading.value = true
+  try {
+    const items = await getStoreInventories()
+
+    const skuGroups = await Promise.all(items.map((item) => getStoreInventorySkus(item.itemCode)))
+    const rows = []
+    items.forEach((item, index) => {
+      const skus = skuGroups[index] ?? []
+
+      skus.forEach((sku) => {
+        const stock = Number(sku.actualStock ?? 0)
+        const safetyStock = Number(sku.safetyStock ?? 0)
+
+        rows.push({
+          skuId: sku.skuCode,
+          productId: item.itemCode,
+          itemCode: item.itemCode,
+          productName: item.itemName,
+          mainCategory: item.parentCategory,
+          subCategory: item.childCategory,
+          color: sku.color,
+          size: sku.size,
+          unitPrice: Number(sku.unitPrice ?? 0),
+          stock,
+          safetyStock,
+          inboundExpectedQuantity: Number(sku.inboundExpectedQuantity ?? 0),
+          availableStoreStock: Number(sku.availableStock ?? 0),
+          recommendedQuantity: Math.max(0, safetyStock - stock),
+          stockStatus: stock === 0 ? 'out' : stock <= safetyStock ? 'low' : 'normal',
+        })
+      })
+    })
+
+    skuRows.value = rows
+  } catch (error) {
+    showFeedback(error?.message ?? 'SKU 목록을 불러오지 못했습니다.', 'error')
+    skuRows.value = []
+  } finally {
+    loading.value = false
   }
-  requestLines.value = order.items.map((item) => ({
-    skuId: item.skuId,
-    productId: item.productId,
-    itemCode: item.itemCode,
-    productName: item.productName,
-    mainCategory: item.mainCategory,
-    subCategory: item.subCategory,
-    color: item.color,
-    size: item.size,
-    currentStoreStock: item.currentStoreStock,
-    inboundExpectedQuantity: item.inboundExpectedQuantity ?? 0,
-    availableStoreStock: item.availableStoreStock ?? item.currentStoreStock,
-    safetyStock: item.safetyStock,
-    recommendedQuantity: item.recommendedQuantity,
-    requestedQuantity: item.requestedQuantity,
-  }))
-  memo.value = order.memo
 }
 
-loadEditingOrder()
-
-const statusClass = {
-  out: 'bg-red-100 text-red-700',
-  low: 'bg-orange-100 text-orange-700',
-  normal: 'bg-[#EBF5F5] text-black',
-}
-
-const statusLabel = {
-  out: '품절',
-  low: '부족',
-  normal: '정상',
-}
-
+/**
+ * ==============================================================================
+ * 7. METHODS - NAVIGATION
+ * ==============================================================================
+ */
+// [함수] 로그아웃 처리 후 로그인 화면으로 이동한다.
 function handleLogout() {
   auth.logout()
-  router.push('/login')
+  router.push('/dev-login')
 }
+
+/**
+ * ==============================================================================
+ * 8. WATCHERS
+ * ==============================================================================
+ */
+watch(selectedMainCategory, syncSubCategory)
+
+/**
+ * ==============================================================================
+ * 9. LIFECYCLE
+ * ==============================================================================
+ */
+onMounted(async () => {
+  await loadEditingOrder()
+  await loadSkuRows()
+})
 </script>
 
 <template>
@@ -292,7 +430,7 @@ function handleLogout() {
             </p>
           </div>
           <div class="text-right text-[11px] font-bold text-gray-500">
-            <p>{{ auth.user?.storeName ?? '매장' }} · 요청서 {{ requestLines.length }}건</p>
+            <p>{{ auth.user?.locationName ?? '매장' }} · 요청서 {{ requestLines.length }}건</p>
             <p class="mt-1 text-gray-400">
               총 요청 수량 {{ totalRequestedQuantity }}개 · 권장 수량
               {{ totalRecommendedQuantity }}개
@@ -378,7 +516,7 @@ function handleLogout() {
             <label class="flex flex-col gap-1.5">
               <span class="text-[11px] font-bold text-gray-500">정렬</span>
               <select
-                v-model="storeOrders.requestSortBy"
+                v-model="requestSortBy"
                 class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
               >
                 <option value="priority">부족 SKU 우선</option>
@@ -395,15 +533,15 @@ function handleLogout() {
               <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
                 <tr>
                   <th class="w-[12%] px-3 py-2.5 text-left font-black">품목코드</th>
-                  <th class="w-[20%] px-1.5 py-2.5 text-left font-black">상품명</th>
+                  <th class="w-[16%] px-1.5 py-2.5 text-left font-black">상품명</th>
                   <th class="w-[12%] px-1 py-2.5 text-left font-black">옵션</th>
-                  <th class="w-[12%] px-1 py-2.5 text-left font-black">카테고리</th>
-                  <th class="w-[6.5%] px-1 py-2.5 text-center font-black">실재고</th>
-                  <th class="w-[6.5%] px-1 py-2.5 text-center font-black">가용재고</th>
-                  <th class="w-[6.5%] px-1 py-2.5 text-center font-black">안전재고</th>
-                  <th class="w-[8%] px-1 py-2.5 text-center font-black">권장 발주량</th>
-                  <th class="w-[8%] px-1 py-2.5 text-center font-black">상태</th>
-                  <th class="w-[8%] px-1 py-2.5 text-center font-black">추가</th>
+                  <th class="w-[11%] px-1 py-2.5 text-left font-black">카테고리</th>
+                  <th class="w-[6%] px-1 py-2.5 text-center font-black">실재고</th>
+                  <th class="w-[6%] px-1 py-2.5 text-center font-black">가용재고</th>
+                  <th class="w-[6%] px-1 py-2.5 text-center font-black">안전재고</th>
+                  <th class="w-[7%] px-1 py-2.5 text-center font-black">권장 발주량</th>
+                  <th class="w-[6%] px-1 py-2.5 text-center font-black">상태</th>
+                  <th class="w-[10%] px-2 py-2.5 text-center font-black">추가</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">
@@ -443,13 +581,14 @@ function handleLogout() {
                       {{ statusLabel[sku.stockStatus] }}
                     </span>
                   </td>
-                  <td class="px-1 py-2.5 text-center">
+                  <td class="px-2 py-2.5 text-center">
                     <button
                       type="button"
-                      class="inline-flex min-w-[48px] items-center justify-center border border-[#004D3C] bg-[#004D3C] px-1 py-1.5 text-[10px] font-black !text-white shadow-sm transition-all hover:-translate-y-px hover:bg-[#003d30]"
+                      class="group inline-flex h-8 min-w-[70px] items-center justify-center gap-1.5 rounded-full border border-[#97BFB4]/30 bg-[#97BFB4]/10 px-3 text-[11px] font-bold text-[#5A7F75] transition-all duration-200 hover:border-[#97BFB4]/50 hover:bg-[#97BFB4]/20 hover:text-[#4A6860] active:scale-95"
                       @click="addToRequest(sku)"
                     >
-                      + 담기
+                      <span class="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[10px] text-[#97BFB4] shadow-sm transition-colors group-hover:bg-[#004D3C] group-hover:text-white">+</span>
+                      <span>담기</span>
                     </button>
                   </td>
                 </tr>

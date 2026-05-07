@@ -12,17 +12,17 @@ export const roleMenus = {
       icon: 'warehouse',
       children: [
         { label: '전사 재고 조회', path: '/hq/inventory/company-wide' },
-        { label: '창고별 재고 비교', path: '/hq/inventory/warehouse-comparison' },
+        { label: '창고간 재고 이동', path: '/hq/inventory/warehouse-comparison' },
+        { label: '창고간 재고 이동 내역', path: '/hq/inventory/warehouse-transfer-history' },
       ],
     },
     {
-      label: '주문/발주 관리',
+      label: '물류 창고 발주',
       path: '/hq/orders',
       icon: 'truck',
       children: [
-        { label: '매장 주문', path: '/hq/orders' },
-        { label: '거래처 발주', path: '/hq/purchase-orders' },
-        { label: '거래처 관리', path: '/hq/vendors' },
+        { label: '공급처 발주', path: '/hq/purchase-orders' },
+        { label: '공급처 관리', path: '/hq/vendors' },
       ],
     },
     {
@@ -53,6 +53,7 @@ export const roleMenus = {
       icon: 'store',
       children: [
         { label: '매장/창고 정보 관리', path: '/hq/infrastructure' },
+        { label: '매장/창고 매핑 관리', path: '/hq/infrastructure/mappings' },
       ],
     },
     {
@@ -75,12 +76,6 @@ export const roleMenus = {
         { label: '회원가입 승인', path: '/hq/accounts/approvals' },
         { label: '계정 관리', path: '/hq/accounts' },
       ],
-    },
-    {
-      label: 'AI 리포트',
-      path: '/hq/ai-report',
-      icon: 'chart',
-      children: [{ label: 'AI 리포트', path: '/hq/ai-report' }],
     },
     {
       label: 'ESG 대시보드',
@@ -172,7 +167,7 @@ export const roleMenus = {
 
 export const roleHomeMap = {
   hq: '/hq/dashboard',
-  store: '/store/sales/register',
+  store: '/store/dashboard',
   warehouse: '/warehouse/inventory',
 }
 

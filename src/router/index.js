@@ -2,9 +2,10 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
 import { roleHomeMap } from '@/config/roleMenus.js'
 
-import DevLoginView from '@/views/DevLoginView.vue'
-import LoginView from '@/views/LoginView.vue'
-import SignupView from '@/views/SignupView.vue'
+import DevLoginView from '@/views/user/DevLoginView.vue'
+import LoginView from '@/views/user/LoginView.vue'
+import SignupView from '@/views/user/SignupView.vue'
+import MyPageView from '@/views/user/MyPageView.vue'
 
 import StoreDashboardView from '@/views/store/dashboard/StoreDashboardView.vue'
 import StorePosView from '@/views/store/sales/StorePosView.vue'
@@ -19,15 +20,15 @@ import StoreInboundDetailView from '@/views/store/inbound/StoreInboundDetailView
 import StoreInboundAnalysisView from '@/views/store/inbound/StoreInboundAnalysisView.vue'
 import StoreInventoryView from '@/views/store/inventory/StoreInventoryView.vue'
 import StoreInventorySkuDetailView from '@/views/store/inventory/StoreInventorySkuDetailView.vue'
-import StoreAiReportView from '@/views/store/StoreAiReportView.vue'
 import StoreStatsView from '@/views/store/stats/StoreStatsView.vue'
 import StoreSalesStatsView from '@/views/store/stats/StoreSalesStatsView.vue'
 
-import WarehouseDashboardView from '@/views/warehouse/WarehouseDashboardView.vue'
+import WarehouseDashboardView from '@/views/warehouse/dashboard/WarehouseDashboardView.vue'
 import WarehouseInventoryView from '@/views/warehouse/WarehouseInventoryView.vue'
 import WarehouseInventorySkuDetailView from '@/views/warehouse/WarehouseInventorySkuDetailView.vue'
-import WarehouseInboundView from '@/views/warehouse/WarehouseInboundView.vue'
+import WarehouseInboundView from '@/views/warehouse/inbound/WarehouseInboundView.vue'
 import WarehouseOutboundView from '@/views/warehouse/WarehouseOutboundView.vue'
+import WarehouseOutboundDetailView from '@/views/warehouse/WarehouseOutboundDetailView.vue'
 
 import OperationStatusView from '@/views/hq/dashboard/OperationStatusView.vue'
 import InventoryRiskView from '@/views/hq/dashboard/InventoryRiskView.vue'
@@ -38,22 +39,25 @@ import AllFlowTransactionsView from '@/views/hq/dashboard/AllFlowTransactionsVie
 
 import HqCompanyWideInventoryView from '@/views/hq/inventory/HqCompanyWideInventoryView.vue'
 import HqWarehouseInventoryComparisonView from '@/views/hq/inventory/HqWarehouseInventoryComparisonView.vue'
+import HqWarehouseSkuTransferDetailView from '@/views/hq/inventory/HqWarehouseSkuTransferDetailView.vue'
+import HqWarehouseTransferHistoryView from '@/views/hq/inventory/HqWarehouseTransferHistoryView.vue'
+import HqWarehouseTransferHistoryDetailView from '@/views/hq/inventory/HqWarehouseTransferHistoryDetailView.vue'
 import HqCompanyWideInventorySkuDetailView from '@/views/hq/inventory/HqCompanyWideInventorySkuDetailView.vue'
-import HqOrderManagementView from '@/views/hq/HqOrderManagementView.vue'
-import HqProductManagementView from '@/views/hq/HqProductManagementView.vue'
-import HqInfrastructureManagementView from '@/views/hq/HqInfrastructureManagementView.vue'
-import HqStoreDetailView from '@/views/hq/HqStoreDetailView.vue'
-import HqWarehouseDetailView from '@/views/hq/HqWarehouseDetailView.vue'
-import HqPurchaseOrderView from '@/views/hq/HqPurchaseOrderView.vue'
-import HqVendorManagementView from '@/views/hq/HqVendorManagementView.vue'
-import HqCategoryAddView from '@/views/hq/HqCategoryAddView.vue'
-import HqCircularInventoryCandidateView from '@/views/hq/circular-inventory/HqCircularInventoryCandidateView.vue'
-import HqCircularInventoryView from '@/views/hq/circular-inventory/HqCircularInventoryView.vue'
-import HqCircularInventoryBuyerManagementView from '@/views/hq/circular-inventory/HqCircularInventoryBuyerManagementView.vue'
-import HqCircularInventorySalesRegisterView from '@/views/hq/circular-inventory/HqCircularInventorySalesRegisterView.vue'
-import HqCircularInventorySalesHistoryView from '@/views/hq/circular-inventory/HqCircularInventorySalesHistoryView.vue'
-import HqCircularInventorySalesAnalysisView from '@/views/hq/circular-inventory/HqCircularInventorySalesAnalysisView.vue'
-import HqAiReportView from '@/views/hq/HqAiReportView.vue'
+import HqProductManagementView from '@/views/hq/products/HqProductManagementView.vue'
+import HqInfrastructureManagementView from '@/views/hq/infrastructure/HqInfrastructureManagementView.vue'
+import HqInfrastructureMappingView from '@/views/hq/infrastructure/HqInfrastructureMappingView.vue'
+import HqStoreDetailView from '@/views/hq/infrastructure/HqStoreDetailView.vue'
+import HqWarehouseDetailView from '@/views/hq/infrastructure/HqWarehouseDetailView.vue'
+import HqPurchaseOrderView from '@/views/hq/purchase-order/HqPurchaseOrderView.vue'
+import HqVendorManagementView from '@/views/hq/vendor/HqVendorManagementView.vue'
+import HqCategoryAddView from '@/views/hq/products/HqCategoryAddView.vue'
+import HqCircularStockCandidateView from '@/views/hq/circular-stock/HqCircularStockCandidateView.vue'
+import HqCircularStockInventoryView from '@/views/hq/circular-stock/HqCircularStockInventoryView.vue'
+import HqCircularStockBuyerManagementView from '@/views/hq/circular-stock/HqCircularStockBuyerManagementView.vue'
+import HqCircularStockSalesRegisterView from '@/views/hq/circular-stock/HqCircularStockSalesRegisterView.vue'
+import HqCircularStockSalesHistoryView from '@/views/hq/circular-stock/HqCircularStockSalesHistoryView.vue'
+import HqCircularStockSalesDetailView from '@/views/hq/circular-stock/HqCircularStockSalesDetailView.vue'
+import HqCircularStockSalesAnalysisView from '@/views/hq/circular-stock/HqCircularStockSalesAnalysisView.vue'
 import EsgDashBoardView from '@/views/hq/esg/EsgDashBoardView.vue'
 import AccountListView from '@/views/hq/account/AccountListView.vue'
 import AccountApprovalView from '@/views/hq/account/AccountApprovalView.vue'
@@ -66,7 +70,8 @@ import HqAnalyticsVendorView from '@/views/hq/analytics/HqAnalyticsVendorView.vu
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
-    { path: '/login', name: 'login', component: LoginView, meta: { requiresAuth: false } },
+    // 기존 /login 진입은 모두 /dev-login 으로 통합 (LoginView 는 호환성 유지를 위해 import 만 보존)
+    { path: '/login', redirect: '/dev-login' },
     {
       path: '/dev-login',
       name: 'dev-login',
@@ -74,6 +79,8 @@ const router = createRouter({
       meta: { requiresAuth: false },
     },
     { path: '/signup', name: 'signup', component: SignupView, meta: { requiresAuth: false } },
+    // 마이페이지 — 모든 권한 공통 (HQ/STORE/WAREHOUSE 동일 라우트, 페이지 내부에서 권한별 분기 표시)
+    { path: '/mypage', name: 'mypage', component: MyPageView, meta: { requiresAuth: true } },
     { path: '/hq/dashboard', name: 'hq-dashboard', component: OperationStatusView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/dashboard/inventory-risk', name: 'hq-dashboard-inventory-risk', component: InventoryRiskView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/dashboard/flow', name: 'hq-dashboard-flow', component: InboundOutboundFlowView, meta: { requiresAuth: true, role: 'hq' } },
@@ -90,28 +97,46 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'hq' },
     },
     { path: '/hq/inventory/warehouse-comparison', name: 'hq-inventory-warehouse-comparison', component: HqWarehouseInventoryComparisonView, meta: { requiresAuth: true, role: 'hq' } },
-    { path: '/hq/orders', name: 'hq-orders', component: HqOrderManagementView, meta: { requiresAuth: true, role: 'hq' } },
+    {
+      path: '/hq/inventory/warehouse-comparison/:skuCode',
+      name: 'hq-inventory-warehouse-transfer-detail',
+      component: HqWarehouseSkuTransferDetailView,
+      meta: { requiresAuth: true, role: 'hq' },
+    },
+    {
+      path: '/hq/inventory/warehouse-transfer-history',
+      name: 'hq-inventory-warehouse-transfer-history',
+      component: HqWarehouseTransferHistoryView,
+      meta: { requiresAuth: true, role: 'hq' },
+    },
+    {
+      path: '/hq/inventory/warehouse-transfer-history/:transferNo',
+      name: 'hq-inventory-warehouse-transfer-history-detail',
+      component: HqWarehouseTransferHistoryDetailView,
+      meta: { requiresAuth: true, role: 'hq' },
+    },
     { path: '/hq/products', name: 'hq-products', component: HqProductManagementView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/products/categories/add', name: 'hq-category-add', component: HqCategoryAddView, meta: { requiresAuth: true, role: 'hq' } },
     {
       path: '/hq/products/new',
       name: 'hq-product-new',
-      component: () => import('@/views/hq/HqProductCreateView.vue'),
+      component: () => import('@/views/hq/products/HqProductCreateView.vue'),
       meta: { requiresAuth: true, role: 'hq' },
     },
     {
       path: '/hq/products/:productCode/skus',
       name: 'hq-product-sku-detail',
-      component: () => import('@/views/hq/HqProductSkuDetailView.vue'),
+      component: () => import('@/views/hq/products/HqProductSkuDetailView.vue'),
       meta: { requiresAuth: true, role: 'hq' },
     },
     {
       path: '/hq/products/:productCode/edit',
       name: 'hq-product-edit',
-      component: () => import('@/views/hq/HqProductCreateView.vue'),
+      component: () => import('@/views/hq/products/HqProductCreateView.vue'),
       meta: { requiresAuth: true, role: 'hq' },
     },
     { path: '/hq/infrastructure', name: 'hq-infrastructure', component: HqInfrastructureManagementView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/infrastructure/mappings', name: 'hq-infrastructure-mappings', component: HqInfrastructureMappingView, meta: { requiresAuth: true, role: 'hq' } },
     {
       path: '/hq/infrastructure/stores/:storeId',
       name: 'hq-infrastructure-store-detail',
@@ -136,27 +161,27 @@ const router = createRouter({
     {
       path: '/hq/purchase-orders/new',
       name: 'hq-purchase-order-new',
-      component: () => import('@/views/hq/HqPurchaseOrderCreateView.vue'),
+      component: () => import('@/views/hq/purchase-order/HqPurchaseOrderCreateView.vue'),
       meta: { requiresAuth: true, role: 'hq' },
     },
     {
       path: '/hq/purchase-orders/:id/edit',
       name: 'hq-purchase-order-edit',
-      component: () => import('@/views/hq/HqPurchaseOrderCreateView.vue'),
+      component: () => import('@/views/hq/purchase-order/HqPurchaseOrderCreateView.vue'),
       meta: { requiresAuth: true, role: 'hq' },
     },
     { path: '/hq/vendors', name: 'hq-vendors', component: HqVendorManagementView, meta: { requiresAuth: true, role: 'hq' } },
-    { path: '/hq/circular-inventory/candidates', name: 'hq-circular-inventory-candidates', component: HqCircularInventoryCandidateView, meta: { requiresAuth: true, role: 'hq' } },
-    { path: '/hq/circular-inventory', name: 'hq-circular-inventory', component: HqCircularInventoryView, meta: { requiresAuth: true, role: 'hq' } },
-    { path: '/hq/circular-inventory/buyers', name: 'hq-circular-inventory-buyers', component: HqCircularInventoryBuyerManagementView, meta: { requiresAuth: true, role: 'hq' } },
-    { path: '/hq/circular-inventory/sales/register', name: 'hq-circular-inventory-sales-register', component: HqCircularInventorySalesRegisterView, meta: { requiresAuth: true, role: 'hq' } },
-    { path: '/hq/circular-inventory/sales/history', name: 'hq-circular-inventory-sales-history', component: HqCircularInventorySalesHistoryView, meta: { requiresAuth: true, role: 'hq' } },
-    { path: '/hq/circular-inventory/sales/analysis', name: 'hq-circular-inventory-sales-analysis', component: HqCircularInventorySalesAnalysisView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/circular-inventory/candidates', name: 'hq-circular-inventory-candidates', component: HqCircularStockCandidateView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/circular-inventory', name: 'hq-circular-inventory', component: HqCircularStockInventoryView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/circular-inventory/buyers', name: 'hq-circular-inventory-buyers', component: HqCircularStockBuyerManagementView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/circular-inventory/sales/register', name: 'hq-circular-inventory-sales-register', component: HqCircularStockSalesRegisterView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/circular-inventory/sales/history', name: 'hq-circular-inventory-sales-history', component: HqCircularStockSalesHistoryView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/circular-inventory/sales/history/:saleId', name: 'hq-circular-inventory-sales-history-detail', component: HqCircularStockSalesDetailView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/circular-inventory/sales/analysis', name: 'hq-circular-inventory-sales-analysis', component: HqCircularStockSalesAnalysisView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/accounts', name: 'hq-accounts', component: AccountListView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/accounts/approvals', name: 'hq-account-approvals', component: AccountApprovalView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/account/accountlist', name: 'hq-account-list', component: AccountListView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/account/approval', name: 'hq-account-approval', component: AccountApprovalView, meta: { requiresAuth: true, role: 'hq' } },
-    { path: '/hq/ai-report', name: 'hq-ai-report', component: HqAiReportView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/esg', name: 'hq-esg', component: EsgDashBoardView, meta: { requiresAuth: true, role: 'hq' } },
 
     { path: '/store/dashboard', name: 'store-dashboard', component: StoreDashboardView, meta: { requiresAuth: true, role: 'store' } },
@@ -166,9 +191,9 @@ const router = createRouter({
     { path: '/store/sales/analysis', name: 'store-sales-analysis', component: StoreSalesAnalysisView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/orders', redirect: { name: 'store-order-request' } },
     { path: '/store/orders/request', name: 'store-order-request', component: StoreOrderRequestView, meta: { requiresAuth: true, role: 'store' } },
-    { path: '/store/orders/request/:id/edit', name: 'store-order-edit', component: StoreOrderRequestView, meta: { requiresAuth: true, role: 'store' } },
+    { path: '/store/orders/request/:orderNo/edit', name: 'store-order-edit', component: StoreOrderRequestView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/orders/history', name: 'store-order-history', component: StoreOrderHistoryView, meta: { requiresAuth: true, role: 'store' } },
-    { path: '/store/orders/history/:id', name: 'store-order-detail', component: StoreOrderDetailView, meta: { requiresAuth: true, role: 'store' } },
+    { path: '/store/orders/history/:orderNo', name: 'store-order-detail', component: StoreOrderDetailView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/orders/analysis', name: 'store-order-analysis', component: StoreOrderAnalysisView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/inventory', name: 'store-inventory', component: StoreInventoryView, meta: { requiresAuth: true, role: 'store' } },
     {
@@ -183,7 +208,6 @@ const router = createRouter({
     { path: '/store/inbound/history', redirect: { name: 'store-inbound-list' } },
     { path: '/store/inbound/history/:id', redirect: (to) => ({ name: 'store-inbound-detail', params: { id: to.params.id } }) },
     { path: '/store/inbound/analysis', name: 'store-inbound-analysis', component: StoreInboundAnalysisView, meta: { requiresAuth: true, role: 'store' } },
-    { path: '/store/ai-report', name: 'store-ai-report', component: StoreAiReportView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/stats', name: 'store-stats', component: StoreStatsView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/stats/sales', name: 'store-stats-sales', component: StoreSalesStatsView, meta: { requiresAuth: true, role: 'store' } },
 
@@ -217,9 +241,17 @@ const router = createRouter({
       component: WarehouseOutboundView,
       meta: { requiresAuth: true, role: 'warehouse' },
     },
+    {
+      path: '/warehouse/outbound/:id',
+      name: 'wh-outbound-detail',
+      component: WarehouseOutboundDetailView,
+      meta: { requiresAuth: true, role: 'warehouse' },
+    },
 
-    { path: '/', redirect: '/login' },
-    { path: '/:pathMatch(.*)*', redirect: '/login' },
+    // 첫 진입 — dev-login 으로 (인증된 상태면 router.beforeEach 에서 권한별 홈으로 재이동)
+    { path: '/', redirect: '/dev-login' },
+    // 알 수 없는 경로 — dev-login 으로
+    { path: '/:pathMatch(.*)*', redirect: '/dev-login' },
   ],
 })
 
@@ -231,7 +263,7 @@ router.beforeEach((to) => {
     return true
   }
 
-  if (!auth.isAuthenticated) return { name: 'login' }
+  if (!auth.isAuthenticated) return { name: 'dev-login' }
 
   if (to.meta.role && to.meta.role !== auth.user.role) {
     return roleHomeMap[auth.user.role]
