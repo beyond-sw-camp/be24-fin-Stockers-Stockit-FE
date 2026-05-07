@@ -13,6 +13,8 @@ import {
   ShoppingCartIcon,
   TrashIcon,
 } from '@/components/hq/purchase-order/icons.js'
+import PurchaseOrderBulkQtyModal from '@/components/hq/purchase-order/PurchaseOrderBulkQtyModal.vue'
+import PurchaseOrderFloatingBar from '@/components/hq/purchase-order/PurchaseOrderFloatingBar.vue'
 import { useToast } from '@/composables/useToast.js'
 import { useFacets } from '@/composables/hq/purchaseOrder/useFacets.js'
 import { usePurchaseOrderStockSim } from '@/composables/hq/purchaseOrder/useStockSim.js'
@@ -91,9 +93,8 @@ const shortageOnly = ref(false)
 // 다중 선택: skuCode set
 const selectedSkus = ref(new Set())
 // activeFacetFilters / toggleFacet / ... 는 useFacets() composable 에서 제공.
-// 일괄 입력 모달
+// Bulk 수량 모달 — 입력값은 모달 컴포넌트 로컬 state (open/close 만 부모 관리)
 const showBulkQtyModal = ref(false)
-const bulkQtyInput = ref(0)
 // 검색창 ref (단축키용)
 const searchInputRef = ref(null)
 // cart 강조용 — [좌측에서 보기] / [장바구니에서 보기] 점프 시 잠시 highlight
@@ -176,20 +177,18 @@ function selectAllVisible() {
   selectedSkus.value = set
 }
 
-// 일괄 입력 모달
+// Bulk 수량 모달 트리거 (Floating bar 에서 호출).
 function openBulkQtyModal() {
   if (selectedSkus.value.size === 0) return
-  bulkQtyInput.value = 0
   showBulkQtyModal.value = true
 }
 
 function closeBulkQtyModal() {
   showBulkQtyModal.value = false
-  bulkQtyInput.value = 0
 }
 
-function applyBulkQty() {
-  const qty = Number(bulkQtyInput.value) || 0
+// 모달의 [적용] emit 핸들러 — vendor 검증 + cart push + draft 저장 + 선택 reset 까지.
+function handleBulkApply(qty) {
   if (qty <= 0) {
     triggerToast('수량을 입력하세요.')
     return
@@ -1391,78 +1390,18 @@ watch(vendorFilter, () => {
       </div>
     </div>
 
-    <!-- ───────── Floating Action Bar (Power 모드: 다중 선택 시 노출) ───────── -->
-    <Transition
-      enter-active-class="transition-all duration-200"
-      leave-active-class="transition-all duration-200"
-      enter-from-class="opacity-0 translate-y-2"
-      leave-to-class="opacity-0 translate-y-2"
-    >
-      <div
-        v-if="selectedSkus.size > 0"
-        class="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 transform"
-      >
-        <div class="flex items-center gap-3 border border-[#004D3C] bg-[#004D3C] px-4 py-2.5 text-white shadow-xl">
-          <span class="text-xs font-black">{{ selectedSkus.size }}개 SKU 선택됨</span>
-          <button
-            type="button"
-            class="border border-white bg-white px-3 py-1 text-[11px] font-black text-[#004D3C] hover:bg-gray-100"
-            @click="openBulkQtyModal"
-          >
-            수량 일괄 입력
-          </button>
-          <button
-            type="button"
-            class="text-[11px] font-bold text-white/80 hover:text-white underline"
-            @click="clearSelection"
-          >
-            선택 해제
-          </button>
-        </div>
-      </div>
-    </Transition>
+    <PurchaseOrderFloatingBar
+      :selected-count="selectedSkus.size"
+      @open-bulk-qty="openBulkQtyModal"
+      @clear-selection="clearSelection"
+    />
 
-    <!-- ───────── 모달: 수량 일괄 입력 ───────── -->
-    <div
-      v-if="showBulkQtyModal"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-      @click.self="closeBulkQtyModal"
-    >
-      <div class="w-full max-w-sm overflow-hidden bg-white shadow-xl">
-        <div class="bg-[#004D3C] px-5 py-3 text-white">
-          <h2 class="text-sm font-black">수량 일괄 입력</h2>
-        </div>
-        <div class="p-5 text-xs text-gray-700">
-          <p class="mb-3">
-            선택한 <strong>{{ selectedSkus.size }}개 SKU</strong> 모두에 동일한 수량을 적용합니다.
-          </p>
-          <input
-            v-model.number="bulkQtyInput"
-            type="number"
-            min="1"
-            placeholder="수량"
-            class="w-full border border-gray-300 px-3 py-2 text-center text-sm outline-none focus:border-[#004D3C]"
-            @keydown.enter="applyBulkQty"
-          />
-        </div>
-        <div class="flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3">
-          <button
-            type="button"
-            class="border border-gray-300 bg-white px-4 py-2 text-xs font-black text-gray-700 hover:bg-gray-100"
-            @click="closeBulkQtyModal"
-          >
-            취소
-          </button>
-          <button
-            type="button"
-            class="border border-[#004D3C] bg-[#004D3C] px-4 py-2 text-xs font-black text-white hover:bg-[#1f4b3a]"
-            @click="applyBulkQty"
-          >
-            적용
-          </button>
-        </div>
-      </div>
-    </div>
+    <PurchaseOrderBulkQtyModal
+      :open="showBulkQtyModal"
+      :selected-count="selectedSkus.size"
+      @close="closeBulkQtyModal"
+      @apply="handleBulkApply"
+    />
 
     <!-- ───────── 토스트 ───────── -->
     <Transition
