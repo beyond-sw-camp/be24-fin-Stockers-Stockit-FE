@@ -15,15 +15,15 @@ import { inboundApi } from '@/api/warehouse/inbound.js'
  */
 export const useWarehouseInboundStore = defineStore('warehouseInbound', () => {
   // --- state ---
-  const items = ref([])           // 입고 후보 발주 목록 (READY_TO_SHIP/IN_TRANSIT/ARRIVED/COMPLETED)
+  const items = ref([]) // 입고 후보 발주 목록 (READY_TO_SHIP/IN_TRANSIT/ARRIVED/COMPLETED)
   const selectedDetail = ref(null) // 선택된 발주의 상세 (items + statusHistory 포함)
   const loading = ref(false)
   const error = ref(null)
 
-  // 창고 화면 4탭 — 거래처 책임 단계도 노출 (사용자 결정: READY_TO_SHIP 부터 보여야 함).
-  // READY_TO_SHIP/IN_TRANSIT/ARRIVED 는 거래처 단계 가시화용, COMPLETED 는 입고 완료.
+  // 창고 화면 5탭 — [전체] + 거래처 책임 4단계 (READY_TO_SHIP/IN_TRANSIT/ARRIVED/COMPLETED).
+  // 첫 진입 시 [전체] 활성 — STATUS_TABS 첫 항목과 일치시켜 사용자 멘탈 모델 보존.
   // 입고 확정([입고 완료] 액션) 은 ARRIVED 일 때만 가능.
-  const activeStatusTab = ref('READY_TO_SHIP')
+  const activeStatusTab = ref('전체')
   const selectedOrderId = ref(null)
   const searchKeyword = ref('')
   const dateFrom = ref('')
@@ -53,11 +53,26 @@ export const useWarehouseInboundStore = defineStore('warehouseInbound', () => {
     }
   }
 
+  // BE PurchaseOrderDto.DetailRes 응답엔 productNames/itemCount 가 없음 (ListRes 만 보유) —
+  // fromListApi 를 spread 하면 두 필드를 빈 값으로 박아 selectOrder→fetchDetail 머지 시
+  // list 의 productNames 를 덮는 회귀가 발생. 의도적으로 detail 응답에 실제 있는 필드만 매핑.
   function fromDetailApi(po) {
     return {
-      ...fromListApi(po),
+      id: po.code,
+      code: po.code,
+      vendorId: po.vendorCode,
+      vendorName: po.vendorName,
+      warehouseId: po.warehouseId,
+      warehouseName: po.warehouseName,
+      warehouseCode: po.warehouseCode,
+      status: po.status,
+      totalPrice: po.totalAmount,
+      createdAt: po.createdAt,
+      updatedAt: po.updatedAt,
       items: (po.items ?? []).map((it) => ({
+        id: it.skuCode,
         skuCode: it.skuCode,
+        productCode: it.productCode,
         productName: it.productName,
         color: it.color,
         size: it.size,
@@ -88,17 +103,18 @@ export const useWarehouseInboundStore = defineStore('warehouseInbound', () => {
 
   const inboundList = computed(() => {
     // '전체' 탭은 모든 입고 후보(READY_TO_SHIP/IN_TRANSIT/ARRIVED/COMPLETED) 노출.
-    let list = activeStatusTab.value === '전체'
-      ? items.value
-      : items.value.filter((o) => o.status === activeStatusTab.value)
+    let list =
+      activeStatusTab.value === '전체'
+        ? items.value
+        : items.value.filter((o) => o.status === activeStatusTab.value)
 
     if (searchKeyword.value.trim()) {
       const k = searchKeyword.value.trim().toLowerCase()
       list = list.filter(
         (o) =>
-          o.id.toLowerCase().includes(k)
-          || (o.vendorName ?? '').toLowerCase().includes(k)
-          || (o.productNames ?? []).some((name) => (name ?? '').toLowerCase().includes(k)),
+          o.id.toLowerCase().includes(k) ||
+          (o.vendorName ?? '').toLowerCase().includes(k) ||
+          (o.productNames ?? []).some((name) => (name ?? '').toLowerCase().includes(k)),
       )
     }
 
