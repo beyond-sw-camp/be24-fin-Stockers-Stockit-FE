@@ -144,6 +144,9 @@ const quotaStore = useEmissionQuotaStore()
 const emissionCompliance = computed(() => ({
   allocation:     quotaStore.yearlyAllocation,
   ytdNet:         Number(quotaStore.ytdEmissions.toFixed(2)),
+  ytdAvoided:     Number(quotaStore.ytdAvoided.toFixed(2)),
+  netEmissions:   Number(quotaStore.netEmissions.toFixed(2)),
+  costSavingsWon: Math.round(quotaStore.costSavingsWon),
   utilizationPct: Number(quotaStore.utilizationPct.toFixed(1)),
   expectedSurplus: Number(quotaStore.remaining.toFixed(2)),
   warnPct:        quotaStore.warnThresholdPct,
@@ -604,13 +607,13 @@ function handleLogout() {
       <!-- 배출 한도 vs 실적 + 배출권 시장 가치 환산 -->
       <section class="grid gap-3 xl:grid-cols-2">
 
-        <!-- 온실가스 배출 관리 (emissionQuota 스토어 연동) -->
+        <!-- 자발적 탄소중립 관리 (emissionQuota 스토어 연동) -->
         <article class="flex flex-col border border-gray-300 bg-white shadow-sm">
           <div class="flex items-center justify-between border-b border-gray-200 px-3 py-2.5">
             <h3 class="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
               <Scale :size="15" class="text-blue-600" />
-              온실가스 배출 관리
-              <span class="text-[10px] font-normal text-gray-400">K-ETS 컴플라이언스</span>
+              자발적 탄소중립 관리
+              <span class="text-[10px] font-normal text-gray-400">SBTi 자발적 모델</span>
             </h3>
             <button
               type="button"
@@ -625,9 +628,9 @@ function handleLogout() {
             <!-- 배출 한도 vs 사용한 탄소배출권 도넛 -->
             <div>
               <div class="mb-1.5 flex items-baseline justify-between">
-                <span class="text-[11px] font-medium text-gray-500">연간 할당량 사용률</span>
+                <span class="text-[11px] font-medium text-gray-500">정부 할당량 대비 사용률</span>
                 <span class="inline-flex items-center gap-1 border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
-                  사용 {{ emissionCompliance.ytdNet.toLocaleString() }} / 한도 {{ emissionCompliance.allocation.toLocaleString() }} tCO₂
+                  실효 {{ emissionCompliance.ytdNet.toLocaleString() }} / 할당 {{ emissionCompliance.allocation.toLocaleString() }} tCO₂
                 </span>
               </div>
               <div class="relative">
@@ -640,8 +643,8 @@ function handleLogout() {
               </div>
             </div>
 
-            <!-- 3개 메트릭 -->
-            <div class="grid grid-cols-3 gap-2">
+            <!-- 4개 메트릭: 정부 할당량 / YTD 실효 / 잔여 한도 / 회피 배출량 -->
+            <div class="grid grid-cols-4 gap-2">
               <div class="border border-gray-200 bg-gray-50 px-2 py-2">
                 <p class="text-[10px] text-gray-500">정부 할당량</p>
                 <div class="mt-0.5 flex items-baseline gap-0.5">
@@ -650,16 +653,23 @@ function handleLogout() {
                 </div>
               </div>
               <div class="border border-gray-200 bg-gray-50 px-2 py-2">
-                <p class="text-[10px] text-gray-500">YTD 실효 배출 (사용량)</p>
+                <p class="text-[10px] text-gray-500">YTD 실효 배출</p>
                 <div class="mt-0.5 flex items-baseline gap-0.5">
                   <span class="text-[14px] font-bold text-blue-700">{{ emissionCompliance.ytdNet.toLocaleString() }}</span>
                   <span class="text-[9px] text-gray-400">tCO₂</span>
                 </div>
               </div>
-              <div class="border border-emerald-200 bg-emerald-50 px-2 py-2">
-                <p class="text-[10px] text-emerald-700">잔여 한도</p>
+              <div class="border border-amber-200 bg-amber-50 px-2 py-2">
+                <p class="text-[10px] text-amber-700">잔여 한도</p>
                 <div class="mt-0.5 flex items-baseline gap-0.5">
-                  <span class="text-[14px] font-bold text-emerald-700">{{ emissionCompliance.expectedSurplus.toLocaleString() }}</span>
+                  <span class="text-[14px] font-bold text-amber-700">{{ emissionCompliance.expectedSurplus.toLocaleString() }}</span>
+                  <span class="text-[9px] text-amber-600">tCO₂</span>
+                </div>
+              </div>
+              <div class="border border-emerald-200 bg-emerald-50 px-2 py-2">
+                <p class="text-[10px] text-emerald-700">회피 배출량</p>
+                <div class="mt-0.5 flex items-baseline gap-0.5">
+                  <span class="text-[14px] font-bold text-emerald-700">−{{ emissionCompliance.ytdAvoided.toLocaleString() }}</span>
                   <span class="text-[9px] text-emerald-600">tCO₂</span>
                 </div>
               </div>

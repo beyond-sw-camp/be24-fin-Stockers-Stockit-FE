@@ -81,7 +81,11 @@ export const roleMenus = {
       label: 'ESG 대시보드',
       path: '/hq/esg',
       icon: 'sprout',
-      children: [{ label: '친환경 발자국 현황판', path: '/hq/esg' }],
+      children: [
+        { label: '친환경 발자국 현황판', path: '/hq/esg' },
+        { label: '자발적 탄소중립 관리', path: '/hq/esg/quota' },
+        { label: '배출권 시장 가치',     path: '/hq/esg/carbon-price' },
+      ],
     },
   ],
   store: [

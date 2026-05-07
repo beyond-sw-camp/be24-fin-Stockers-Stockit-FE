@@ -1,5 +1,5 @@
 /**
- * emissionQuota.js — 온실가스 배출 관리 (할당 + 활동량 + 자동 환산) Pinia 스토어
+ * emissionQuota.js — 자발적 탄소중립 관리 (목표 + 활동량 + 절감 + 자동 환산) Pinia 스토어
  *
  * 두 페이지에서 공유:
  *  - /hq/esg/quota         : 입력 + 분석 상세
@@ -64,6 +64,37 @@ export const useEmissionQuotaStore = defineStore('emissionQuota', () => {
   const quotaUpdatedAt = ref('2026-01-02')
   const quotaUpdatedBy = ref('hq0001')
 
+  // YTD 실효 배출 — 본사 관리자 수기 입력 (실측치 기준)
+  // null 이면 activityRecords 합계로 자동 계산, 값이 있으면 그 값으로 오버라이드
+  const ytdEmissionsManual = ref(126.84)
+
+  // ─────────── 순환재고 절감 (Avoidance) — Stockit 핵심 가치 ───────────
+  // 폐기 회피량(kg) × 폐기 시 배출계수 = 절감 CO₂ (kg)
+  // 향후 circular-stock 도메인의 판매 데이터 자동 연동 예정.
+  const AVOIDANCE_FACTORS = {
+    CLOTHING: { label: '의류',     factor: 5.5 },   // kgCO₂/kg (소각 기준)
+    PAPER:    { label: '종이',     factor: 2.5 },
+    PLASTIC:  { label: '플라스틱', factor: 6.0 },
+    FOOD:     { label: '식품',     factor: 2.5 },
+    OTHER:    { label: '기타',     factor: 3.0 },
+  }
+
+  // 월별 폐기 회피 기록 (mock — Stockit circular-stock 데이터로 교체 예정)
+  const avoidanceRecords = ref([
+    { id: 'a1', y: 2026, m: 1, kg: 320, type: 'CLOTHING', source: 'WH-SL-0001' },
+    { id: 'a2', y: 2026, m: 2, kg: 280, type: 'CLOTHING', source: 'WH-SL-0001' },
+    { id: 'a3', y: 2026, m: 3, kg: 410, type: 'CLOTHING', source: 'WH-SL-0001' },
+    { id: 'a4', y: 2026, m: 4, kg: 350, type: 'CLOTHING', source: 'WH-SL-0001' },
+  ])
+
+  // 외부 자발적 시장 톤당 단가 (원/tCO₂)
+  // - mock 기본값 KAU25 시세 ≈ 17,000원
+  // - 향후 carbon-price API 의 latest 값을 actions 으로 갱신 가능
+  const externalUnitPriceWon = ref(17000)
+  function setExternalUnitPrice(won) {
+    if (typeof won === 'number' && won > 0) externalUnitPriceWon.value = won
+  }
+
   // 활동량 기록 (mock — BE 연동 시 emission_activity 테이블)
   const activityRecords = ref([
     { id: 1,  loc: 'ST-SL-0001', y: 2026, m: 1, electricity: 12500, gas:  850, fuel: 180, waste: 0.4 },
@@ -85,8 +116,11 @@ export const useEmissionQuotaStore = defineStore('emissionQuota', () => {
     activityRecords.value.filter(r => r.y === fiscalYear.value),
   )
 
-  /** YTD 누적 (tCO₂) */
+  /** YTD 누적 (tCO₂) — 수기 입력값(ytdEmissionsManual)이 있으면 우선, 없으면 activityRecords 합계 */
   const ytdEmissions = computed(() => {
+    if (ytdEmissionsManual.value !== null && ytdEmissionsManual.value !== '' && !isNaN(ytdEmissionsManual.value)) {
+      return Number(ytdEmissionsManual.value)
+    }
     const totalKg = yearRecords.value.reduce((s, r) => s + recordCo2Kg(r), 0)
     return totalKg / 1000
   })
@@ -157,10 +191,63 @@ export const useEmissionQuotaStore = defineStore('emissionQuota', () => {
       .sort((a, b) => b.co2Ton - a.co2Ton)
   })
 
+  // ─────────── Avoidance Getters (Stockit 핵심 KPI) ───────────
+  /** 폐기물 종류별 절감 계수 lookup */
+  function avoidanceFactorByType(type) {
+    return AVOIDANCE_FACTORS[type]?.factor ?? AVOIDANCE_FACTORS.OTHER.factor
+  }
+
+  /** 회계연도 폐기 회피 기록 */
+  const yearAvoidanceRecords = computed(() =>
+    avoidanceRecords.value.filter(r => r.y === fiscalYear.value),
+  )
+
+  /** YTD 누적 절감량 (tCO₂) — 순환재고로 회피한 배출량 */
+  const ytdAvoided = computed(() => {
+    const totalKg = yearAvoidanceRecords.value.reduce(
+      (s, r) => s + (r.kg ?? 0) * avoidanceFactorByType(r.type),
+      0,
+    )
+    return totalKg / 1000
+  })
+
+  /** 순배출 (tCO₂) — 실효 배출 - 절감량  (음수 가능) */
+  const netEmissions = computed(() =>
+    ytdEmissions.value - ytdAvoided.value,
+  )
+
+  /** 자발적 목표 대비 외부 매수 필요량 (tCO₂)
+   *  순배출이 자발적 목표보다 크면 외부에서 자발적 시장에서 매수해야 함 */
+  const externalPurchaseNeeded = computed(() =>
+    Math.max(0, netEmissions.value - yearlyAllocation.value),
+  )
+
+  /** 절감 효과로 회피한 외부 매수 비용 (원)
+   *  Stockit 시스템 도입으로 굳어지는 자발적 시장 비용 */
+  const costSavingsWon = computed(() =>
+    Math.max(0, ytdAvoided.value) * externalUnitPriceWon.value,
+  )
+
+  /** 분기별 절감 추이 (tCO₂) */
+  const avoidanceQuarterly = computed(() => {
+    const buckets = { Q1: 0, Q2: 0, Q3: 0, Q4: 0 }
+    for (const r of yearAvoidanceRecords.value) {
+      const q = r.m <= 3 ? 'Q1' : r.m <= 6 ? 'Q2' : r.m <= 9 ? 'Q3' : 'Q4'
+      buckets[q] += (r.kg * avoidanceFactorByType(r.type)) / 1000
+    }
+    return buckets
+  })
+
   // ─────────── Actions ───────────
-  function updateQuota({ allocation, warnPct, by }) {
+  function updateQuota({ allocation, warnPct, ytdManual, by }) {
     if (typeof allocation === 'number') yearlyAllocation.value = allocation
     if (typeof warnPct === 'number')    warnThresholdPct.value = warnPct
+    if (ytdManual !== undefined) {
+      // null 또는 ''  → 자동 계산으로 복귀
+      ytdEmissionsManual.value = (ytdManual === null || ytdManual === '' || isNaN(ytdManual))
+        ? null
+        : Number(ytdManual)
+    }
     quotaUpdatedAt.value = new Date().toISOString().slice(0, 10)
     quotaUpdatedBy.value = by ?? quotaUpdatedBy.value
   }
@@ -189,6 +276,21 @@ export const useEmissionQuotaStore = defineStore('emissionQuota', () => {
     activityRecords.value = activityRecords.value.filter(r => r.id !== id)
   }
 
+  function addAvoidance(rec) {
+    avoidanceRecords.value.push({
+      id: `a${Date.now()}`,
+      y: Number(rec.y),
+      m: Number(rec.m),
+      kg: Number(rec.kg) || 0,
+      type: rec.type ?? 'CLOTHING',
+      source: rec.source ?? '',
+    })
+  }
+
+  function deleteAvoidance(id) {
+    avoidanceRecords.value = avoidanceRecords.value.filter(r => r.id !== id)
+  }
+
   return {
     // state
     fiscalYear,
@@ -196,7 +298,10 @@ export const useEmissionQuotaStore = defineStore('emissionQuota', () => {
     warnThresholdPct,
     quotaUpdatedAt,
     quotaUpdatedBy,
+    ytdEmissionsManual,
     activityRecords,
+    avoidanceRecords,
+    externalUnitPriceWon,
     // getters
     ytdEmissions,
     remaining,
@@ -205,12 +310,23 @@ export const useEmissionQuotaStore = defineStore('emissionQuota', () => {
     quarterly,
     breakdownByFactor,
     locationRanking,
+    ytdAvoided,
+    netEmissions,
+    externalPurchaseNeeded,
+    costSavingsWon,
+    avoidanceQuarterly,
+    yearAvoidanceRecords,
     // actions
     updateQuota,
     addActivity,
     deleteActivity,
+    addAvoidance,
+    deleteAvoidance,
+    setExternalUnitPrice,
     // utility (컴포넌트에서 직접 환산할 때 사용)
     recordCo2Kg,
     recordCo2ByFactor,
+    avoidanceFactorByType,
+    AVOIDANCE_FACTORS,
   }
 })
