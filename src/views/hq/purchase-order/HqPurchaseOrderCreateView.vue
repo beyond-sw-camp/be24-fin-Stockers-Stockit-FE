@@ -6,7 +6,6 @@ import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { usePurchaseOrderStore } from '@/stores/purchaseOrder.js'
 import {
-  AlertTriangleIcon,
   ArrowLeftIcon,
   PlusIcon,
   SearchIcon,
@@ -14,7 +13,9 @@ import {
   TrashIcon,
 } from '@/components/hq/purchase-order/icons.js'
 import PurchaseOrderBulkQtyModal from '@/components/hq/purchase-order/PurchaseOrderBulkQtyModal.vue'
+import PurchaseOrderConfirmModal from '@/components/hq/purchase-order/PurchaseOrderConfirmModal.vue'
 import PurchaseOrderFloatingBar from '@/components/hq/purchase-order/PurchaseOrderFloatingBar.vue'
+import PurchaseOrderSubmitConfirmModal from '@/components/hq/purchase-order/PurchaseOrderSubmitConfirmModal.vue'
 import { useToast } from '@/composables/useToast.js'
 import { useFacets } from '@/composables/hq/purchaseOrder/useFacets.js'
 import { usePurchaseOrderStockSim } from '@/composables/hq/purchaseOrder/useStockSim.js'
@@ -1222,173 +1223,61 @@ watch(vendorFilter, () => {
       </section>
     </div>
 
-    <!-- ───────── 모달: 창고 변경 confirm (비파괴, signature) ───────── -->
-    <div
-      v-if="showWarehouseChangeConfirm"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-      @click.self="cancelWarehouseChange"
+    <PurchaseOrderConfirmModal
+      :open="showWarehouseChangeConfirm"
+      variant="signature"
+      title="입고 창고 변경"
+      confirm-label="변경"
+      @cancel="cancelWarehouseChange"
+      @confirm="confirmWarehouseChange"
     >
-      <div class="w-full max-w-sm overflow-hidden bg-white shadow-xl">
-        <div class="bg-[#004D3C] px-5 py-3 text-white">
-          <h2 class="text-sm font-black">입고 창고 변경</h2>
-        </div>
-        <div class="p-5 text-xs text-gray-700">
-          <p>
-            장바구니 <strong>{{ cart.length }}건</strong>이 초기화됩니다. 입고 창고를
-            <strong>{{ pendingWarehouseName }}</strong>으로 변경할까요?
-          </p>
-        </div>
-        <div class="flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3">
-          <button
-            type="button"
-            class="border border-gray-300 bg-white px-4 py-2 text-xs font-black text-gray-700 hover:bg-gray-100"
-            @click="cancelWarehouseChange"
-          >
-            취소
-          </button>
-          <button
-            type="button"
-            class="border border-[#004D3C] bg-[#004D3C] px-4 py-2 text-xs font-black text-white hover:bg-[#1f4b3a]"
-            @click="confirmWarehouseChange"
-          >
-            변경
-          </button>
-        </div>
-      </div>
-    </div>
+      <p>
+        장바구니 <strong>{{ cart.length }}건</strong>이 초기화됩니다. 입고 창고를
+        <strong>{{ pendingWarehouseName }}</strong>으로 변경할까요?
+      </p>
+    </PurchaseOrderConfirmModal>
 
-    <!-- ───────── 모달: 공급처 변경 confirm (amber, 주의) ───────── -->
-    <div
-      v-if="showVendorSwitchConfirm"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-      @click.self="cancelVendorSwitch"
+    <PurchaseOrderConfirmModal
+      :open="showVendorSwitchConfirm"
+      variant="amber"
+      title="공급처 변경"
+      confirm-label="새로 시작"
+      @cancel="cancelVendorSwitch"
+      @confirm="confirmVendorSwitch"
     >
-      <div class="w-full max-w-sm overflow-hidden bg-white shadow-xl">
-        <div class="flex items-center gap-2 bg-amber-600 px-5 py-3 text-white">
-          <AlertTriangleIcon :size="14" />
-          <h2 class="text-sm font-black">공급처 변경</h2>
-        </div>
-        <div class="p-5 text-xs text-gray-700">
-          <p>
-            장바구니의 <strong>{{ currentCartVendorName }}</strong> 품목
-            <strong>{{ cart.length }}건</strong>이 초기화됩니다.
-            <strong>{{ pendingNewVendorName }}</strong> 공급처로 새로 시작할까요?
-          </p>
-          <p class="mt-2 text-[11px] text-gray-500">
-            한 발주서에는 한 공급처 품목만 담을 수 있습니다.
-          </p>
-        </div>
-        <div class="flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3">
-          <button
-            type="button"
-            class="border border-gray-300 bg-white px-4 py-2 text-xs font-black text-gray-700 hover:bg-gray-100"
-            @click="cancelVendorSwitch"
-          >
-            취소
-          </button>
-          <button
-            type="button"
-            class="border border-amber-600 bg-amber-600 px-4 py-2 text-xs font-black text-white hover:bg-amber-500"
-            @click="confirmVendorSwitch"
-          >
-            새로 시작
-          </button>
-        </div>
-      </div>
-    </div>
+      <p>
+        장바구니의 <strong>{{ currentCartVendorName }}</strong> 품목
+        <strong>{{ cart.length }}건</strong>이 초기화됩니다.
+        <strong>{{ pendingNewVendorName }}</strong> 공급처로 새로 시작할까요?
+      </p>
+      <p class="mt-2 text-[11px] text-gray-500">
+        한 발주서에는 한 공급처 품목만 담을 수 있습니다.
+      </p>
+    </PurchaseOrderConfirmModal>
 
-    <!-- ───────── 모달: 장바구니 비우기 confirm (파괴, red) ───────── -->
-    <div
-      v-if="showClearCartConfirm"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-      @click.self="cancelClearCart"
+    <PurchaseOrderConfirmModal
+      :open="showClearCartConfirm"
+      variant="red"
+      title="장바구니 비우기"
+      confirm-label="삭제"
+      @cancel="cancelClearCart"
+      @confirm="confirmClearCart"
     >
-      <div class="w-full max-w-sm overflow-hidden bg-white shadow-xl">
-        <div class="bg-red-700 px-5 py-3 text-white">
-          <h2 class="text-sm font-black">장바구니 비우기</h2>
-        </div>
-        <div class="p-5 text-xs text-gray-700">
-          <p>
-            장바구니 <strong>{{ cart.length }}건</strong>이 모두 삭제됩니다. 계속할까요?
-          </p>
-        </div>
-        <div class="flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3">
-          <button
-            type="button"
-            class="border border-gray-300 bg-white px-4 py-2 text-xs font-black text-gray-700 hover:bg-gray-100"
-            @click="cancelClearCart"
-          >
-            취소
-          </button>
-          <button
-            type="button"
-            class="border border-red-700 bg-red-700 px-4 py-2 text-xs font-black text-white hover:bg-red-600"
-            @click="confirmClearCart"
-          >
-            삭제
-          </button>
-        </div>
-      </div>
-    </div>
+      <p>
+        장바구니 <strong>{{ cart.length }}건</strong>이 모두 삭제됩니다. 계속할까요?
+      </p>
+    </PurchaseOrderConfirmModal>
 
-    <!-- ───────── 모달: 발주 요청/수정 최종 확인 (signature, 비파괴) ───────── -->
-    <div
-      v-if="showSubmitConfirm"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-      @click.self="cancelSubmitOrder"
-    >
-      <div class="w-full max-w-sm overflow-hidden bg-white shadow-xl">
-        <div class="bg-[#004D3C] px-5 py-3 text-white">
-          <h2 class="text-sm font-black">{{ isEditMode ? '발주 수정 확인' : '발주 요청 확인' }}</h2>
-        </div>
-        <div class="space-y-2 p-5 text-xs text-gray-700">
-          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">발주서 요약</p>
-          <dl class="space-y-1.5">
-            <div class="flex justify-between gap-2">
-              <dt class="text-gray-500">입고 창고</dt>
-              <dd class="font-bold text-gray-800">{{ selectedWarehouseName }}</dd>
-            </div>
-            <div class="flex justify-between gap-2">
-              <dt class="text-gray-500">공급처</dt>
-              <dd class="font-bold text-gray-800">{{ currentCartVendorName }}</dd>
-            </div>
-            <div class="flex justify-between gap-2">
-              <dt class="text-gray-500">품목</dt>
-              <dd class="font-bold text-gray-800">{{ cart.length }}건</dd>
-            </div>
-            <div class="flex justify-between gap-2">
-              <dt class="text-gray-500">총액</dt>
-              <dd class="font-black text-[#004D3C]">₩{{ cartTotal.toLocaleString() }}</dd>
-            </div>
-          </dl>
-          <p class="pt-2 text-[11px] leading-relaxed text-gray-500">
-            <template v-if="isEditMode">
-              이 내용으로 발주를 수정합니다. 공급처 승인 전까지만 가능합니다.
-            </template>
-            <template v-else>
-              이 내용으로 공급처에 발주 요청합니다.
-              요청 후 공급처 응답 받기 전까지 [취소] 가능합니다.
-            </template>
-          </p>
-        </div>
-        <div class="flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3">
-          <button
-            type="button"
-            class="border border-gray-300 bg-white px-4 py-2 text-xs font-black text-gray-700 hover:bg-gray-100"
-            @click="cancelSubmitOrder"
-          >
-            취소
-          </button>
-          <button
-            type="button"
-            class="border border-[#004D3C] bg-[#004D3C] px-4 py-2 text-xs font-black text-white hover:bg-[#1f4b3a]"
-            @click="confirmSubmitOrder"
-          >
-            {{ isEditMode ? '수정 저장' : '발주 요청' }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <PurchaseOrderSubmitConfirmModal
+      :open="showSubmitConfirm"
+      :is-edit-mode="isEditMode"
+      :warehouse-name="selectedWarehouseName"
+      :vendor-name="currentCartVendorName"
+      :item-count="cart.length"
+      :total-amount="cartTotal"
+      @cancel="cancelSubmitOrder"
+      @confirm="confirmSubmitOrder"
+    />
 
     <PurchaseOrderFloatingBar
       :selected-count="selectedSkus.size"
