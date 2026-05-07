@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   RefreshCw,
   Heart,
+  Wallet,
 } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import DoughnutChart from '@/components/common/charts/DoughnutChart.vue'
@@ -494,67 +495,152 @@ function toggleExpand(id) {
   expandedId.value = expandedId.value === id ? null : id
 }
 
-const materialData = [
-  // 천연 단일
-  { name: '면 (Cotton)', type: '천연', total: 720, recycled: 480, rate: 66.7, factor: 1.8, saved: 864 },
-  { name: '울 (Wool)', type: '천연', total: 120, recycled: 90, rate: 75.0, factor: 2.5, saved: 225 },
-  { name: '캐시미어 (Cashmere)', type: '천연', total: 60, recycled: 38, rate: 63.3, factor: 2.8, saved: 106 },
-  { name: '실크 (Silk)', type: '천연', total: 45, recycled: 28, rate: 62.2, factor: 2.4, saved: 67 },
-  { name: '린넨 (Linen)', type: '천연', total: 80, recycled: 55, rate: 68.8, factor: 1.6, saved: 88 },
-  // 합성
-  { name: '폴리에스터 (Polyester)', type: '합성', total: 450, recycled: 320, rate: 71.1, factor: 2.3, saved: 736 },
-  { name: '나일론 (Polyamide)', type: '합성', total: 310, recycled: 210, rate: 67.7, factor: 2.1, saved: 441 },
-  { name: '아크릴 (Acrylic)', type: '합성', total: 180, recycled: 110, rate: 61.1, factor: 2.0, saved: 220 },
-  { name: '스판덱스 (Elastane)', type: '합성', total: 50, recycled: 24, rate: 48.0, factor: 1.7, saved: 41 },
-  // 혼방
-  { name: '데님 (면/스판)', type: '혼방', total: 200, recycled: 150, rate: 75.0, factor: 1.9, saved: 285 },
-  { name: '면/폴리 혼방', type: '혼방', total: 220, recycled: 130, rate: 59.1, factor: 1.9, saved: 247 },
-  { name: '울/아크릴 혼방', type: '혼방', total: 90, recycled: 50, rate: 55.6, factor: 2.2, saved: 110 },
-]
+// ─────────── 거래 가능 탄소 배출권 (자산 포트폴리오 스타일) ───────────
+//   잔여 한도 × KAU25 시세 = 보유 자산 가치
+//   향후 KOC offset 도입 시 carbonAssetBreakdown 에 항목 추가
+const carbonAssetValue = computed(() =>
+  Math.round(emissionCompliance.value.expectedSurplus * (kauPrice.value || 0)),
+)
 
-const TYPE_BADGE_CLS = {
-  '천연': 'bg-green-50 text-green-700 border border-green-200',
-  '합성': 'bg-blue-50 text-blue-700 border border-blue-200',
-  '혼방': 'bg-amber-50 text-amber-700 border border-amber-200',
-}
-
-const materialSummary = computed(() => {
-  const groups = ['천연', '합성', '혼방']
-  return groups.map((g) => {
-    const items = materialData.filter((m) => m.type === g)
-    const total = items.reduce((s, m) => s + m.total, 0)
-    const recycled = items.reduce((s, m) => s + m.recycled, 0)
-    const saved = items.reduce((s, m) => s + m.saved, 0)
-    const rate = total > 0 ? +((recycled / total) * 100).toFixed(1) : 0
-    return { type: g, count: items.length, total, recycled, rate, saved }
-  })
+// 변동률 (1월 평균 대비) — mock baseline ₩42,000,000
+const carbonAssetTrend = computed(() => {
+  const baseline = 42_000_000
+  const current = carbonAssetValue.value
+  if (baseline === 0) return { up: false, down: false, label: '0%', detail: '기준값 없음' }
+  const diff = current - baseline
+  const pct = (diff / baseline) * 100
+  const formattedPct = (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%'
+  const formattedDiff = (diff >= 0 ? '+' : '−') + '₩' + Math.abs(diff).toLocaleString('ko-KR')
+  return {
+    up: diff > 0, down: diff < 0,
+    label: `${formattedPct} (vs 1월 평균)`,
+    detail: `${formattedDiff} · 잔여 ${emissionCompliance.value.expectedSurplus.toLocaleString()} tCO₂ × ₩${(kauPrice.value || 0).toLocaleString()}`,
+  }
 })
 
-const materialTotals = computed(() => {
-  const total = materialData.reduce((s, m) => s + m.total, 0)
-  const recycled = materialData.reduce((s, m) => s + m.recycled, 0)
-  const saved = materialData.reduce((s, m) => s + m.saved, 0)
-  const rate = total > 0 ? +((recycled / total) * 100).toFixed(1) : 0
-  return { total, recycled, saved, rate }
+// 월별 자산 가치 추이 (mock — 잔여량은 동일, 시세 변동 반영)
+const CARBON_ASSET_MONTHLY_PRICE = [8200, 8400, 8950, 9100, 9620, 9840, 9700, 9550, 9420, 9180, 8950, 8800]
+const carbonAssetMonthlyData = computed(() => ({
+  labels: ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'],
+  datasets: [{
+    label: '자산 가치',
+    data: CARBON_ASSET_MONTHLY_PRICE.map(p =>
+      Math.round(emissionCompliance.value.expectedSurplus * p),
+    ),
+    backgroundColor: 'rgba(245, 158, 11, 0.85)',
+    borderColor: '#d97706',
+    borderWidth: 1.5, borderRadius: 3,
+    maxBarThickness: 18, categoryPercentage: 0.7, barPercentage: 0.8,
+  }],
+}))
+const carbonAssetMonthlyOptions = {
+  responsive: true, maintainAspectRatio: false,
+  layout: { padding: { left: 0, right: 4, top: 4, bottom: 4 } },
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: '#92400e', titleColor: '#fff', bodyColor: '#fff', padding: 8,
+      callbacks: { label: (ctx) => `₩${ctx.parsed.y.toLocaleString('ko-KR')}` },
+    },
+  },
+  scales: {
+    y: {
+      beginAtZero: false,
+      ticks: {
+        font: { size: 9 }, maxTicksLimit: 5,
+        callback: (v) => '₩' + Math.round(v / 1000000) + 'M',
+      },
+      grid: { color: 'rgba(0,0,0,0.05)' },
+    },
+    x: {
+      grid: { display: false },
+      ticks: {
+        font: { size: 8.5 },
+        autoSkip: false,
+        maxRotation: 0,
+        minRotation: 0,
+        padding: 4,
+      },
+    },
+  },
+}
+
+// ─────────── 순환 재고 판매 수익 (mock) ───────────
+//   향후 BE 연동: GET /api/hq/circular-stock/sales/revenue?period=YEAR|Q|M
+//   계산: SUM(sale_price) by month/buyer
+const revenuePeriod = ref('YEAR')   // M | Q | YEAR
+
+// 월별 수익 mock (1~12월, 단위 원)
+const REVENUE_MONTHLY = [376_000, 800_000, 630_000, 2_010_000, 0, 0, 0, 0, 0, 0, 0, 0]
+// 월별 거래 건수 mock (1~12월)
+const REVENUE_COUNT_MONTHLY = [1, 2, 2, 4, 0, 0, 0, 0, 0, 0, 0, 0]
+
+const totalRevenue = computed(() => {
+  const now = new Date()
+  const m = now.getMonth()
+  if (revenuePeriod.value === 'M') return REVENUE_MONTHLY[m] ?? 0
+  if (revenuePeriod.value === 'Q') {
+    const start = Math.max(0, m - 2)
+    return REVENUE_MONTHLY.slice(start, m + 1).reduce((s, v) => s + v, 0)
+  }
+  return REVENUE_MONTHLY.reduce((s, v) => s + v, 0)
 })
 
-// 활동 내역 — 이벤트 단위(판매 1건 / 기부 1건). 탄소 점수 = 무게 × 계수 × 0.1
-const activityLog = [
-  { date: '04.28', type: 'donation', label: '재해 구호 — 면 95kg 기부',                     points:  97, detail: '실행 80 + 탄소 17 (95 × 1.8 × 0.1)' },
-  { date: '04.27', type: 'sale',     label: '신규 거래처 D사 — 폴리에스터 500kg 판매',         points: 365, detail: '실행 100 + 탄소 115 + 신규 150' },
-  { date: '04.22', type: 'donation', label: '취약 계층 — 면 80kg 기부',                     points:  94, detail: '실행 80 + 탄소 14 (80 × 1.8 × 0.1)' },
-  { date: '04.20', type: 'sale',     label: '마을협동조합 — 혼방 300kg 판매 (사회적기업)',     points: 310, detail: '실행 100 + 탄소 60 + 지역 150' },
-  { date: '04.15', type: 'sale',     label: 'B사 — 면 250kg 판매',                            points: 145, detail: '실행 100 + 탄소 45 (250 × 1.8 × 0.1)' },
-  { date: '04.14', type: 'donation', label: '개도국 — 폴리 50kg 기부',                        points:  92, detail: '실행 80 + 탄소 12 (50 × 2.3 × 0.1)' },
-  { date: '04.10', type: 'sale',     label: 'A사 — 면 100kg 판매',                            points: 118, detail: '실행 100 + 탄소 18 (100 × 1.8 × 0.1)' },
-  { date: '04.05', type: 'donation', label: '교육 기관 — 혼방 30kg 기부',                      points:  86, detail: '실행 80 + 탄소 6 (30 × 2.0 × 0.1)' },
-]
+const revenueStats = computed(() => {
+  const monthsWithData = REVENUE_MONTHLY.filter(v => v > 0).length || 1
+  const avgMonthly = Math.round(REVENUE_MONTHLY.reduce((s, v) => s + v, 0) / monthsWithData)
+  const count = REVENUE_COUNT_MONTHLY.reduce((s, v) => s + v, 0)
+  return { avgMonthly, count }
+})
 
-
-const typeCfg = {
-  sale:     { label: '판매', cls: 'bg-emerald-50 text-emerald-700' },
-  donation: { label: '기부', cls: 'bg-pink-50 text-pink-700' },
+const revenueChartData = computed(() => ({
+  labels: ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'],
+  datasets: [{
+    label: '월별 수익',
+    data: REVENUE_MONTHLY,
+    backgroundColor: 'rgba(16, 185, 129, 0.85)',
+    borderColor: '#059669',
+    borderWidth: 1.5, borderRadius: 3,
+    maxBarThickness: 18, categoryPercentage: 0.7, barPercentage: 0.8,
+  }],
+}))
+const revenueChartOptions = {
+  responsive: true, maintainAspectRatio: false,
+  layout: { padding: { left: 4, right: 8, top: 4, bottom: 12 } },
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: '#065f46', titleColor: '#fff', bodyColor: '#fff', padding: 8,
+      callbacks: { label: (ctx) => `₩${ctx.parsed.y.toLocaleString('ko-KR')}` },
+    },
+  },
+  scales: {
+    y: {
+      beginAtZero: true,
+      ticks: {
+        font: { size: 9 }, maxTicksLimit: 5,
+        callback: (v) => v >= 10000 ? '₩' + Math.round(v / 10000) + '만' : '₩' + v,
+      },
+      grid: { color: 'rgba(0,0,0,0.05)' },
+    },
+    x: {
+      grid: { display: false },
+      ticks: {
+        font: { size: 8.5 },
+        autoSkip: false,
+        maxRotation: 0,
+        minRotation: 0,
+        padding: 6,
+      },
+    },
+  },
 }
+
+const topBuyers = computed(() => {
+  const sorted = [...REVENUE_BY_BUYER].sort((a, b) => b.amount - a.amount)
+  const total = sorted.reduce((s, b) => s + b.amount, 0) || 1
+  return sorted.map(b => ({ ...b, share: ((b.amount / total) * 100).toFixed(1) }))
+})
 
 const dateLabel = computed(() =>
   new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
@@ -927,120 +1013,99 @@ function handleLogout() {
         </article>
       </section>
 
-      <!-- 소재별 재활용 전환율 + 활동 내역 -->
+      <!-- 거래 가능 탄소 배출권 + 활동 내역 -->
       <section class="grid gap-3 xl:grid-cols-2">
 
-        <!-- 소재별 재활용 전환율 -->
-        <article class="border border-gray-300 bg-white shadow-sm">
-          <div class="border-b border-gray-200 px-3 py-2.5">
-            <h3 class="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
-              <Recycle :size="15" class="text-green-600" />
-              소재별 재활용 전환율
+        <!-- 거래 가능 탄소 배출권 (자산 포트폴리오 스타일) -->
+        <article class="flex min-w-0 flex-col border border-gray-300 bg-white shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-gray-200 px-3 py-2.5">
+            <h3 class="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm font-medium text-gray-800">
+              <span class="inline-flex items-center gap-2">
+                <Coins :size="15" class="text-amber-600" />
+                거래 가능 탄소 배출권
+                <span class="text-[10px] font-normal text-gray-400">자산 포트폴리오</span>
+              </span>
+              <span class="text-[10.5px] font-normal text-amber-700/80">
+                ⓘ 잔여 한도 × KAU25 시세 · KRX 매도 가능 (평일 10:00~12:00)
+              </span>
             </h3>
+            <span class="shrink-0 text-[10px] text-gray-400">기준: {{ dateLabel }}</span>
           </div>
 
-          <!-- 소재 분류 체계 요약 (3계층: 천연/합성/혼방) -->
-          <div class="grid grid-cols-3 gap-2 border-b border-gray-100 bg-gray-50/50 px-3 py-2.5">
-            <div
-              v-for="g in materialSummary"
-              :key="g.type"
-              class="rounded border bg-white px-2 py-1.5"
-              :class="{
-                'border-green-200': g.type === '천연',
-                'border-blue-200': g.type === '합성',
-                'border-amber-200': g.type === '혼방',
-              }"
-            >
-              <div class="flex items-center justify-between">
-                <span
-                  class="rounded px-1.5 py-0.5 text-[9px] font-bold"
-                  :class="TYPE_BADGE_CLS[g.type]"
-                >
-                  {{ g.type }} 소재
-                </span>
-                <span class="text-[9px] text-gray-400">{{ g.count }}종</span>
-              </div>
-              <div class="mt-1 flex items-baseline gap-1">
-                <span class="text-[14px] font-bold text-gray-800">{{ g.rate }}%</span>
-                <span class="text-[9px] text-gray-400">전환율</span>
-              </div>
-              <div class="text-[9px] text-gray-500">
-                {{ g.recycled }}/{{ g.total }}kg · +{{ g.saved }}pt
-              </div>
+          <!-- 보유 자산 가치 (메인 메트릭) -->
+          <div class="border-b border-amber-100 bg-gradient-to-br from-amber-50 to-yellow-50 px-3 py-3">
+            <p class="text-[10px] font-medium text-amber-700/80">보유 자산 가치</p>
+            <div class="mt-1 flex items-baseline gap-1.5">
+              <span class="text-[24px] font-black text-amber-700">
+                ₩{{ carbonAssetValue.toLocaleString('ko-KR') }}
+              </span>
+              <span
+                class="text-[11px] font-bold"
+                :class="carbonAssetTrend.up ? 'text-red-600' : carbonAssetTrend.down ? 'text-blue-600' : 'text-gray-500'"
+              >
+                {{ carbonAssetTrend.up ? '↗' : carbonAssetTrend.down ? '↘' : '·' }}
+                {{ carbonAssetTrend.label }}
+              </span>
             </div>
+            <p class="mt-1 text-[10px] text-amber-700/70">
+              {{ carbonAssetTrend.detail }}
+            </p>
           </div>
 
-          <div class="overflow-auto">
-            <table class="w-full min-w-[520px] text-[12px]">
-              <thead class="bg-gray-50 text-[10px] uppercase text-gray-500">
-                <tr>
-                  <th class="px-2 py-2 text-left font-semibold">분류</th>
-                  <th class="px-2 py-2 text-left font-semibold">소재</th>
-                  <th class="px-2 py-2 text-right font-semibold">보유 (kg)</th>
-                  <th class="px-2 py-2 text-right font-semibold">재활용 (kg)</th>
-                  <th class="px-2 py-2 text-right font-semibold">전환율</th>
-                  <th class="px-2 py-2 text-right font-semibold">CO₂ (pt)</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-gray-100 border-t border-gray-200">
-                <tr v-for="m in materialData" :key="m.name" class="hover:bg-gray-50/60">
-                  <td class="px-2 py-2">
-                    <span
-                      class="rounded px-1.5 py-0.5 text-[9px] font-bold"
-                      :class="TYPE_BADGE_CLS[m.type]"
-                    >
-                      {{ m.type }}
-                    </span>
-                  </td>
-                  <td class="px-2 py-2 font-medium text-gray-800">{{ m.name }}</td>
-                  <td class="px-2 py-2 text-right text-gray-500">{{ m.total }}</td>
-                  <td class="px-2 py-2 text-right font-medium text-green-700">{{ m.recycled }}</td>
-                  <td class="px-2 py-2 text-right">
-                    <span class="text-[11px] font-semibold text-green-700">{{ m.rate }}%</span>
-                  </td>
-                  <td class="px-2 py-2 text-right font-bold text-emerald-700">+{{ m.saved }}</td>
-                </tr>
-              </tbody>
-              <tfoot class="border-t-2 border-gray-200 bg-gray-50">
-                <tr class="text-[11px]">
-                  <td class="px-2 py-2 font-semibold text-gray-600" colspan="2">합계</td>
-                  <td class="px-2 py-2 text-right font-semibold text-gray-600">{{ materialTotals.total.toLocaleString() }}</td>
-                  <td class="px-2 py-2 text-right font-semibold text-green-700">{{ materialTotals.recycled.toLocaleString() }}</td>
-                  <td class="px-2 py-2 text-right">
-                    <span class="font-bold text-green-700">{{ materialTotals.rate }}%</span>
-                  </td>
-                  <td class="px-2 py-2 text-right font-bold text-emerald-700">+{{ materialTotals.saved.toLocaleString() }}</td>
-                </tr>
-              </tfoot>
-            </table>
+          <!-- 월별 가치 추이 (막대 차트) -->
+          <div class="flex min-w-0 flex-1 flex-col px-3 py-2.5">
+            <p class="mb-1.5 text-[10px] font-medium uppercase tracking-widest text-gray-500">월별 자산 가치 추이</p>
+            <div class="relative w-full" style="height: 220px;">
+              <BarChart :data="carbonAssetMonthlyData" :options="carbonAssetMonthlyOptions" />
+            </div>
           </div>
         </article>
 
-        <!-- 탄소 감축 활동 내역 -->
-        <article class="border border-gray-300 bg-white shadow-sm">
-          <div class="border-b border-gray-200 px-3 py-2.5">
-            <h3 class="text-sm font-medium text-gray-800">탄소 감축 활동 내역</h3>
+        <!-- 순환 재고 판매 수익 -->
+        <article class="flex min-w-0 flex-col border border-gray-300 bg-white shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-gray-200 px-3 py-2.5">
+            <h3 class="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm font-medium text-gray-800">
+              <span class="inline-flex items-center gap-2">
+                <Wallet :size="15" class="text-emerald-600" />
+                순환 재고 판매 수익
+              </span>
+              <span class="text-[10.5px] font-normal text-emerald-700/80">
+                ⓘ 판매 단가 × 무게 합산 · 월말 마감 후 자동 갱신
+              </span>
+            </h3>
+            <div class="inline-flex shrink-0 items-center gap-0.5 border border-gray-300 bg-white p-0.5">
+              <button
+                v-for="p in [{v:'M',l:'월'},{v:'Q',l:'분기'},{v:'YEAR',l:'년'}]"
+                :key="p.v"
+                type="button"
+                class="px-2 py-0.5 text-[10px] font-medium transition"
+                :class="revenuePeriod === p.v ? 'bg-emerald-700 text-white' : 'text-gray-600 hover:bg-gray-50'"
+                @click="revenuePeriod = p.v"
+              >{{ p.l }}</button>
+            </div>
           </div>
-          <div class="divide-y divide-gray-100">
-            <div
-              v-for="(log, i) in activityLog"
-              :key="i"
-              class="flex items-center gap-3 px-3 py-2.5"
-            >
-              <span class="w-10 shrink-0 text-[10px] text-gray-400">{{ log.date }}</span>
-              <span
-                class="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold"
-                :class="typeCfg[log.type].cls"
-              >
-                {{ typeCfg[log.type].label }}
+
+          <!-- 누적 수익 (메인) -->
+          <div class="border-b border-emerald-100 bg-gradient-to-br from-emerald-50 to-white px-3 py-3">
+            <p class="text-[10px] font-medium text-emerald-700/80">
+              {{ revenuePeriod === 'M' ? '이번 달' : revenuePeriod === 'Q' ? '최근 3개월' : '올해 (YTD)' }} 누적 수익
+            </p>
+            <div class="mt-1 flex items-baseline gap-1.5">
+              <span class="text-[24px] font-black text-emerald-700">
+                ₩{{ totalRevenue.toLocaleString('ko-KR') }}
               </span>
-              <div class="min-w-0 flex-1">
-                <p class="truncate text-[12px] font-medium text-gray-700">{{ log.label }}</p>
-                <p class="text-[10px] text-gray-400">{{ log.detail }}</p>
-              </div>
-              <span class="shrink-0 text-[13px] font-bold text-emerald-600">
-                +{{ log.points.toLocaleString() }}
-              </span>
+            </div>
+            <p class="mt-1 text-[10px] text-emerald-700/70">
+              거래 {{ revenueStats.count }}건 · 월 평균 ₩{{ revenueStats.avgMonthly.toLocaleString() }}
+              <span class="ml-1 text-gray-500">(데이터 있는 월 기준)</span>
+            </p>
+          </div>
+
+          <!-- 월별 수익 추이 -->
+          <div class="flex min-w-0 flex-1 flex-col px-3 py-2.5">
+            <p class="mb-1.5 text-[10px] font-medium uppercase tracking-widest text-gray-500">월별 수익 추이 (12개월)</p>
+            <div class="relative w-full" style="height: 220px;">
+              <BarChart :data="revenueChartData" :options="revenueChartOptions" />
             </div>
           </div>
         </article>
