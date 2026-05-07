@@ -1,43 +1,37 @@
 /**
- * esg.js — BE 연동 지점 주석 스텁
+ * esg.js — 본사 ESG 도메인 BE 연동
  *
- * BE에서 ESG/배출권 관련 Controller/Service가 완성되면
- * 이 파일의 각 함수를 실제 axios 호출로 채우고,
- * stores/esg.js의 fetchKauPrice action에서 import하여 호출하도록 교체한다.
+ * BE 엔드포인트:
+ *   GET /api/hq/esg/carbon-price/latest   (KAU25 최신 시세 1건)
+ *   GET /api/hq/esg/carbon-price/trend    (최근 2주 일별 시계열)
  *
- * 기본 axios 인스턴스: src/api/axios.js (BE 연동 시 신설 예정)
- * baseURL: http://localhost:8080
+ * 응답 형태(Snapshot):
+ *   {
+ *     pricePerTon: number,   // 원/톤
+ *     symbol:      string,   // 'KAU25' (정상) 또는 'FALLBACK'
+ *     basDt:       string,   // 'YYYYMMDD'
+ *     fltRt:       string,   // 등락률(%)
+ *     fallback:    boolean   // true 면 외부 API 실패 → 폴백값
+ *   }
  */
 
-// ─────────────────────────────────────────────
-// 배출권(KAU) 시세 관련 API
-// ─────────────────────────────────────────────
+import { apiClient, unwrap } from '../axios.js'
 
-/**
- * KAU(Korean Allowance Unit) 최신 시세 조회
- * GET /api/v1/esg/kau-price
- *
- * BE는 KRX 배출권 시장(ets.krx.co.kr) 또는 공공데이터포털 배출권 시세 정보 API에서
- * 가져온 최신 시세를 일/시간 단위로 캐싱하여 응답한다.
- *
- * @returns {Promise<{ price: number, updatedAt: string, source: string }>}
- *   price     - tCO₂당 원화 가격 (KRW)
- *   updatedAt - ISO8601 (시세 기준 시각)
- *   source    - 'KRX' | 'data.go.kr' | 기타
- */
-// export async function getKauPrice() {
-//   const res = await axios.get('/api/v1/esg/kau-price')
-//   return res.data.result
-// }
+export const carbonPriceApi = {
+  /**
+   * 가장 최근 거래일의 KAU 종가 1건 (KPI 카드용).
+   * @returns {Promise<{ pricePerTon: number, symbol: string, basDt: string, fltRt: string, fallback: boolean }>}
+   */
+  getLatest: () => apiClient.get('/api/hq/esg/carbon-price/latest').then(unwrap),
 
-/**
- * KAU 시세 이력 조회 (월별/일별 추이용)
- * GET /api/v1/esg/kau-price/history?from=&to=&interval=
- *
- * @param {{ from: string, to: string, interval?: 'day'|'month' }} params
- * @returns {Promise<Array<{ date: string, price: number }>>}
- */
-// export async function getKauPriceHistory(params = {}) {
-//   const res = await axios.get('/api/v1/esg/kau-price/history', { params })
-//   return res.data.result
-// }
+  /**
+   * KAU25 일별 시세 시계열 (차트용).
+   *  - SEVEN_DAYS: 최근 7거래일
+   *  - ONE_MONTH:  최근 1개월
+   *  - SIX_MONTHS: 최근 6개월 (KAU25 거래 활성 기간 거의 전체)
+   *
+   * @param {'SEVEN_DAYS'|'ONE_MONTH'|'SIX_MONTHS'} period
+   */
+  getTrend: (period = 'SEVEN_DAYS') =>
+    apiClient.get('/api/hq/esg/carbon-price/trend', { params: { period } }).then(unwrap),
+}
