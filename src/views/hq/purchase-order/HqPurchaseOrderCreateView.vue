@@ -828,6 +828,10 @@ onMounted(() => {
     loadDraft()
   }
   reloadCatalog()
+  // 인증 hydrate race 로 store 마운트 시점 fetch 가 스킵될 수 있어 보장 fetch.
+  if (poStore.warehouses.length === 0) {
+    poStore.fetchWarehouses()
+  }
 })
 
 // 공급처 필터 변경 시 server-side 재 fetch (한 공급처 결과만 받기)
@@ -919,7 +923,7 @@ const AlertTriangleIcon = IconBase([
           <select
             ref="warehouseSelectRef"
             :value="selectedWarehouseCode"
-            class="border border-gray-300 bg-white px-3 py-1.5 text-xs outline-none focus:border-[#004D3C]"
+            class="min-w-[160px] border border-gray-300 bg-white px-3 py-1.5 text-xs outline-none focus:border-[#004D3C]"
             @change="handleWarehouseChange($event.target.value)"
           >
             <option value="">창고 선택</option>
