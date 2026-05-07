@@ -139,6 +139,9 @@ onMounted(loadStores)
         <p class="mt-1 text-xs font-bold text-gray-500">
           본사 관리자 권한으로 매장 발주 승인 배치를 수동 실행합니다.
         </p>
+        <p class="mt-2 text-[11px] font-bold text-blue-800">
+          발주 승인 처리 시점: 기본적으로 전날(00:00~23:59) 발주건은 익일 00:00(KST)에 자동 승인되며, 필요한 경우 본사에서 수동 배치 승인으로 즉시 처리할 수 있습니다.
+        </p>
       </section>
 
       <section class="border border-gray-300 bg-white p-4 shadow-sm">
@@ -283,4 +286,3 @@ onMounted(loadStores)
     </div>
   </AppLayout>
 </template>
-
