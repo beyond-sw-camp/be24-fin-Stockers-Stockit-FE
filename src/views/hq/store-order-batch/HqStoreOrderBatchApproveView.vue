@@ -6,10 +6,7 @@ import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { extractErrorMessage } from '@/api/axios.js'
 import { getInfrastructures } from '@/api/hq/infrastructure.js'
-import {
-  getPendingStoreOrderBatchTargets,
-  runStoreOrderBatchApprove,
-} from '@/api/hq/storeOrderBatch.js'
+import { getPendingStoreOrderBatchTargets, runStoreOrderBatchApprove } from '@/api/hq/storeOrderBatch.js'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -32,6 +29,7 @@ const loadingStores = ref(false)
 const loadingPendingStores = ref(false)
 const runningAll = ref(false)
 const runningStoreCode = ref('')
+const completedStoreMap = ref({})
 
 const feedbackMessage = ref('')
 const feedbackType = ref('info')
@@ -64,6 +62,17 @@ const filteredPendingStores = computed(() => {
 
 function isStoreRunning(storeCode) {
   return runningStoreCode.value === storeCode
+}
+
+function isStoreCompleted(storeCode) {
+  return !!completedStoreMap.value[storeCode]
+}
+
+function markStoreCompleted(storeCode) {
+  completedStoreMap.value = {
+    ...completedStoreMap.value,
+    [storeCode]: true,
+  }
 }
 
 function showFeedback(message, type = 'info') {
@@ -132,7 +141,7 @@ async function runAllBatch() {
     const res = await runStoreOrderBatchApprove({ mode: 'ALL' })
     result.value = res
     showFeedback('전체 승인 배치 실행이 완료되었습니다.', 'success')
-    await loadPendingStores()
+    pendingStores.value.forEach((store) => markStoreCompleted(store.storeCode))
   } catch (e) {
     result.value = null
     showFeedback(mapBatchErrorMessage(e), 'error')
@@ -142,13 +151,14 @@ async function runAllBatch() {
 }
 
 async function runStoreBatch(store) {
+  if (isStoreCompleted(store.storeCode)) return
   feedbackMessage.value = ''
   runningStoreCode.value = store.storeCode
   try {
     const res = await runStoreOrderBatchApprove({ mode: 'STORE', storeCode: store.storeCode })
     result.value = res
     showFeedback(`${store.storeName} 매장 수동 배치 실행이 완료되었습니다.`, 'success')
-    await loadPendingStores()
+    markStoreCompleted(store.storeCode)
   } catch (e) {
     result.value = null
     showFeedback(mapBatchErrorMessage(e), 'error')
@@ -174,45 +184,31 @@ onMounted(async () => {
       <section class="border border-gray-300 bg-white p-4 shadow-sm">
         <div class="flex flex-wrap items-start justify-between gap-5">
           <div class="space-y-2">
-            <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">HQ Batch</p>
+            <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">HQ BATCH</p>
             <h1 class="text-lg font-black text-gray-900">매장 발주 수동 배치 승인</h1>
             <p class="text-xs font-bold text-gray-500">
               본사 관리자 권한으로 매장 발주 승인 배치를 수동 실행합니다.
             </p>
             <p class="text-[11px] font-bold text-blue-800">
-              발주 승인 완료 처리 시점: 기본적으로 전날(00:00~23:59) 발주건은 익일 00:00(KST)에 자동
-              승인되며, 필요한 경우 본사에서 수동 배치 승인으로 즉시 처리할 수 있습니다.
+              발주 승인 완료 처리 시점: 기본적으로 전날(00:00~23:59) 발주건은 익일 00:00(KST)에 자동 승인되며,
+              필요한 경우 본사에서 수동 배치 승인으로 즉시 처리할 수 있습니다.
             </p>
           </div>
-
-          <button
-            type="button"
-            class="h-10 px-4 text-xs font-black transition-colors"
-            :class="
-              runningAll
-                ? 'cursor-not-allowed bg-gray-200 text-gray-400'
-                : 'bg-[#004D3C] text-white hover:bg-[#003d30]'
-            "
-            :disabled="runningAll || runningStoreCode"
-            @click="runAllBatch"
-          >
-            {{ runningAll ? '전체 실행 중...' : '전체 승인 실행' }}
-          </button>
         </div>
       </section>
 
       <section class="border border-gray-300 bg-white p-4 shadow-sm">
         <div class="flex items-center justify-between gap-3">
           <h2 class="text-lg font-black text-gray-900">승인 대기 발주 보유 매장</h2>
-          <p class="text-[11px] font-bold text-gray-500">
-            전체 {{ pendingStores.length }}개 매장
-          </p>
+          <p class="text-[11px] font-bold text-gray-500">전체 {{ pendingStores.length }}개 매장</p>
         </div>
-        <div class="pt-4 flex flex-wrap items-center gap-4">
-          <span class="text-[11px] font-black text-gray-500">매장 조회</span>
+
+        <div class="pt-4 flex w-full flex-wrap items-center gap-4">
+          <span class="text-[11px] font-black tracking-wide text-gray-500">매장 검색</span>
+
           <select
             v-model="selectedRegion"
-            class="h-10 min-w-[170px] border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
+            class="h-9 min-w-[170px] rounded-xl border border-gray-200 bg-white px-3 text-xs font-bold text-gray-900 outline-none transition-colors focus:border-[#004D3C]"
             :disabled="loadingStores"
           >
             <option value="">전체 지역</option>
@@ -223,7 +219,7 @@ onMounted(async () => {
 
           <select
             v-model="selectedStoreCode"
-            class="h-10 min-w-[240px] border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
+            class="h-9 min-w-[240px] rounded-xl border border-gray-200 bg-white px-3 text-xs font-bold text-gray-900 outline-none transition-colors focus:border-[#004D3C]"
             :disabled="loadingStores"
           >
             <option value="">전체 지점</option>
@@ -236,8 +232,22 @@ onMounted(async () => {
             v-model="searchKeyword"
             type="search"
             placeholder="매장명, 매장코드, 지역 검색"
-            class="h-10 min-w-[280px] border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#004D3C]"
+            class="h-9 min-w-[280px] flex-1 rounded-xl border border-gray-200 bg-white px-3 text-xs font-bold text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-[#004D3C]"
           />
+
+          <button
+            type="button"
+            class="h-9 shrink-0 rounded-xl border px-4 text-xs font-black tracking-wide shadow-sm transition-colors"
+            :class="
+              runningAll
+                ? 'cursor-not-allowed border-gray-200 bg-gray-200 text-gray-400'
+                : 'border-[#1e3a5f] bg-[#27496d] text-white hover:border-[#152b46] hover:bg-[#1f3b59]'
+            "
+            :disabled="runningAll || runningStoreCode"
+            @click="runAllBatch"
+          >
+            {{ runningAll ? '전체 실행 중...' : '전체 승인 실행' }}
+          </button>
         </div>
 
         <div v-if="loadingPendingStores" class="pt-4 text-xs font-bold text-gray-500">
@@ -250,36 +260,42 @@ onMounted(async () => {
         >
           조건에 맞는 승인 대기 매장이 없습니다.
         </div>
-
         <div v-else class="pt-4 grid gap-4 md:grid-cols-2">
           <div
             v-for="store in filteredPendingStores"
             :key="store.storeCode"
-            class="flex items-center justify-between border border-gray-200 bg-white px-3 py-3"
+            class="group flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm transition-colors duration-200 hover:border-[#8cb5a9]/70"
           >
             <div class="min-w-0 pr-6">
-              <p class="text-[11px] font-bold text-gray-500">
-                {{ store.region }} · {{ store.storeCode }}
-              </p>
-              <p class="mt-3 text-sm font-black text-gray-900">{{ store.storeName }}</p>
-              <p class="mt-3 text-xs font-black text-gray-700">
-                승인 대기 <span class="text-blue-500">{{ store.requestedCount }}</span
-                >건
-              </p>
+              <p class="text-[11px] font-bold tracking-wide text-gray-500">{{ store.region }} · {{ store.storeCode }}</p>
+              <div class="mt-2 flex items-center gap-2">
+                <p class="text-[18px] leading-none font-black text-gray-900">{{ store.storeName }}</p>
+                <p class="inline-flex items-center gap-1 rounded-full border border-[#cfe6de] bg-[#EAF6F2] px-3 py-1 text-[11px] font-black text-[#004D3C]">
+                  승인 대기 <span class="text-blue-700">{{ store.requestedCount }}</span>건
+                </p>
+              </div>
             </div>
 
             <button
               type="button"
-              class="h-9 min-w-[130px] px-3 text-xs font-black transition-colors"
+              class="h-11 min-w-[138px] rounded-xl border px-2 text-xs font-black tracking-wide shadow-sm transition-colors duration-200"
               :class="
-                isStoreRunning(store.storeCode)
-                  ? 'cursor-not-allowed bg-gray-200 text-gray-400'
-                  : 'bg-[#004D3C] text-white hover:bg-[#003d30]'
+                isStoreCompleted(store.storeCode)
+                  ? 'cursor-not-allowed border-gray-200 bg-gray-200 text-gray-500'
+                  : isStoreRunning(store.storeCode)
+                  ? 'cursor-not-allowed border-gray-200 bg-gray-200 text-gray-400'
+                  : 'border-[#1e3a5f] bg-[#27496d] text-white hover:border-[#152b46] hover:bg-[#1f3b59]'
               "
-              :disabled="runningAll || !!runningStoreCode"
+              :disabled="isStoreCompleted(store.storeCode) || runningAll || !!runningStoreCode"
               @click="runStoreBatch(store)"
             >
-              {{ isStoreRunning(store.storeCode) ? '실행 중...' : '수동 배치 실행' }}
+              {{
+                isStoreCompleted(store.storeCode)
+                  ? '처리 완료'
+                  : isStoreRunning(store.storeCode)
+                  ? '실행 중...'
+                  : '수동 배치 실행'
+              }}
             </button>
           </div>
         </div>
@@ -288,9 +304,7 @@ onMounted(async () => {
       <section class="border border-gray-300 bg-white p-4 shadow-sm">
         <div class="flex items-center justify-between">
           <h2 class="text-lg font-black text-gray-900">실행 결과</h2>
-          <span v-if="result?.runId" class="text-[11px] font-bold text-gray-500">
-            runId: {{ result.runId }}
-          </span>
+          <span v-if="result?.runId" class="text-[11px] font-bold text-gray-500">runId: {{ result.runId }}</span>
         </div>
 
         <div v-if="result" class="mt-4 grid gap-3 md:grid-cols-4">
@@ -343,9 +357,7 @@ onMounted(async () => {
                 <td class="px-3 py-2.5 font-bold text-gray-700">{{ row.message }}</td>
               </tr>
               <tr v-if="!(result?.results ?? []).length">
-                <td colspan="4" class="px-4 py-8 text-center text-gray-400">
-                  실행 결과가 없습니다.
-                </td>
+                <td colspan="4" class="px-4 py-8 text-center text-gray-400">실행 결과가 없습니다.</td>
               </tr>
             </tbody>
           </table>
