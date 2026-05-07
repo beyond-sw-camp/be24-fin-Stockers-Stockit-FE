@@ -4,7 +4,7 @@ import { purchaseOrderApi } from '@/api/hq/purchaseOrder.js'
 import { getInfrastructures } from '@/api/hq/infrastructure.js'
 import { useAuthStore } from '@/stores/auth.js'
 
-// SYS-001 배치가 자동 처리하는 거래처 책임 단계 묶음.
+// SYS-001 배치가 자동 처리하는 공급처 책임 단계 묶음.
 // 본사 관리자는 액션 불가 — UI 탭에서 하나로 그루핑한다.
 export const VENDOR_PROCESSING_STATUSES = ['APPROVED', 'READY_TO_SHIP', 'IN_TRANSIT', 'ARRIVED']
 
