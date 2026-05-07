@@ -119,6 +119,23 @@ function statusClass(status) {
   return map[status] ?? 'bg-gray-100 text-gray-500'
 }
 
+// inboundType 분기 — 발주(emerald) / 이동(indigo)
+function inboundTypeClass(type) {
+  const map = {
+    PURCHASE_ORDER: 'bg-emerald-50 text-emerald-700',
+    WAREHOUSE_TRANSFER: 'bg-indigo-50 text-indigo-700',
+  }
+  return map[type] ?? 'bg-gray-100 text-gray-500'
+}
+
+function inboundTypeLabel(type) {
+  const map = {
+    PURCHASE_ORDER: '발주',
+    WAREHOUSE_TRANSFER: '이동',
+  }
+  return map[type] ?? type ?? '-'
+}
+
 // 창고 화면 시점 라벨 (COMPLETED = "입고 완료", 본사 화면은 "종료")
 function statusLabel(status) {
   const map = {
@@ -340,16 +357,18 @@ const CheckIcon = IconBase([{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12'
           </div>
 
           <div class="overflow-auto">
-            <table class="w-full min-w-[760px] table-fixed border-collapse text-xs">
+            <table class="w-full min-w-[920px] table-fixed border-collapse text-xs">
               <thead class="bg-gray-100 text-[10px] uppercase tracking-wider text-gray-500">
                 <tr>
-                  <th class="w-32 px-3 py-2 text-left font-black">발주번호</th>
-                  <th class="w-32 px-3 py-2 text-left font-black">공급처</th>
-                  <th class="w-28 px-3 py-2 text-left font-black">입고 창고</th>
+                  <th class="w-16 px-2 py-2 text-center font-black">종류</th>
+                  <th class="w-36 px-3 py-2 text-left font-black">입고번호</th>
+                  <th class="w-36 px-3 py-2 text-left font-black">출처번호</th>
+                  <th class="w-32 px-3 py-2 text-left font-black">출처</th>
                   <th class="w-44 px-3 py-2 text-left font-black">품목</th>
-                  <th class="w-28 px-3 py-2 text-right font-black">총금액</th>
+                  <th class="w-20 px-3 py-2 text-right font-black">수량</th>
+                  <th class="w-28 px-3 py-2 text-right font-black">금액</th>
                   <th class="w-20 px-3 py-2 text-center font-black">상태</th>
-                  <th class="w-28 px-3 py-2 text-center font-black">입고 예정일</th>
+                  <th class="w-28 px-3 py-2 text-center font-black">도착(예정)일</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">
@@ -360,9 +379,17 @@ const CheckIcon = IconBase([{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12'
                   :class="{ 'bg-[#E6F2F0]': inbound.selectedOrderId === order.id }"
                   @click="selectOrder(order.id)"
                 >
-                  <td class="px-3 py-3 font-bold text-gray-400">{{ order.id }}</td>
-                  <td class="px-3 py-3 font-black text-gray-800">{{ order.vendorName }}</td>
-                  <td class="px-3 py-3 font-bold text-gray-600">{{ order.warehouseName }}</td>
+                  <td class="px-2 py-3 text-center">
+                    <span
+                      class="inline-flex px-2 py-1 text-[10px] font-black"
+                      :class="inboundTypeClass(order.inboundType)"
+                    >
+                      {{ inboundTypeLabel(order.inboundType) }}
+                    </span>
+                  </td>
+                  <td class="px-3 py-3 font-bold text-gray-700">{{ order.inboundCode }}</td>
+                  <td class="px-3 py-3 font-bold text-gray-500">{{ order.sourceRefNo }}</td>
+                  <td class="px-3 py-3 font-black text-gray-800">{{ order.sourceName }}</td>
                   <td class="px-3 py-3 font-bold text-gray-700">
                     <span class="block truncate" :title="(order.productNames ?? []).join(', ')">
                       <template v-if="order.productNames && order.productNames.length > 0">
@@ -374,8 +401,14 @@ const CheckIcon = IconBase([{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12'
                       <template v-else>—</template>
                     </span>
                   </td>
+                  <td class="px-3 py-3 text-right font-bold text-gray-700">
+                    {{ (order.totalQuantity ?? 0).toLocaleString() }}
+                  </td>
                   <td class="px-3 py-3 text-right font-black text-gray-800">
-                    ₩{{ order.totalPrice.toLocaleString() }}
+                    <template v-if="order.totalAmount != null">
+                      ₩{{ order.totalAmount.toLocaleString() }}
+                    </template>
+                    <span v-else class="text-gray-300">—</span>
                   </td>
                   <td class="px-3 py-3 text-center">
                     <span
@@ -386,11 +419,11 @@ const CheckIcon = IconBase([{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12'
                     </span>
                   </td>
                   <td class="px-3 py-3 text-center text-[11px] text-gray-500">
-                    {{ formatDate(order.createdAt) }}
+                    {{ formatDate(order.arrivedAt ?? order.createdAt) }}
                   </td>
                 </tr>
                 <tr v-if="inbound.inboundList.length === 0">
-                  <td colspan="7" class="px-3 py-8 text-center text-xs text-gray-400">
+                  <td colspan="9" class="px-3 py-8 text-center text-xs text-gray-400">
                     조회된 입고 내역이 없습니다.
                   </td>
                 </tr>
@@ -432,20 +465,30 @@ const CheckIcon = IconBase([{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12'
 
           <!-- 상세 내용 -->
           <div class="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
-            <!-- 기본 정보 -->
+            <!-- 기본 정보 (공통) -->
             <section class="space-y-3">
-              <div>
-                <p class="text-[10px] font-bold uppercase text-gray-400">발주번호</p>
-                <p class="mt-0.5 text-sm font-black text-gray-900">
-                  {{ inbound.selectedOrder.id }}
-                </p>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <p class="text-[10px] font-bold uppercase text-gray-400">입고번호</p>
+                  <p class="mt-0.5 text-sm font-black text-gray-900">
+                    {{ inbound.selectedOrder.inboundCode }}
+                  </p>
+                </div>
+                <div>
+                  <p class="text-[10px] font-bold uppercase text-gray-400">출처번호</p>
+                  <p class="mt-0.5 text-xs font-black text-gray-700">
+                    {{ inbound.selectedOrder.sourceRefNo }}
+                  </p>
+                </div>
               </div>
 
               <div class="grid grid-cols-2 gap-3">
                 <div>
-                  <p class="text-[10px] font-bold uppercase text-gray-400">공급처</p>
+                  <p class="text-[10px] font-bold uppercase text-gray-400">
+                    {{ inbound.selectedOrder.inboundType === 'WAREHOUSE_TRANSFER' ? '출발 창고' : '공급처' }}
+                  </p>
                   <p class="mt-0.5 text-xs font-black text-gray-800">
-                    {{ inbound.selectedOrder.vendorName }}
+                    {{ inbound.selectedOrder.sourceName }}
                   </p>
                 </div>
                 <div>
@@ -459,10 +502,15 @@ const CheckIcon = IconBase([{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12'
                     class="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-gray-400"
                   >
                     <UserIcon :size="10" />
-                    담당자
+                    종류
                   </p>
-                  <p class="mt-0.5 text-xs font-black text-gray-800">
-                    {{ inbound.selectedOrder.memberName }}
+                  <p class="mt-0.5">
+                    <span
+                      class="inline-flex px-2 py-1 text-[10px] font-black"
+                      :class="inboundTypeClass(inbound.selectedOrder.inboundType)"
+                    >
+                      {{ inboundTypeLabel(inbound.selectedOrder.inboundType) }}
+                    </span>
                   </p>
                 </div>
                 <div>
@@ -474,7 +522,8 @@ const CheckIcon = IconBase([{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12'
               </div>
             </section>
 
-            <!-- 품목 테이블 -->
+            <!-- 발주 입고 분기 (PURCHASE_ORDER) — 품목 테이블 + 단가/소계 -->
+            <template v-if="inbound.selectedOrder.inboundType === 'PURCHASE_ORDER'">
             <section>
               <p class="mb-2 text-[10px] font-black uppercase text-gray-400">발주 품목</p>
               <table class="w-full text-xs">
@@ -529,14 +578,26 @@ const CheckIcon = IconBase([{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12'
                   <tr>
                     <td colspan="5" class="px-2 py-2">총계</td>
                     <td class="px-2 py-2 text-right text-[#004D3C]">
-                      ₩{{ inbound.selectedOrder.totalPrice.toLocaleString() }}
+                      <template v-if="inbound.selectedOrder.totalAmount != null">
+                        ₩{{ inbound.selectedOrder.totalAmount.toLocaleString() }}
+                      </template>
+                      <span v-else class="text-gray-300">—</span>
                     </td>
                   </tr>
                 </tfoot>
               </table>
             </section>
+            </template>
 
-            <!-- 진행 이력 타임라인 — 창고 단계(SHIPPING/COMPLETED)만 -->
+            <!-- 이동 입고 분기 (WAREHOUSE_TRANSFER) — 후속 사이클 -->
+            <div
+              v-else-if="inbound.selectedOrder.inboundType === 'WAREHOUSE_TRANSFER'"
+              class="border border-dashed border-gray-300 bg-gray-50 px-3 py-6 text-center text-xs text-gray-400"
+            >
+              창고간 이동 입고 상세는 outbound 도메인 합류 후 사이클에서 추가됩니다.
+            </div>
+
+            <!-- 진행 이력 타임라인 — 모든 inboundType 공통 -->
             <section v-if="visibleHistory.length">
               <p class="mb-2 text-[10px] font-black uppercase text-gray-400">진행 이력</p>
               <ol class="ml-2">
