@@ -27,14 +27,14 @@ function handleLogout() {
 }
 
 // ─── 상태 탭 ────────────────────────────────────────────────────────────────
-// 본사 화면이라 COMPLETED 라벨은 "종료" (창고 화면은 "입고 완료")
+// 본사 화면이라 COMPLETED 라벨은 "종료" (창고 화면은 "입고 완료").
+// 공급처 책임 4단계(APPROVED/READY_TO_SHIP/IN_TRANSIT/ARRIVED)는 SYS-001 배치가
+// 자동 처리하므로 본사는 액션 불가 — '공급처 처리 중' 한 탭으로 그루핑해 인지 부담 감소.
+// 세부 단계는 우측 상세의 진행 이력 타임라인이 시각화한다.
 const STATUS_TABS = [
   { label: '전체', key: '전체' },
   { label: '승인 대기', key: 'REQUESTED' },
-  { label: '승인 완료', key: 'APPROVED' },
-  { label: '배송 준비 중', key: 'READY_TO_SHIP' },
-  { label: '배송 중', key: 'IN_TRANSIT' },
-  { label: '배송 완료', key: 'ARRIVED' },
+  { label: '공급처 처리 중', key: 'VENDOR_PROCESSING' },
   { label: '종료', key: 'COMPLETED' },
   { label: '취소', key: 'CANCELLED' },
 ]
@@ -61,7 +61,7 @@ function triggerToast(message) {
 }
 
 // ─── SYS-001 배치 강제 트리거 (시연·QA용) ─────────────────────────────────
-// 30분 대기 조건을 무시하고 거래처 책임 4단계(REQUESTED/APPROVED/READY_TO_SHIP/IN_TRANSIT)
+// 30분 대기 조건을 무시하고 공급처 책임 4단계(REQUESTED/APPROVED/READY_TO_SHIP/IN_TRANSIT)
 // 모두 즉시 다음 단계로 넘긴다.
 const isRunningBatch = ref(false)
 async function runBatchTrigger() {
@@ -69,10 +69,11 @@ async function runBatchTrigger() {
   isRunningBatch.value = true
   try {
     const result = await poStore.runBatch()
-    const total = (result?.approved ?? 0)
-      + (result?.readyToShip ?? 0)
-      + (result?.inTransit ?? 0)
-      + (result?.arrived ?? 0)
+    const total =
+      (result?.approved ?? 0) +
+      (result?.readyToShip ?? 0) +
+      (result?.inTransit ?? 0) +
+      (result?.arrived ?? 0)
     if (total === 0) {
       triggerToast('자동 전환 대상 발주가 없습니다')
     } else {
@@ -88,7 +89,7 @@ async function runBatchTrigger() {
 }
 
 // ─── 발주 취소 (CEN-038) ────────────────────────────────────────────────────
-// REQUESTED (승인 대기) 단계에서만 취소 가능. 그 이후는 거래처가 이미 받았으므로 차단.
+// REQUESTED (승인 대기) 단계에서만 취소 가능. 그 이후는 공급처가 이미 받았으므로 차단.
 function openCancelConfirm() {
   if (poStore.selectedOrder?.status !== 'REQUESTED') return
   cancelReason.value = '' // 모달 열 때마다 초기화
@@ -290,9 +291,7 @@ const TruckIcon = IconBase([
   >
     <div class="flex flex-col gap-4">
       <!-- 총 발주 요약 (공급처/기간 컨텍스트 반영) -->
-      <section
-        class="flex items-center gap-4 border border-gray-200 bg-white px-5 py-4 shadow-sm"
-      >
+      <section class="flex items-center gap-4 border border-gray-200 bg-white px-5 py-4 shadow-sm">
         <div
           class="flex h-12 w-12 shrink-0 items-center justify-center bg-[#E6F2F0] text-[#004D3C]"
         >
@@ -339,6 +338,16 @@ const TruckIcon = IconBase([
             >
               {{ poStore.statusCounts[tab.key] }}
             </span>
+            <!-- 본사 액션 가능 단계 강조 — REQUESTED 카운트 > 0 + 비활성 탭일 때만 -->
+            <span
+              v-if="
+                tab.key === 'REQUESTED' &&
+                poStore.statusCounts.REQUESTED > 0 &&
+                poStore.activeStatusTab !== 'REQUESTED'
+              "
+              class="ml-0.5 inline-block h-1.5 w-1.5 rounded-full bg-amber-500"
+              aria-hidden="true"
+            />
           </button>
         </div>
       </section>
@@ -577,10 +586,16 @@ const TruckIcon = IconBase([
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">
-                  <tr v-for="item in poStore.selectedOrder.items" :key="item.skuCode || item.productId">
+                  <tr
+                    v-for="item in poStore.selectedOrder.items"
+                    :key="item.skuCode || item.productId"
+                  >
                     <td class="px-2 py-2 align-top">
                       <div class="font-bold text-gray-800">{{ item.productName }}</div>
-                      <div v-if="item.displayOption" class="mt-0.5 text-[11px] font-bold text-[#004D3C]">
+                      <div
+                        v-if="item.displayOption"
+                        class="mt-0.5 text-[11px] font-bold text-[#004D3C]"
+                      >
                         {{ item.displayOption }}
                       </div>
                       <div v-if="item.skuCode" class="text-[10px] text-gray-400">
@@ -631,9 +646,7 @@ const TruckIcon = IconBase([
                   <p class="text-[11px] font-black" :class="historyTextClass(h.status)">
                     {{ statusLabel(h.status) }}
                   </p>
-                  <p class="text-[10px] text-gray-500">
-                    {{ formatDate(h.at) }} · {{ h.byName }}
-                  </p>
+                  <p class="text-[10px] text-gray-500">{{ formatDate(h.at) }} · {{ h.byName }}</p>
                 </li>
               </ol>
             </section>
@@ -686,14 +699,14 @@ const TruckIcon = IconBase([
             </template>
 
             <template v-else-if="poStore.selectedOrder.status === 'ARRIVED'">
-              <p class="text-center text-xs text-gray-500">
-                배송 완료 · 창고 입고 확정 대기
-              </p>
+              <p class="text-center text-xs text-gray-500">배송 완료 · 창고 입고 확정 대기</p>
             </template>
 
             <template v-else>
               <p
-                v-if="poStore.selectedOrder.status === 'CANCELLED' && poStore.selectedOrder.cancelReason"
+                v-if="
+                  poStore.selectedOrder.status === 'CANCELLED' && poStore.selectedOrder.cancelReason
+                "
                 class="border border-red-200 bg-red-50 px-3 py-2.5 text-[11px] font-bold leading-relaxed text-red-700"
               >
                 취소 사유: {{ poStore.selectedOrder.cancelReason }}
@@ -757,7 +770,9 @@ const TruckIcon = IconBase([
             취소 후에는 되돌릴 수 없습니다. 같은 발주가 필요하면 새 발주로 다시 만들어야 합니다.
           </p>
         </div>
-        <div class="flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3">
+        <div
+          class="flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3"
+        >
           <button
             type="button"
             class="border border-gray-300 bg-white px-4 py-2 text-xs font-black text-gray-700 hover:bg-gray-100"
@@ -790,6 +805,5 @@ const TruckIcon = IconBase([
         {{ toast.message }}
       </div>
     </Transition>
-
   </AppLayout>
 </template>
