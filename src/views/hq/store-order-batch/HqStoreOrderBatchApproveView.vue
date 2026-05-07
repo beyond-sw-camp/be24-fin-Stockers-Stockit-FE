@@ -6,7 +6,10 @@ import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { extractErrorMessage } from '@/api/axios.js'
 import { getInfrastructures } from '@/api/hq/infrastructure.js'
-import { runStoreOrderBatchApprove } from '@/api/hq/storeOrderBatch.js'
+import {
+  getPendingStoreOrderBatchTargets,
+  runStoreOrderBatchApprove,
+} from '@/api/hq/storeOrderBatch.js'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -18,15 +21,20 @@ const sideMenus = computed(
   () => hqMenus.find((menu) => menu.path === '/hq/batch/store-order-approve')?.children ?? [],
 )
 
-const mode = ref('ALL')
 const selectedRegion = ref('')
 const selectedStoreCode = ref('')
+const searchKeyword = ref('')
+
 const storeRows = ref([])
+const pendingStores = ref([])
+
 const loadingStores = ref(false)
-const running = ref(false)
+const loadingPendingStores = ref(false)
+const runningAll = ref(false)
+const runningStoreCode = ref('')
+
 const feedbackMessage = ref('')
 const feedbackType = ref('info')
-
 const result = ref(null)
 
 const regionOptions = computed(() => {
@@ -36,22 +44,27 @@ const regionOptions = computed(() => {
 })
 
 const storeOptions = computed(() => {
-  const list = storeRows.value.filter((s) => s.region === selectedRegion.value)
-  return list.sort((a, b) => String(a.name).localeCompare(String(b.name), 'ko'))
+  const base = selectedRegion.value
+    ? storeRows.value.filter((s) => s.region === selectedRegion.value)
+    : storeRows.value
+  return [...base].sort((a, b) => String(a.name).localeCompare(String(b.name), 'ko'))
 })
 
-const isStoreMode = computed(() => mode.value === 'STORE')
-
-watch(mode, (next) => {
-  if (next !== 'STORE') {
-    selectedRegion.value = ''
-    selectedStoreCode.value = ''
-  }
+const filteredPendingStores = computed(() => {
+  const keyword = searchKeyword.value.trim().toLowerCase()
+  return pendingStores.value.filter((store) => {
+    const matchRegion = !selectedRegion.value || store.region === selectedRegion.value
+    const matchStore = !selectedStoreCode.value || store.storeCode === selectedStoreCode.value
+    const matchKeyword =
+      !keyword ||
+      `${store.storeName} ${store.storeCode} ${store.region}`.toLowerCase().includes(keyword)
+    return matchRegion && matchStore && matchKeyword
+  })
 })
 
-watch(selectedRegion, () => {
-  selectedStoreCode.value = ''
-})
+function isStoreRunning(storeCode) {
+  return runningStoreCode.value === storeCode
+}
 
 function showFeedback(message, type = 'info') {
   feedbackMessage.value = message
@@ -62,6 +75,14 @@ function handleLogout() {
   auth.logout()
   router.push('/dev-login')
 }
+
+watch(selectedRegion, () => {
+  if (!selectedStoreCode.value) return
+  const selected = storeRows.value.find((s) => s.code === selectedStoreCode.value)
+  if (!selected || selected.region !== selectedRegion.value) {
+    selectedStoreCode.value = ''
+  }
+})
 
 async function loadStores() {
   loadingStores.value = true
@@ -80,17 +101,17 @@ async function loadStores() {
   }
 }
 
-function validateInput() {
-  if (!isStoreMode.value) return true
-  if (!selectedRegion.value) {
-    showFeedback('STORE 모드에서는 지역을 선택해 주세요.', 'error')
-    return false
+async function loadPendingStores() {
+  loadingPendingStores.value = true
+  try {
+    const list = await getPendingStoreOrderBatchTargets()
+    pendingStores.value = Array.isArray(list) ? list : []
+  } catch (e) {
+    showFeedback(extractErrorMessage(e, '승인 대기 매장 목록을 불러오지 못했습니다.'), 'error')
+    pendingStores.value = []
+  } finally {
+    loadingPendingStores.value = false
   }
-  if (!selectedStoreCode.value) {
-    showFeedback('STORE 모드에서는 지점명을 선택해 주세요.', 'error')
-    return false
-  }
-  return true
 }
 
 function mapBatchErrorMessage(error) {
@@ -101,27 +122,44 @@ function mapBatchErrorMessage(error) {
   return extractErrorMessage(error, '배치 실행 중 오류가 발생했습니다.')
 }
 
-async function runBatch() {
+async function runAllBatch() {
   feedbackMessage.value = ''
-  if (!validateInput()) return
+  const ok = window.confirm('승인 대기 전체 발주를 승인 처리할까요?')
+  if (!ok) return
 
-  running.value = true
+  runningAll.value = true
   try {
-    const payload = isStoreMode.value
-      ? { mode: 'STORE', storeCode: selectedStoreCode.value }
-      : { mode: 'ALL' }
-    const res = await runStoreOrderBatchApprove(payload)
+    const res = await runStoreOrderBatchApprove({ mode: 'ALL' })
     result.value = res
-    showFeedback('수동 배치 실행이 완료되었습니다.', 'success')
+    showFeedback('전체 승인 배치 실행이 완료되었습니다.', 'success')
+    await loadPendingStores()
   } catch (e) {
     result.value = null
     showFeedback(mapBatchErrorMessage(e), 'error')
   } finally {
-    running.value = false
+    runningAll.value = false
   }
 }
 
-onMounted(loadStores)
+async function runStoreBatch(store) {
+  feedbackMessage.value = ''
+  runningStoreCode.value = store.storeCode
+  try {
+    const res = await runStoreOrderBatchApprove({ mode: 'STORE', storeCode: store.storeCode })
+    result.value = res
+    showFeedback(`${store.storeName} 매장 수동 배치 실행이 완료되었습니다.`, 'success')
+    await loadPendingStores()
+  } catch (e) {
+    result.value = null
+    showFeedback(mapBatchErrorMessage(e), 'error')
+  } finally {
+    runningStoreCode.value = ''
+  }
+}
+
+onMounted(async () => {
+  await Promise.all([loadStores(), loadPendingStores()])
+})
 </script>
 
 <template>
@@ -132,100 +170,130 @@ onMounted(loadStores)
     v-model:active-side-menu="activeSideMenu"
     @logout="handleLogout"
   >
-    <div class="flex flex-col gap-4">
+    <div class="flex flex-col gap-6">
       <section class="border border-gray-300 bg-white p-4 shadow-sm">
-        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">HQ Batch</p>
-        <h1 class="mt-1 text-lg font-black text-gray-900">매장 발주 수동 배치 승인</h1>
-        <p class="mt-1 text-xs font-bold text-gray-500">
-          본사 관리자 권한으로 매장 발주 승인 배치를 수동 실행합니다.
-        </p>
-        <p class="mt-2 text-[11px] font-bold text-blue-800">
-          발주 승인 처리 시점: 기본적으로 전날(00:00~23:59) 발주건은 익일 00:00(KST)에 자동 승인되며, 필요한 경우 본사에서 수동 배치 승인으로 즉시 처리할 수 있습니다.
-        </p>
+        <div class="flex flex-wrap items-start justify-between gap-5">
+          <div class="space-y-2">
+            <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">HQ Batch</p>
+            <h1 class="text-lg font-black text-gray-900">매장 발주 수동 배치 승인</h1>
+            <p class="text-xs font-bold text-gray-500">
+              본사 관리자 권한으로 매장 발주 승인 배치를 수동 실행합니다.
+            </p>
+            <p class="text-[11px] font-bold text-blue-800">
+              발주 승인 완료 처리 시점: 기본적으로 전날(00:00~23:59) 발주건은 익일 00:00(KST)에 자동
+              승인되며, 필요한 경우 본사에서 수동 배치 승인으로 즉시 처리할 수 있습니다.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            class="h-10 px-4 text-xs font-black transition-colors"
+            :class="
+              runningAll
+                ? 'cursor-not-allowed bg-gray-200 text-gray-400'
+                : 'bg-[#004D3C] text-white hover:bg-[#003d30]'
+            "
+            :disabled="runningAll || runningStoreCode"
+            @click="runAllBatch"
+          >
+            {{ runningAll ? '전체 실행 중...' : '전체 승인 실행' }}
+          </button>
+        </div>
       </section>
 
       <section class="border border-gray-300 bg-white p-4 shadow-sm">
-        <h2 class="text-sm font-black text-gray-900">실행 조건</h2>
-        <div class="mt-3 grid gap-3 md:grid-cols-4">
-          <label class="flex flex-col gap-1.5">
-            <span class="text-[11px] font-bold text-gray-500">배치 모드</span>
-            <select
-              v-model="mode"
-              class="h-10 border border-gray-300 bg-white px-3 text-sm font-bold text-gray-900 outline-none focus:border-[#004D3C]"
-              :disabled="running"
-            >
-              <option value="ALL">전체 승인</option>
-              <option value="STORE">매장별 승인</option>
-            </select>
-          </label>
+        <div class="flex items-center justify-between gap-3">
+          <h2 class="text-lg font-black text-gray-900">승인 대기 발주 보유 매장</h2>
+          <p class="text-[11px] font-bold text-gray-500">
+            전체 {{ pendingStores.length }}개 매장
+          </p>
+        </div>
+        <div class="pt-4 flex flex-wrap items-center gap-4">
+          <span class="text-[11px] font-black text-gray-500">매장 조회</span>
+          <select
+            v-model="selectedRegion"
+            class="h-10 min-w-[170px] border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
+            :disabled="loadingStores"
+          >
+            <option value="">전체 지역</option>
+            <option v-for="region in regionOptions" :key="region" :value="region">
+              {{ region }}
+            </option>
+          </select>
 
-          <label class="flex flex-col gap-1.5">
-            <span class="text-[11px] font-bold text-gray-500">지역</span>
-            <select
-              v-model="selectedRegion"
-              class="h-10 border border-gray-300 bg-white px-3 text-sm font-bold text-gray-900 outline-none focus:border-[#004D3C] disabled:cursor-not-allowed disabled:bg-gray-100"
-              :disabled="running || !isStoreMode || loadingStores"
-            >
-              <option value="">지역 선택</option>
-              <option v-for="region in regionOptions" :key="region" :value="region">
-                {{ region }}
-              </option>
-            </select>
-          </label>
+          <select
+            v-model="selectedStoreCode"
+            class="h-10 min-w-[240px] border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
+            :disabled="loadingStores"
+          >
+            <option value="">전체 지점</option>
+            <option v-for="store in storeOptions" :key="store.code" :value="store.code">
+              {{ store.name }} ({{ store.code }})
+            </option>
+          </select>
 
-          <label class="flex flex-col gap-1.5">
-            <span class="text-[11px] font-bold text-gray-500">지점명</span>
-            <select
-              v-model="selectedStoreCode"
-              class="h-10 border border-gray-300 bg-white px-3 text-sm font-bold text-gray-900 outline-none focus:border-[#004D3C] disabled:cursor-not-allowed disabled:bg-gray-100"
-              :disabled="running || !isStoreMode || !selectedRegion"
-            >
-              <option value="">지점명 선택</option>
-              <option v-for="store in storeOptions" :key="store.code" :value="store.code">
-                {{ store.name }} ({{ store.code }})
-              </option>
-            </select>
-          </label>
+          <input
+            v-model="searchKeyword"
+            type="search"
+            placeholder="매장명, 매장코드, 지역 검색"
+            class="h-10 min-w-[280px] border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#004D3C]"
+          />
+        </div>
 
-          <div class="flex items-end">
+        <div v-if="loadingPendingStores" class="pt-4 text-xs font-bold text-gray-500">
+          승인 대기 매장 목록을 불러오는 중입니다.
+        </div>
+
+        <div
+          v-else-if="filteredPendingStores.length === 0"
+          class="mt-5 border border-gray-200 bg-gray-50 px-3 py-6 text-center text-xs font-bold text-gray-500"
+        >
+          조건에 맞는 승인 대기 매장이 없습니다.
+        </div>
+
+        <div v-else class="pt-4 grid gap-4 md:grid-cols-2">
+          <div
+            v-for="store in filteredPendingStores"
+            :key="store.storeCode"
+            class="flex items-center justify-between border border-gray-200 bg-white px-3 py-3"
+          >
+            <div class="min-w-0 pr-6">
+              <p class="text-[11px] font-bold text-gray-500">
+                {{ store.region }} · {{ store.storeCode }}
+              </p>
+              <p class="mt-3 text-sm font-black text-gray-900">{{ store.storeName }}</p>
+              <p class="mt-3 text-xs font-black text-gray-700">
+                승인 대기 <span class="text-blue-500">{{ store.requestedCount }}</span
+                >건
+              </p>
+            </div>
+
             <button
               type="button"
-              class="h-10 w-full text-sm font-black transition-colors"
+              class="h-9 min-w-[130px] px-3 text-xs font-black transition-colors"
               :class="
-                running
+                isStoreRunning(store.storeCode)
                   ? 'cursor-not-allowed bg-gray-200 text-gray-400'
                   : 'bg-[#004D3C] text-white hover:bg-[#003d30]'
               "
-              :disabled="running"
-              @click="runBatch"
+              :disabled="runningAll || !!runningStoreCode"
+              @click="runStoreBatch(store)"
             >
-              {{ running ? '실행 중...' : '수동 배치 실행' }}
+              {{ isStoreRunning(store.storeCode) ? '실행 중...' : '수동 배치 실행' }}
             </button>
           </div>
         </div>
-
-        <p
-          v-if="feedbackMessage"
-          class="mt-4 border px-3 py-2 text-[12px] font-black"
-          :class="
-            feedbackType === 'success'
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-              : 'border-red-200 bg-red-50 text-red-700'
-          "
-        >
-          {{ feedbackMessage }}
-        </p>
       </section>
 
       <section class="border border-gray-300 bg-white p-4 shadow-sm">
         <div class="flex items-center justify-between">
-          <h2 class="text-sm font-black text-gray-900">실행 결과</h2>
+          <h2 class="text-lg font-black text-gray-900">실행 결과</h2>
           <span v-if="result?.runId" class="text-[11px] font-bold text-gray-500">
             runId: {{ result.runId }}
           </span>
         </div>
 
-        <div v-if="result" class="mt-3 grid gap-2 md:grid-cols-4">
+        <div v-if="result" class="mt-4 grid gap-3 md:grid-cols-4">
           <div class="border border-gray-200 bg-gray-50 p-3">
             <p class="text-[11px] font-bold text-gray-500">요청 건수</p>
             <p class="mt-1 text-lg font-black text-gray-900">{{ result.requestedCount ?? 0 }}</p>
