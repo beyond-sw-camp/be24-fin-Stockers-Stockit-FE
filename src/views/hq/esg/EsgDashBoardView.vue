@@ -386,83 +386,105 @@ const kpiMetrics = [
   { label: '폐기 손실 수익전환', value: '4,820,000', unit: '원', sub: '순환 회수 완료', icon: Award, valueCls: 'text-amber-700', iconBg: 'bg-amber-50', iconCls: 'text-amber-600' },
 ]
 
+// 나무 키우기 점수 카테고리 (5종)
+//  1. 순환재고 판매 실행      — 판매 1건당 기본 100점 (10kg 이상)
+//  2. 탄소 감축 기여           — 무게 × 소재 계수 × 0.1 (판매 + 기부 모두 합산)
+//  3. 순환 거래 확산           — 신규 거래처 첫 거래 +150
+//  4. 지역 상생                — 사회적기업/지역 소규모 파트너 거래 +150 (월 3건 한도)
+//  5. 기부 활동 실행           — 기부 1건당 기본 80점 (10kg 이상)
+//  ※ 카테고리 합계: 400 + 287 + 150 + 150 + 320 = 1,307 pt
 const scoreCategories = [
   {
-    id: 'productionAvoid',
-    label: '신규 생산 회피',
-    points: 9226,
-    pct: 42.6,
-    icon: Recycle,
-    badge: '글로벌 표준',
+    id: 'saleExecution',
+    label: '순환재고 판매 실행',
+    points: 400,
+    pct: 30.6,
+    icon: RefreshCw,
+    badge: '기본 점수',
     barCls: 'bg-emerald-500',
     badgeCls: 'bg-emerald-100 text-emerald-700',
     iconCls: 'text-emerald-600',
-    desc: '재판매 → 다른 회사 신규 소재 생산 회피 (Higg MSI 표준)',
-    formula: '처리 무게(kg) × Higg MSI 신규 생산 회피량 (kg CO₂/kg)',
+    desc: '순환재고 판매 1건이 최종 완료되면 적립되는 기본 점수',
+    formula: '판매 1건당 100점 (최소 10kg 이상 유효)',
     rows: [
-      { label: '면 (Cotton)', detail: '480kg × 6.5', points: 3120 },
-      { label: '폴리에스터', detail: '320kg × 6.8', points: 2176 },
-      { label: '나일론', detail: '210kg × 5.5', points: 1155 },
-      { label: '데님', detail: '150kg × 6.5', points: 975 },
-      { label: '울 (Wool)', detail: '90kg × 20.0', points: 1800 },
+      { label: '04.27', target: '폴리에스터 500kg 판매 (D사)', detail: '기본 100점', points: 100 },
+      { label: '04.20', target: '혼방 300kg 판매 (마을협동조합)', detail: '기본 100점', points: 100 },
+      { label: '04.15', target: '면 250kg 판매 (B사)', detail: '기본 100점', points: 100 },
+      { label: '04.10', target: '면 100kg 판매 (A사)', detail: '기본 100점', points: 100 },
     ],
   },
   {
-    id: 'disposalAvoid',
-    label: '폐기 회피',
-    points: 3459,
-    pct: 16.0,
-    icon: ShieldCheck,
-    badge: 'K-ETS 정합',
+    id: 'carbonReduction',
+    label: '탄소 감축 기여',
+    points: 287,
+    pct: 22.0,
+    icon: Leaf,
+    badge: 'GHG Avoided',
     barCls: 'bg-teal-500',
     badgeCls: 'bg-teal-100 text-teal-700',
     iconCls: 'text-teal-600',
-    desc: '악성재고를 소각·매립·덤핑하지 않음 (폐기 배출 회피)',
-    formula: '처리 무게(kg) × 소재별 폐기 회피 계수 (kg CO₂/kg)',
+    desc: '소각되지 않고 판매·기부된 무게에 대한 실제 탄소 감축 환산 (판매 + 기부 합산)',
+    formula: '무게(kg) × 소재 계수 × 0.1 (면 1.8 / 폴리 2.3 / 나일론 2.1 / 울 2.5 / 혼방 비율 분해)',
     rows: [
-      { label: '면 (Cotton)', detail: '480kg × 2.5', points: 1200 },
-      { label: '폴리에스터', detail: '320kg × 3.0', points: 960 },
-      { label: '나일론', detail: '210kg × 3.2', points: 672 },
-      { label: '데님', detail: '150kg × 2.5', points: 375 },
-      { label: '울 (Wool)', detail: '90kg × 2.8', points: 252 },
+      { label: '04.27', target: '폴리에스터 500kg 판매', detail: '500 × 2.3 × 0.1', points: 115 },
+      { label: '04.20', target: '혼방 300kg 판매 (면50:폴리50)', detail: '300 × 2.0 × 0.1', points: 60 },
+      { label: '04.15', target: '면 250kg 판매', detail: '250 × 1.8 × 0.1', points: 45 },
+      { label: '04.10', target: '면 100kg 판매', detail: '100 × 1.8 × 0.1', points: 18 },
+      { label: '04.28', target: '면 95kg 기부 (재해구호)', detail: '95 × 1.8 × 0.1', points: 17 },
+      { label: '04.22', target: '면 80kg 기부 (취약계층)', detail: '80 × 1.8 × 0.1', points: 14 },
+      { label: '04.14', target: '폴리 50kg 기부 (개도국)', detail: '50 × 2.3 × 0.1', points: 12 },
+      { label: '04.05', target: '혼방 30kg 기부 (교육기관)', detail: '30 × 2.0 × 0.1', points: 6 },
     ],
   },
   {
-    id: 'method',
-    label: '처리 방식',
-    points: 6300,
-    pct: 29.1,
-    icon: RefreshCw,
-    badge: '가중 적용',
+    id: 'newBuyer',
+    label: '순환 거래 확산',
+    points: 150,
+    pct: 11.5,
+    icon: Recycle,
+    badge: 'ESG-S 신규 채널',
     barCls: 'bg-blue-500',
     badgeCls: 'bg-blue-100 text-blue-700',
     iconCls: 'text-blue-600',
-    desc: '업사이클 ×1.5 / 재활용 ×1.2 / 재판매 ×1.0 / 다운사이클 ×0.6',
-    formula: '처리량(kg) × Higg MSI 평균 회피량 × 처리 방식별 가중치',
+    desc: '신규 순환 거래처와의 첫 거래 — 소각 대체 채널 확장 기여',
+    formula: '신규 buyerId 첫 거래 1건당 +150점 (과거 순환 판매 이력 0건 판별)',
     rows: [
-      { label: '업사이클링', target: '가치 향상 재제품화 (가방/패치워크)', detail: '280kg × 가중치 1.5', points: 1575 },
-      { label: '재활용', target: '분쇄/재방사 → 신소재 원료', detail: '700kg × 가중치 1.2', points: 3150 },
-      { label: '중고 재판매', target: '정상 재고 → 아울렛/구제몰', detail: '420kg × 가중치 1.0', points: 945 },
-      { label: '다운사이클링', target: '산업용 흡음재/충전재', detail: '285kg × 가중치 0.6', points: 630 },
+      { label: '04.27', target: '신규 거래처 D사 첫 거래 (폴리 500kg)', detail: '신규 채널 발굴 가점', points: 150 },
     ],
   },
   {
-    id: 'donation',
-    label: '기부',
-    points: 2655,
-    pct: 12.3,
+    id: 'localPartner',
+    label: '지역 상생',
+    points: 150,
+    pct: 11.5,
+    icon: ShieldCheck,
+    badge: 'ESG-S 사회적 가치',
+    barCls: 'bg-amber-500',
+    badgeCls: 'bg-amber-100 text-amber-700',
+    iconCls: 'text-amber-600',
+    desc: '지역 소규모 파트너 / 사회적 기업과 거래 — 지역 경제·사회적 가치 기여',
+    formula: '거래 1건당 +150점 (거래처당 월 3건 한도, 어뷰징 방지)',
+    rows: [
+      { label: '04.20', target: '마을협동조합 (사회적 기업) — 혼방 300kg', detail: '지역 상생 가점', points: 150 },
+    ],
+  },
+  {
+    id: 'donationExecution',
+    label: '기부 활동 실행',
+    points: 320,
+    pct: 24.5,
     icon: Heart,
-    badge: '사회적 가치 최고',
+    badge: '사회적 가치',
     barCls: 'bg-pink-500',
     badgeCls: 'bg-pink-100 text-pink-700',
     iconCls: 'text-pink-600',
-    desc: '재해구호 ×2.0 / 취약계층 ×1.5 / 개도국 ×1.3 / 교육기관 ×1.1',
-    formula: '기부 무게(kg) × 소재별 탄소환산계수 × 기부 유형별 가중치',
+    desc: '기부 1건이 최종 완료되면 적립되는 기본 점수',
+    formula: '기부 1건당 80점 (최소 10kg 이상 유효)',
     rows: [
-      { label: '재해 구호', target: '지진/홍수/한파 긴급 지원', detail: '면 코트 95kg × 6.5 × 2.0', points: 1235 },
-      { label: '취약 계층 지원', target: '노숙인/저소득/복지시설', detail: '면 80kg × 6.5 × 1.5', points: 780 },
-      { label: '개도국 의류 지원', target: '해외 구호 단체', detail: '폴리에스터 50kg × 6.8 × 1.3', points: 442 },
-      { label: '교육 기관 지원', target: '직업학교/기술학원 (재단 실습용)', detail: '다양 소재 30kg × 6.0 × 1.1', points: 198 },
+      { label: '04.28', target: '재해 구호 (면 95kg)', detail: '기본 80점', points: 80 },
+      { label: '04.22', target: '취약 계층 지원 (면 80kg)', detail: '기본 80점', points: 80 },
+      { label: '04.14', target: '개도국 의류 지원 (폴리 50kg)', detail: '기본 80점', points: 80 },
+      { label: '04.05', target: '교육 기관 지원 (혼방 30kg)', detail: '기본 80점', points: 80 },
     ],
   },
 ]
@@ -516,26 +538,21 @@ const materialTotals = computed(() => {
   return { total, recycled, saved, rate }
 })
 
+// 활동 내역 — 이벤트 단위(판매 1건 / 기부 1건). 탄소 점수 = 무게 × 계수 × 0.1
 const activityLog = [
-  { date: '04.28', type: 'donation', label: '재해 구호 - 포항 한파 면 코트 기부', points: 1235, detail: '95kg × 6.5 × 2.0' },
-  { date: '04.27', type: 'productionAvoid', label: '면 재판매 (신규 생산 회피)', points: 3120, detail: '480kg × Higg 6.5' },
-  { date: '04.26', type: 'method', label: '재활용 처리 (분쇄/재방사)', points: 3150, detail: '700kg × 가중치 1.2' },
-  { date: '04.25', type: 'disposalAvoid', label: '면 소각 폐기 회피', points: 1200, detail: '480kg × 2.5' },
-  { date: '04.23', type: 'productionAvoid', label: '폴리에스터 재판매 (신규 생산 회피)', points: 2176, detail: '320kg × Higg 6.8' },
-  { date: '04.22', type: 'donation', label: '취약 계층 의류 지원 (사회복지시설)', points: 780, detail: '80kg × 6.5 × 1.5' },
-  { date: '04.20', type: 'method', label: '업사이클링 처리 (가방/패치워크)', points: 1575, detail: '280kg × 가중치 1.5' },
-  { date: '04.18', type: 'disposalAvoid', label: '폴리에스터 매립 폐기 회피', points: 960, detail: '320kg × 3.0' },
-  { date: '04.16', type: 'productionAvoid', label: '울 재판매 (신규 생산 회피)', points: 1800, detail: '90kg × Higg 20.0' },
-  { date: '04.14', type: 'donation', label: '개도국 의류 지원 (해외 구호 단체)', points: 442, detail: '50kg × 6.8 × 1.3' },
-  { date: '04.12', type: 'method', label: '중고 재판매 (아울렛 출고)', points: 945, detail: '420kg × 가중치 1.0' },
-  { date: '04.10', type: 'disposalAvoid', label: '나일론 소각 폐기 회피', points: 672, detail: '210kg × 3.2' },
+  { date: '04.28', type: 'donation', label: '재해 구호 — 면 95kg 기부',                     points:  97, detail: '실행 80 + 탄소 17 (95 × 1.8 × 0.1)' },
+  { date: '04.27', type: 'sale',     label: '신규 거래처 D사 — 폴리에스터 500kg 판매',         points: 365, detail: '실행 100 + 탄소 115 + 신규 150' },
+  { date: '04.22', type: 'donation', label: '취약 계층 — 면 80kg 기부',                     points:  94, detail: '실행 80 + 탄소 14 (80 × 1.8 × 0.1)' },
+  { date: '04.20', type: 'sale',     label: '마을협동조합 — 혼방 300kg 판매 (사회적기업)',     points: 310, detail: '실행 100 + 탄소 60 + 지역 150' },
+  { date: '04.15', type: 'sale',     label: 'B사 — 면 250kg 판매',                            points: 145, detail: '실행 100 + 탄소 45 (250 × 1.8 × 0.1)' },
+  { date: '04.14', type: 'donation', label: '개도국 — 폴리 50kg 기부',                        points:  92, detail: '실행 80 + 탄소 12 (50 × 2.3 × 0.1)' },
+  { date: '04.10', type: 'sale',     label: 'A사 — 면 100kg 판매',                            points: 118, detail: '실행 100 + 탄소 18 (100 × 1.8 × 0.1)' },
+  { date: '04.05', type: 'donation', label: '교육 기관 — 혼방 30kg 기부',                      points:  86, detail: '실행 80 + 탄소 6 (30 × 2.0 × 0.1)' },
 ]
 
 
 const typeCfg = {
-  productionAvoid: { label: '생산회피', cls: 'bg-emerald-50 text-emerald-700' },
-  disposalAvoid: { label: '폐기회피', cls: 'bg-teal-50 text-teal-700' },
-  method: { label: '처리방식', cls: 'bg-blue-50 text-blue-700' },
+  sale:     { label: '판매', cls: 'bg-emerald-50 text-emerald-700' },
   donation: { label: '기부', cls: 'bg-pink-50 text-pink-700' },
 }
 
@@ -804,14 +821,23 @@ function handleLogout() {
         </article>
       </section>
 
-      <!-- 탄소 감축 점수 상세 -->
+      <!-- 친환경 나무 키우기 점수 상세 -->
       <section class="grid gap-3">
 
-        <!-- 탄소 감축 점수 상세 -->
+        <!-- 친환경 나무 키우기 점수 상세 -->
         <article class="border border-gray-300 bg-white shadow-sm">
-          <div class="border-b border-gray-200 px-3 py-2.5">
-            <h3 class="text-sm font-medium text-gray-800">탄소 감축 점수 상세내역</h3>
-            <p class="mt-0.5 text-[10px] text-gray-400">각 항목을 클릭하면 세부 내역과 산출 공식을 확인할 수 있습니다</p>
+          <div class="flex items-center justify-between border-b border-gray-200 px-3 py-2.5">
+            <div>
+              <h3 class="text-sm font-medium text-gray-800">친환경 나무 키우기 점수</h3>
+              <p class="mt-0.5 text-[10px] text-gray-400">각 항목을 클릭하면 세부 내역과 산출 공식을 확인할 수 있습니다</p>
+            </div>
+            <button
+              type="button"
+              class="text-[11px] font-medium text-emerald-700 transition hover:underline"
+              @click="router.push('/hq/esg/tree-score')"
+            >
+              자세히 보기 →
+            </button>
           </div>
 
           <div class="divide-y divide-gray-100">

@@ -8,7 +8,8 @@ const MAX_STAGE = 10
 const KAU_DEFAULT_PRICE = 9840
 
 export const useEsgStore = defineStore('esg', () => {
-  const totalPoints = ref(13500)
+  // scoreCategories 합계와 정합 (탄소 ×0.1 스케일 적용 후): 400+287+150+150+320 = 1,307
+  const totalPoints = ref(1307)
 
   const kauPrice = ref(KAU_DEFAULT_PRICE)
   const kauPriceUpdatedAt = ref(null)
