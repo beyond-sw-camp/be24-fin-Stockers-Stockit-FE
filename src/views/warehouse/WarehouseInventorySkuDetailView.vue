@@ -26,6 +26,12 @@ const skuData = ref([])
 const isLoading = ref(false)
 const loadError = ref('')
 const requestSeq = ref(0)
+const COLOR_LABEL_BY_CODE = {
+  BLK: '검정',
+  WHT: '흰색',
+  NVY: '네이비',
+  GRY: '그레이',
+}
 
 const skuRows = computed(() =>
   skuData.value
@@ -34,6 +40,7 @@ const skuRows = computed(() =>
       actualStock: Number(sku.actualStock ?? 0),
       availableStock: Number(sku.availableStock ?? 0),
       safetyStock: Number(sku.safetyStock ?? 0),
+      colorLabel: COLOR_LABEL_BY_CODE[String(sku.color ?? '').toUpperCase()] ?? sku.color,
     }))
     .sort((a, b) => String(a.color ?? '').localeCompare(String(b.color ?? ''), 'ko') || String(a.size ?? '').localeCompare(String(b.size ?? ''), 'ko')),
 )
@@ -133,6 +140,7 @@ watch(
             <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
               <tr>
                 <th class="px-3 py-3 font-black">SKU 코드</th>
+                <th class="px-3 py-3 font-black">품목명</th>
                 <th class="px-3 py-3 font-black">색상</th>
                 <th class="px-3 py-3 font-black">사이즈</th>
                 <th class="px-3 py-3 text-right font-black">실재고</th>
@@ -145,7 +153,8 @@ watch(
             <tbody class="divide-y divide-gray-100">
               <tr v-for="sku in skuRows" :key="sku.skuCode">
                 <td class="px-3 py-3 font-mono font-bold text-gray-600">{{ sku.skuCode }}</td>
-                <td class="px-3 py-3 font-bold text-gray-800">{{ sku.color }}</td>
+                <td class="px-3 py-3 font-bold text-gray-900">{{ itemName }}</td>
+                <td class="px-3 py-3 font-bold text-gray-800">{{ sku.colorLabel }}</td>
                 <td class="px-3 py-3 font-black text-gray-900">{{ sku.size }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ sku.actualStock.toLocaleString() }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ sku.availableStock.toLocaleString() }}</td>
@@ -158,7 +167,7 @@ watch(
                 <td class="px-3 py-3 font-bold text-gray-500">{{ sku.updatedAt ? new Date(sku.updatedAt).toLocaleString('ko-KR', { hour12: false }) : '-' }}</td>
               </tr>
               <tr v-if="skuRows.length === 0">
-                <td colspan="8" class="px-3 py-14 text-center text-sm font-bold text-gray-400">
+                <td colspan="9" class="px-3 py-14 text-center text-sm font-bold text-gray-400">
                   {{ isLoading ? 'SKU 재고를 불러오는 중입니다.' : '조회 가능한 SKU 재고가 없습니다.' }}
                 </td>
               </tr>
