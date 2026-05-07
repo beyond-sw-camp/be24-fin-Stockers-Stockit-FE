@@ -7,18 +7,15 @@ import { useAuthStore } from '@/stores/auth.js'
 import { usePurchaseOrderStore } from '@/stores/purchaseOrder.js'
 import {
   ArrowLeftIcon,
-  PlusIcon,
-  SearchIcon,
   ShoppingCartIcon,
   TrashIcon,
 } from '@/components/hq/purchase-order/icons.js'
 import PurchaseOrderBulkQtyModal from '@/components/hq/purchase-order/PurchaseOrderBulkQtyModal.vue'
+import PurchaseOrderCatalog from '@/components/hq/purchase-order/PurchaseOrderCatalog.vue'
 import PurchaseOrderConfirmModal from '@/components/hq/purchase-order/PurchaseOrderConfirmModal.vue'
 import PurchaseOrderFloatingBar from '@/components/hq/purchase-order/PurchaseOrderFloatingBar.vue'
 import PurchaseOrderSubmitConfirmModal from '@/components/hq/purchase-order/PurchaseOrderSubmitConfirmModal.vue'
 import { useToast } from '@/composables/useToast.js'
-import { useFacets } from '@/composables/hq/purchaseOrder/useFacets.js'
-import { usePurchaseOrderStockSim } from '@/composables/hq/purchaseOrder/useStockSim.js'
 import { usePurchaseOrderDraft } from '@/composables/hq/purchaseOrder/useDraft.js'
 
 const router = useRouter()
@@ -27,7 +24,8 @@ const auth = useAuthStore()
 const poStore = usePurchaseOrderStore()
 
 const { toast, triggerToast } = useToast()
-const { activeFacetFilters, toggleFacet, isFacetActive, clearFacets, skuMatchesFacets } = useFacets()
+// 카탈로그 child 의 expose 메소드(focusSearch/scrollToSku) 호출용 ref.
+const catalogRef = ref(null)
 
 const isEditMode = computed(() => route.name === 'hq-purchase-order-edit')
 const editingOrderId = computed(() => route.params.id ?? null)
@@ -54,16 +52,8 @@ const vendorFilter = ref('all')
 const sortBy = ref('default')
 const cart = ref([])
 
-// 재고 시뮬레이션 — selectedWarehouseCode 의존이라 정의 이후 호출.
-const {
-  stockStore,
-  rowStock,
-  rowStockLevel,
-  rowSuggested,
-  stockLevelClass,
-  statusChipForSku,
-  shortageRank,
-} = usePurchaseOrderStockSim(selectedWarehouseCode)
+// 재고 시뮬레이션 / facet 필터 / 카탈로그 헬퍼는 PurchaseOrderCatalog child 가 자체 보유.
+// 부모는 cart/모달/제출 같은 도메인 액션만.
 
 // localStorage 드래프트 영속화 — edit 모드는 자동 no-op.
 const { loadDraft, saveDraft, clearDraftStorage } = usePurchaseOrderDraft({
@@ -91,13 +81,10 @@ const collapsed = ref({})
 const shortageOnly = ref(false)
 
 // ─── Power 모드 ─────────────────────────────────────────────────────────────
-// 다중 선택: skuCode set
+// 다중 선택: skuCode set — Floating bar 와 카탈로그가 v-model 로 공유.
 const selectedSkus = ref(new Set())
-// activeFacetFilters / toggleFacet / ... 는 useFacets() composable 에서 제공.
 // Bulk 수량 모달 — 입력값은 모달 컴포넌트 로컬 state (open/close 만 부모 관리)
 const showBulkQtyModal = ref(false)
-// 검색창 ref (단축키용)
-const searchInputRef = ref(null)
 // cart 강조용 — [좌측에서 보기] / [장바구니에서 보기] 점프 시 잠시 highlight
 const highlightedSkuCode = ref('')
 let highlightTimer = null
@@ -119,52 +106,13 @@ function scrollToCartSku(skuCode) {
   }
 }
 
+// cart → 카탈로그 점프 — child(catalogRef) 의 expose 메소드 위임 (그룹 펼침 + scrollIntoView).
 function scrollToCatalogSku(skuCode) {
-  // 그룹이 접혀 있으면 펼침
-  const skuRow = catalogSkuRows.value.find((r) => r.type === 'sku' && r.skuCode === skuCode)
-  if (skuRow && collapsed.value[skuRow.masterKey]) {
-    collapsed.value[skuRow.masterKey] = false
-  }
-  nextTick(() => {
-    const el = document.querySelector(`[data-sku-code="${skuCode}"]`)
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  })
+  catalogRef.value?.scrollToSku?.(skuCode)
 }
 
-function isInCart(skuCode) {
-  return cart.value.some((item) => item.skuCode === skuCode)
-}
-
-function toggleSkuSelected(skuCode) {
-  const set = new Set(selectedSkus.value)
-  if (set.has(skuCode)) set.delete(skuCode)
-  else set.add(skuCode)
-  selectedSkus.value = set
-}
-
-function isGroupAllSelected(masterKey) {
-  const skus = filteredRows.value.filter((r) => r.type === 'sku' && r.masterKey === masterKey)
-  if (skus.length === 0) return false
-  return skus.every((s) => selectedSkus.value.has(s.skuCode))
-}
-
-function isGroupSomeSelected(masterKey) {
-  const skus = filteredRows.value.filter((r) => r.type === 'sku' && r.masterKey === masterKey)
-  return skus.some((s) => selectedSkus.value.has(s.skuCode)) && !isGroupAllSelected(masterKey)
-}
-
-function toggleGroupSelected(masterKey, evt) {
-  // 그룹 헤더 행 클릭과 충돌 방지 — 이벤트 stop 은 호출처에서
-  evt?.stopPropagation?.()
-  const skus = filteredRows.value.filter((r) => r.type === 'sku' && r.masterKey === masterKey)
-  const set = new Set(selectedSkus.value)
-  const allSelected = skus.every((s) => set.has(s.skuCode))
-  for (const s of skus) {
-    if (allSelected) set.delete(s.skuCode)
-    else set.add(s.skuCode)
-  }
-  selectedSkus.value = set
-}
+// isInCart / toggleSkuSelected / isGroupAllSelected / isGroupSomeSelected / toggleGroupSelected
+// 모두 PurchaseOrderCatalog child 안으로 이동.
 
 function clearSelection() {
   selectedSkus.value = new Set()
@@ -200,7 +148,7 @@ function handleBulkApply(qty) {
   }
   // 선택된 SKU 들의 vendorCode 가 cart 공급처와 다른 게 섞여 있으면 거절 (한 공급처 룰)
   const selectedRows = []
-  for (const r of catalogSkuRows.value) {
+  for (const r of poStore.catalogSkuRows) {
     if (r.type === 'sku' && selectedSkus.value.has(r.skuCode)) selectedRows.push(r)
   }
   if (selectedRows.length === 0) return
@@ -241,14 +189,11 @@ function handleKeydown(e) {
       e.preventDefault()
       return
     }
-    if (target === searchInputRef.value) {
-      searchInputRef.value?.blur?.()
-    }
     return
   }
 
   if (e.key === '/' && !inEditable) {
-    searchInputRef.value?.focus?.()
+    catalogRef.value?.focusSearch?.()
     e.preventDefault()
     return
   }
@@ -273,156 +218,9 @@ onBeforeUnmount(() => {
 // toast / triggerToast 는 useToast() composable 에서 제공 (timer cleanup 도 composable 안에서).
 
 // ─── computed ────────────────────────────────────────────────────────────────
-// 카탈로그 = poStore 의 평탄 row 배열 (header + sku 행 섞여 있음).
-// 검색·정렬·필터·그룹 접힘은 view 단에서 적용해 filteredRows 만들어 v-for.
-const catalogSkuRows = computed(() => poStore.catalogSkuRows)
-const catalogFacets = computed(() => poStore.catalogFacets)
-const catalogLoading = computed(() => poStore.catalogLoading)
-
-// 검색·정렬을 적용한 row 들. 정렬은 SKU 단가/제품명 기준 — 그룹 단위로 묶이도록 group key 우선 정렬.
-const filteredRows = computed(() => {
-  const kw = keyword.value.trim().toLowerCase()
-  const all = catalogSkuRows.value
-  if (all.length === 0) return []
-
-  // 1) SKU 행만 추출해서 검색·정렬·facet 필터 적용
-  let skus = all.filter((r) => r.type === 'sku')
-  if (kw) {
-    skus = skus.filter((r) =>
-      [r.vendorName, r.productName, r.productCode, r.skuCode, r.color, r.size, r.displayOption]
-        .some((s) => (s ?? '').toLowerCase().includes(kw)),
-    )
-  }
-  skus = skus.filter(skuMatchesFacets)
-
-  // 부족만 보기 — SKU 단위 stock 임계 기준
-  if (shortageOnly.value && selectedWarehouseCode.value) {
-    skus = skus.filter((r) => {
-      const level = rowStockLevel(r.skuCode)
-      return level === 'critical' || level === 'warning'
-    })
-  }
-  switch (sortBy.value) {
-    case 'shortage':
-      // 부족 SKU 우선 — 품절(0) > 부족(critical) > 주의(warning) > 정상 순. 같은 등급 안에선 productName 가나다.
-      skus = [...skus].sort((a, b) => {
-        const rankDiff = shortageRank(a.skuCode) - shortageRank(b.skuCode)
-        if (rankDiff !== 0) return rankDiff
-        return a.productName.localeCompare(b.productName, 'ko')
-          || a.optionValue.localeCompare(b.optionValue, 'ko')
-      })
-      break
-    case 'priceAsc':
-      skus = [...skus].sort((a, b) => a.unitPrice - b.unitPrice)
-      break
-    case 'priceDesc':
-      skus = [...skus].sort((a, b) => b.unitPrice - a.unitPrice)
-      break
-    case 'nameAsc':
-      skus = [...skus].sort((a, b) =>
-        a.productName.localeCompare(b.productName, 'ko') || (a.displayOption || '').localeCompare((b.displayOption || ''), 'ko'),
-      )
-      break
-    default:
-      // BE 응답 순서 그대로 (vendorName → productName → SKU id asc)
-      break
-  }
-
-  // 2) masterKey 기준으로 그룹 헤더 + SKU 행을 다시 묶어서 반환 (정렬은 그룹 안 SKU 순서 유지)
-  const skusByMaster = new Map()
-  for (const s of skus) {
-    if (!skusByMaster.has(s.masterKey)) skusByMaster.set(s.masterKey, [])
-    skusByMaster.get(s.masterKey).push(s)
-  }
-  const headerByMaster = new Map()
-  for (const r of all) {
-    if (r.type === 'header') headerByMaster.set(r.masterKey, r)
-  }
-
-  const baseResult = []
-  for (const [masterKey, skuList] of skusByMaster) {
-    const header = headerByMaster.get(masterKey)
-    if (!header) continue
-    baseResult.push(header)
-    if (!collapsed.value[masterKey]) {
-      baseResult.push(...skuList)
-    }
-  }
-
-  // 품목 중심 표시 — vendor sticky 그룹 행 제거. 공급처는 마스터 제품 헤더의 칩으로 표시.
-  return baseResult
-})
-
-// 매칭 SKU 수 (헤더 제외)
-const matchedSkuCount = computed(() => filteredRows.value.filter((r) => r.type === 'sku').length)
-
-// 카탈로그 부족 SKU 카운트 — SKU 단위
-const shortageCount = computed(() => {
-  if (!selectedWarehouseCode.value) return 0
-  const skuCodes = catalogSkuRows.value
-    .filter((r) => r.type === 'sku')
-    .map((r) => r.skuCode)
-  return stockStore.getSkuShortageCount(selectedWarehouseCode.value, skuCodes)
-})
-
-// SKU 행 [권장 N] 클릭 → 그 SKU 의 행 수량 input 에 set + 포커스
-function applySuggestedToSku(row) {
-  const suggested = rowSuggested(row.skuCode)
-  if (suggested <= 0) return
-  rowQuantities.value[row.skuCode] = suggested
-  nextTick(() => {
-    const el = document.querySelector(`[data-sku-code="${row.skuCode}"] input[type="number"]`)
-    if (el) {
-      el.focus()
-      el.select?.()
-    }
-  })
-}
-
-// 그룹 안 SKU 수 (펼침/접힘과 무관, 검색 매칭 후) — 헤더에 표시할 카운트용
-function groupMatchedCount(masterKey) {
-  return filteredRows.value.filter((r) => r.type === 'sku' && r.masterKey === masterKey).length
-}
-
-// vendorOptions — 카탈로그 안 unique vendor 만 (드롭다운 출처)
-const vendorOptions = computed(() => {
-  const seen = new Map()
-  for (const r of catalogSkuRows.value) {
-    if (r.type === 'header' && !seen.has(r.vendorCode)) {
-      seen.set(r.vendorCode, { id: r.vendorCode, code: r.vendorCode, name: r.vendorName })
-    }
-  }
-  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name, 'ko'))
-})
-
-function rowKey(row) {
-  if (row.type === 'vendor') return `v-${row.vendorCode}`
-  if (row.type === 'header') return `h-${row.masterKey}`
-  return `s-${row.skuCode}`
-}
-
-function priceRangeText(header) {
-  if (header.minSkuUnitPrice === header.maxSkuUnitPrice) {
-    return `₩${header.minSkuUnitPrice.toLocaleString()}`
-  }
-  return `₩${header.minSkuUnitPrice.toLocaleString()}~${header.maxSkuUnitPrice.toLocaleString()}`
-}
-
-function toggleGroup(masterKey) {
-  collapsed.value[masterKey] = !collapsed.value[masterKey]
-}
-
-function expandAll() {
-  collapsed.value = {}
-}
-
-function collapseAll() {
-  const next = {}
-  for (const r of catalogSkuRows.value) {
-    if (r.type === 'header') next[r.masterKey] = true
-  }
-  collapsed.value = next
-}
+// 카탈로그 관련 computed/헬퍼(filteredRows/matchedSkuCount/shortageCount/vendorOptions/
+// applySuggestedToSku/groupMatchedCount/priceRangeText/rowKey/toggleGroup/expandAll/collapseAll)
+// 는 모두 PurchaseOrderCatalog child 안으로 이동. 부모는 cart 도메인 책임만.
 
 const cartTotal = computed(() =>
   cart.value.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0),
@@ -806,293 +604,22 @@ watch(vendorFilter, () => {
 
       <!-- 본문: 좌(카탈로그) + 우(장바구니) — viewport 높이 기준 자체 스크롤 -->
       <section class="flex min-h-0 flex-1 flex-col gap-4 xl:flex-row">
-        <!-- ── 좌측: 카탈로그 ── -->
-        <div
-          class="flex min-w-0 flex-1 flex-col overflow-hidden border border-gray-300 bg-white shadow-sm"
-        >
-          <!-- 필터 헤더 -->
-          <div
-            class="flex flex-wrap items-center gap-2 border-b border-gray-200 bg-gray-50 p-2 pr-[15px]"
-          >
-            <label class="relative block">
-              <SearchIcon
-                :size="14"
-                class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
-              />
-              <input
-                ref="searchInputRef"
-                v-model="keyword"
-                type="text"
-                placeholder='제품명/SKU코드/옵션값 검색  ("/" 로 포커스)'
-                class="w-72 border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-xs outline-none focus:border-[#004D3C]"
-              />
-            </label>
-            <select
-              v-model="vendorFilter"
-              :disabled="isEditMode"
-              class="border border-gray-300 bg-white px-3 py-1.5 text-xs outline-none focus:border-[#004D3C] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
-            >
-              <option value="all">전체 공급처</option>
-              <option v-for="v in vendorOptions" :key="v.code" :value="v.code">
-                {{ v.name }}
-              </option>
-            </select>
-            <select
-              v-model="sortBy"
-              class="border border-gray-300 bg-white px-3 py-1.5 text-xs outline-none focus:border-[#004D3C]"
-            >
-              <option value="default">정렬: 기본</option>
-              <option value="shortage">부족 SKU 우선</option>
-              <option value="priceAsc">단가 ↑</option>
-              <option value="priceDesc">단가 ↓</option>
-              <option value="nameAsc">제품명 ㄱ-ㄴ</option>
-            </select>
-            <button
-              type="button"
-              class="border border-gray-300 bg-white px-2 py-1.5 text-[11px] font-bold text-gray-600 hover:bg-gray-50"
-              @click="expandAll"
-            >
-              전체 펼치기
-            </button>
-            <button
-              type="button"
-              class="border border-gray-300 bg-white px-2 py-1.5 text-[11px] font-bold text-gray-600 hover:bg-gray-50"
-              @click="collapseAll"
-            >
-              전체 접기
-            </button>
-            <button
-              type="button"
-              class="border px-3 py-1.5 text-[11px] font-black transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-              :class="
-                shortageOnly
-                  ? 'border-red-400 bg-red-50 text-red-700'
-                  : shortageCount > 0
-                    ? 'border-red-300 bg-white text-red-600 hover:bg-red-50'
-                    : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
-              "
-              :disabled="!selectedWarehouseCode || shortageCount === 0"
-              :title="!selectedWarehouseCode ? '먼저 창고를 선택하세요' : (shortageCount === 0 ? '재고 부족 품목 없음' : '가용재고가 안전재고 1.5배 미만인 마스터만 표시')"
-              @click="shortageOnly = !shortageOnly"
-            >
-              {{ shortageOnly ? `✓ 부족만 (${shortageCount})` : (selectedWarehouseCode && shortageCount > 0 ? `부족만 보기 (${shortageCount})` : '부족만 보기') }}
-            </button>
-            <span class="ml-auto text-[11px] font-bold text-gray-500">
-              SKU {{ matchedSkuCount }}건
-            </span>
-          </div>
-
-          <!-- Facet 필터 칩 (옵션 axis 별) -->
-          <div
-            v-if="catalogFacets.length > 0"
-            class="flex flex-wrap items-center gap-2 border-b border-gray-200 bg-white px-2 py-2 pr-[15px]"
-          >
-            <div v-for="facet in catalogFacets" :key="facet.name" class="flex items-center gap-1">
-              <span class="text-[10px] font-black uppercase tracking-wider text-gray-400">
-                {{ facet.name }}
-              </span>
-              <button
-                v-for="value in facet.values"
-                :key="`${facet.name}-${value}`"
-                type="button"
-                class="border px-2 py-0.5 text-[10px] font-bold transition-colors"
-                :class="isFacetActive(facet.name, value)
-                  ? 'border-[#004D3C] bg-[#004D3C] text-white'
-                  : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'"
-                @click="toggleFacet(facet.name, value)"
-              >
-                {{ value }}
-              </button>
-            </div>
-            <button
-              v-if="Object.keys(activeFacetFilters).length > 0"
-              type="button"
-              class="ml-auto text-[10px] font-bold text-gray-500 hover:text-gray-700 underline"
-              @click="clearFacets"
-            >
-              필터 초기화
-            </button>
-          </div>
-
-          <!-- 창고 미선택 안내 -->
-          <div
-            v-if="!selectedWarehouseCode"
-            class="border-b border-amber-200 bg-amber-50 px-3 py-2 pr-[15px] text-[11px] font-bold text-amber-700"
-          >
-            입고 창고를 먼저 선택해주세요. 창고가 정해져야 발주서를 만들 수 있습니다.
-          </div>
-
-          <!-- 카탈로그 테이블 — 카드 내부 자체 스크롤. 그룹 헤더 sticky. -->
-          <div class="min-h-0 flex-1 overflow-auto">
-            <table class="w-full table-fixed border-collapse text-xs">
-              <thead class="bg-gray-100 text-xs text-gray-500">
-                <tr>
-                  <th class="w-8 px-1 py-2 text-center font-black"></th>
-                  <th class="w-44 px-2 py-2 text-left font-black">옵션</th>
-                  <th class="w-28 px-2 py-2 text-left font-black">SKU 코드</th>
-                  <th class="w-20 px-2 py-2 text-right font-black">단가</th>
-                  <th class="w-12 px-2 py-2 text-right font-black" title="실재고 + 입고예정 - 출고예정">가용</th>
-                  <th class="w-12 px-2 py-2 text-right font-black" title="실재고 (현재 보유)">실</th>
-                  <th class="w-12 px-2 py-2 text-right font-black" title="안전재고 (이 밑으로 떨어지면 안 됨)">안전</th>
-                  <th class="w-14 px-2 py-2 text-right font-black" title="안전재고 × 1.5 까지 채우는 권장 발주 수량">권장</th>
-                  <th class="w-14 px-1 py-2 text-center font-black">상태</th>
-                  <th class="w-14 px-1 py-2 text-center font-black">수량</th>
-                  <th class="w-12 px-2 py-2 text-center font-black"></th>
-                </tr>
-              </thead>
-              <tbody :class="!selectedWarehouseCode ? 'pointer-events-none opacity-50' : ''">
-                <template v-for="row in filteredRows" :key="rowKey(row)">
-                  <!-- 제품 헤더 — 미니멀 실무 ERP 스타일. 텍스트 위계로만 정보 구분, 강한 시각요소 X -->
-                  <tr
-                    v-if="row.type === 'header'"
-                    class="bg-gray-50 hover:bg-gray-100 border-t border-gray-200 cursor-pointer select-none"
-                    @click="toggleGroup(row.masterKey)"
-                  >
-                    <td class="px-1 py-2.5 text-center">
-                      <input
-                        v-if="!collapsed[row.masterKey]"
-                        type="checkbox"
-                        :checked="isGroupAllSelected(row.masterKey)"
-                        :indeterminate.prop="isGroupSomeSelected(row.masterKey)"
-                        class="cursor-pointer"
-                        @click.stop
-                        @change="toggleGroupSelected(row.masterKey, $event)"
-                      />
-                    </td>
-                    <td colspan="10" class="px-3 py-2.5">
-                      <div class="flex items-center gap-3 flex-wrap">
-                        <span class="text-[11px] font-black text-gray-500 shrink-0">
-                          {{ collapsed[row.masterKey] ? '▸' : '▾' }}
-                        </span>
-                        <span class="text-xs font-black text-gray-900 truncate">{{ row.productName }}</span>
-                        <span class="font-mono text-[10px] font-bold text-gray-400 shrink-0">{{ row.productCode }}</span>
-                        <span class="ml-auto text-[10px] font-bold text-gray-400 shrink-0">
-                          공급처
-                          <span class="ml-1 font-black text-gray-700">{{ row.vendorName }}</span>
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                  <!-- SKU 행 -->
-                  <tr
-                    v-else
-                    class="border-b border-gray-100 hover:bg-[#F4FAF8]"
-                    :class="selectedSkus.has(row.skuCode) ? 'bg-emerald-50' : ''"
-                    :data-sku-code="row.skuCode"
-                  >
-                    <td class="px-1 py-2 text-center align-middle">
-                      <input
-                        type="checkbox"
-                        :checked="selectedSkus.has(row.skuCode)"
-                        class="cursor-pointer"
-                        @change="toggleSkuSelected(row.skuCode)"
-                      />
-                    </td>
-                    <td class="px-2 py-2 align-middle">
-                      <div class="text-xs font-bold text-gray-800">{{ row.displayOption }}</div>
-                    </td>
-                    <td class="px-2 py-2 text-[11px] text-gray-500 align-middle">{{ row.skuCode }}</td>
-                    <td class="px-2 py-2 text-right font-bold text-[#004D3C] align-middle">
-                      ₩{{ row.unitPrice.toLocaleString() }}
-                    </td>
-                    <!-- 가용재고 -->
-                    <td class="px-2 py-2 text-right font-bold align-middle" :class="stockLevelClass(rowStockLevel(row.skuCode))">
-                      <template v-if="rowStock(row.skuCode)">{{ rowStock(row.skuCode).available }}</template>
-                      <span v-else class="text-gray-300">—</span>
-                    </td>
-                    <!-- 실재고 -->
-                    <td class="px-2 py-2 text-right font-bold text-gray-500 align-middle">
-                      <template v-if="rowStock(row.skuCode)">{{ rowStock(row.skuCode).onHand }}</template>
-                      <span v-else class="text-gray-300">—</span>
-                    </td>
-                    <!-- 안전재고 -->
-                    <td class="px-2 py-2 text-right font-bold text-gray-500 align-middle">
-                      <template v-if="rowStock(row.skuCode)">{{ rowStock(row.skuCode).safetyStock }}</template>
-                      <span v-else class="text-gray-300">—</span>
-                    </td>
-                    <!-- 권장 발주 -->
-                    <td class="px-2 py-2 text-right align-middle">
-                      <template v-if="rowStock(row.skuCode)">
-                        <button
-                          v-if="rowSuggested(row.skuCode) > 0"
-                          type="button"
-                          class="border border-red-300 bg-red-50 px-2 py-0.5 text-[10px] font-black text-red-700 hover:bg-red-100"
-                          :title="`권장 발주 ${rowSuggested(row.skuCode)}개를 수량 입력란에 채웁니다`"
-                          @click="applySuggestedToSku(row)"
-                        >
-                          {{ rowSuggested(row.skuCode) }}
-                        </button>
-                        <span v-else class="text-gray-300">—</span>
-                      </template>
-                      <span v-else class="text-gray-300">—</span>
-                    </td>
-                    <!-- 상태 칩 -->
-                    <td class="px-1 py-2 text-center align-middle">
-                      <template v-if="statusChipForSku(row.skuCode)">
-                        <span
-                          class="inline-flex min-w-9 justify-center px-1.5 py-0.5 text-[10px] font-black"
-                          :class="statusChipForSku(row.skuCode).class"
-                        >
-                          {{ statusChipForSku(row.skuCode).label }}
-                        </span>
-                      </template>
-                      <span v-else class="text-gray-300">—</span>
-                    </td>
-                    <td class="px-1 py-2 align-middle">
-                      <input
-                        type="number"
-                        min="0"
-                        :placeholder="'0'"
-                        class="w-full border border-gray-300 px-1 py-1 text-center text-xs outline-none focus:border-[#004D3C]"
-                        :value="rowQuantities[row.skuCode] ?? ''"
-                        @input="rowQuantities[row.skuCode] = Number($event.target.value) || 0"
-                        @keydown.enter.exact="addSkuToCart(row)"
-                        @keydown.enter.shift.prevent="addGroupToCart(row.masterKey)"
-                      />
-                    </td>
-                    <td class="px-2 py-2 text-center align-middle">
-                      <div class="inline-flex items-center gap-1">
-                        <button
-                          type="button"
-                          class="inline-flex items-center justify-center border border-[#004D3C] bg-white p-1 text-[#004D3C] hover:bg-[#E6F2F0] disabled:cursor-not-allowed disabled:opacity-40"
-                          :disabled="!(Number(rowQuantities[row.skuCode]) > 0)"
-                          title="장바구니 담기 (Enter)"
-                          @click="addSkuToCart(row)"
-                        >
-                          <PlusIcon :size="12" />
-                        </button>
-                        <button
-                          v-if="isInCart(row.skuCode)"
-                          type="button"
-                          class="text-[10px] font-bold text-[#004D3C] hover:underline"
-                          title="장바구니에서 보기"
-                          @click="scrollToCartSku(row.skuCode)"
-                        >
-                          ●
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                </template>
-                <tr v-if="!catalogLoading && catalogSkuRows.length === 0">
-                  <td colspan="11" class="px-3 py-8 text-center text-xs text-gray-400">
-                    노출 가능한 계약 제품이 없습니다.
-                  </td>
-                </tr>
-                <tr v-else-if="!catalogLoading && filteredRows.length === 0">
-                  <td colspan="11" class="px-3 py-8 text-center text-xs text-gray-400">
-                    검색 결과가 없습니다.
-                  </td>
-                </tr>
-                <tr v-if="catalogLoading">
-                  <td colspan="11" class="px-3 py-8 text-center text-xs text-gray-400">
-                    카탈로그를 불러오는 중...
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <PurchaseOrderCatalog
+          ref="catalogRef"
+          v-model:keyword="keyword"
+          v-model:vendor-filter="vendorFilter"
+          v-model:sort-by="sortBy"
+          v-model:shortage-only="shortageOnly"
+          v-model:selected-skus="selectedSkus"
+          v-model:collapsed="collapsed"
+          v-model:row-quantities="rowQuantities"
+          :selected-warehouse-code="selectedWarehouseCode"
+          :is-edit-mode="isEditMode"
+          :cart="cart"
+          @add-sku-to-cart="addSkuToCart"
+          @add-group-to-cart="addGroupToCart"
+          @scroll-to-cart-sku="scrollToCartSku"
+        />
 
         <!-- ── 우측: 장바구니 ── -->
         <aside
