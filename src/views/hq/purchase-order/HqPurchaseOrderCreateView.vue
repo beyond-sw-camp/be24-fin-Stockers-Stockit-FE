@@ -1,66 +1,30 @@
 <script setup>
-import { computed, h, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { usePurchaseOrderStore } from '@/stores/purchaseOrder.js'
-import { useWarehouseStockStore } from '@/stores/warehouse/warehouseStock.js'
+import {
+  AlertTriangleIcon,
+  ArrowLeftIcon,
+  PlusIcon,
+  SearchIcon,
+  ShoppingCartIcon,
+  TrashIcon,
+} from '@/components/hq/purchase-order/icons.js'
+import { useToast } from '@/composables/useToast.js'
+import { useFacets } from '@/composables/hq/purchaseOrder/useFacets.js'
+import { usePurchaseOrderStockSim } from '@/composables/hq/purchaseOrder/useStockSim.js'
+import { usePurchaseOrderDraft } from '@/composables/hq/purchaseOrder/useDraft.js'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 const poStore = usePurchaseOrderStore()
-const stockStore = useWarehouseStockStore()
 
-// ─── SKU 단위 재고 (FE 시뮬레이션 — BE 인벤토리 도메인 합류 전 임시) ───
-// 카탈로그 행이 SKU 단위라 행마다 가용/실/안전/권장 4값 노출.
-// 인벤토리 SKU BE 합류 시 store 의 시뮬레이션 함수만 axios 로 교체하면 view 수정 0.
-function rowStock(skuCode) {
-  if (!selectedWarehouseCode.value || !skuCode) return null
-  return stockStore.getSkuStock(selectedWarehouseCode.value, skuCode)
-}
-
-function rowStockLevel(skuCode) {
-  return stockStore.getSkuStockLevel(rowStock(skuCode))
-}
-
-function rowSuggested(skuCode) {
-  return stockStore.getSkuSuggestedQuantity(rowStock(skuCode))
-}
-
-function stockLevelClass(level) {
-  if (level === 'critical') return 'text-red-600'
-  if (level === 'warning') return 'text-amber-600'
-  return 'text-gray-700'
-}
-
-// 상태 칩 — 매장 발주 요청 페이지(StoreOrderRequestView)의 패턴을 본사용으로 확장.
-// stockStore 의 stockLevel(critical/warning/normal) + available 0 분리해 4단계.
-function statusChipForSku(skuCode) {
-  const stock = rowStock(skuCode)
-  if (!stock) return null
-  if (stock.available === 0) {
-    return { label: '품절', class: 'bg-red-100 text-red-700' }
-  }
-  const level = stockStore.getSkuStockLevel(stock)
-  if (level === 'critical') return { label: '부족', class: 'bg-orange-100 text-orange-700' }
-  if (level === 'warning') return { label: '주의', class: 'bg-yellow-50 text-yellow-700' }
-  return { label: '정상', class: 'bg-[#EBF5F5] text-gray-700' }
-}
-
-// 부족 SKU 우선 정렬용 rank — 작을수록 위로.
-function shortageRank(skuCode) {
-  const stock = rowStock(skuCode)
-  if (!stock) return 4
-  if (stock.available === 0) return 0
-  const level = stockStore.getSkuStockLevel(stock)
-  if (level === 'critical') return 1
-  if (level === 'warning') return 2
-  return 3
-}
-
-const DRAFT_KEY = 'stockit:po-cart-draft'
+const { toast, triggerToast } = useToast()
+const { activeFacetFilters, toggleFacet, isFacetActive, clearFacets, skuMatchesFacets } = useFacets()
 
 const isEditMode = computed(() => route.name === 'hq-purchase-order-edit')
 const editingOrderId = computed(() => route.params.id ?? null)
@@ -87,6 +51,24 @@ const vendorFilter = ref('all')
 const sortBy = ref('default')
 const cart = ref([])
 
+// 재고 시뮬레이션 — selectedWarehouseCode 의존이라 정의 이후 호출.
+const {
+  stockStore,
+  rowStock,
+  rowStockLevel,
+  rowSuggested,
+  stockLevelClass,
+  statusChipForSku,
+  shortageRank,
+} = usePurchaseOrderStockSim(selectedWarehouseCode)
+
+// localStorage 드래프트 영속화 — edit 모드는 자동 no-op.
+const { loadDraft, saveDraft, clearDraftStorage } = usePurchaseOrderDraft({
+  isEditMode,
+  selectedWarehouseCode,
+  cart,
+})
+
 // 창고 변경 confirm
 const showWarehouseChangeConfirm = ref(false)
 const pendingWarehouseId = ref(null)
@@ -108,8 +90,7 @@ const shortageOnly = ref(false)
 // ─── Power 모드 ─────────────────────────────────────────────────────────────
 // 다중 선택: skuCode set
 const selectedSkus = ref(new Set())
-// 옵션 facet 필터: { [axisName]: Set<value> } — 같은 axis 안 OR, 다른 axis 끼리 AND
-const activeFacetFilters = reactive({})
+// activeFacetFilters / toggleFacet / ... 는 useFacets() composable 에서 제공.
 // 일괄 입력 모달
 const showBulkQtyModal = ref(false)
 const bulkQtyInput = ref(0)
@@ -193,34 +174,6 @@ function selectAllVisible() {
     if (r.type === 'sku') set.add(r.skuCode)
   }
   selectedSkus.value = set
-}
-
-// facet 필터 토글 — axis 안 다중 선택 OR, 다른 axis AND
-function toggleFacet(axisName, value) {
-  const cur = activeFacetFilters[axisName] ?? new Set()
-  const next = new Set(cur)
-  if (next.has(value)) next.delete(value)
-  else next.add(value)
-  if (next.size === 0) delete activeFacetFilters[axisName]
-  else activeFacetFilters[axisName] = next
-}
-
-function isFacetActive(axisName, value) {
-  return activeFacetFilters[axisName]?.has(value) ?? false
-}
-
-function clearFacets() {
-  for (const k of Object.keys(activeFacetFilters)) delete activeFacetFilters[k]
-}
-
-function skuMatchesFacets(row) {
-  const filters = Object.entries(activeFacetFilters)
-  if (filters.length === 0) return true
-  for (const [axisName, valueSet] of filters) {
-    const current = axisName === '색상' ? row.color : axisName === '사이즈' ? row.size : ''
-    if (!valueSet.has(current)) return false
-  }
-  return true
 }
 
 // 일괄 입력 모달
@@ -315,19 +268,9 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
   if (highlightTimer) clearTimeout(highlightTimer)
-  if (toastTimer) clearTimeout(toastTimer)
 })
 
-// 토스트
-const toast = ref({ show: false, message: '' })
-let toastTimer = null
-function triggerToast(message) {
-  if (toastTimer) clearTimeout(toastTimer)
-  toast.value = { show: true, message }
-  toastTimer = setTimeout(() => {
-    toast.value = { show: false, message: '' }
-  }, 3000)
-}
+// toast / triggerToast 는 useToast() composable 에서 제공 (timer cleanup 도 composable 안에서).
 
 // ─── computed ────────────────────────────────────────────────────────────────
 // 카탈로그 = poStore 의 평탄 row 배열 (header + sku 행 섞여 있음).
@@ -506,41 +449,7 @@ const selectedWarehouseName = computed(
   () => poStore.warehouses.find((w) => w.code === selectedWarehouseCode.value)?.name ?? '',
 )
 
-// ─── localStorage 영속화 ──────────────────────────────────────────────────────
-function loadDraft() {
-  try {
-    const saved = localStorage.getItem(DRAFT_KEY)
-    if (!saved) return
-    const data = JSON.parse(saved)
-    if (data && typeof data === 'object') {
-      selectedWarehouseCode.value = data.warehouseCode ?? data.warehouseId ?? ''
-      cart.value = Array.isArray(data.items) ? data.items : []
-    }
-  } catch {
-    // 무시
-  }
-}
-
-function saveDraft() {
-  if (isEditMode.value) return // edit 모드는 localStorage 영속화 안 함
-  try {
-    const payload = {
-      warehouseCode: selectedWarehouseCode.value,
-      items: cart.value,
-    }
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(payload))
-  } catch {
-    // 무시
-  }
-}
-
-function clearDraftStorage() {
-  try {
-    localStorage.removeItem(DRAFT_KEY)
-  } catch {
-    // 무시
-  }
-}
+// loadDraft / saveDraft / clearDraftStorage 는 usePurchaseOrderDraft() composable 에서 제공.
 
 // ─── 장바구니 액션 ───────────────────────────────────────────────────────────
 // SKU 행 [+] 클릭 → 행 안 수량 input 값을 cart 로 push. 동일 SKU 가 cart 에 있으면 합산.
@@ -839,59 +748,7 @@ watch(vendorFilter, () => {
   reloadCatalog()
 })
 
-// ─── 아이콘 ──────────────────────────────────────────────────────────────────
-const IconBase = (paths) => ({
-  props: {
-    size: { type: Number, default: 16 },
-    strokeWidth: { type: Number, default: 2 },
-  },
-  render() {
-    return h(
-      'svg',
-      {
-        width: this.size,
-        height: this.size,
-        viewBox: '0 0 24 24',
-        fill: 'none',
-        stroke: 'currentColor',
-        'stroke-width': this.strokeWidth,
-        'stroke-linecap': 'round',
-        'stroke-linejoin': 'round',
-        'aria-hidden': 'true',
-      },
-      paths.map((p) => h(p.tag, p.attrs)),
-    )
-  },
-})
-
-const SearchIcon = IconBase([
-  { tag: 'circle', attrs: { cx: '11', cy: '11', r: '7' } },
-  { tag: 'path', attrs: { d: 'm20 20-3.5-3.5' } },
-])
-const PlusIcon = IconBase([
-  { tag: 'path', attrs: { d: 'M12 5v14' } },
-  { tag: 'path', attrs: { d: 'M5 12h14' } },
-])
-const TrashIcon = IconBase([
-  { tag: 'polyline', attrs: { points: '3 6 5 6 21 6' } },
-  { tag: 'path', attrs: { d: 'M19 6 18 20a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6' } },
-  { tag: 'path', attrs: { d: 'M10 11v6' } },
-  { tag: 'path', attrs: { d: 'M14 11v6' } },
-])
-const ArrowLeftIcon = IconBase([
-  { tag: 'path', attrs: { d: 'M19 12H5' } },
-  { tag: 'path', attrs: { d: 'm12 19-7-7 7-7' } },
-])
-const ShoppingCartIcon = IconBase([
-  { tag: 'circle', attrs: { cx: '9', cy: '21', r: '1' } },
-  { tag: 'circle', attrs: { cx: '20', cy: '21', r: '1' } },
-  { tag: 'path', attrs: { d: 'M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6' } },
-])
-const AlertTriangleIcon = IconBase([
-  { tag: 'path', attrs: { d: 'M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z' } },
-  { tag: 'path', attrs: { d: 'M12 9v4' } },
-  { tag: 'path', attrs: { d: 'M12 17h.01' } },
-])
+// 아이콘은 @/components/hq/purchase-order/icons.js 에서 import.
 </script>
 
 <template>
