@@ -5,12 +5,9 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { usePurchaseOrderStore } from '@/stores/purchaseOrder.js'
-import {
-  ArrowLeftIcon,
-  ShoppingCartIcon,
-  TrashIcon,
-} from '@/components/hq/purchase-order/icons.js'
+import { ArrowLeftIcon } from '@/components/hq/purchase-order/icons.js'
 import PurchaseOrderBulkQtyModal from '@/components/hq/purchase-order/PurchaseOrderBulkQtyModal.vue'
+import PurchaseOrderCart from '@/components/hq/purchase-order/PurchaseOrderCart.vue'
 import PurchaseOrderCatalog from '@/components/hq/purchase-order/PurchaseOrderCatalog.vue'
 import PurchaseOrderConfirmModal from '@/components/hq/purchase-order/PurchaseOrderConfirmModal.vue'
 import PurchaseOrderFloatingBar from '@/components/hq/purchase-order/PurchaseOrderFloatingBar.vue'
@@ -621,132 +618,21 @@ watch(vendorFilter, () => {
           @scroll-to-cart-sku="scrollToCartSku"
         />
 
-        <!-- ── 우측: 장바구니 ── -->
-        <aside
-          class="flex w-full shrink-0 flex-col overflow-hidden border border-gray-300 bg-white shadow-sm xl:w-96"
-        >
-          <!-- 헤더 -->
-          <div
-            class="flex items-center justify-between bg-[#004D3C] px-4 py-3 text-white"
-          >
-            <h3
-              class="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-wider"
-            >
-              <ShoppingCartIcon :size="14" />
-              발주 요청서
-            </h3>
-            <span class="text-[10px] font-bold opacity-80">{{ cart.length }}건</span>
-          </div>
-
-          <!-- 공급처 표시 -->
-          <div
-            v-if="currentCartVendorName"
-            class="border-b border-gray-200 bg-[#E6F2F0] px-4 py-2 text-[10px] font-black uppercase tracking-wider text-[#004D3C]"
-          >
-            {{ currentCartVendorName }}
-          </div>
-
-          <!-- 본문 -->
-          <div class="flex-1 overflow-y-auto p-3">
-            <div v-if="cart.length === 0" class="py-10 text-center text-xs text-gray-400">
-              왼쪽 카탈로그에서 품목을 담아주세요
-            </div>
-            <ul v-else class="space-y-2">
-              <li
-                v-for="(item, idx) in cart"
-                :key="(item.skuCode || item.productCode) + '-' + idx"
-                class="border bg-white p-2 transition-colors"
-                :class="highlightedSkuCode === item.skuCode ? 'border-[#004D3C] ring-2 ring-[#004D3C]/30' : 'border-gray-200'"
-                :data-cart-sku-code="item.skuCode"
-              >
-                <div class="flex items-start justify-between gap-2">
-                  <div class="min-w-0 flex-1">
-                    <p class="text-xs font-black text-gray-800">{{ item.productName }}</p>
-                    <p v-if="item.displayOption" class="text-[10px] font-bold text-[#004D3C]">
-                      {{ item.displayOption }}
-                    </p>
-                    <p class="text-[10px] text-gray-400">
-                      {{ item.skuCode || item.productCode }} · ₩{{ item.unitPrice.toLocaleString() }}
-                    </p>
-                  </div>
-                  <button
-                    v-if="item.skuCode"
-                    type="button"
-                    class="text-[10px] font-bold text-gray-500 hover:text-[#004D3C] underline"
-                    title="좌측 카탈로그에서 보기"
-                    @click="scrollToCatalogSku(item.skuCode)"
-                  >
-                    ← 카탈로그
-                  </button>
-                  <button
-                    type="button"
-                    class="text-red-400 hover:text-red-600"
-                    aria-label="삭제"
-                    @click="removeItem(idx)"
-                  >
-                    <TrashIcon :size="12" />
-                  </button>
-                </div>
-                <div class="mt-2 flex items-center justify-between">
-                  <div class="flex items-center gap-1">
-                    <button
-                      type="button"
-                      class="flex h-6 w-6 items-center justify-center border border-gray-300 bg-white text-xs hover:bg-gray-50"
-                      @click="decreaseQty(idx)"
-                    >
-                      −
-                    </button>
-                    <input
-                      :value="item.quantity"
-                      type="number"
-                      min="1"
-                      class="w-12 border border-gray-300 py-0.5 text-center text-xs outline-none focus:border-[#004D3C]"
-                      @change="updateQty(idx, $event.target.value)"
-                    />
-                    <button
-                      type="button"
-                      class="flex h-6 w-6 items-center justify-center border border-gray-300 bg-white text-xs hover:bg-gray-50"
-                      @click="increaseQty(idx)"
-                    >
-                      +
-                    </button>
-                  </div>
-                  <span class="text-xs font-bold text-gray-700">
-                    ₩{{ (item.unitPrice * item.quantity).toLocaleString() }}
-                  </span>
-                </div>
-              </li>
-            </ul>
-          </div>
-
-          <!-- 푸터 -->
-          <div class="space-y-2 border-t border-gray-200 bg-gray-50 p-3">
-            <div class="flex items-center justify-between">
-              <span class="text-[11px] font-bold uppercase text-gray-500">총액</span>
-              <span class="text-sm font-black text-[#004D3C]">
-                ₩{{ cartTotal.toLocaleString() }}
-              </span>
-            </div>
-            <div class="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                class="border border-gray-400 bg-white px-2 py-2 text-[11px] font-black text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-                :disabled="cart.length === 0"
-                @click="openClearCartConfirm"
-              >
-                장바구니 비우기
-              </button>
-              <button
-                type="button"
-                class="border border-[#004D3C] bg-[#004D3C] px-2 py-2 text-[11px] font-black text-white hover:bg-[#1f4b3a] disabled:cursor-not-allowed disabled:opacity-50"
-                :disabled="!canSubmit"
-                @click="openSubmitConfirm"
-              >
-                {{ isEditMode ? '수정 저장' : '발주 요청' }}
-              </button>
-            </div>
-          </div>
-        </aside>
+        <PurchaseOrderCart
+          :cart="cart"
+          :current-cart-vendor-name="currentCartVendorName"
+          :cart-total="cartTotal"
+          :can-submit="canSubmit"
+          :is-edit-mode="isEditMode"
+          :highlighted-sku-code="highlightedSkuCode"
+          @increase-qty="increaseQty"
+          @decrease-qty="decreaseQty"
+          @update-qty="updateQty"
+          @remove-item="removeItem"
+          @scroll-to-catalog-sku="scrollToCatalogSku"
+          @open-clear-cart-confirm="openClearCartConfirm"
+          @open-submit-confirm="openSubmitConfirm"
+        />
       </section>
     </div>
 
