@@ -1,10 +1,12 @@
 <script setup>
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { Clock3, ListOrdered } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { dashboardSideMenus } from '@/views/hq/dashboard/dashboardMenus.js'
+import { dashboardSideMenus } from '@/views/hq/dashboard/dashboardMenus.js'
+const router = useRouter()
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 

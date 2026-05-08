@@ -5,6 +5,7 @@
  * ==============================================================================
  */
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
@@ -15,7 +16,8 @@ import { getStoreOrders } from '@/api/store/orders.js'
  * ==============================================================================
  * 2. STATE & REFS
  * ==============================================================================
- */
+ */
+const router = useRouter()
 const auth = useAuthStore()
 
 const activeSideMenu = ref('발주 내역')

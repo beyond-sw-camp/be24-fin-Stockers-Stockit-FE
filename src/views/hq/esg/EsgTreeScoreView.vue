@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   ArrowLeft, RefreshCw, Leaf, Recycle, ShieldCheck, Heart,
   TrendingUp, Award, Filter, ChevronDown, Sprout, Calendar,
@@ -9,6 +10,7 @@ import BarChart from '@/components/common/charts/BarChart.vue'
 import DoughnutChart from '@/components/common/charts/DoughnutChart.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
+const router = useRouter()
 const auth = useAuthStore()
 const topMenus = computed(() => roleMenus.hq ?? [])
 const sideMenus = ref([])

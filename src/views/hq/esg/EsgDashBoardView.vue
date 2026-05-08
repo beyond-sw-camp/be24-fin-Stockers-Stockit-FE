@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import {
   Leaf,
@@ -25,7 +26,8 @@ import { useAuthStore } from '@/stores/auth.js'
 import { useEsgStore } from '@/stores/esg.js'
 import { useEmissionQuotaStore } from '@/stores/emissionQuota.js'
 import { carbonPriceApi } from '@/api/hq/esg.js'
-import { extractErrorMessage } from '@/api/axios.js'
+import { extractErrorMessage } from '@/api/axios.js'
+const router = useRouter()
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 

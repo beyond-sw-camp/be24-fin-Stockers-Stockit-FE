@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, reactive } from 'vue'
+import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import {
   TrendingUp, AlertCircle, AlertTriangle,
@@ -13,6 +14,7 @@ import BarChart from '@/components/common/charts/BarChart.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useEmissionQuotaStore } from '@/stores/emissionQuota.js'
+const router = useRouter()
 const auth = useAuthStore()
 const quotaStore = useEmissionQuotaStore()
 const {

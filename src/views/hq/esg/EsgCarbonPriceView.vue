@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   TrendingUp, TrendingDown, ArrowUpDown,
   AlertCircle, RefreshCw, Building2, ArrowLeft,
@@ -18,6 +19,7 @@ import {
 } from 'chart.js'
 import { Line as ChartJsLine } from 'vue-chartjs'
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
+const router = useRouter()
 const auth = useAuthStore()
 
 // ─────────── AppLayout props ───────────

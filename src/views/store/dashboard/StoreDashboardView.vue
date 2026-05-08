@@ -1,8 +1,10 @@
 <script setup>
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
+import { useAuthStore } from '@/stores/auth.js'
+const router = useRouter()
 const auth = useAuthStore()
 const storeMenus = roleMenus.store
 const sideMenus = roleMenus.store.find((menu) => menu.label === '대시보드')?.children ?? []

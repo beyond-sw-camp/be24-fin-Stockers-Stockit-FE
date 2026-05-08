@@ -5,8 +5,9 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useStoreInboundStore } from '@/stores/store/storeInbound.js'
-import { formatDateTime, storeInboundStatusClass, storeOrderStatusClass } from '@/features/store/common/ui.js'
+import { formatDateTime, storeInboundStatusClass, storeOrderStatusClass } from '@/features/store/common/ui.js'
 const route = useRoute()
+const router = useRouter()
 const auth = useAuthStore()
 const storeOrders = useStoreInboundStore()
 

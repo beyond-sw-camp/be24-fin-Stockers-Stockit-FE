@@ -1,8 +1,10 @@
 <script setup>
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
+import { useAuthStore } from '@/stores/auth.js'
+const router = useRouter()
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 const inventoryMenus = roleMenus.hq.find(menu => menu.label === '재고 관리')?.children ?? []

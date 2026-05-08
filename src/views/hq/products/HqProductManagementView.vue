@@ -8,8 +8,9 @@ import { deleteCategory, getCategories, getCategory, updateCategory } from '@/ap
 import { vendorApi } from '@/api/hq/vendor.js'
 import {
   getProducts,
-} from '@/api/hq/productMaster.js'
+} from '@/api/hq/productMaster.js'
 const route = useRoute()
+const router = useRouter()
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 

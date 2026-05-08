@@ -1,10 +1,12 @@
 <script setup>
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useStoreInboundStore } from '@/stores/store/storeInbound.js'
-import { buildHeadline, formatDateTime } from '@/features/store/common/ui.js'
+import { buildHeadline, formatDateTime } from '@/features/store/common/ui.js'
+const router = useRouter()
 const auth = useAuthStore()
 const storeOrders = useStoreInboundStore()
 
