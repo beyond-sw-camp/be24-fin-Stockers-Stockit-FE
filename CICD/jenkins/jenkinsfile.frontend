@@ -67,18 +67,24 @@ spec:
       steps {
         container('node') {
           script {
-            def branchName = env.BRANCH_NAME ?: ''
-            def gitBranch = env.GIT_BRANCH ?: ''
-            def gitLocalBranch = env.GIT_LOCAL_BRANCH ?: ''
-            def isPrBuild = !!(env.CHANGE_ID?.trim())
-            def branchCandidates = [branchName, gitBranch, gitLocalBranch].findAll { it?.trim() }.collect { it.trim() }
+            // 젠킨스 환경 변수에서 브랜치 명을 직접 가져옵니다.
+            def currentBranch = env.BRANCH_NAME ?: ""
 
-            def isMainBranch = branchCandidates.any { v ->
-              v == 'main' || v.endsWith('/main') || v.endsWith('refs/heads/main')
+            // 만약 브랜치명이 안 잡힌다면 git 명령어로 직접 확인합니다.
+            if (currentBranch == "") {
+                currentBranch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
             }
 
-            env.DEPLOY_ENABLED = (isMainBranch && !isPrBuild) ? 'true' : 'false'
-            env.DEPLOY_REASON = (env.DEPLOY_ENABLED == 'true') ? 'main-branch push/merge detected' : 'skip: non-main branch'
+            echo "Detected Branch: ${currentBranch}"
+
+            // 조건을 명확하게 true/false 문자열로 할당합니다.
+            if (currentBranch == 'main' || currentBranch.endsWith('/main')) {
+                env.DEPLOY_ENABLED = 'true'
+                env.DEPLOY_REASON = 'Main branch detected'
+            } else {
+                env.DEPLOY_ENABLED = 'false'
+                env.DEPLOY_REASON = "Branch is ${currentBranch}, not main"
+            }
 
             echo "Deploy decision => enabled=${env.DEPLOY_ENABLED}, reason=${env.DEPLOY_REASON}"
           }
