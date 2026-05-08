@@ -47,6 +47,10 @@ spec:
     }
   }
 
+  triggers {
+    githubPush()
+  }
+
   environment {
     DOCKERHUB_ID = 'saralove20'
     IMAGE_NAME = "${DOCKERHUB_ID}/stockit-front"
