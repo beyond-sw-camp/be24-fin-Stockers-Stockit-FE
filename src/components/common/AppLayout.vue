@@ -53,11 +53,8 @@ const roleLabel = computed(() => {
 })
 const storeName = computed(() => {
   if (auth.user?.role === 'hq') return ''
-  return auth.user?.storeName ?? ''
-})
-const userInitials = computed(() => {
-  const name = auth.user?.name ?? ''
-  return name.slice(-2).toUpperCase() || 'US'
+  // BE 응답: locationName (예: 강남 플래그십점 / 수도권 통합 물류센터)
+  return auth.user?.locationName ?? auth.user?.storeName ?? ''
 })
 
 const brandColor = '#004D3C'
@@ -128,6 +125,12 @@ const IconBase = (paths) => ({
 const BellIcon = IconBase([
   { tag: 'path', attrs: { d: 'M15 17H5a2 2 0 0 1-2-2c2 0 3-1 3-3V9a6 6 0 0 1 12 0v3c0 2 1 3 3 3a2 2 0 0 1-2 2h-4' } },
   { tag: 'path', attrs: { d: 'M10 17a2 2 0 0 0 4 0' } },
+])
+
+const UserCircleIcon = IconBase([
+  { tag: 'circle', attrs: { cx: '12', cy: '12', r: '10' } },
+  { tag: 'circle', attrs: { cx: '12', cy: '10', r: '3' } },
+  { tag: 'path', attrs: { d: 'M7 20.66a8 8 0 0 1 10 0' } },
 ])
 
 const SettingsIcon = IconBase([
@@ -304,9 +307,7 @@ const iconMap = {
             title="마이페이지"
             @click="router.push('/mypage')"
           >
-            <span class="flex h-6 w-6 items-center justify-center bg-white/20 text-[10px] font-bold text-white">
-              {{ userInitials }}
-            </span>
+            <UserCircleIcon :size="22" :stroke-width="1.8" class="text-white" />
             <span class="flex flex-col items-start leading-tight">
               <span class="text-[11px] font-bold text-white/90">{{ userName }}</span>
               <span v-if="roleLabel" class="text-[9px] font-medium text-white/60">

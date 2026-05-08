@@ -108,6 +108,27 @@ const roleOptions = [
 
 const selectedRole = computed(() => roleOptions.find(o => o.id === form.value.role) ?? null)
 
+// 헤더에 표시할 지점/창고 정보
+//  - 매장(store):   "ST-SL-0001 → 서울 (SL)"
+//  - 창고(warehouse): "서울 (SL) · 수도권 통합 물류센터"
+//  - hq / 미선택: null
+const headerLocationLabel = computed(() => {
+  const role = form.value.role
+  if (role !== 'store' && role !== 'warehouse') return null
+
+  const code = form.value.storeCode
+  if (!code) return null
+
+  const regionCode = extractRegion(code)
+  const regionName = locationCodeOptions.find(o => o.code === regionCode)?.name ?? regionCode
+  const infra = infrastructureData.find(i => i.code === code)
+
+  if (role === 'store') {
+    return `${code} → ${regionName} (${regionCode})`
+  }
+  return `${regionName} (${regionCode}) · ${infra?.name ?? ''}`
+})
+
 const isSubmitting = ref(false)
 const submitted = ref(false)
 const errors = ref({})
@@ -368,6 +389,16 @@ function onInfraChange() {
               <p class="text-[10px] font-black uppercase tracking-[0.14em] text-white/70">ERP System</p>
             </div>
             <p class="mt-0.5 text-[12px] text-white/70">신청 후 중앙 관리자의 승인이 완료되어야 로그인할 수 있습니다.</p>
+            <!-- 매장/창고 선택 시 지점 정보 표시 -->
+            <p
+              v-if="headerLocationLabel"
+              class="mt-1.5 inline-flex items-center gap-1.5 border border-white/30 bg-white/10 px-2 py-0.5 text-[11px] font-bold text-white"
+            >
+              <span class="text-[9px] font-black uppercase tracking-widest text-white/60">
+                {{ form.role === 'store' ? '매장' : '물류창고' }}
+              </span>
+              {{ headerLocationLabel }}
+            </p>
           </div>
         </div>
         <div class="hidden shrink-0 items-center gap-1.5 border border-white/30 bg-white/10 px-2.5 py-1.5 text-xs font-black text-white sm:inline-flex">
