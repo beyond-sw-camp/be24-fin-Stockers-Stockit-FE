@@ -76,25 +76,40 @@ spec:
 
     stage('Determine Deploy Trigger') {
       steps {
-        script {
-          // 브랜치 확인 로직 개선
-          def branch = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ""
-          if (branch == "") {
-            branch = sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
-          }
-          
-          echo "Current Branch: ${branch}"
-          
-          // main 브랜치이고 PR 빌드가 아닌 경우에만 배포 활성화
-          def isMain = (branch == 'main' || branch == 'origin/main' || branch.endsWith('/main'))
-          def isPr = env.CHANGE_ID != null
-          
-          if (isMain && !isPr) {
-            env.DEPLOY_ENABLED = 'true'
-            echo "Deployment Enabled for branch: ${branch}"
-          } else {
-            env.DEPLOY_ENABLED = 'false'
-            echo "Deployment Disabled (Branch: ${branch}, isPr: ${isPr})"
+        container('node') {
+          script {
+            // Git 보안 설정: 소유권 관련 에러 방지
+            sh "git config --global --add safe.directory ${WORKSPACE}"
+
+            // 브랜치 확인 로직 개선
+            def branch = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ""
+            
+            if (branch == "" || branch == "HEAD") {
+              // 브랜치 명을 직접 가져오기 시도
+              try {
+                branch = sh(script: "git name-rev --name-only HEAD", returnStdout: true).trim()
+                // remotes/origin/main 형태일 수 있으므로 처리
+                if (branch.contains("origin/")) {
+                  branch = branch.substring(branch.lastIndexOf("/") + 1)
+                }
+              } catch (e) {
+                echo "Failed to get branch name via git: ${e.message}"
+              }
+            }
+            
+            echo "Detected Branch: ${branch}"
+            
+            // main 브랜치 판별 (다양한 표기 방식 대응)
+            def isMain = (branch == 'main' || branch == 'origin/main' || branch.endsWith('/main'))
+            def isPr = (env.CHANGE_ID != null && env.CHANGE_ID != "")
+            
+            if (isMain && !isPr) {
+              env.DEPLOY_ENABLED = 'true'
+              echo "Deployment ENABLED for branch: ${branch}"
+            } else {
+              env.DEPLOY_ENABLED = 'false'
+              echo "Deployment DISABLED (Branch: ${branch}, isPr: ${isPr})"
+            }
           }
         }
       }
