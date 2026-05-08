@@ -1,3 +1,5 @@
+def isDeployTarget = false
+
 pipeline {
   agent {
     kubernetes {
@@ -50,7 +52,7 @@ spec:
 
   // 파이프라인 옵션 및 트리거 설정
   options {
-    skipDefaultCheckout(true) // 필요한 경우 수동 체크아웃 제어 (현재는 Checkout 스테이지 있음)
+    skipDefaultCheckout(true)
     timeout(time: 1, unit: 'HOURS')
   }
 
@@ -62,7 +64,6 @@ spec:
     DOCKERHUB_ID = 'saralove20'
     IMAGE_NAME = "${DOCKERHUB_ID}/stockit-front"
     IMAGE_TAG  = "v${env.BUILD_NUMBER}"
-    DEPLOY_ENABLED = 'false'
   }
 
   stages {
@@ -85,10 +86,8 @@ spec:
             def branch = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ""
             
             if (branch == "" || branch == "HEAD") {
-              // 브랜치 명을 직접 가져오기 시도
               try {
                 branch = sh(script: "git name-rev --name-only HEAD", returnStdout: true).trim()
-                // remotes/origin/main 형태일 수 있으므로 처리
                 if (branch.contains("origin/")) {
                   branch = branch.substring(branch.lastIndexOf("/") + 1)
                 }
@@ -99,16 +98,16 @@ spec:
             
             echo "Detected Branch: ${branch}"
             
-            // main 브랜치 판별 (다양한 표기 방식 대응)
+            // main 브랜치 판별
             def isMain = (branch == 'main' || branch == 'origin/main' || branch.endsWith('/main'))
             def isPr = (env.CHANGE_ID != null && env.CHANGE_ID != "")
             
             if (isMain && !isPr) {
-              env.DEPLOY_ENABLED = 'true'
-              echo "Deployment ENABLED for branch: ${branch}"
+              isDeployTarget = true
+              echo ">>> DEPLOYMENT TARGET: YES"
             } else {
-              env.DEPLOY_ENABLED = 'false'
-              echo "Deployment DISABLED (Branch: ${branch}, isPr: ${isPr})"
+              isDeployTarget = false
+              echo ">>> DEPLOYMENT TARGET: NO (Branch: ${branch}, isPr: ${isPr})"
             }
           }
         }
@@ -132,7 +131,7 @@ spec:
 
     stage('Kaniko Build & Push') {
       when {
-        expression { env.DEPLOY_ENABLED == 'true' }
+        expression { return isDeployTarget }
       }
       steps {
         container('kaniko') {
@@ -149,7 +148,7 @@ spec:
 
     stage('Blue-Green Deployment') {
       when {
-        expression { env.DEPLOY_ENABLED == 'true' }
+        expression { return isDeployTarget }
       }
       steps {
         container('kubectl') {
@@ -183,14 +182,19 @@ spec:
 
   post {
     always {
-      echo "Build Finished. Tag: ${IMAGE_TAG}, Deploy Enabled: ${env.DEPLOY_ENABLED}"
+      echo "Build Finished. Tag: ${IMAGE_TAG}, Deployed: ${isDeployTarget}"
     }
     success {
-      echo "StockIt Frontend Deployment Successful!"
+      script {
+        if (isDeployTarget) {
+          echo "StockIt Frontend Deployment Successful!"
+        } else {
+          echo "Build Finished Successfully (No Deployment for this branch)."
+        }
+      }
     }
     failure {
       echo "Deployment Failed. Please check the logs."
     }
   }
 }
-
