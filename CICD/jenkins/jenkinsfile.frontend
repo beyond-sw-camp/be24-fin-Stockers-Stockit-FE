@@ -72,7 +72,10 @@ spec:
       steps {
         container('node') {
           script {
-            def branchName = env.BRANCH_NAME ?: ''
+            // BRANCH_NAME: Multibranch Pipeline 전용
+            // GIT_BRANCH: 일반 Pipeline에서 'origin/main' 형태로 세팅됨
+            def rawBranch = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ''
+            def branchName = rawBranch.replaceFirst(/^origin\//, '')
             def isPrBuild = !!(env.CHANGE_ID?.trim())
             def isMainBranch = (branchName == 'main')
             def shouldDeploy = isMainBranch && !isPrBuild
@@ -101,7 +104,8 @@ spec:
             env.DEPLOY_ENABLED = shouldDeploy ? 'true' : 'false'
             env.DEPLOY_REASON = deployReason
 
-            echo "Deploy decision => enabled=${env.DEPLOY_ENABLED}, reason=${env.DEPLOY_REASON}"
+            echo "Branch detection => BRANCH_NAME='${env.BRANCH_NAME}', GIT_BRANCH='${env.GIT_BRANCH}', resolved='${branchName}'"
+            echo "Deploy decision  => enabled=${env.DEPLOY_ENABLED}, reason=${env.DEPLOY_REASON}"
           }
         }
       }
