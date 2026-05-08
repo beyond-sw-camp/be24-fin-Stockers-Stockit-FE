@@ -49,6 +49,8 @@ spec:
     DOCKERHUB_ID = 'saralove20'
     IMAGE_NAME = "${DOCKERHUB_ID}/stockit-front"
     IMAGE_TAG  = "v${env.BUILD_NUMBER}"
+    DEPLOY_ENABLED = 'false' // 초기값 명시
+    DEPLOY_REASON = 'not-evaluated' // 초기값 명시
   }
 
   stages {
@@ -70,15 +72,15 @@ spec:
             def gitLocalBranch = env.GIT_LOCAL_BRANCH ?: ''
             def isPrBuild = !!(env.CHANGE_ID?.trim())
             def branchCandidates = [branchName, gitBranch, gitLocalBranch].findAll { it?.trim() }.collect { it.trim() }
+
             def isMainBranch = branchCandidates.any { v ->
               v == 'main' || v.endsWith('/main') || v.endsWith('refs/heads/main')
             }
-            def shouldDeploy = isMainBranch && !isPrBuild
-            def deployReason = shouldDeploy
-              ? 'main-branch push/merge detected'
-              : "skip: BRANCH_NAME=${branchName}, GIT_BRANCH=${gitBranch}, GIT_LOCAL_BRANCH=${gitLocalBranch}, CHANGE_ID=${env.CHANGE_ID ?: ''}"
 
-            echo "Deploy decision => enabled=${shouldDeploy}, reason=${deployReason}"
+            env.DEPLOY_ENABLED = (isMainBranch && !isPrBuild) ? 'true' : 'false'
+            env.DEPLOY_REASON = (env.DEPLOY_ENABLED == 'true') ? 'main-branch push/merge detected' : 'skip: non-main branch'
+
+            echo "Deploy decision => enabled=${env.DEPLOY_ENABLED}, reason=${env.DEPLOY_REASON}"
           }
         }
       }
