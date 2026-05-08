@@ -64,6 +64,9 @@ spec:
       steps {
         container('node') {
           checkout scm
+          // Git 2.35.2+: 컨테이너 유저와 워크스페이스 소유자가 달라 발생하는
+          // "dubious ownership" 오류를 방지
+          sh "git config --global --add safe.directory ${WORKSPACE}"
         }
       }
     }
