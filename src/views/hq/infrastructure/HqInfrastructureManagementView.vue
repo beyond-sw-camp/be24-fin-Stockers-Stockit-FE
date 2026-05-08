@@ -173,9 +173,7 @@ async function loadWarehouses() {
     address: w.address,
     manager: w.managerName,
     contact: w.contact,
-    capacity: w.capacity,
     stockQty: w.mappedStoreCount * 1000,
-    occupancy: Math.min(95, 20 + w.mappedStoreCount * 15),
     status: statusToKor[w.status] ?? w.status,
   }))
 }
@@ -230,7 +228,6 @@ async function quickCreateWarehouse() {
       managerName: '담당자',
       contact: '02-0000-0000',
       address: '서울시 강서구',
-      capacity: '10,000 PLT / 5,000㎡',
       status: 'ACTIVE',
     })
     await loadWarehouses()
@@ -479,21 +476,6 @@ const iconMap = {
                     <span>현재 재고 수량</span>
                     <strong class="text-[#0f766e]">{{ warehouse.stockQty.toLocaleString() }} EA</strong>
                   </p>
-                </div>
-
-                <div class="store-stock-graph">
-                  <div class="store-stock-head">
-                    <span>공간 점유율</span>
-                    <strong :class="{ low: warehouse.occupancy >= 90 }">{{ warehouse.occupancy }}%</strong>
-                  </div>
-                  <div class="store-stock-track">
-                    <div
-                      class="store-stock-fill"
-                      :class="{ caution: warehouse.occupancy >= 80 && warehouse.occupancy < 90, low: warehouse.occupancy >= 90 }"
-                      :style="{ width: `${warehouse.occupancy}%` }"
-                    />
-                  </div>
-                  <p class="store-stock-meta">{{ warehouse.capacity }}</p>
                 </div>
               </article>
 
@@ -1109,7 +1091,6 @@ const iconMap = {
 .w-address { width: 240px; }
 .w-end { width: 112px; }
 .w-stock { width: 136px; }
-.w-occupancy { width: 132px; }
 .w-store-name { width: 148px; }
 .w-priority { width: 92px; }
 .w-lead { width: 92px; }
@@ -1229,53 +1210,6 @@ const iconMap = {
   border-color: #d1d5db;
   background: #f9fafb;
   color: #6b7280;
-}
-
-.occupancy-wrap {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.occupancy-wrap span {
-  min-width: 38px;
-  color: #4b5563;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.occupancy-wrap span.danger {
-  color: #dc2626;
-}
-
-.occupancy-bar,
-.detail-occupancy-bar {
-  overflow: hidden;
-  border: 1px solid #e5e7eb;
-  background: #f3f4f6;
-}
-
-.occupancy-bar {
-  width: 56px;
-  height: 8px;
-}
-
-.detail-occupancy-bar {
-  margin-top: 10px;
-  height: 10px;
-}
-
-.occupancy-fill {
-  height: 100%;
-  background: #004d3c;
-}
-
-.occupancy-fill.warning {
-  background: #d97706;
-}
-
-.occupancy-fill.danger {
-  background: #dc2626;
 }
 
 .table-footer {

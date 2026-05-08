@@ -27,8 +27,6 @@ spec:
       image: bitnami/kubectl:latest
       command: ['cat']
       tty: true
-      securityContext:
-        runAsUser: 0
       resources:
         requests:
           memory: "256Mi"
@@ -116,37 +114,43 @@ spec:
         container('kaniko') {
           // Docker 엔진 없이 이미지 빌드 및 푸시
           sh """
-            /kaniko/executor \
-              --context=${WORKSPACE} \
-              --dockerfile=${WORKSPACE}/CICD/docker/Dockerfile \
-              --destination=${IMAGE_NAME}:${IMAGE_TAG} \
+            /kaniko/executor \\
+              --context=${WORKSPACE} \\
+              --dockerfile=${WORKSPACE}/CICD/docker/Dockerfile \\
+              --destination=${IMAGE_NAME}:${IMAGE_TAG} \\
               --destination=${IMAGE_NAME}:latest
           """
         }
       }
     }
 
-    stage('K8s Deployment') {
+    stage('Blue-Green Deployment') {
+      // DEPLOY_ENABLED가 'true'일 때만 실행
       when {
-        expression {
-          def branchName = env.BRANCH_NAME ?: ''
-          def gitBranch = env.GIT_BRANCH ?: ''
-          def gitLocalBranch = env.GIT_LOCAL_BRANCH ?: ''
-          def isPrBuild = !!(env.CHANGE_ID?.trim())
-          def isMainBranch = [branchName, gitBranch, gitLocalBranch].findAll { it?.trim() }.any { v ->
-            def n = v.trim()
-            n == 'main' || n.endsWith('/main') || n.endsWith('refs/heads/main')
-          }
-          return isMainBranch && !isPrBuild
-        }
+        expression { env.DEPLOY_ENABLED == 'true' }
       }
       steps {
-        // jnlp(기본컨테이너)에서 실행
         container('kubectl') {
           script {
-            sh "sed -i 's/\${IMAGE_TAG}/${IMAGE_TAG}/g' CICD/k8s/front-deployment.yml"
-            sh "kubectl apply -f CICD/k8s/front-deployment.yml"
-            sh "kubectl apply -f CICD/k8s/front-service.yml"
+            // 현재 서비스 색상 확인
+            def currentColor = sh(
+                script: "kubectl get svc front-service -o jsonpath='{.spec.selector.version}' || echo 'none'",
+                returnStdout: true
+            ).trim()
+
+            def targetColor = (currentColor == 'blue') ? 'green' : 'blue'
+            echo "현재 버전: ${currentColor} -> 새 배포 버전: ${targetColor}"
+
+            // 이미지 업데이트
+            sh "kubectl set image deployment/front-deployment-${targetColor} frontend-container=${IMAGE_NAME}:${IMAGE_TAG}"
+
+            // 롤아웃 대기
+            sh "kubectl rollout status deployment/front-deployment-${targetColor} --timeout=2m"
+
+            // 트래픽 스위칭 및 레이블 업데이트
+            sh """
+              kubectl patch svc front-service -p '{"metadata":{"labels":{"version":"${targetColor}"}}, "spec":{"selector":{"version":"${targetColor}"}}}'
+            """
           }
         }
       }

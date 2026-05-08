@@ -28,13 +28,21 @@ const loading = ref(false)
 const errorMessage = ref('')
 const saveMessage = ref('')
 const rows = ref([])
+const allRegionOptions = ref([])
 const warehouseOptions = ref([])
 const savingStoreCode = ref('')
 
 const statusToKor = { ACTIVE: '활성', INACTIVE: '비활성', SUSPENDED: '점검중' }
 const korToStatus = { 활성: 'ACTIVE', 비활성: 'INACTIVE', 점검중: 'SUSPENDED' }
 
-const regionOptions = computed(() => ['전체 지역', ...new Set(rows.value.map((row) => row.region))])
+const regionOptions = computed(() => ['전체 지역', ...allRegionOptions.value])
+
+function warehouseOptionLabel(code) {
+  if (!code) return ''
+  const found = warehouseOptions.value.find((item) => item.code === code)
+  if (!found) return code
+  return `${found.code} · ${found.name}`
+}
 
 function handleLogout() {
   auth.logout()
@@ -44,6 +52,15 @@ function handleLogout() {
 async function loadOptions() {
   const options = await getInfrastructureMappingOptions()
   warehouseOptions.value = options.warehouses || []
+}
+
+async function loadAllRegionOptions() {
+  const list = await getStoreInfrastructureMappings({})
+  const regions = [...new Set((list || []).map((row) => row.region).filter(Boolean))]
+  allRegionOptions.value = regions.sort((a, b) => a.localeCompare(b, 'ko'))
+  if (region.value !== '전체 지역' && !allRegionOptions.value.includes(region.value)) {
+    region.value = '전체 지역'
+  }
 }
 
 function normalizeRows(list) {
@@ -122,6 +139,7 @@ watch([search, region, status], () => {
 
 onMounted(async () => {
   await loadOptions()
+  await loadAllRegionOptions()
   await loadRows()
 })
 </script>
@@ -164,11 +182,11 @@ onMounted(async () => {
           <table class="min-w-full border-collapse text-xs">
             <thead>
               <tr class="border-b border-gray-200 bg-gray-50 text-left text-[11px] font-black uppercase tracking-[0.06em] text-gray-500">
-                <th class="px-3 py-2">매장</th>
+                <th class="min-w-[12rem] px-3 py-2">매장</th>
                 <th class="px-3 py-2">지역</th>
                 <th class="px-3 py-2">상태</th>
-                <th class="px-3 py-2">주 창고</th>
-                <th class="px-3 py-2">예비 창고</th>
+                <th class="min-w-[19rem] px-3 py-2">주 창고</th>
+                <th class="min-w-[19rem] px-3 py-2">예비 창고</th>
                 <th class="px-3 py-2">저장</th>
               </tr>
             </thead>
@@ -186,7 +204,11 @@ onMounted(async () => {
                 <td class="px-3 py-2 font-bold text-gray-700">{{ row.region }}</td>
                 <td class="px-3 py-2 font-bold text-gray-700">{{ statusToKor[row.status] || row.status }}</td>
                 <td class="px-3 py-2">
-                  <select v-model="row.draftPrimaryWarehouseCode" class="h-8 w-44 border border-gray-300 px-2 text-xs font-bold outline-none focus:border-[#004D3C]">
+                  <select
+                    v-model="row.draftPrimaryWarehouseCode"
+                    :title="row.draftPrimaryWarehouseCode ? warehouseOptionLabel(row.draftPrimaryWarehouseCode) : '선택'"
+                    class="h-8 w-full min-w-[18rem] border border-gray-300 px-2 text-xs font-bold outline-none focus:border-[#004D3C] xl:min-w-[24rem]"
+                  >
                     <option value="">선택</option>
                     <option v-for="warehouse in warehouseOptions" :key="warehouse.code" :value="warehouse.code">
                       {{ warehouse.code }} · {{ warehouse.name }}
@@ -194,7 +216,11 @@ onMounted(async () => {
                   </select>
                 </td>
                 <td class="px-3 py-2">
-                  <select v-model="row.draftBackupWarehouseCode" class="h-8 w-44 border border-gray-300 px-2 text-xs font-bold outline-none focus:border-[#004D3C]">
+                  <select
+                    v-model="row.draftBackupWarehouseCode"
+                    :title="row.draftBackupWarehouseCode ? warehouseOptionLabel(row.draftBackupWarehouseCode) : '미지정'"
+                    class="h-8 w-full min-w-[18rem] border border-gray-300 px-2 text-xs font-bold outline-none focus:border-[#004D3C] xl:min-w-[24rem]"
+                  >
                     <option value="">미지정</option>
                     <option v-for="warehouse in warehouseOptions" :key="`backup-${warehouse.code}`" :value="warehouse.code">
                       {{ warehouse.code }} · {{ warehouse.name }}

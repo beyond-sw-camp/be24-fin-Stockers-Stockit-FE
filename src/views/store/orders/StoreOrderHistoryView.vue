@@ -181,6 +181,9 @@ onMounted(fetchOrders)
             <p class="mt-1 text-xs font-bold text-gray-500">
               발주건 목록을 먼저 확인하고, 원하는 발주건을 눌러 상세 페이지로 이동합니다.
             </p>
+            <p class="mt-2 text-[11px] font-bold text-blue-800">
+              발주 승인 처리 시점: 기본적으로 전날(00:00~23:59) 발주건은 익일 00:00(KST)에 자동 승인되며, 필요한 경우 본사에서 수동 배치 승인으로 즉시 처리될 수 있습니다.
+            </p>
           </div>
           <div class="text-right text-[11px] font-bold text-gray-500">
             <p>전체 {{ summary.totalOrders }}건</p>
