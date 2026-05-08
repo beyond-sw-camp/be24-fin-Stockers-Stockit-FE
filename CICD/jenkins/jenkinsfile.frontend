@@ -52,7 +52,7 @@ spec:
 
   // 파이프라인 옵션 및 트리거 설정
   options {
-    skipDefaultCheckout(true)
+    // skipDefaultCheckout(true)를 제거하여 파이프라인 시작 시 자동 체크아웃 수행
     timeout(time: 1, unit: 'HOURS')
   }
 
@@ -67,13 +67,7 @@ spec:
   }
 
   stages {
-    stage('Checkout') {
-      steps {
-        container('node') {
-          checkout scm
-        }
-      }
-    }
+    // 1. Checkout 스테이지를 제거했습니다. (파이프라인 시작 시 자동 수행됨)
 
     stage('Determine Deploy Trigger') {
       steps {
@@ -82,24 +76,24 @@ spec:
             // Git 보안 설정: 소유권 관련 에러 방지
             sh "git config --global --add safe.directory ${WORKSPACE}"
 
-            // 브랜치 확인 로직 개선
+            // 브랜치 확인 로직 (더 견고하게 수정)
             def branch = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ""
-            
             if (branch == "" || branch == "HEAD") {
               try {
                 branch = sh(script: "git name-rev --name-only HEAD", returnStdout: true).trim()
-                if (branch.contains("origin/")) {
-                  branch = branch.substring(branch.lastIndexOf("/") + 1)
-                }
               } catch (e) {
-                echo "Failed to get branch name via git: ${e.message}"
+                echo "Git command failed, falling back to basic branch detection"
               }
+            }
+            
+            // remotes/origin/main 또는 origin/main 처리하여 순수 브랜치명 추출
+            if (branch.contains("/")) {
+              branch = branch.substring(branch.lastIndexOf("/") + 1)
             }
             
             echo "Detected Branch: ${branch}"
             
-            // main 브랜치 판별
-            def isMain = (branch == 'main' || branch == 'origin/main' || branch.endsWith('/main'))
+            def isMain = (branch == 'main')
             def isPr = (env.CHANGE_ID != null && env.CHANGE_ID != "")
             
             if (isMain && !isPr) {
