@@ -4,7 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import {
   TrendingUp, AlertCircle, AlertTriangle,
-  RefreshCw, ArrowLeft, Scale, Gauge, CheckCircle2,
+  ArrowLeft, Scale, Gauge, CheckCircle2,
   Edit3, Save, X,
   Leaf, Recycle,
 } from 'lucide-vue-next'
@@ -24,14 +24,18 @@ const {
   warnThresholdPct,
   quotaUpdatedAt,
   quotaUpdatedBy,
-  ytdEmissionsManual,
+  monthlyEmissions,
   ytdEmissions,
   remaining,
   utilizationPct,
   utilizationStatus,
   quarterly,
   ytdAvoided,
+  costSavingsWon,
+  externalUnitPriceWon,
 } = storeToRefs(quotaStore)
+
+const MONTH_LABELS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
 
 // ─────────── AppLayout props ───────────
 const topMenus = computed(() => roleMenus.hq ?? [])
@@ -41,21 +45,32 @@ function handleLogout() { auth.logout(); router.push('/dev-login') }
 
 // 할당량 편집 상태
 const editingQuota = ref(false)
-const quotaDraft = reactive({ yearlyAllocation: 0, warnThresholdPct: 75, ytdEmissions: '' })
+const quotaDraft = reactive({
+  yearlyAllocation: 0,
+  warnThresholdPct: 75,
+  monthly: ['', '', '', '', '', '', '', '', '', '', '', ''],   // 12 인풋용 (빈 문자열 = 미입력)
+})
 function startEditQuota() {
   quotaDraft.yearlyAllocation = yearlyAllocation.value
   quotaDraft.warnThresholdPct = warnThresholdPct.value
-  quotaDraft.ytdEmissions = ytdEmissionsManual.value ?? ''
+  quotaDraft.monthly = (monthlyEmissions.value ?? []).map(v => v == null ? '' : String(v))
+  while (quotaDraft.monthly.length < 12) quotaDraft.monthly.push('')
   editingQuota.value = true
 }
-function saveQuota() {
-  quotaStore.updateQuota({
-    allocation: Number(quotaDraft.yearlyAllocation) || 0,
-    warnPct: Number(quotaDraft.warnThresholdPct) || 75,
-    ytdManual: quotaDraft.ytdEmissions === '' ? null : quotaDraft.ytdEmissions,
-    by: auth.user?.employeeCode ?? 'unknown',
-  })
-  editingQuota.value = false
+async function saveQuota() {
+  try {
+    const monthly = quotaDraft.monthly.map(v =>
+      v === '' || v === null || isNaN(Number(v)) ? null : Number(v),
+    )
+    await quotaStore.saveQuota({
+      allocation: Number(quotaDraft.yearlyAllocation) || 0,
+      warnPct:    Number(quotaDraft.warnThresholdPct) || 75,
+      monthly,
+    })
+    editingQuota.value = false
+  } catch (err) {
+    alert('저장에 실패했습니다. 잠시 후 다시 시도해 주세요.')
+  }
 }
 
 // 사용률 상태 → 아이콘 매핑 (store 는 아이콘 없음)
@@ -129,7 +144,9 @@ const loading = ref(false)
 async function loadAll() {
   loading.value = true
   try {
-    await new Promise(r => setTimeout(r, 100))   // BE 연동 시 실제 호출
+    await quotaStore.fetchQuota(fiscalYear.value)
+  } catch (err) {
+    console.error('[EsgQuotaView.loadAll] failed:', err)
   } finally {
     loading.value = false
   }
@@ -162,15 +179,6 @@ onMounted(loadAll)
             {{ fiscalYear }} 회계연도 — 자발적 탄소중립 목표 · 실효 배출 · 순환재고 절감 · 비용 절감 효과
           </p>
         </div>
-        <button
-          type="button"
-          class="inline-flex items-center gap-1.5 border border-gray-300 bg-white px-3 py-1.5 text-[12px] font-medium text-gray-600 transition hover:bg-gray-50"
-          @click="loadAll"
-          :disabled="loading"
-        >
-          <RefreshCw :size="13" :class="{ 'animate-spin': loading }" />
-          새로고침
-        </button>
       </div>
 
       <!-- 비즈니스 모델 안내 -->
@@ -179,7 +187,6 @@ onMounted(loadAll)
         — Stockit 의 순환재고 시스템은 폐기 소각으로 발생할 배출을 회피시켜
         <strong>자발적 탄소시장(KAU/KOC) 매수 비용을 절감</strong>합니다.
         본 페이지는 자발적 목표 대비 실효 배출과 절감 효과를 추적합니다.
-        <span class="ml-1 text-gray-400">· 현재 화면은 Mock 데이터 (BE 연동 시 emission_activity / circular_stock 자동 동기화 예정)</span>
       </div>
 
       <!-- ───────── 1. KPI 카드 4개 ───────── -->
@@ -271,7 +278,7 @@ onMounted(loadAll)
         </article>
 
         <!-- 정부 할당량 관리 (HQ 수기 입력) -->
-        <article class="border border-gray-300 bg-white shadow-sm">
+        <article class="flex flex-col border border-gray-300 bg-white shadow-sm">
           <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3">
             <div>
               <h2 class="inline-flex items-center gap-2 text-[14px] font-bold text-gray-800">
@@ -287,7 +294,8 @@ onMounted(loadAll)
             </span>
           </div>
 
-          <div class="grid grid-cols-3 gap-3 p-4">
+          <!-- 상단: 연간 할당량 + 경고 임계 (2-col) -->
+          <div class="grid grid-cols-2 gap-3 px-4 pt-4">
             <div>
               <label class="block text-[10px] font-bold uppercase tracking-widest text-gray-400">연간 할당량 (tCO₂)</label>
               <div v-if="!editingQuota" class="mt-1.5 text-[18px] font-black text-gray-800">
@@ -300,26 +308,6 @@ onMounted(loadAll)
                 min="0"
                 class="mt-1.5 h-9 w-full border border-gray-300 bg-gray-50 px-3 text-[13px] font-bold text-gray-800 outline-none focus:border-[#004D3C] focus:bg-white"
               />
-            </div>
-            <div>
-              <label class="block text-[10px] font-bold uppercase tracking-widest text-blue-600">YTD 실효 배출 (tCO₂)</label>
-              <div v-if="!editingQuota" class="mt-1.5 text-[18px] font-black text-blue-700">
-                {{ formatNum(ytdEmissions, 2) }}
-              </div>
-              <input
-                v-else
-                v-model="quotaDraft.ytdEmissions"
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="실측치 입력"
-                class="mt-1.5 h-9 w-full border border-blue-300 bg-blue-50 px-3 text-[13px] font-bold text-blue-700 outline-none focus:border-blue-600 focus:bg-white"
-              />
-              <p class="mt-0.5 text-[9px] text-gray-500 leading-snug">
-                전력 · 도시가스 · 차량연료 · 폐기물 4종 합산
-                <span class="text-gray-400">(Scope 1+2)</span>
-                <span v-if="editingQuota" class="block text-gray-400">· 비워두면 자동 계산</span>
-              </p>
             </div>
             <div>
               <label class="block text-[10px] font-bold uppercase tracking-widest text-gray-400">경고 임계 (%)</label>
@@ -336,6 +324,67 @@ onMounted(loadAll)
               />
             </div>
           </div>
+
+          <!-- 하단: 월별 실효 배출 12-cell grid (분기별 차트 자동 반영) -->
+          <div class="px-4 pt-4">
+            <div class="mb-1.5 flex items-baseline justify-between">
+              <label class="text-[10px] font-bold uppercase tracking-widest text-blue-600">월별 실효 배출 (tCO₂)</label>
+              <span class="text-[10px] text-gray-500">
+                YTD 합계 <strong class="text-blue-700">{{ formatNum(ytdEmissions, 2) }}</strong> tCO₂
+              </span>
+            </div>
+
+            <!-- 비편집 모드: 12개 값 표시 (3-row × 4-col) -->
+            <div v-if="!editingQuota" class="grid grid-cols-4 gap-1.5">
+              <div
+                v-for="(v, i) in monthlyEmissions"
+                :key="i"
+                class="flex flex-col items-center border border-gray-200 bg-gray-50/60 px-2 py-1.5"
+              >
+                <span class="text-[9px] font-bold text-gray-400">{{ MONTH_LABELS[i] }}</span>
+                <span class="text-[12px] font-black"
+                      :class="v == null ? 'text-gray-300' : 'text-blue-700'">
+                  {{ v == null ? '—' : formatNum(v, 2) }}
+                </span>
+              </div>
+            </div>
+
+            <!-- 편집 모드: 12 input box (3-row × 4-col) -->
+            <div v-else class="grid grid-cols-4 gap-1.5">
+              <label
+                v-for="(_, i) in 12"
+                :key="i"
+                class="flex flex-col gap-0.5 border border-blue-200 bg-blue-50/40 px-1.5 py-1"
+              >
+                <span class="text-[9px] font-bold text-blue-600/70">{{ MONTH_LABELS[i] }}</span>
+                <input
+                  v-model="quotaDraft.monthly[i]"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="—"
+                  class="h-7 w-full border border-blue-300 bg-white px-1.5 text-[12px] font-bold text-blue-700 outline-none focus:border-blue-600"
+                />
+              </label>
+            </div>
+
+            <!-- 분기별 합계 미리보기 -->
+            <div class="mt-2 grid grid-cols-4 gap-1.5">
+              <div
+                v-for="(q, i) in quarterly"
+                :key="q.q"
+                class="flex items-baseline justify-between border-l-2 border-emerald-300 bg-emerald-50/40 px-2 py-1 text-[10px]"
+              >
+                <span class="font-bold text-emerald-700/80">{{ q.q }}</span>
+                <span class="font-mono font-bold text-emerald-800">{{ formatNum(q.emissions, 2) }}</span>
+              </div>
+            </div>
+            <p class="mt-1 text-[9px] text-gray-500">
+              매달 입력하면 분기별 배출 실적 차트에 자동 반영됩니다.
+              <span v-if="editingQuota" class="text-gray-400">· 빈 칸은 미입력으로 저장됩니다.</span>
+            </p>
+          </div>
+
 
           <div class="flex items-center justify-between gap-2 border-t border-gray-200 bg-gray-50 px-4 py-2.5">
             <span class="text-[10px] text-gray-500">
@@ -383,7 +432,8 @@ onMounted(loadAll)
               <span class="text-blue-700/60">[단위: kgCO₂ → ÷1000 = tCO₂]</span>
             </p>
             <p class="mt-0.5 text-[10px] text-gray-500">
-              4종 활동량 × 환경부 공식 배출계수(2024) 합산. 실측치 직접 입력 가능.
+              4종 활동량 × 환경부 공식 배출계수(2024) 합산 후 월말에 매달 1회 입력.
+              <span class="text-blue-700/60">YTD = 12개월 합계 / 분기 차트 = 3개월씩 자동 합계</span>
             </p>
           </div>
 
@@ -393,6 +443,42 @@ onMounted(loadAll)
             경고 임계 <strong>{{ warnThresholdPct }}%</strong>
             — 순배출이 정부 할당량의 <strong>{{ warnThresholdPct }}%</strong> 도달 시 경고
           </p>
+
+          <!-- Stockit 도입 효과: 회피 vs 외부 매수 비교 (공백 채움 — 카드 높이 유지) -->
+          <div class="flex flex-1 flex-col border-t border-gray-200 bg-gradient-to-r from-red-50/30 via-white to-emerald-50/40 px-4 py-3">
+            <div class="mb-2 flex items-center justify-between">
+              <p class="inline-flex items-center gap-1.5 text-[11px] font-bold text-gray-800">
+                <span class="text-[13px]">💡</span>
+                Stockit 도입 효과
+                <span class="text-[10px] font-normal text-gray-500">— 회피 vs 외부 매수 비교</span>
+              </p>
+              <span class="text-[9px] font-bold uppercase tracking-widest text-emerald-700/70">YTD</span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <!-- Without Stockit (좌, 빨강) -->
+              <div class="border border-red-200 bg-red-50/60 px-2.5 py-2">
+                <p class="text-[9px] font-bold uppercase tracking-wider text-red-700/80">
+                  ✕ Without Stockit
+                </p>
+                <p class="mt-1 text-[10px] text-red-900/80">폐기 소각으로 발생</p>
+                <p class="text-[14px] font-black text-red-700">+{{ formatNum(ytdAvoided, 2) }} tCO₂ ⬆</p>
+                <p class="mt-1 text-[10px] text-red-900/80">자발적 시장 매수 필요</p>
+                <p class="text-[12px] font-bold text-red-700">₩{{ formatNum(costSavingsWon) }} ⬆</p>
+              </div>
+
+              <!-- With Stockit (우, 에메랄드) -->
+              <div class="border-2 border-emerald-300 bg-emerald-50/70 px-2.5 py-2">
+                <p class="text-[9px] font-bold uppercase tracking-wider text-emerald-700/80">
+                  ✓ With Stockit
+                </p>
+                <p class="mt-1 text-[10px] text-emerald-900/80">순환재고로 회피</p>
+                <p class="text-[14px] font-black text-emerald-700">−{{ formatNum(ytdAvoided, 2) }} tCO₂ ⬇</p>
+                <p class="mt-1 text-[10px] text-emerald-900/80">외부 매수 회피</p>
+                <p class="text-[12px] font-bold text-emerald-700">₩{{ formatNum(costSavingsWon) }} ⬇ 절감</p>
+              </div>
+            </div>
+          </div>
 
         </article>
       </section>

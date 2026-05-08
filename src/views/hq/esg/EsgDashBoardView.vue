@@ -389,17 +389,17 @@ const kpiMetrics = [
 
 // 나무 키우기 점수 카테고리 (5종)
 //  1. 순환재고 판매 실행      — 판매 1건당 기본 100점 (10kg 이상)
-//  2. 탄소 감축 기여           — 무게 × 소재 계수 × 0.1 (판매 + 기부 모두 합산)
+//  2. 탄소 감축 기여           — 무게 × 소재 계수 × 0.5 (판매 + 기부 모두 합산)
 //  3. 순환 거래 확산           — 신규 거래처 첫 거래 +150
 //  4. 지역 상생                — 사회적기업/지역 소규모 파트너 거래 +150 (월 3건 한도)
 //  5. 기부 활동 실행           — 기부 1건당 기본 80점 (10kg 이상)
-//  ※ 카테고리 합계: 400 + 287 + 150 + 150 + 320 = 1,307 pt
+//  ※ 카테고리 합계: 400 + 1,436 + 150 + 150 + 320 = 2,456 pt
 const scoreCategories = [
   {
     id: 'saleExecution',
     label: '순환재고 판매 실행',
     points: 400,
-    pct: 30.6,
+    pct: 16.3,
     icon: RefreshCw,
     badge: '기본 점수',
     barCls: 'bg-emerald-500',
@@ -417,31 +417,31 @@ const scoreCategories = [
   {
     id: 'carbonReduction',
     label: '탄소 감축 기여',
-    points: 287,
-    pct: 22.0,
+    points: 1436,
+    pct: 58.5,
     icon: Leaf,
     badge: 'GHG Avoided',
     barCls: 'bg-teal-500',
     badgeCls: 'bg-teal-100 text-teal-700',
     iconCls: 'text-teal-600',
     desc: '소각되지 않고 판매·기부된 무게에 대한 실제 탄소 감축 환산 (판매 + 기부 합산)',
-    formula: '무게(kg) × 소재 계수 × 0.1 (면 1.8 / 폴리 2.3 / 나일론 2.1 / 울 2.5 / 혼방 비율 분해)',
+    formula: '무게(kg) × 소재 계수 × 0.5 (면 1.8 / 폴리 2.3 / 나일론 2.1 / 울 2.5 / 혼방 비율 분해)',
     rows: [
-      { label: '04.27', target: '폴리에스터 500kg 판매', detail: '500 × 2.3 × 0.1', points: 115 },
-      { label: '04.20', target: '혼방 300kg 판매 (면50:폴리50)', detail: '300 × 2.0 × 0.1', points: 60 },
-      { label: '04.15', target: '면 250kg 판매', detail: '250 × 1.8 × 0.1', points: 45 },
-      { label: '04.10', target: '면 100kg 판매', detail: '100 × 1.8 × 0.1', points: 18 },
-      { label: '04.28', target: '면 95kg 기부 (재해구호)', detail: '95 × 1.8 × 0.1', points: 17 },
-      { label: '04.22', target: '면 80kg 기부 (취약계층)', detail: '80 × 1.8 × 0.1', points: 14 },
-      { label: '04.14', target: '폴리 50kg 기부 (개도국)', detail: '50 × 2.3 × 0.1', points: 12 },
-      { label: '04.05', target: '혼방 30kg 기부 (교육기관)', detail: '30 × 2.0 × 0.1', points: 6 },
+      { label: '04.27', target: '폴리에스터 500kg 판매', detail: '500 × 2.3 × 0.5', points: 575 },
+      { label: '04.20', target: '혼방 300kg 판매 (면50:폴리50)', detail: '300 × 2.0 × 0.5', points: 300 },
+      { label: '04.15', target: '면 250kg 판매', detail: '250 × 1.8 × 0.5', points: 225 },
+      { label: '04.10', target: '면 100kg 판매', detail: '100 × 1.8 × 0.5', points: 90 },
+      { label: '04.28', target: '면 95kg 기부 (재해구호)', detail: '95 × 1.8 × 0.5', points: 86 },
+      { label: '04.22', target: '면 80kg 기부 (취약계층)', detail: '80 × 1.8 × 0.5', points: 72 },
+      { label: '04.14', target: '폴리 50kg 기부 (개도국)', detail: '50 × 2.3 × 0.5', points: 58 },
+      { label: '04.05', target: '혼방 30kg 기부 (교육기관)', detail: '30 × 2.0 × 0.5', points: 30 },
     ],
   },
   {
     id: 'newBuyer',
     label: '순환 거래 확산',
     points: 150,
-    pct: 11.5,
+    pct: 6.1,
     icon: Recycle,
     badge: 'ESG-S 신규 채널',
     barCls: 'bg-blue-500',
@@ -457,7 +457,7 @@ const scoreCategories = [
     id: 'localPartner',
     label: '지역 상생',
     points: 150,
-    pct: 11.5,
+    pct: 6.1,
     icon: ShieldCheck,
     badge: 'ESG-S 사회적 가치',
     barCls: 'bg-amber-500',
@@ -473,7 +473,7 @@ const scoreCategories = [
     id: 'donationExecution',
     label: '기부 활동 실행',
     points: 320,
-    pct: 24.5,
+    pct: 13.0,
     icon: Heart,
     badge: '사회적 가치',
     barCls: 'bg-pink-500',

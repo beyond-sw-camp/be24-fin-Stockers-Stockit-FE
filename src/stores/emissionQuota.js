@@ -17,6 +17,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { emissionQuotaApi } from '@/api/hq/esg.js'
 
 // 환경부 공식 배출계수 (2024 기준) — 실제 BE 연동 시 emission_factor 테이블에서 조회
 export const EMISSION_FACTORS = {
@@ -64,9 +65,14 @@ export const useEmissionQuotaStore = defineStore('emissionQuota', () => {
   const quotaUpdatedAt = ref('2026-01-02')
   const quotaUpdatedBy = ref('hq0001')
 
-  // YTD 실효 배출 — 본사 관리자 수기 입력 (실측치 기준)
-  // null 이면 activityRecords 합계로 자동 계산, 값이 있으면 그 값으로 오버라이드
-  const ytdEmissionsManual = ref(126.84)
+  // 월별 실효 배출 — 본사 관리자가 매달 수기 입력 (12개 element, index 0=1월)
+  // null = 해당 월 미입력 (차트에 막대 안 그려짐)
+  // YTD 합계 / 분기 합계는 모두 이 배열에서 자동 계산
+  const monthlyEmissions = ref([
+    32.5, 45.0, 28.7, 20.6,
+    null, null, null, null,
+    null, null, null, null,
+  ])
 
   // ─────────── 순환재고 절감 (Avoidance) — Stockit 핵심 가치 ───────────
   // 폐기 회피량(kg) × 폐기 시 배출계수 = 절감 CO₂ (kg)
@@ -116,14 +122,13 @@ export const useEmissionQuotaStore = defineStore('emissionQuota', () => {
     activityRecords.value.filter(r => r.y === fiscalYear.value),
   )
 
-  /** YTD 누적 (tCO₂) — 수기 입력값(ytdEmissionsManual)이 있으면 우선, 없으면 activityRecords 합계 */
-  const ytdEmissions = computed(() => {
-    if (ytdEmissionsManual.value !== null && ytdEmissionsManual.value !== '' && !isNaN(ytdEmissionsManual.value)) {
-      return Number(ytdEmissionsManual.value)
-    }
-    const totalKg = yearRecords.value.reduce((s, r) => s + recordCo2Kg(r), 0)
-    return totalKg / 1000
-  })
+  /** YTD 누적 (tCO₂) = 12개월 합계 (null 은 0 으로) */
+  const ytdEmissions = computed(() =>
+    monthlyEmissions.value.reduce(
+      (s, v) => s + (v === null || v === '' || isNaN(v) ? 0 : Number(v)),
+      0,
+    ),
+  )
 
   /** 잔여 한도 (tCO₂) */
   const remaining = computed(() =>
@@ -145,22 +150,24 @@ export const useEmissionQuotaStore = defineStore('emissionQuota', () => {
     return { label: '정상', tone: 'emerald' }
   })
 
-  /** 분기별 (단독) 합계 + 상태 */
+  /** 분기별 (단독) 합계 + 상태 — monthlyEmissions 에서 3개월씩 그룹핑 */
   const quarterly = computed(() => {
-    const buckets = { Q1: 0, Q2: 0, Q3: 0, Q4: 0 }
-    for (const r of yearRecords.value) {
-      const q = r.m <= 3 ? 'Q1' : r.m <= 6 ? 'Q2' : r.m <= 9 ? 'Q3' : 'Q4'
-      buckets[q] += recordCo2Kg(r) / 1000
-    }
     const today = new Date()
     const currentMonth = today.getFullYear() === fiscalYear.value ? today.getMonth() + 1 : 12
     const currentQ = currentMonth <= 3 ? 1 : currentMonth <= 6 ? 2 : currentMonth <= 9 ? 3 : 4
 
+    const buckets = [0, 1, 2, 3].map(qi => {
+      const sum = monthlyEmissions.value
+        .slice(qi * 3, qi * 3 + 3)
+        .reduce((s, v) => s + (v === null || v === '' || isNaN(v) ? 0 : Number(v)), 0)
+      return sum
+    })
+
     return [
-      { q: 'Q1', period: '1월~3월',   emissions: buckets.Q1, status: currentQ > 1 ? 'completed' : currentQ === 1 ? 'in-progress' : 'upcoming' },
-      { q: 'Q2', period: '4월~6월',   emissions: buckets.Q2, status: currentQ > 2 ? 'completed' : currentQ === 2 ? 'in-progress' : 'upcoming' },
-      { q: 'Q3', period: '7월~9월',   emissions: buckets.Q3, status: currentQ > 3 ? 'completed' : currentQ === 3 ? 'in-progress' : 'upcoming' },
-      { q: 'Q4', period: '10월~12월', emissions: buckets.Q4, status: currentQ === 4 ? 'in-progress' : 'upcoming' },
+      { q: 'Q1', period: '1월~3월',   emissions: buckets[0], status: currentQ > 1 ? 'completed' : currentQ === 1 ? 'in-progress' : 'upcoming' },
+      { q: 'Q2', period: '4월~6월',   emissions: buckets[1], status: currentQ > 2 ? 'completed' : currentQ === 2 ? 'in-progress' : 'upcoming' },
+      { q: 'Q3', period: '7월~9월',   emissions: buckets[2], status: currentQ > 3 ? 'completed' : currentQ === 3 ? 'in-progress' : 'upcoming' },
+      { q: 'Q4', period: '10월~12월', emissions: buckets[3], status: currentQ === 4 ? 'in-progress' : 'upcoming' },
     ]
   })
 
@@ -239,17 +246,73 @@ export const useEmissionQuotaStore = defineStore('emissionQuota', () => {
   })
 
   // ─────────── Actions ───────────
-  function updateQuota({ allocation, warnPct, ytdManual, by }) {
+  /** 로컬 전용 갱신 (mock / 임시 입력 — BE 비동기 호출 없이 화면만 즉시 반영) */
+  function updateQuota({ allocation, warnPct, monthly, by }) {
     if (typeof allocation === 'number') yearlyAllocation.value = allocation
     if (typeof warnPct === 'number')    warnThresholdPct.value = warnPct
-    if (ytdManual !== undefined) {
-      // null 또는 ''  → 자동 계산으로 복귀
-      ytdEmissionsManual.value = (ytdManual === null || ytdManual === '' || isNaN(ytdManual))
-        ? null
-        : Number(ytdManual)
+    if (Array.isArray(monthly)) {
+      monthlyEmissions.value = monthly.map(v =>
+        v === null || v === '' || isNaN(v) ? null : Number(v),
+      )
     }
     quotaUpdatedAt.value = new Date().toISOString().slice(0, 10)
     quotaUpdatedBy.value = by ?? quotaUpdatedBy.value
+  }
+
+  // ─────────── BE 연동 ───────────
+  /** 12 길이 배열 정규화 — 부족하면 null 패딩, 각 element 는 Number 또는 null */
+  function normalizeMonthly(arr) {
+    const out = new Array(12).fill(null)
+    if (!Array.isArray(arr)) return out
+    for (let i = 0; i < 12; i++) {
+      const v = arr[i]
+      if (v === undefined || v === null || v === '' || isNaN(v)) out[i] = null
+      else out[i] = Number(v)
+    }
+    return out
+  }
+
+  /** BE 응답 → store state 매핑 */
+  function applyQuotaResponse(res) {
+    if (!res) return
+    if (typeof res.fiscalYear === 'number') fiscalYear.value = res.fiscalYear
+    if (res.yearlyAllocation != null)       yearlyAllocation.value = Number(res.yearlyAllocation)
+    if (res.warnThresholdPct != null)       warnThresholdPct.value = Number(res.warnThresholdPct)
+    monthlyEmissions.value = normalizeMonthly(res.monthlyEmissions)
+    quotaUpdatedBy.value = res.updatedBy ?? quotaUpdatedBy.value
+    if (res.updatedAt) {
+      // ISO 문자열 → 'YYYY-MM-DD'
+      quotaUpdatedAt.value = String(res.updatedAt).slice(0, 10)
+    }
+  }
+
+  /** GET /api/hq/esg/quota — 페이지 진입 / 새로고침 시 호출 */
+  async function fetchQuota(year) {
+    try {
+      const res = await emissionQuotaApi.get(year ?? fiscalYear.value)
+      applyQuotaResponse(res)
+      return res
+    } catch (err) {
+      console.error('[emissionQuota.fetchQuota] failed:', err)
+      throw err
+    }
+  }
+
+  /** PUT /api/hq/esg/quota — 수정 버튼 → 저장 (BE 영속화 + state 동기화) */
+  async function saveQuota({ allocation, warnPct, monthly }) {
+    const payload = {
+      yearlyAllocation:  Number(allocation) || 0,
+      monthlyEmissions:  normalizeMonthly(monthly),
+      warnThresholdPct:  Number(warnPct) || 75,
+    }
+    try {
+      const res = await emissionQuotaApi.update(fiscalYear.value, payload)
+      applyQuotaResponse(res)
+      return res
+    } catch (err) {
+      console.error('[emissionQuota.saveQuota] failed:', err)
+      throw err
+    }
   }
 
   function addActivity(rec) {
@@ -298,7 +361,7 @@ export const useEmissionQuotaStore = defineStore('emissionQuota', () => {
     warnThresholdPct,
     quotaUpdatedAt,
     quotaUpdatedBy,
-    ytdEmissionsManual,
+    monthlyEmissions,
     activityRecords,
     avoidanceRecords,
     externalUnitPriceWon,
@@ -318,6 +381,8 @@ export const useEmissionQuotaStore = defineStore('emissionQuota', () => {
     yearAvoidanceRecords,
     // actions
     updateQuota,
+    fetchQuota,
+    saveQuota,
     addActivity,
     deleteActivity,
     addAvoidance,

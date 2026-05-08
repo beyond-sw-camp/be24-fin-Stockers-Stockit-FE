@@ -60,9 +60,9 @@ const events = ref([
 ])
 
 // ─────────── 점수 계산 함수 (이벤트 1건 → 분해 점수) ───────────
-//   탄소 점수 = 무게(kg) × 소재 계수 × 0.1
-//   (×0.1 스케일링 — 거래량 누적에 따른 점수 폭주 방지 / 다른 점수 요소와 비중 균형)
-const CARBON_SCALE = 0.1
+//   탄소 점수 = 무게(kg) × 소재 계수 × 0.5
+//   (×0.5 스케일링 — 거래량 누적에 따른 점수 폭주 방지 / 다른 점수 요소와 비중 균형)
+const CARBON_SCALE = 0.5
 function calcEventScore(e) {
   const valid = e.weightKg >= SCORE_RULES.minWeightKg
   const factor = MATERIAL_FACTORS[e.material]?.factor ?? 0
@@ -610,19 +610,19 @@ onMounted(reload)
       <div class="grid grid-cols-1 gap-2 lg:grid-cols-2">
         <div class="border-l-2 border-emerald-300 bg-emerald-50/50 px-3 py-2.5 text-[11px] leading-relaxed text-emerald-900/80">
           <span class="font-bold">ⓘ 점수 요소 (순환재고 판매 1건):</span>
-          ① 실행 100점 (≥10kg) ② 탄소 = 무게 × 소재 계수 × 0.1
+          ① 실행 100점 (≥10kg) ② 탄소 = 무게 × 소재 계수 × 0.5
           ③ 신규 거래처 첫 거래 +150 ④ 사회적기업/지역 파트너 +150 (월 3건 한도)
         </div>
         <div class="border-l-2 border-pink-300 bg-pink-50/50 px-3 py-2.5 text-[11px] leading-relaxed text-pink-900/80">
           <span class="font-bold">ⓘ 점수 요소 (기부 1건):</span>
-          ⑤ 실행 80점 (≥10kg) ② 탄소 = 무게 × 소재 계수 × 0.1 (혼방은 비율 분해 평균)
+          ⑤ 실행 80점 (≥10kg) ② 탄소 = 무게 × 소재 계수 × 0.5 (혼방은 비율 분해 평균)
         </div>
       </div>
 
       <div class="border-l-2 border-gray-300 bg-gray-50/60 px-3 py-2.5 text-[11px] leading-relaxed text-gray-700">
-        <span class="font-bold">ⓘ 소재별 탄소 계수 (kgCO₂/kg) × 0.1 스케일:</span>
+        <span class="font-bold">ⓘ 소재별 탄소 계수 (kgCO₂/kg) × 0.5 스케일:</span>
         면 1.8 · 폴리에스터 2.3 · 나일론 2.1 · 울 2.5 · 혼방 2.0 (구성 비율 분해 평균)
-        <span class="ml-1 text-gray-500">— 0.1 스케일 적용은 거래량 누적에 따른 점수 폭주 방지·다른 점수 요소와의 비중 균형 목적</span>
+        <span class="ml-1 text-gray-500">— 0.5 스케일 적용은 거래량 누적에 따른 점수 폭주 방지·다른 점수 요소와의 비중 균형 목적</span>
       </div>
     </div>
   </AppLayout>
