@@ -57,7 +57,7 @@ async function handleSubmit() {
         <div class="flex flex-1 flex-col justify-center">
           <!-- 타이틀 -->
           <h1 class="text-[68px] font-black leading-[0.9] tracking-[-0.04em] text-white md:text-[84px]">
-            Stock<span class="text-white/45">It</span>
+            Stock<span class="text-white/45">It !!</span>
           </h1>
 
           <!-- 슬로건: 짧은 액센트 + 위계 있는 한 줄 -->
