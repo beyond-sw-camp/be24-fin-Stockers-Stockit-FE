@@ -2,6 +2,7 @@
 import { h, computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
+import { useLogout } from '@/composables/useLogout.js'
 import EsgTreeWidget from '@/components/common/EsgTreeWidget.vue'
 
 const openTopMenusStorageKey = 'stockit:openTopMenus'
@@ -36,10 +37,11 @@ const props = defineProps({
   showSystemCard: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['update:activeSideMenu', 'logout'])
+const emit = defineEmits(['update:activeSideMenu'])
 
 const router = useRouter()
 const auth = useAuthStore()
+const logout = useLogout()
 
 const userName = computed(() => auth.user?.name ?? '사용자')
 const isHq = computed(() => auth.user?.role === 'hq')
@@ -319,7 +321,7 @@ const iconMap = {
             type="button"
             class="p-1.5 text-white/80 transition-colors hover:bg-white/10"
             title="로그아웃"
-            @click="emit('logout')"
+            @click="logout"
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           </button>

@@ -13,10 +13,6 @@ const router = useRouter()
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 const brandColor = '#004D3C'
 const brandColorLight = '#E6F2F0'
@@ -306,7 +302,6 @@ const iconMap = {
     :side-menus="infraSideMenus"
     v-model:active-side-menu="activeSideMenu"
     show-system-card
-    @logout="handleLogout"
   >
     <div class="infra-content">
         <section class="panel filter-bar">

@@ -5,7 +5,6 @@
  * ==============================================================================
  */
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
@@ -17,9 +16,7 @@ import { buildHeadline, formatDateTime } from '@/features/store/common/ui.js'
  * ==============================================================================
  * 2. STATE & REFS
  * ==============================================================================
- */
-
-const router = useRouter()
+ */
 const auth = useAuthStore()
 const sales = useSalesStore()
 
@@ -154,10 +151,6 @@ async function loadSaleDetail(nextId) {
  * ==============================================================================
  */
 // [함수] 로그아웃 후 로그인 화면으로 이동한다.
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 /**
  * ==============================================================================
@@ -190,7 +183,6 @@ onMounted(async () => {
     :top-menus="storeMenus"
     :side-menus="salesMenus"
     v-model:active-side-menu="activeSubMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-300 bg-white p-4 shadow-sm">

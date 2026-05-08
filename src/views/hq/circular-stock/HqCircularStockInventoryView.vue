@@ -1,13 +1,10 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useCircularStockStore } from '@/stores/hq/circularStock/circularStock.js'
-
-const router = useRouter()
+import { useCircularStockStore } from '@/stores/hq/circularStock/circularStock.js'
 const auth = useAuthStore()
 const circularStockStore = useCircularStockStore()
 const hqMenus = roleMenus.hq
@@ -30,10 +27,6 @@ const loadCircularInventory = async () => {
   }
 }
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 onMounted(() => {
   loadCircularInventory()
@@ -46,7 +39,6 @@ onMounted(() => {
     :top-menus="hqMenus"
     :side-menus="circularStockMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-200 bg-white p-4 shadow-sm">

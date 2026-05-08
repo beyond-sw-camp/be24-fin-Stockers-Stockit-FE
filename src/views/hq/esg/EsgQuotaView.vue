@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, reactive } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useRouter } from 'vue-router'
 import {
   TrendingUp, AlertCircle, AlertTriangle,
   ArrowLeft, Scale, Gauge, CheckCircle2,
@@ -14,8 +13,6 @@ import BarChart from '@/components/common/charts/BarChart.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useEmissionQuotaStore } from '@/stores/emissionQuota.js'
-
-const router = useRouter()
 const auth = useAuthStore()
 const quotaStore = useEmissionQuotaStore()
 const {
@@ -41,7 +38,6 @@ const MONTH_LABELS = ['1월','2월','3월','4월','5월','6월','7월','8월','9
 const topMenus = computed(() => roleMenus.hq ?? [])
 const sideMenus = ref([])
 const activeSideMenu = ref('')
-function handleLogout() { auth.logout(); router.push('/dev-login') }
 
 // 할당량 편집 상태
 const editingQuota = ref(false)
@@ -160,7 +156,6 @@ onMounted(loadAll)
     :top-menus="topMenus"
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <!-- ───────── 헤더 ───────── -->
@@ -384,7 +379,6 @@ onMounted(loadAll)
               <span v-if="editingQuota" class="text-gray-400">· 빈 칸은 미입력으로 저장됩니다.</span>
             </p>
           </div>
-
 
           <div class="flex items-center justify-between gap-2 border-t border-gray-200 bg-gray-50 px-4 py-2.5">
             <span class="text-[10px] text-gray-500">

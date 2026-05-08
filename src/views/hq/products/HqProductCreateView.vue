@@ -23,10 +23,6 @@ const router = useRouter()
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 const isEditMode = computed(() => Boolean(route.params.productCode))
 const productCode = computed(() => String(route.params.productCode ?? ''))
@@ -447,7 +443,6 @@ onMounted(async () => {
     :side-menus="productSideMenus"
     v-model:active-side-menu="activeSideMenu"
     show-system-card
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-300 bg-white p-4 shadow-sm">

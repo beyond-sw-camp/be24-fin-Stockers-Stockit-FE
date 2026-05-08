@@ -1,13 +1,10 @@
 <script setup>
 import { computed, h, onMounted, onUnmounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useWarehouseInboundStore } from '@/stores/warehouse/warehouseInbound.js'
-import { useWarehouseStockStore } from '@/stores/warehouse/warehouseStock.js'
-
-const router = useRouter()
+import { useWarehouseStockStore } from '@/stores/warehouse/warehouseStock.js'
 const auth = useAuthStore()
 const inbound = useWarehouseInboundStore()
 const stockStore = useWarehouseStockStore()
@@ -49,10 +46,6 @@ const activeSideMenu = ref('입고 관리')
 const topMenus = roleMenus.warehouse
 const sideMenus = roleMenus.warehouse.find((menu) => menu.label === '입/출고 관리')?.children ?? []
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 // ─── 상태 탭 ────────────────────────────────────────────────────────────────
 const STATUS_TABS = [
@@ -231,7 +224,6 @@ const CheckIcon = IconBase([{ tag: 'polyline', attrs: { points: '20 6 9 17 4 12'
     :top-menus="topMenus"
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <!-- 상단 헤더 영역: 상태 탭 -->

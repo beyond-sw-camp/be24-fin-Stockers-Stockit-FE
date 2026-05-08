@@ -8,17 +8,11 @@ import { deleteCategory, getCategories, getCategory, updateCategory } from '@/ap
 import { vendorApi } from '@/api/hq/vendor.js'
 import {
   getProducts,
-} from '@/api/hq/productMaster.js'
-
-const router = useRouter()
+} from '@/api/hq/productMaster.js'
 const route = useRoute()
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 const tabLabelMap = { categories: '카테고리 관리', products: '제품 마스터' }
 const activeTopMenu = computed(() => '상품 관리')
@@ -327,7 +321,6 @@ onMounted(() => {
     :side-menus="productSideMenus"
     v-model:active-side-menu="activeSideMenu"
     show-system-card
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4 overflow-hidden">
       <section class="flex flex-wrap items-center justify-between gap-3 border border-gray-300 bg-white p-3 shadow-sm">

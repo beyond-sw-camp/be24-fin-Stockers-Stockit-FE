@@ -5,7 +5,6 @@
  * ==============================================================================
  */
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
@@ -15,8 +14,7 @@ import { getStoreOrderAnalytics } from '@/api/store/orders.js'
  * ==============================================================================
  * 2. STATE & REFS
  * ==============================================================================
- */
-const router = useRouter()
+ */
 const auth = useAuthStore()
 
 const activeSideMenu = ref('발주 분석')
@@ -87,10 +85,6 @@ async function fetchAnalytics() {
  * ==============================================================================
  */
 // [함수] 로그아웃 처리 후 로그인 화면으로 이동한다.
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 /**
  * ==============================================================================
@@ -106,7 +100,6 @@ onMounted(fetchAnalytics)
     :top-menus="storeMenus"
     :side-menus="orderMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-300 bg-white p-4 shadow-sm">

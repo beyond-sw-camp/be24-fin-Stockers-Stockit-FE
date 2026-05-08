@@ -1,7 +1,6 @@
 <script setup>
 import { computed, ref, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useRouter } from 'vue-router'
 import {
   Leaf,
   Recycle,
@@ -26,9 +25,7 @@ import { useAuthStore } from '@/stores/auth.js'
 import { useEsgStore } from '@/stores/esg.js'
 import { useEmissionQuotaStore } from '@/stores/emissionQuota.js'
 import { carbonPriceApi } from '@/api/hq/esg.js'
-import { extractErrorMessage } from '@/api/axios.js'
-
-const router = useRouter()
+import { extractErrorMessage } from '@/api/axios.js'
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 
@@ -646,10 +643,7 @@ const dateLabel = computed(() =>
   new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
 )
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
+
 </script>
 
 <template>
@@ -658,7 +652,6 @@ function handleLogout() {
     :top-menus="hqMenus"
     :side-menus="esgSideMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-3">
 

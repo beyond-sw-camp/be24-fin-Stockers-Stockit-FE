@@ -1,6 +1,5 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import {
   ArrowLeft, RefreshCw, Leaf, Recycle, ShieldCheck, Heart,
   TrendingUp, Award, Filter, ChevronDown, Sprout, Calendar,
@@ -10,13 +9,10 @@ import BarChart from '@/components/common/charts/BarChart.vue'
 import DoughnutChart from '@/components/common/charts/DoughnutChart.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-
-const router = useRouter()
 const auth = useAuthStore()
 const topMenus = computed(() => roleMenus.hq ?? [])
 const sideMenus = ref([])
 const activeSideMenu = ref('')
-function handleLogout() { auth.logout(); router.push('/dev-login') }
 
 // ─────────── 점수 룰 마스터 ───────────
 const SCORE_RULES = {
@@ -305,7 +301,6 @@ onMounted(reload)
     :top-menus="topMenus"
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <!-- ───────── 헤더 ───────── -->

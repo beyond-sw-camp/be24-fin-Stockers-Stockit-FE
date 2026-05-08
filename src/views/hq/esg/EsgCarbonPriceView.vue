@@ -1,6 +1,5 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import {
   TrendingUp, TrendingDown, ArrowUpDown,
   AlertCircle, RefreshCw, Building2, ArrowLeft,
@@ -19,19 +18,12 @@ import {
 } from 'chart.js'
 import { Line as ChartJsLine } from 'vue-chartjs'
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
-
-const router = useRouter()
 const auth = useAuthStore()
 
 // ─────────── AppLayout props ───────────
 const topMenus = computed(() => roleMenus.hq ?? [])
 const sideMenus = ref([])
 const activeSideMenu = ref('')
-
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 // ─────────── 기간 필터 ───────────
 const PERIOD_OPTIONS = [
@@ -227,7 +219,6 @@ const chartOptions = {
     :top-menus="topMenus"
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <!-- 헤더 -->

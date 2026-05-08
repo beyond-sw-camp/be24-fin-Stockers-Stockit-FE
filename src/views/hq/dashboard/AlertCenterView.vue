@@ -1,6 +1,5 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import {
   AlertCircle,
   Bell,
@@ -14,9 +13,7 @@ import {
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { dashboardSideMenus } from '@/views/hq/dashboard/dashboardMenus.js'
-
-const router = useRouter()
+import { dashboardSideMenus } from '@/views/hq/dashboard/dashboardMenus.js'
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 
@@ -71,10 +68,7 @@ const dateLabel = computed(() =>
   }).format(new Date()),
 )
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
+
 </script>
 
 <template>
@@ -84,7 +78,6 @@ function handleLogout() {
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
     show-system-card
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-3">
       <section class="flex flex-wrap items-center justify-between gap-3 border border-gray-300 bg-white px-3 py-2.5 shadow-sm">

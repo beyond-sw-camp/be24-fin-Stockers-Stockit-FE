@@ -1,13 +1,10 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { convertCircularCandidates, getCircularCandidates, refreshCircularCandidates } from '@/api/hq/inventory.js'
-import { getInfrastructures } from '@/api/hq/infrastructure.js'
-
-const router = useRouter()
+import { getInfrastructures } from '@/api/hq/infrastructure.js'
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 const circularStockMenus = roleMenus.hq.find(menu => menu.label === '순환 재고 관리')?.children ?? []
@@ -404,10 +401,6 @@ const goToPage = (page) => {
   currentPage.value = page
 }
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 onMounted(() => {
   document.addEventListener('click', handleDocumentClick)
@@ -426,7 +419,6 @@ onBeforeUnmount(() => {
     :top-menus="hqMenus"
     :side-menus="circularStockMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-200 bg-white p-4 shadow-sm">

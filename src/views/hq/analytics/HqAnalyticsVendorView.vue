@@ -1,6 +1,5 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import {
   Handshake,
   TrendingUp,
@@ -17,9 +16,7 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import BarChart from '@/components/common/charts/BarChart.vue'
 import DoughnutChart from '@/components/common/charts/DoughnutChart.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
-
-const router = useRouter()
+import { useAuthStore } from '@/stores/auth.js'
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 const sideMenus = roleMenus.hq.find((m) => m.label === '정산/통계')?.children ?? []
@@ -27,10 +24,6 @@ const sideMenus = roleMenus.hq.find((m) => m.label === '정산/통계')?.childre
 const activeTopMenu = computed(() => '정산/통계')
 const activeSideMenu = ref('순환재고 거래처 통계')
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 const dateLabel = computed(() =>
   new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
@@ -378,7 +371,6 @@ const materialDoughnutData = computed(() => ({
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
     show-system-card
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <!-- 페이지 헤더 -->

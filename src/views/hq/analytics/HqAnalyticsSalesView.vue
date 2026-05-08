@@ -28,10 +28,6 @@ const sideMenus = roleMenus.hq.find((menu) => menu.label === '정산/통계')?.c
 const activeTopMenu = computed(() => '정산/통계')
 const activeSideMenu = ref('판매량 통계')
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 // ─── 탭 (URL 쿼리스트링과 동기화) ──────────────────────────────────────
 const tabs = [
@@ -548,7 +544,6 @@ const barOptions = {
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
     show-system-card
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <!-- ━━━━━━━ 페이지 헤더 ━━━━━━━ -->

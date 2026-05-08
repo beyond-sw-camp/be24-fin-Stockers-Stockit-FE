@@ -1,11 +1,8 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
-
-const router = useRouter()
+import { useAuthStore } from '@/stores/auth.js'
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 const inventoryMenus = roleMenus.hq.find(menu => menu.label === '재고 관리')?.children ?? []
@@ -116,10 +113,7 @@ const resetFilters = () => {
   searchTerm.value = ''
 }
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
+
 </script>
 
 <template>
@@ -128,7 +122,6 @@ function handleLogout() {
     :top-menus="hqMenus"
     :side-menus="inventoryMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-200 bg-white p-4 shadow-sm">

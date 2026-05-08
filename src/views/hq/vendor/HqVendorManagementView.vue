@@ -1,20 +1,13 @@
 <script setup>
 import { computed, h, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useVendorStore } from '@/stores/vendor.js'
-
-const router = useRouter()
+import { useVendorStore } from '@/stores/vendor.js'
 const auth = useAuthStore()
 const vendor = useVendorStore()
 const hqMenus = roleMenus.hq
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 // --- 레이아웃 설정 ---
 const activeTopMenu = computed(() => '주문/발주 관리')
@@ -371,7 +364,6 @@ const InfoIcon = IconBase([
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
     show-system-card
-    @logout="handleLogout"
   >
     <!-- 3열 레이아웃 -->
     <div class="flex min-h-0 gap-4 overflow-hidden">

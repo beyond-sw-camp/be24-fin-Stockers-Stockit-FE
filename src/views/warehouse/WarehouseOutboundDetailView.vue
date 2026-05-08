@@ -19,10 +19,6 @@ const resultMessage = ref('')
 const outboundId = computed(() => String(route.params.id || ''))
 const outbound = computed(() => outboundStore.getOutboundById(outboundId.value))
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 function goList() {
   router.push({ name: 'wh-outbound' })
@@ -67,7 +63,6 @@ function confirmOutbound() {
     :top-menus="topMenus"
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <section class="flex items-center justify-between border border-gray-300 bg-white p-4 shadow-sm">

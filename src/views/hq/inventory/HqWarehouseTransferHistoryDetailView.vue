@@ -5,8 +5,7 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 
-const route = useRoute()
-const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 const inventoryMenus = roleMenus.hq.find(menu => menu.label === '재고 관리')?.children ?? []
@@ -103,10 +102,7 @@ const statusClass = (status) => ({
   취소: 'bg-red-50 text-red-700',
 })[status] ?? 'bg-gray-100 text-gray-600'
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
+
 </script>
 
 <template>
@@ -115,7 +111,6 @@ function handleLogout() {
     :top-menus="hqMenus"
     :side-menus="inventoryMenus"
     :active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div v-if="record" class="flex flex-col gap-4">
       <section class="border border-gray-200 bg-white p-5 shadow-sm">

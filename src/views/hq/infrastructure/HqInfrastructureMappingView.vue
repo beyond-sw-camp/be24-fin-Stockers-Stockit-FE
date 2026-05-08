@@ -1,6 +1,5 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
@@ -8,9 +7,7 @@ import {
   getInfrastructureMappingOptions,
   getStoreInfrastructureMappings,
   updateStoreInfrastructureMappings,
-} from '@/api/hq/infrastructure.js'
-
-const router = useRouter()
+} from '@/api/hq/infrastructure.js'
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 
@@ -36,10 +33,6 @@ const korToStatus = { 활성: 'ACTIVE', 비활성: 'INACTIVE', 점검중: 'SUSPE
 
 const regionOptions = computed(() => ['전체 지역', ...new Set(rows.value.map((row) => row.region))])
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 async function loadOptions() {
   const options = await getInfrastructureMappingOptions()
@@ -133,7 +126,6 @@ onMounted(async () => {
     :side-menus="infraSideMenus"
     v-model:active-side-menu="activeSideMenu"
     show-system-card
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-300 bg-white p-4 shadow-sm">
