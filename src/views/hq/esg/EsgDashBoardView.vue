@@ -705,12 +705,12 @@ const dateLabel = computed(() =>
       <!-- 배출 한도 vs 실적 + 배출권 시장 가치 환산 -->
       <section class="grid gap-3 xl:grid-cols-2">
 
-        <!-- 자발적 탄소중립 관리 (emissionQuota 스토어 연동) -->
+        <!-- 탄소중립 관리 (emissionQuota 스토어 연동) -->
         <article class="flex flex-col border border-gray-300 bg-white shadow-sm">
           <div class="flex items-center justify-between border-b border-gray-200 px-3 py-2.5">
             <h3 class="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
               <Scale :size="15" class="text-blue-600" />
-              자발적 탄소중립 관리
+              탄소중립 관리
               <span class="text-[10px] font-normal text-gray-400">SBTi 자발적 모델</span>
             </h3>
             <button

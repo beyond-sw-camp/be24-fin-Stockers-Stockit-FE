@@ -1,5 +1,5 @@
 /**
- * emissionQuota.js — 자발적 탄소중립 관리 (목표 + 활동량 + 절감 + 자동 환산) Pinia 스토어
+ * emissionQuota.js — 탄소중립 관리 (목표 + 활동량 + 절감 + 자동 환산) Pinia 스토어
  *
  * 두 페이지에서 공유:
  *  - /hq/esg/emissionquota : 입력 + 분석 상세

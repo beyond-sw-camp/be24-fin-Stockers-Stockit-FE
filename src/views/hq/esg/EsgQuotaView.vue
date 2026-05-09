@@ -171,10 +171,7 @@ onMounted(loadAll)
             <ArrowLeft :size="14" />
             ESG 대시보드로 돌아가기
           </button>
-          <h1 class="text-[20px] font-bold text-gray-900">자발적 탄소중립 관리</h1>
-          <p class="mt-0.5 text-[12px] text-gray-500">
-            {{ fiscalYear }} 회계연도 — 자발적 탄소중립 목표 · 실효 배출 · 순환재고 절감 · 비용 절감 효과
-          </p>
+          <h1 class="text-[20px] font-bold text-gray-900">탄소중립 관리</h1>
         </div>
       </div>
 
@@ -417,21 +414,11 @@ onMounted(loadAll)
               </template>
             </div>
           </div>
-          <!-- YTD 실효 배출 산출 공식 안내 -->
-          <div class="border-t border-blue-200 bg-blue-50/50 px-4 py-2.5 text-[11px] leading-relaxed text-blue-900/80">
-            <p class="font-bold">ⓘ YTD 실효 배출 산출식 (GHG Protocol Scope 1+2)</p>
-            <p class="mt-1 font-mono text-[10.5px] text-blue-900/70">
-              = 전력(kWh) × 0.4153
-              + 도시가스(m³) × 2.176
-              + 차량연료(L) × 2.582
-              + 폐기물(t) × 1,500
-              <span class="text-blue-700/60">[단위: kgCO₂ → ÷1000 = tCO₂]</span>
-            </p>
-            <p class="mt-0.5 text-[10px] text-gray-500">
-              4종 활동량 × 환경부 공식 배출계수(2024) 합산 후 월말에 매달 1회 입력.
-              <span class="text-blue-700/60">YTD = 12개월 합계 / 분기 차트 = 3개월씩 자동 합계</span>
-            </p>
-          </div>
+          <!-- YTD 실효 배출 안내 (간결) -->
+          <p class="border-t border-blue-200 bg-blue-50/50 px-4 py-2 text-[11px] text-blue-900/80">
+            <span class="font-bold">ⓘ</span>
+            매월 활동량 입력 시 tCO₂로 자동 환산됩니다. YTD는 누적, 분기 차트는 3개월씩 합산.
+          </p>
 
           <!-- 경고 임계 안내 -->
           <p class="border-t border-amber-200 bg-amber-50/50 px-4 py-2 text-[11px] text-amber-900/80">

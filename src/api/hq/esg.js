@@ -39,7 +39,7 @@ export const carbonPriceApi = {
 }
 
 /**
- * 자발적 탄소중립 관리 (할당량 + YTD 실효 배출 + 경고 임계)
+ * 탄소중립 관리 (할당량 + YTD 실효 배출 + 경고 임계)
  *
  * 응답 형태(Response):
  *   {
