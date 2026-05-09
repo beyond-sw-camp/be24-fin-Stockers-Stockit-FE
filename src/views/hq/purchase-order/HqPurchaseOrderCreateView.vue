@@ -37,10 +37,6 @@ const sideMenus = [
 ]
 const activeSideMenu = ref('공급처 발주')
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 // ─── state ───────────────────────────────────────────────────────────────────
 const selectedWarehouseCode = ref('')
@@ -552,7 +548,6 @@ watch(vendorFilter, () => {
     :top-menus="hqMenus"
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex h-[calc(100vh-100px)] min-w-0 flex-col gap-4 overflow-hidden">
       <!-- 상단 바 -->

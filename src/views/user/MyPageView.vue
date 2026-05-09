@@ -23,11 +23,13 @@ import {
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus, roleHomeMap } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { useLogout } from '@/composables/useLogout.js'
 import { userApi } from '@/api/user/user.js'
 import { extractErrorMessage } from '@/api/axios.js'
 
 const router = useRouter()
 const auth = useAuthStore()
+const logout = useLogout()
 
 // ─────────── BE 데이터 로드 ───────────
 const profile = ref(null)
@@ -190,8 +192,7 @@ async function submitPasswordChange() {
     })
     // BE 가 모든 Refresh Token 을 삭제했으므로 로컬 상태도 정리하고 /login 으로 이동
     alert('비밀번호가 변경되었습니다. 보안을 위해 다시 로그인해주세요.')
-    auth.logout()
-    router.push('/dev-login')
+    await logout()
   } catch (err) {
     pwError.value = extractErrorMessage(err, '비밀번호 변경에 실패했습니다.')
   } finally {
@@ -205,10 +206,7 @@ const topMenus = computed(() => roleMenus[feRoleKey.value] ?? [])
 const sideMenus = ref([])
 const activeSideMenu = ref('')
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
+
 function goHome() {
   const homePath = roleHomeMap[feRoleKey.value]
   if (homePath) router.push(homePath)
@@ -221,7 +219,6 @@ function goHome() {
     :top-menus="topMenus"
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
 
@@ -453,7 +450,7 @@ function goHome() {
           <button
             type="button"
             class="inline-flex items-center gap-2 border border-red-300 bg-white px-4 py-2 text-[13px] font-medium text-red-600 transition hover:bg-red-50"
-            @click="handleLogout"
+            @click="logout"
           >
             <LogOut :size="14" />
             로그아웃

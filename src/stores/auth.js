@@ -53,16 +53,20 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
-   * 로그아웃 — 클라이언트 상태를 먼저 비우고, BE 쿠키 만료는 fire-and-forget.
+   * 로그아웃 — BE 호출(쿠키 만료 + Rtoken DB 삭제)을 기다린 뒤 클라이언트 상태 정리.
+   * 외부에서는 직접 호출하지 말고 useLogout() composable 을 사용.
    */
-  function logout() {
-    user.value = null
-    localStorage.removeItem(STORAGE_KEY)
-    sessionStorage.removeItem('stockit:openTopMenus')
-
-    authApi.logout().catch(() => {
-      // 쿠키 만료/네트워크 에러는 무시 — 클라이언트 상태는 이미 비웠음
-    })
+  async function logout() {
+    try {
+      await authApi.logout()
+    } catch (err) {
+      // 네트워크 / 401 / 만료 토큰 등 — 클라이언트 정리는 무조건 진행
+      console.warn('[auth.logout] BE call failed, clearing client state anyway:', err)
+    } finally {
+      user.value = null
+      localStorage.removeItem(STORAGE_KEY)
+      sessionStorage.removeItem('stockit:openTopMenus')
+    }
   }
 
   init()

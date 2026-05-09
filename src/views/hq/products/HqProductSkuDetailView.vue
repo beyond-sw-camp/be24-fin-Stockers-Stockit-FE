@@ -80,10 +80,6 @@ async function removeSku(skuCode) {
   }
 }
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 function goBack() {
   router.push('/hq/products?tab=products')
@@ -115,7 +111,6 @@ onMounted(() => {
     :side-menus="productMenus"
     v-model:active-side-menu="activeSideMenu"
     show-system-card
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-200 bg-white p-4 shadow-sm">

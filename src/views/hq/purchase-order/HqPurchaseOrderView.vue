@@ -27,10 +27,6 @@ const sideMenus = [
 ]
 const activeSideMenu = ref('공급처 발주')
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 // ─── 상태 탭 ────────────────────────────────────────────────────────────────
 // 본사 화면이라 COMPLETED 라벨은 "종료" (창고 화면은 "입고 완료").
@@ -160,7 +156,6 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
     :top-menus="hqMenus"
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <!-- 총 발주 요약 (공급처/기간 컨텍스트 반영) -->

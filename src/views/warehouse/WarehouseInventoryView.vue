@@ -87,10 +87,8 @@ function moveToSkuDetail(item) {
   })
 }
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
+
+
 
 async function loadInventories() {
   isLoading.value = true
@@ -116,6 +114,7 @@ async function loadInventories() {
 onMounted(() => {
   loadInventories()
 })
+
 </script>
 
 <template>
@@ -124,7 +123,6 @@ onMounted(() => {
     :top-menus="warehouseTopMenus"
     :side-menus="warehouseSideMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-200 bg-white p-4 shadow-sm">

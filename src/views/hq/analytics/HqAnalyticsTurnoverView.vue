@@ -21,10 +21,6 @@ const scopeFilter = ref('전사 통합')
 const categoryFilter = ref('전체')
 const sizeFilter = ref('전체')
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 const dateLabel = computed(() =>
   new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
@@ -255,7 +251,6 @@ const turnoverTrendChartOptions = {
     :top-menus="hqMenus"
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-3">
 
