@@ -20,8 +20,8 @@ export async function getCircularCandidates() {
   return unwrap(res)
 }
 
-export async function getCircularInventories() {
-  const res = await api.get('/api/hq/inventories/circular')
+export async function getCircularInventories(params = {}) {
+  const res = await api.get('/api/hq/inventories/circular', { params })
   return unwrap(res)
 }
 

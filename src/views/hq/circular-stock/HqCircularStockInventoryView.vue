@@ -18,16 +18,41 @@ const activeSideMenu = ref('순환 재고 조회')
 const isLoading = ref(false)
 const loadError = ref('')
 
-const loadCircularInventory = async () => {
+const loadCircularInventory = async (overrides = {}) => {
   isLoading.value = true
   loadError.value = ''
   try {
-    await circularStockStore.loadCircularInventoryRows()
+    await circularStockStore.loadCircularInventoryRows(overrides)
   } catch (e) {
     loadError.value = e.message || '순환 재고 조회에 실패했습니다.'
   } finally {
     isLoading.value = false
   }
+}
+
+function handlePageChange(page) {
+  loadCircularInventory({ page })
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+function handleSizeChange(size) {
+  loadCircularInventory({ page: 0, size })
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+function handleSortChange({ sort }) {
+  loadCircularInventory({ page: 0, sort })
+}
+
+function handleQueryChange(query) {
+  loadCircularInventory({
+    page: 0,
+    keyword: query.keyword,
+    warehouseCodes: query.warehouseCodes,
+    materialGroup: query.materialGroup,
+    materialName: query.materialName,
+    minRatio: query.minRatio,
+  })
 }
 
 function handleLogout() {
@@ -64,7 +89,16 @@ onMounted(() => {
         title="순환 재고 리스트"
         :description="isLoading ? '순환 재고를 불러오는 중입니다.' : '소재와 SKU 기준으로 순환 재고를 탐색하고 판매 대상 SKU를 확인합니다.'"
         :show-circular-sale-price-column="true"
+        :server-mode="true"
+        :page="circularStockStore.inventoryPage"
+        :size="circularStockStore.inventorySize"
+        :total-pages="circularStockStore.inventoryTotalPages"
+        :total-elements="circularStockStore.inventoryTotalElements"
         :inventory-rows="circularStockStore.inventoryRows"
+        @page-change="handlePageChange"
+        @size-change="handleSizeChange"
+        @sort-change="handleSortChange"
+        @query-change="handleQueryChange"
       />
     </div>
   </AppLayout>
