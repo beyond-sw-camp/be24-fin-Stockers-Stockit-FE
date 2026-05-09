@@ -2,7 +2,7 @@
  * emissionQuota.js — 자발적 탄소중립 관리 (목표 + 활동량 + 절감 + 자동 환산) Pinia 스토어
  *
  * 두 페이지에서 공유:
- *  - /hq/esg/quota         : 입력 + 분석 상세
+ *  - /hq/esg/emissionquota : 입력 + 분석 상세
  *  - /hq/esg               : ESG 대시보드 — "배출 한도 vs 실적" 카드 (요약)
  *
  * 데이터 모델 (BE 호환 설계):

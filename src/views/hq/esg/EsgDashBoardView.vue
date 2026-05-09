@@ -138,7 +138,7 @@ const formatBasDtShort = (yyyymmdd) => {
 onMounted(loadCarbonPrice)
 
 // 배출 한도 vs 실적 데이터 — emissionQuota 스토어와 연동
-// (별도 페이지 /hq/esg/quota 에서 입력한 활동량이 자동 반영됨)
+// (별도 페이지 /hq/esg/emissionquota 에서 입력한 활동량이 자동 반영됨)
 const quotaStore = useEmissionQuotaStore()
 
 const emissionCompliance = computed(() => ({
@@ -716,7 +716,7 @@ const dateLabel = computed(() =>
             <button
               type="button"
               class="text-[11px] font-medium text-blue-700 transition hover:underline"
-              @click="router.push('/hq/esg/quota')"
+              @click="router.push('/hq/esg/emissionquota')"
             >
               자세히 보기 →
             </button>
