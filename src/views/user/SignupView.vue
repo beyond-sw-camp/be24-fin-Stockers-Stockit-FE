@@ -1,7 +1,8 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { ShieldCheck, UserPlus, Store, Warehouse, Building2 } from 'lucide-vue-next'
 import { userApi } from '@/api/user/user.js'
+import { publicInfrastructureApi } from '@/api/public/infrastructure.js'
 
 
 const form = ref({
@@ -18,54 +19,16 @@ const form = ref({
 })
 
 /**
- * 회원가입 시 선택 가능한 지점 인프라 — BE infrastructure 더미 데이터와 동기화.
- *  code 형식: '{권한prefix}-{지역}-{순번}' (예: WH-SL-0001, ST-BS-0001)
- *  type    : 'STORE' | 'WAREHOUSE'
+ * 회원가입 시 선택 가능한 지점 인프라 — BE 동적 로드 (publicInfrastructureApi).
+ *  GET /api/public/infrastructures?type=STORE|WAREHOUSE&region=서울
+ *   → [{ code, locationType, name, region }]
  */
-const infrastructureData = [
-  // ─── 창고 (WAREHOUSE) ───
-  { code: 'WH-SL-0001', type: 'WAREHOUSE', name: '수도권 통합 물류센터' },
-  { code: 'WH-GG-0001', type: 'WAREHOUSE', name: '경기 남부 허브 창고' },
-  { code: 'WH-IC-0001', type: 'WAREHOUSE', name: '인천 항만 물류센터' },
-  { code: 'WH-CN-0001', type: 'WAREHOUSE', name: '충청권 중계 센터' },
-  { code: 'WH-YN-0001', type: 'WAREHOUSE', name: '영남권 거점 창고' },
-  { code: 'WH-GW-0001', type: 'WAREHOUSE', name: '강원 동부 보관창고' },
-  { code: 'WH-HN-0001', type: 'WAREHOUSE', name: '호남권 메가 허브' },
-  { code: 'WH-JJ-0001', type: 'WAREHOUSE', name: '제주 저온 복합창고' },
-  // ─── 매장 (STORE) ───
-  { code: 'ST-SL-0001', type: 'STORE', name: '강남 플래그십점' },
-  { code: 'ST-SL-0002', type: 'STORE', name: '홍대 라이프스타일점' },
-  { code: 'ST-GG-0001', type: 'STORE', name: '수원 광교점' },
-  { code: 'ST-GG-0002', type: 'STORE', name: '분당 서현점' },
-  { code: 'ST-BS-0001', type: 'STORE', name: '부산 센텀점' },
-  { code: 'ST-DJ-0001', type: 'STORE', name: '대전 둔산점' },
-  { code: 'ST-IC-0001', type: 'STORE', name: '인천 송도점' },
-  { code: 'ST-IC-0002', type: 'STORE', name: '인천 부평점' },
-  { code: 'ST-GW-0001', type: 'STORE', name: '강릉 중앙점' },
-  { code: 'ST-GW-0002', type: 'STORE', name: '원주 혁신점' },
-  { code: 'ST-GJ-0001', type: 'STORE', name: '광주 상무점' },
-  { code: 'ST-GJ-0002', type: 'STORE', name: '광주 충장점' },
-  { code: 'ST-JJ-0001', type: 'STORE', name: '제주 노형점' },
-  { code: 'ST-JJ-0002', type: 'STORE', name: '제주 서귀포점' },
-]
+const infrastructures = ref([])
+const infraLoading = ref(false)
+const infraError = ref('')
 
 // code 의 두 번째 토큰이 지역 코드 (예: 'WH-SL-0001' → 'SL')
 const extractRegion = (code) => (code ?? '').split('-')[1] ?? ''
-
-/**
- * 권한 + 지역으로 필터된 지점 목록.
- *  - HQ : 빈 배열 (본사는 단일 지점이라 필터 사용 안 함)
- *  - STORE/WAREHOUSE : 해당 type + region 매칭만 표시
- */
-const filteredInfrastructures = computed(() => {
-  const role = form.value.role
-  const region = form.value.region
-  if (!role || role === 'hq' || !region) return []
-  const typeKey = role === 'store' ? 'STORE' : 'WAREHOUSE'
-  return infrastructureData.filter(i =>
-    i.type === typeKey && extractRegion(i.code) === region,
-  )
-})
 
 // 지점 코드 — 11개 광역 지역
 const locationCodeOptions = [
@@ -81,6 +44,46 @@ const locationCodeOptions = [
   { code: 'YN', name: '영남' },
   { code: 'HN', name: '호남' },
 ]
+
+// 지역 code(영문 2자리) → 한글명 매핑 (BE region 컬럼이 한글)
+const regionNameByCode = (code) =>
+  locationCodeOptions.find(o => o.code === code)?.name ?? ''
+
+/**
+ * BE 가 type+region 으로 이미 필터해서 응답하므로 그대로 노출.
+ *  - HQ / 미선택 : 빈 배열
+ */
+const filteredInfrastructures = computed(() => infrastructures.value)
+
+/**
+ * role + region 변경 watch → BE fetch.
+ *  - HQ : 호출 안 함 (BE 미정의)
+ *  - STORE/WAREHOUSE : type 변환 + 한글 region 으로 호출
+ */
+watch([() => form.value.role, () => form.value.region], async ([role, regionCode]) => {
+  if (!role || role === 'hq' || !regionCode) {
+    infrastructures.value = []
+    return
+  }
+  const type = role === 'store' ? 'STORE' : 'WAREHOUSE'
+  const region = regionNameByCode(regionCode)
+  if (!region) {
+    infrastructures.value = []
+    return
+  }
+  infraLoading.value = true
+  infraError.value = ''
+  try {
+    const list = await publicInfrastructureApi.list({ type, region })
+    infrastructures.value = Array.isArray(list) ? list : []
+  } catch (err) {
+    console.error('[SignupView] 인프라 목록 로드 실패:', err)
+    infraError.value = '지점 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'
+    infrastructures.value = []
+  } finally {
+    infraLoading.value = false
+  }
+})
 
 const roleOptions = [
   {
@@ -120,8 +123,8 @@ const headerLocationLabel = computed(() => {
   if (!code) return null
 
   const regionCode = extractRegion(code)
-  const regionName = locationCodeOptions.find(o => o.code === regionCode)?.name ?? regionCode
-  const infra = infrastructureData.find(i => i.code === code)
+  const regionName = regionNameByCode(regionCode) || regionCode
+  const infra = infrastructures.value.find(i => i.code === code)
 
   if (role === 'store') {
     return `${code} → ${regionName} (${regionCode})`
@@ -364,7 +367,7 @@ function onRegionChange() {
  * 지점 셀렉트 변경 시 — 선택된 인프라의 name 을 자동 채움.
  */
 function onInfraChange() {
-  const found = infrastructureData.find(i => i.code === form.value.storeCode)
+  const found = infrastructures.value.find(i => i.code === form.value.storeCode)
   form.value.storeName = found ? found.name : ''
   delete errors.value.storeCode
   delete errors.value.storeName
