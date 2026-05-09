@@ -1,9 +1,11 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { getWarehouseInventories } from '@/api/warehouse/inventory.js'
+import { extractErrorMessage } from '@/api/axios.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -14,11 +16,6 @@ const warehouseSideMenus = roleMenus.warehouse.find((menu) => menu.label === '�
 const activeSideMenu = ref('창고 재고 조회')
 const activeTopMenu = computed(() => '재고 관리')
 
-const warehouseInfo = {
-  code: 'WH-ICN-01',
-  name: '인천 제1창고',
-}
-
 const categoryMap = {
   상의: ['반팔', '긴팔', '셔츠', '니트', '후드티'],
   바지: ['청바지', '반바지', '긴바지', '츄리닝'],
@@ -26,20 +23,9 @@ const categoryMap = {
   아우터: ['패딩', '후드집업', '자켓', '가디건'],
 }
 
-const inventoryData = [
-  { itemCode: 'SPA-TOP-001', parentCategory: '상의', childCategory: '반팔', itemName: '코튼 베이직 반팔 티셔츠', actualStock: 184, availableStock: 172, safetyStock: 60, status: '정상', updatedAt: '2026.04.27 09:20' },
-  { itemCode: 'SPA-TOP-002', parentCategory: '상의', childCategory: '긴팔', itemName: '슬림핏 긴팔 티셔츠', actualStock: 38, availableStock: 32, safetyStock: 45, status: '부족', updatedAt: '2026.04.27 09:10' },
-  { itemCode: 'SPA-TOP-003', parentCategory: '상의', childCategory: '셔츠', itemName: '오버핏 옥스포드 셔츠', actualStock: 420, availableStock: 402, safetyStock: 120, status: '정상', updatedAt: '2026.04.27 08:50' },
-  { itemCode: 'SPA-TOP-004', parentCategory: '상의', childCategory: '니트', itemName: '라운드넥 소프트 니트', actualStock: 0, availableStock: 0, safetyStock: 80, status: '품절', updatedAt: '2026.04.27 08:30' },
-  { itemCode: 'SPA-PNT-001', parentCategory: '바지', childCategory: '청바지', itemName: '스트레이트 워싱 데님', actualStock: 128, availableStock: 121, safetyStock: 60, status: '정상', updatedAt: '2026.04.27 08:15' },
-  { itemCode: 'SPA-PNT-002', parentCategory: '바지', childCategory: '반바지', itemName: '라이트 코튼 쇼츠', actualStock: 22, availableStock: 18, safetyStock: 40, status: '부족', updatedAt: '2026.04.27 07:55' },
-  { itemCode: 'SPA-PNT-003', parentCategory: '바지', childCategory: '긴바지', itemName: '와이드 밴딩 팬츠', actualStock: 76, availableStock: 69, safetyStock: 55, status: '정상', updatedAt: '2026.04.27 07:35' },
-  { itemCode: 'SPA-SKT-001', parentCategory: '치마', childCategory: '미니스커트', itemName: 'A라인 데님 미니스커트', actualStock: 14, availableStock: 10, safetyStock: 35, status: '부족', updatedAt: '2026.04.26 19:45' },
-  { itemCode: 'SPA-SKT-002', parentCategory: '치마', childCategory: '롱스커트', itemName: '플리츠 롱스커트', actualStock: 0, availableStock: 0, safetyStock: 25, status: '품절', updatedAt: '2026.04.26 19:20' },
-  { itemCode: 'SPA-OUT-001', parentCategory: '아우터', childCategory: '패딩', itemName: '라이트 숏 패딩', actualStock: 98, availableStock: 92, safetyStock: 45, status: '정상', updatedAt: '2026.04.26 18:40' },
-  { itemCode: 'SPA-OUT-002', parentCategory: '아우터', childCategory: '후드집업', itemName: '스웨트 후드 집업', actualStock: 17, availableStock: 12, safetyStock: 30, status: '부족', updatedAt: '2026.04.26 18:10' },
-  { itemCode: 'SPA-OUT-003', parentCategory: '아우터', childCategory: '자켓', itemName: '싱글 브레스트 자켓', actualStock: 64, availableStock: 58, safetyStock: 25, status: '정상', updatedAt: '2026.04.26 17:55' },
-]
+const inventoryData = ref([])
+const isLoading = ref(false)
+const loadError = ref('')
 
 const selectedParentCategory = ref(typeof route.query.parent === 'string' ? route.query.parent : '')
 const selectedChildCategory = ref(typeof route.query.child === 'string' ? route.query.child : '')
@@ -52,7 +38,7 @@ const childCategoryOptions = computed(() =>
 
 const filteredInventory = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase()
-  return inventoryData.filter((item) => {
+  return inventoryData.value.filter((item) => {
     const matchesParent = !selectedParentCategory.value || item.parentCategory === selectedParentCategory.value
     const matchesChild = !selectedChildCategory.value || item.childCategory === selectedChildCategory.value
     const matchesStatus = !selectedStatus.value || item.status === selectedStatus.value
@@ -102,6 +88,33 @@ function moveToSkuDetail(item) {
 }
 
 
+
+
+async function loadInventories() {
+  isLoading.value = true
+  loadError.value = ''
+  try {
+    const rows = await getWarehouseInventories()
+    inventoryData.value = Array.isArray(rows)
+      ? rows.map(row => ({
+        ...row,
+        actualStock: Number(row.actualStock ?? 0),
+        availableStock: Number(row.availableStock ?? 0),
+        safetyStock: Number(row.safetyStock ?? 0),
+      }))
+      : []
+  } catch (e) {
+    inventoryData.value = []
+    loadError.value = extractErrorMessage(e, '창고 재고를 불러오지 못했습니다.')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+onMounted(() => {
+  loadInventories()
+})
+
 </script>
 
 <template>
@@ -119,10 +132,11 @@ function moveToSkuDetail(item) {
             <h1 class="mt-1 text-lg font-black text-gray-900">창고 재고 조회</h1>
           </div>
           <div class="text-right text-[11px] font-bold text-gray-500">
-            <p>{{ warehouseInfo.code }} · {{ warehouseInfo.name }}</p>
+            <p>{{ auth.user?.locationCode ?? 'WAREHOUSE' }} · {{ auth.user?.locationName ?? '창고' }}</p>
             <p class="mt-1 text-gray-400">기준일 {{ today }} · 조회 {{ filteredInventory.length }}건</p>
           </div>
         </div>
+        <p v-if="loadError" class="mb-3 text-xs font-bold text-red-600">{{ loadError }}</p>
 
         <div class="grid gap-3 xl:grid-cols-[1.2fr_1fr_1fr_1fr_1.2fr]">
           <label class="flex flex-col gap-1.5">
@@ -222,11 +236,11 @@ function moveToSkuDetail(item) {
                       {{ item.status }}
                     </span>
                   </td>
-                  <td class="px-3 py-3 font-bold text-gray-500">{{ item.updatedAt }}</td>
+                  <td class="px-3 py-3 font-bold text-gray-500">{{ item.updatedAt ? new Date(item.updatedAt).toLocaleString('ko-KR', { hour12: false }) : '-' }}</td>
                 </tr>
                 <tr v-if="filteredInventory.length === 0">
                   <td colspan="8" class="px-3 py-14 text-center text-sm font-bold text-gray-400">
-                    조건에 맞는 창고 재고가 없습니다.
+                    {{ isLoading ? '창고 재고를 불러오는 중입니다.' : '조건에 맞는 창고 재고가 없습니다.' }}
                   </td>
                 </tr>
               </tbody>

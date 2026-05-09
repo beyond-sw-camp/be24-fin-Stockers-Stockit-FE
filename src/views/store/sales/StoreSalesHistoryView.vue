@@ -16,7 +16,9 @@ import { buildHeadline, formatDateTime } from '@/features/store/common/ui.js'
  * ==============================================================================
  * 2. STATE & REFS
  * ==============================================================================
- */
+ */
+
+const router = useRouter()
 const auth = useAuthStore()
 const sales = useSalesStore()
 
@@ -28,7 +30,6 @@ const activeSubMenu = ref('판매 내역')
 const searchTerm = ref('')
 const selectedSaleId = ref('')
 const listQuery = reactive({
-  storeCode: '',
   from: '',
   to: '',
   keyword: '',
@@ -74,13 +75,16 @@ function headlineLabel(sale) {
  */
 // [함수] 판매 목록 API를 호출하고 화면 상태를 갱신한다.
 async function loadSales() {
-  listQuery.storeCode = auth.user?.storeCode ?? ''
+  if (!auth.user?.locationCode) {
+    sales.setError('로그인 매장 정보가 없어 판매 내역을 조회할 수 없습니다.')
+    sales.setSales([])
+    return
+  }
   listQuery.keyword = searchTerm.value.trim()
   try {
     sales.setLoading(true)
     sales.setError('')
     const params = {}
-    if (listQuery.storeCode) params.storeCode = listQuery.storeCode
     if (listQuery.from) params.from = listQuery.from
     if (listQuery.to) params.to = listQuery.to
     if (listQuery.keyword) params.keyword = listQuery.keyword
@@ -151,6 +155,10 @@ async function loadSaleDetail(nextId) {
  * ==============================================================================
  */
 // [함수] 로그아웃 후 로그인 화면으로 이동한다.
+function handleLogout() {
+  auth.logout()
+  router.push('/dev-login')
+}
 
 /**
  * ==============================================================================
@@ -183,6 +191,7 @@ onMounted(async () => {
     :top-menus="storeMenus"
     :side-menus="salesMenus"
     v-model:active-side-menu="activeSubMenu"
+    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-300 bg-white p-4 shadow-sm">
@@ -308,3 +317,4 @@ onMounted(async () => {
     </div>
   </AppLayout>
 </template>
+

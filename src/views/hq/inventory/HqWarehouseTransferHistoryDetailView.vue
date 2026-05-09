@@ -1,107 +1,84 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { getWarehouseTransferDetail } from '@/api/hq/inventory.js'
+import { extractErrorMessage } from '@/api/axios.js'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
-const inventoryMenus = roleMenus.hq.find(menu => menu.label === '재고 관리')?.children ?? []
+const inventoryMenus = roleMenus.hq.find((menu) => menu.label === '재고 관리')?.children ?? []
 
 const activeTopMenu = computed(() => '재고 관리')
 const activeSideMenu = computed(() => '창고간 재고 이동 내역')
 
-const allRecords = [
-  {
-    transferNo: 'TRF-20260430-0012',
-    skuCode: 'PRD-TOP-SH-003-NVY-L',
-    itemName: '오버핏 옥스포드 셔츠',
-    fromWarehouseCode: 'WH-BSN-01',
-    fromWarehouseName: '부산 물류창고',
-    toWarehouseCode: 'WH-DJN-01',
-    toWarehouseName: '대전 허브창고',
-    transferQty: 24,
-    reason: '재고 불균형 해소',
-    requestedBy: '김본사',
-    requestedAt: '2026-04-30 09:42',
-    status: '완료',
-    memo: '부산권 수요 증가 대응을 위해 대전 허브로 선이동 처리.',
-    fromStockBefore: 58,
-    toStockBefore: 8,
-  },
-  {
-    transferNo: 'TRF-20260429-0007',
-    skuCode: 'PRD-OUT-PD-001-NVY-XL',
-    itemName: '라이트 숏 패딩',
-    fromWarehouseCode: 'WH-ICN-01',
-    fromWarehouseName: '인천 제1창고',
-    toWarehouseCode: 'WH-BSN-01',
-    toWarehouseName: '부산 물류창고',
-    transferQty: 18,
-    reason: '품절 예방',
-    requestedBy: '이재고',
-    requestedAt: '2026-04-29 14:20',
-    status: '완료',
-    memo: '주말 행사 대비 안전재고 확보 목적.',
-    fromStockBefore: 56,
-    toStockBefore: 5,
-  },
-  {
-    transferNo: 'TRF-20260428-0019',
-    skuCode: 'PRD-TOP-SS-001-BLK-S',
-    itemName: '코튼 베이직 반팔 티셔츠',
-    fromWarehouseCode: 'WH-ICN-01',
-    fromWarehouseName: '인천 제1창고',
-    toWarehouseCode: 'WH-ICH-01',
-    toWarehouseName: '이천 풀필먼트',
-    transferQty: 30,
-    reason: '프로모션 대응',
-    requestedBy: '박운영',
-    requestedAt: '2026-04-28 11:05',
-    status: '진행중',
-    memo: '온라인 프로모션 반응 확인 후 추가 이동 예정.',
-    fromStockBefore: 128,
-    toStockBefore: 22,
-  },
-  {
-    transferNo: 'TRF-20260427-0005',
-    skuCode: 'PRD-PNT-SH-002-GRY-M',
-    itemName: '라이트 코튼 쇼츠',
-    fromWarehouseCode: 'WH-DJN-01',
-    fromWarehouseName: '대전 허브창고',
-    toWarehouseCode: 'WH-ICN-01',
-    toWarehouseName: '인천 제1창고',
-    transferQty: 12,
-    reason: '재고 불균형 해소',
-    requestedBy: '최관리',
-    requestedAt: '2026-04-27 16:32',
-    status: '취소',
-    memo: '출발 창고의 출고 우선순위 변경으로 취소.',
-    fromStockBefore: 0,
-    toStockBefore: 45,
-  },
-]
+const record = ref(null)
+const loading = ref(false)
+const loadError = ref('')
 
-const record = computed(() => allRecords.find(r => r.transferNo === route.params.transferNo) ?? null)
+const toUiStatus = (status) => {
+  if (status === 'IN_PROGRESS') return '출고 준비중'
+  if (status === 'COMPLETED') return '완료'
+  if (status === 'CANCELED') return '취소'
+  if (status === 'REQUESTED') return '요청'
+  return status || '-'
+}
 
-const fromStockAfter = computed(() => {
-  if (!record.value || record.value.status === '취소') return record.value?.fromStockBefore ?? 0
-  return record.value.fromStockBefore - record.value.transferQty
+const skuCount = computed(() => record.value?.lines?.length ?? 0)
+const totalQty = computed(() =>
+  (record.value?.lines ?? []).reduce((sum, line) => sum + Number(line.qty || 0), 0),
+)
+const reasonCount = computed(() =>
+  new Set((record.value?.lines ?? []).map((line) => (line.reason || '').trim()).filter(Boolean)).size,
+)
+const memoCount = computed(() =>
+  (record.value?.lines ?? []).filter((line) => (line.memo || '').trim().length > 0).length,
+)
+
+const lineRows = computed(() => {
+  if (!record.value) return []
+  const isCanceled = record.value.status === '취소'
+  return record.value.lines.map((line) => ({
+    ...line,
+    fromStockAfter: isCanceled ? line.fromStockBefore : line.fromStockAfter,
+    toStockAfter: isCanceled ? line.toStockBefore : line.toStockAfter,
+    fromDelta: isCanceled ? 0 : -line.qty,
+    toDelta: isCanceled ? 0 : line.qty,
+  }))
 })
 
-const toStockAfter = computed(() => {
-  if (!record.value || record.value.status === '취소') return record.value?.toStockBefore ?? 0
-  return record.value.toStockBefore + record.value.transferQty
+const statusConfig = computed(() => {
+  const s = record.value?.status
+  if (s === '완료') return { label: '완료', bg: 'bg-[#E8F6F2]', text: 'text-[#0B6D57]', dot: 'bg-[#0B6D57]', banner: null }
+  if (s === '출고 준비중') return { label: '출고 준비중', bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500', banner: { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-800', msg: '현재 이동이 진행 중입니다. 도착 창고의 재고 수치는 예상값입니다.' } }
+  if (s === '취소') return { label: '취소', bg: 'bg-rose-50', text: 'text-rose-700', dot: 'bg-rose-500', banner: { bg: 'bg-rose-50 border-rose-200', text: 'text-rose-800', msg: '취소된 이동 건입니다. 재고 변동이 발생하지 않았습니다.' } }
+  return { label: s ?? '-', bg: 'bg-gray-100', text: 'text-gray-700', dot: 'bg-gray-400', banner: null }
 })
 
-const statusClass = (status) => ({
-  완료: 'bg-[#EBF5F5] text-black',
-  진행중: 'bg-amber-50 text-amber-700',
-  취소: 'bg-red-50 text-red-700',
-})[status] ?? 'bg-gray-100 text-gray-600'
+const loadDetail = async () => {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const data = await getWarehouseTransferDetail(route.params.transferNo)
+    record.value = {
+      ...data,
+      requestedAt: data.requestedAt ? new Date(data.requestedAt).toISOString().slice(0, 16).replace('T', ' ') : '',
+      status: toUiStatus(data.status),
+    }
+  } catch (error) {
+    record.value = null
+    loadError.value = extractErrorMessage(error, '이동 상세 조회에 실패했습니다.')
+  } finally {
+    loading.value = false
+  }
+}
+
+watch(() => route.params.transferNo, () => loadDetail())
+onMounted(() => loadDetail())
 
 
 </script>
@@ -113,141 +90,275 @@ const statusClass = (status) => ({
     :side-menus="inventoryMenus"
     :active-side-menu="activeSideMenu"
   >
-    <div v-if="record" class="flex flex-col gap-4">
-      <section class="border border-gray-200 bg-white p-5 shadow-sm">
-        <div class="flex items-start justify-between gap-2">
-          <div>
-            <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Inventory</p>
-            <h1 class="mt-1 text-lg font-black text-gray-900">재고 이동 상세</h1>
+    <div v-if="loading" class="bg-white border border-gray-200 shadow-sm flex items-center justify-center py-20">
+      <p class="text-xs font-bold text-gray-400">이동 상세를 불러오는 중입니다.</p>
+    </div>
+    <div v-else-if="record" class="flex flex-col gap-5">
+
+      <!-- 상단 헤더 -->
+      <section class="bg-white border border-gray-200 shadow-sm">
+        <div class="px-6 py-5 flex items-start justify-between gap-4">
+          <div class="flex items-start gap-4">
+            <div class="flex-shrink-0 w-10 h-10 bg-[#004D3C] flex items-center justify-center">
+              <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+            </div>
+            <div>
+              <p class="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Inventory Transfer</p>
+              <div class="mt-1 flex items-center gap-3 flex-wrap">
+                <h1 class="text-lg font-black text-gray-900">창고간 재고 이동 상세</h1>
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-black" :class="[statusConfig.bg, statusConfig.text]">
+                  <span class="w-1.5 h-1.5 rounded-full" :class="statusConfig.dot" />
+                  {{ statusConfig.label }}
+                </span>
+              </div>
+              <p class="mt-1 font-mono text-xs font-bold text-gray-500">{{ record.transferNo }}</p>
+            </div>
           </div>
           <button
             type="button"
-            class="h-9 border border-gray-300 px-4 text-xs font-black text-gray-700 hover:bg-gray-100"
+            class="flex-shrink-0 flex items-center gap-1.5 h-9 border border-gray-300 bg-white px-4 text-xs font-black text-gray-700 hover:bg-gray-50 transition-colors"
             @click="router.push({ name: 'hq-inventory-warehouse-transfer-history' })"
           >
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
             목록으로
           </button>
         </div>
 
-        <div class="mt-5 flex flex-col gap-5 lg:flex-row lg:items-start lg:gap-8">
-          <div class="flex flex-1 flex-col gap-4">
-            <div class="flex flex-wrap items-center gap-2">
-              <span class="inline-flex min-w-12 items-center justify-center px-2.5 py-1 text-xs font-black" :class="statusClass(record.status)">{{ record.status }}</span>
-              <span class="font-mono text-xs font-bold text-gray-400">{{ record.transferNo }}</span>
-            </div>
-
-            <div class="grid gap-x-10 gap-y-4 sm:grid-cols-2">
-              <div>
-                <p class="text-[11px] font-bold text-gray-400">품목명</p>
-                <p class="mt-0.5 text-sm font-black text-gray-900">{{ record.itemName }}</p>
-              </div>
-              <div>
-                <p class="text-[11px] font-bold text-gray-400">SKU 코드</p>
-                <p class="mt-0.5 font-mono text-sm font-bold text-gray-700">{{ record.skuCode }}</p>
-              </div>
-              <div>
-                <p class="text-[11px] font-bold text-gray-400">이동일시</p>
-                <p class="mt-0.5 text-sm font-bold text-gray-700">{{ record.requestedAt }}</p>
-              </div>
-              <div>
-                <p class="text-[11px] font-bold text-gray-400">이동 사유</p>
-                <p class="mt-0.5 text-sm font-bold text-gray-700">{{ record.reason }}</p>
-              </div>
-              <div>
-                <p class="text-[11px] font-bold text-gray-400">담당자</p>
-                <p class="mt-0.5 text-sm font-bold text-gray-700">{{ record.requestedBy }}</p>
-              </div>
-              <div>
-                <p class="text-[11px] font-bold text-gray-400">메모</p>
-                <p class="mt-0.5 whitespace-pre-wrap text-sm font-bold text-gray-700">
-                  {{ record.memo || '입력된 메모가 없습니다.' }}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div class="flex flex-col items-center justify-center border border-gray-200 bg-gray-50 px-10 py-5 lg:min-w-[160px]">
-            <p class="text-[11px] font-bold text-gray-400">이동 수량</p>
-            <p class="mt-1 text-3xl font-black text-gray-900">{{ record.transferQty.toLocaleString() }}</p>
-            <p class="text-sm font-bold text-gray-500">개</p>
-          </div>
-        </div>
-      </section>
-
-      <section class="border border-gray-200 bg-white p-4 shadow-sm">
-        <h2 class="mb-4 text-sm font-black text-gray-900">이동 경로</h2>
-        <div class="flex items-center gap-3">
-          <div class="flex-1 rounded border border-gray-200 bg-gray-50 p-3">
-            <p class="text-[10px] font-black uppercase tracking-[0.1em] text-gray-400">출발 창고</p>
-            <p class="mt-1 text-sm font-black text-gray-900">{{ record.fromWarehouseName }}</p>
-            <p class="mt-0.5 font-mono text-[11px] font-bold text-gray-400">{{ record.fromWarehouseCode }}</p>
-          </div>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 text-gray-400" aria-hidden="true">
-            <path d="M5 12h14"/><polyline points="12 5 19 12 12 19"/>
+        <!-- 상태 배너 -->
+        <div v-if="statusConfig.banner" class="mx-6 mb-5 border px-4 py-3 flex items-start gap-2" :class="statusConfig.banner.bg">
+          <svg class="w-4 h-4 mt-0.5 flex-shrink-0" :class="statusConfig.banner.text" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <div class="flex-1 rounded border border-[#D6EAEA] bg-[#EBF5F5] p-3">
-            <p class="text-[10px] font-black uppercase tracking-[0.1em] text-[#004D3C]/60">도착 창고</p>
-            <p class="mt-1 text-sm font-black text-gray-900">{{ record.toWarehouseName }}</p>
-            <p class="mt-0.5 font-mono text-[11px] font-bold text-[#004D3C]/60">{{ record.toWarehouseCode }}</p>
+          <p class="text-xs font-bold" :class="statusConfig.banner.text">{{ statusConfig.banner.msg }}</p>
+        </div>
+
+        <!-- 메타 정보 그리드 -->
+        <div class="px-6 pb-5 grid grid-cols-2 xl:grid-cols-4 gap-3">
+          <div class="border border-gray-100 bg-gray-50 px-4 py-3">
+            <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">요청자</p>
+            <p class="mt-1.5 text-sm font-black text-gray-900">{{ record.requestedBy }}</p>
+            <p class="mt-0.5 text-[11px] font-bold text-gray-500">{{ record.requestedAt }}</p>
+          </div>
+          <div class="border border-gray-100 bg-gray-50 px-4 py-3">
+            <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">SKU 종류</p>
+            <p class="mt-1.5 text-sm font-black text-gray-900">{{ skuCount }}<span class="ml-1 text-xs font-bold text-gray-500">건</span></p>
+          </div>
+          <div class="border border-gray-100 bg-gray-50 px-4 py-3">
+            <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">총 이동 수량</p>
+            <p class="mt-1.5 text-sm font-black text-gray-900">{{ totalQty.toLocaleString() }}<span class="ml-1 text-xs font-bold text-gray-500">개</span></p>
+          </div>
+          <div class="border border-gray-100 bg-gray-50 px-4 py-3">
+            <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">이동 사유 / 메모</p>
+            <p class="mt-1.5 text-sm font-black text-gray-900">{{ reasonCount }}<span class="ml-1 text-xs font-bold text-gray-500">종</span></p>
+            <p class="mt-0.5 text-[11px] font-bold text-gray-500">메모 {{ memoCount }}건 첨부</p>
           </div>
         </div>
       </section>
 
-      <section class="border border-gray-200 bg-white shadow-sm">
-        <div class="border-b border-gray-100 px-4 py-3">
-          <h2 class="text-sm font-black text-gray-900">이동 전/후 재고 현황</h2>
-          <p v-if="record.status === '취소'" class="mt-0.5 text-[11px] font-bold text-red-500">취소된 이동으로 재고 변동이 없습니다.</p>
-          <p v-else-if="record.status === '진행중'" class="mt-0.5 text-[11px] font-bold text-amber-600">진행 중인 이동으로 이동 후 재고는 예상값입니다.</p>
+      <!-- 창고 이동 플로우 -->
+      <section class="bg-white border border-gray-200 shadow-sm px-6 py-5">
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400 mb-3">Transfer Route</p>
+        <div class="grid grid-cols-[1fr_auto_1fr] items-stretch gap-0">
+          <!-- 출발 창고 -->
+          <div class="border border-gray-200 bg-gray-50 px-4 py-4">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">출발 창고</span>
+              <span class="text-[10px] font-black px-2 py-0.5 bg-gray-200 text-gray-600">FROM</span>
+            </div>
+            <p class="text-base font-black text-gray-900">{{ record.fromWarehouseName }}</p>
+            <p class="mt-1 font-mono text-[11px] font-bold text-gray-500">{{ record.fromWarehouseCode }}</p>
+          </div>
+
+          <!-- 화살표 -->
+          <div class="flex flex-col items-center justify-center bg-[#004D3C] px-5 gap-1.5">
+            <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+            <p class="text-[9px] font-black uppercase tracking-widest text-white/70">이동</p>
+          </div>
+
+          <!-- 도착 창고 -->
+          <div class="border border-[#C8E6DE] bg-[#F0FAF6] px-4 py-4">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="text-[10px] font-black uppercase tracking-[0.12em] text-[#0B6D57]/70">도착 창고</span>
+              <span class="text-[10px] font-black px-2 py-0.5 bg-[#0B6D57] text-white">TO</span>
+            </div>
+            <p class="text-base font-black text-gray-900">{{ record.toWarehouseName }}</p>
+            <p class="mt-1 font-mono text-[11px] font-bold text-[#0B6D57]/80">{{ record.toWarehouseCode }}</p>
+          </div>
         </div>
+      </section>
+
+      <!-- SKU 라인 테이블 -->
+      <section class="bg-white border border-gray-200 shadow-sm">
+        <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h2 class="text-sm font-black text-gray-900">SKU 이동 라인</h2>
+            <p class="mt-0.5 text-[11px] font-bold text-gray-500">{{ skuCount }}건 SKU · 총 {{ totalQty.toLocaleString() }}개 이동</p>
+          </div>
+          <span v-if="record.status === '출고 준비중'" class="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 text-[11px] font-black text-amber-700">
+            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            도착 후 재고는 예상값
+          </span>
+          <span v-else-if="record.status === '취소'" class="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 border border-rose-200 text-[11px] font-black text-rose-700">
+            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+            재고 변동 없음
+          </span>
+        </div>
+
         <div class="overflow-x-auto">
-          <table class="w-full min-w-[560px] border-collapse text-left text-xs">
-            <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
-              <tr>
-                <th class="px-4 py-3 font-black">창고</th>
-                <th class="px-4 py-3 font-black">코드</th>
-                <th class="px-4 py-3 text-right font-black">이동 전 재고</th>
-                <th class="px-4 py-3 text-right font-black">
-                  <span v-if="record.status === '취소'" class="text-gray-400">이동 후 재고</span>
-                  <span v-else-if="record.status === '진행중'" class="text-amber-600">이동 후 재고 (예상)</span>
-                  <span v-else>이동 후 재고</span>
+          <table class="w-full min-w-[1200px] border-collapse text-xs">
+            <!-- 컬럼 그룹 헤더 -->
+            <thead>
+              <tr class="border-b border-gray-100">
+                <th colspan="4" class="bg-gray-50 px-4 py-2 text-left text-[10px] font-black uppercase tracking-[0.1em] text-gray-500 border-r border-gray-200">
+                  SKU 정보
                 </th>
-                <th class="px-4 py-3 text-right font-black">변동</th>
+                <th colspan="3" class="bg-gray-50 px-4 py-2 text-left text-[10px] font-black uppercase tracking-[0.1em] text-gray-500 border-r border-gray-200">
+                  이동 내용
+                </th>
+                <th colspan="2" class="bg-gray-50 px-4 py-2 text-center text-[10px] font-black uppercase tracking-[0.1em] text-gray-600 border-r border-gray-200">
+                  출발 창고 재고
+                </th>
+                <th colspan="2" class="bg-[#F0FAF6] px-4 py-2 text-center text-[10px] font-black uppercase tracking-[0.1em] text-[#0B6D57]">
+                  도착 창고 재고
+                </th>
+              </tr>
+              <tr class="bg-gray-50 text-[10px] uppercase tracking-[0.1em] text-gray-500">
+                <th class="px-4 py-2.5 text-left font-black w-[140px]">SKU 코드</th>
+                <th class="px-3 py-2.5 text-left font-black">품목명</th>
+                <th class="px-3 py-2.5 text-center font-black w-[80px]">컬러</th>
+                <th class="px-3 py-2.5 text-center font-black w-[60px] border-r border-gray-200">사이즈</th>
+                <th class="px-3 py-2.5 text-right font-black w-[70px]">수량</th>
+                <th class="px-3 py-2.5 text-left font-black w-[140px]">이동 사유</th>
+                <th class="px-3 py-2.5 text-left font-black border-r border-gray-200">메모</th>
+                <th class="px-3 py-2.5 text-right font-black w-[80px]">이전</th>
+                <th class="px-3 py-2.5 text-right font-black w-[80px] border-r border-gray-200">이후</th>
+                <th class="px-3 py-2.5 text-right font-black w-[80px] bg-[#F7FCFA]">이전</th>
+                <th class="px-3 py-2.5 text-right font-black w-[80px] bg-[#F7FCFA]">
+                  <span v-if="record.status === '출고 준비중'" class="text-amber-600">이후(예상)</span>
+                  <span v-else>이후</span>
+                </th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
-              <tr class="bg-white">
-                <td class="px-4 py-3 font-black text-gray-900">{{ record.fromWarehouseName }}</td>
-                <td class="px-4 py-3 font-mono text-[11px] font-bold text-gray-400">{{ record.fromWarehouseCode }}</td>
-                <td class="px-4 py-3 text-right font-black text-gray-900">{{ record.fromStockBefore.toLocaleString() }}</td>
-                <td class="px-4 py-3 text-right font-black text-gray-900">{{ fromStockAfter.toLocaleString() }}</td>
-                <td class="px-4 py-3 text-right font-black" :class="record.status === '취소' ? 'text-gray-400' : 'text-red-600'">
-                  {{ record.status === '취소' ? '±0' : `-${record.transferQty.toLocaleString()}` }}
+              <tr
+                v-for="(line, idx) in lineRows"
+                :key="line.skuCode"
+                class="group transition-colors hover:bg-gray-50"
+                :class="idx % 2 === 1 ? 'bg-gray-50/40' : 'bg-white'"
+              >
+                <!-- SKU 코드 -->
+                <td class="px-4 py-3.5 font-mono text-[11px] font-bold text-gray-600">{{ line.skuCode }}</td>
+
+                <!-- 품목명 -->
+                <td class="px-3 py-3.5">
+                  <p class="font-black text-gray-900 leading-tight">{{ line.itemName }}</p>
+                  <p class="mt-0.5 font-mono text-[10px] font-bold text-gray-400">{{ line.itemCode }}</p>
                 </td>
-              </tr>
-              <tr class="bg-white">
-                <td class="px-4 py-3 font-black text-gray-900">{{ record.toWarehouseName }}</td>
-                <td class="px-4 py-3 font-mono text-[11px] font-bold text-gray-400">{{ record.toWarehouseCode }}</td>
-                <td class="px-4 py-3 text-right font-black text-gray-900">{{ record.toStockBefore.toLocaleString() }}</td>
-                <td class="px-4 py-3 text-right font-black text-gray-900">{{ toStockAfter.toLocaleString() }}</td>
-                <td class="px-4 py-3 text-right font-black" :class="record.status === '취소' ? 'text-gray-400' : 'text-[#004D3C]'">
-                  {{ record.status === '취소' ? '±0' : `+${record.transferQty.toLocaleString()}` }}
+
+                <!-- 컬러 -->
+                <td class="px-3 py-3.5 text-center">
+                  <span class="inline-block px-2 py-0.5 bg-gray-100 text-[10px] font-black text-gray-600">{{ line.color }}</span>
+                </td>
+
+                <!-- 사이즈 -->
+                <td class="px-3 py-3.5 text-center border-r border-gray-100">
+                  <span class="inline-block px-2 py-0.5 bg-gray-100 text-[10px] font-black text-gray-600">{{ line.size }}</span>
+                </td>
+
+                <!-- 수량 -->
+                <td class="px-3 py-3.5 text-right">
+                  <span class="font-black text-gray-900 text-sm">{{ line.qty.toLocaleString() }}</span>
+                  <span class="ml-1 text-[10px] font-bold text-gray-400">개</span>
+                </td>
+
+                <!-- 사유 -->
+                <td class="px-3 py-3.5">
+                  <span class="inline-block px-2 py-1 bg-gray-100 text-[10px] font-bold text-gray-700">{{ line.reason }}</span>
+                </td>
+
+                <!-- 메모 -->
+                <td class="px-3 py-3.5 border-r border-gray-100 max-w-[280px]">
+                  <span v-if="line.memo" class="block truncate text-gray-600 font-bold" :title="line.memo">{{ line.memo }}</span>
+                  <span v-else class="text-gray-300 font-bold">—</span>
+                </td>
+
+                <!-- 출발 전 -->
+                <td class="px-3 py-3.5 text-right font-black text-gray-700">{{ line.fromStockBefore.toLocaleString() }}</td>
+
+                <!-- 출발 후 -->
+                <td class="px-3 py-3.5 text-right border-r border-gray-100">
+                  <template v-if="record.status === '취소'">
+                    <span class="font-black text-gray-400">{{ line.fromStockAfter.toLocaleString() }}</span>
+                  </template>
+                  <template v-else>
+                    <span class="font-black text-rose-600">{{ line.fromStockAfter.toLocaleString() }}</span>
+                    <span class="ml-1 text-[10px] font-black text-rose-400">{{ line.fromDelta }}</span>
+                  </template>
+                </td>
+
+                <!-- 도착 전 -->
+                <td class="px-3 py-3.5 text-right font-black text-gray-700 bg-[#F7FCFA]/60">{{ line.toStockBefore.toLocaleString() }}</td>
+
+                <!-- 도착 후 -->
+                <td class="px-3 py-3.5 text-right bg-[#F7FCFA]/60">
+                  <template v-if="record.status === '취소'">
+                    <span class="font-black text-gray-400">{{ line.toStockAfter.toLocaleString() }}</span>
+                  </template>
+                  <template v-else>
+                    <span class="font-black text-[#0B6D57]">{{ line.toStockAfter.toLocaleString() }}</span>
+                    <span class="ml-1 text-[10px] font-black text-[#0B6D57]/60">+{{ line.toDelta }}</span>
+                  </template>
                 </td>
               </tr>
             </tbody>
+
+            <!-- 합계 행 -->
+            <tfoot>
+              <tr class="border-t-2 border-gray-200 bg-gray-50">
+                <td colspan="4" class="px-4 py-3 text-[11px] font-black text-gray-500 border-r border-gray-200">
+                  합계 {{ skuCount }}건
+                </td>
+                <td class="px-3 py-3 text-right font-black text-gray-900">
+                  {{ totalQty.toLocaleString() }}
+                  <span class="ml-1 text-[10px] font-bold text-gray-400">개</span>
+                </td>
+                <td colspan="6" class="px-3 py-3 text-[11px] font-bold text-gray-400">
+                  사유 {{ reasonCount }}종 · 메모 {{ memoCount }}건
+                </td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       </section>
     </div>
 
-    <section v-else class="border border-gray-200 bg-white p-10 text-center shadow-sm">
-      <p class="text-sm font-black text-gray-700">존재하지 않는 이동 내역입니다.</p>
+    <!-- 데이터 없음 -->
+    <div v-else class="bg-white border border-gray-200 shadow-sm flex flex-col items-center justify-center gap-4 py-20">
+      <div class="w-12 h-12 bg-gray-100 flex items-center justify-center">
+        <svg class="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <div class="text-center">
+        <p class="text-sm font-black text-gray-700">존재하지 않는 이동 내역입니다.</p>
+        <p class="mt-1 text-xs font-bold text-gray-400">{{ loadError || '이동번호를 다시 확인해 주세요.' }}</p>
+      </div>
       <button
         type="button"
-        class="mt-4 h-9 border border-gray-300 px-4 text-xs font-black text-gray-700 hover:bg-gray-100"
+        class="flex items-center gap-1.5 h-9 border border-gray-300 bg-white px-4 text-xs font-black text-gray-700 hover:bg-gray-50 transition-colors"
         @click="router.push({ name: 'hq-inventory-warehouse-transfer-history' })"
       >
+        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
         목록으로
       </button>
-    </section>
+    </div>
   </AppLayout>
 </template>

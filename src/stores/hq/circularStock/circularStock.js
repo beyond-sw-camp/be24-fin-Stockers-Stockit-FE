@@ -526,7 +526,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     const totalKg = items.reduce((sum, item) => sum + (Number(item.availableWeightKg) || 0), 0)
     const totalQty = items.reduce((sum, item) => sum + (Number(item.availableQuantity) || 0), 0)
     const quantityHint = `약 ${totalKg.toFixed(1)}kg / ${totalQty}벌`
-    return { materialFit, productName, description, quantityHint }
+    return { materialFit, productName, description, quantityHint, productCode: head.itemCode ?? null }
   })
 
   const matchedBuyerCandidates = computed(() => {

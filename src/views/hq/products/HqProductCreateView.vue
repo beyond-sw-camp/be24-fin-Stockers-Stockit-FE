@@ -17,6 +17,7 @@ import {
   getProductSkus,
   updateProduct,
 } from '@/api/hq/productMaster.js'
+import { extractErrorMessage } from '@/api/axios.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -36,7 +37,13 @@ const productSideMenus = [
 ]
 
 const categoryTree = ref([])
-const COLOR_OPTIONS = ['검정', '흰색', '그레이', '네이비']
+const COLOR_OPTIONS = [
+  { code: 'BLK', label: '검정' },
+  { code: 'WHT', label: '흰색' },
+  { code: 'NVY', label: '네이비' },
+  { code: 'GRY', label: '그레이' },
+]
+const COLOR_LABEL_BY_CODE = Object.fromEntries(COLOR_OPTIONS.map((color) => [color.code, color.label]))
 const SIZE_OPTIONS = ['XS', 'S', 'M', 'L', 'XL']
 const MATERIAL_TYPE_OPTIONS = [
   { label: '천연 단일 섬유', value: 'NATURAL_SINGLE' },
@@ -111,7 +118,8 @@ const isVariantValid = computed(() => selectedColors.value.length > 0 && selecte
 
 const variantSummaryText = computed(() => {
   if (!selectedColors.value.length || !selectedSizes.value.length) return '-'
-  return `색상(${selectedColors.value.join(', ')}) / 사이즈(${selectedSizes.value.join(', ')})`
+  const colorLabels = selectedColors.value.map((colorCode) => COLOR_LABEL_BY_CODE[colorCode] || colorCode)
+  return `색상(${colorLabels.join(', ')}) / 사이즈(${selectedSizes.value.join(', ')})`
 })
 const materialOptionsByType = computed(() => {
   if (materialType.value === 'NATURAL_SINGLE') return NATURAL_MATERIAL_OPTIONS
@@ -201,7 +209,7 @@ function resolveCategoryCode() {
   const parent = categoryTree.value.find((c) => c.name === parentCategory.value)
   if (!parent) return null
   const child = parent.children.find((c) => c.name === childCategory.value)
-  return child?.code || parent.code
+  return child?.code || null
 }
 
 function createMaterialCompositionsPayload() {
@@ -317,7 +325,7 @@ async function loadProduct() {
 async function handleSubmit() {
   const categoryCode = resolveCategoryCode()
   if (!categoryCode) {
-    submitError.value = '카테고리 정보를 불러오지 못했습니다.'
+    submitError.value = '소분류 카테고리를 선택해주세요.'
     return
   }
 
@@ -377,7 +385,7 @@ async function handleSubmit() {
       router.push('/hq/products?tab=products')
     }, 500)
   } catch (e) {
-    submitError.value = e.message
+    submitError.value = extractErrorMessage(e, '제품 등록/수정 중 오류가 발생했습니다.')
   } finally {
     isSubmitting.value = false
   }
@@ -401,7 +409,7 @@ async function handleDeleteProduct() {
       router.push('/hq/products?tab=products')
     }, 500)
   } catch (e) {
-    submitError.value = e.message
+    submitError.value = extractErrorMessage(e, '품목 삭제 중 오류가 발생했습니다.')
   } finally {
     isSubmitting.value = false
   }
@@ -431,7 +439,7 @@ onMounted(async () => {
       await loadSkus()
     }
   } catch (e) {
-    submitError.value = e.message
+    submitError.value = extractErrorMessage(e, '초기 데이터 로딩 중 오류가 발생했습니다.')
   }
 })
 </script>
@@ -626,15 +634,15 @@ onMounted(async () => {
                     <div class="flex flex-wrap gap-2">
                       <button
                         v-for="color in COLOR_OPTIONS"
-                        :key="color"
+                        :key="color.code"
                         type="button"
                         class="min-w-[72px] border px-3 py-1.5 text-xs font-black transition"
-                        :class="selectedColors.includes(color)
+                        :class="selectedColors.includes(color.code)
                           ? 'border-[#004D3C] bg-[#004D3C] text-white'
                           : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-100'"
-                        @click="toggleColor(color)"
+                        @click="toggleColor(color.code)"
                       >
-                        {{ color }}
+                        {{ color.label }}
                       </button>
                     </div>
                   </div>

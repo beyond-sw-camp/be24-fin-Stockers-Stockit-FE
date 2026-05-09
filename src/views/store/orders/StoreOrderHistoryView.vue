@@ -113,12 +113,11 @@ async function fetchOrders() {
   errorMessage.value = ''
 
   try {
-    if (!auth.user?.storeCode || !auth.user?.storeLocationId) {
+    if (!auth.user?.locationCode) {
       throw new Error('로그인 매장 정보가 없어 발주 내역을 조회할 수 없습니다.')
     }
 
     const result = await getStoreOrders({
-      storeCode: auth.user.storeCode,
       from: dateFrom.value || undefined,
       to: dateTo.value || undefined,
       keyword: searchKeyword.value?.trim() || undefined,
@@ -176,6 +175,9 @@ onMounted(fetchOrders)
             <h1 class="mt-1 text-lg font-black text-gray-900">발주 내역</h1>
             <p class="mt-1 text-xs font-bold text-gray-500">
               발주건 목록을 먼저 확인하고, 원하는 발주건을 눌러 상세 페이지로 이동합니다.
+            </p>
+            <p class="mt-2 text-[11px] font-bold text-blue-800">
+              발주 승인 처리 시점: 기본적으로 전날(00:00~23:59) 발주건은 익일 00:00(KST)에 자동 승인되며, 필요한 경우 본사에서 수동 배치 승인으로 즉시 처리될 수 있습니다.
             </p>
           </div>
           <div class="text-right text-[11px] font-bold text-gray-500">

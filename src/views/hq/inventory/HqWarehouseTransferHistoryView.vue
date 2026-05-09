@@ -1,9 +1,13 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { getWarehouseTransfers } from '@/api/hq/inventory.js'
+import { extractErrorMessage } from '@/api/axios.js'
+
+
 const router = useRouter()
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
@@ -12,81 +16,38 @@ const inventoryMenus = roleMenus.hq.find(menu => menu.label === '재고 관리')
 const activeTopMenu = computed(() => '재고 관리')
 const activeSideMenu = ref('창고간 재고 이동 내역')
 
-const dateFrom = ref('2026-04-01')
-const dateTo = ref('2026-04-30')
+const formatDate = (d) => {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+const today = new Date()
+const defaultToDate = formatDate(today)
+const from = new Date(today)
+from.setDate(from.getDate() - 30)
+const defaultFromDate = formatDate(from)
+
+const dateFrom = ref(defaultFromDate)
+const dateTo = ref(defaultToDate)
 const selectedStatus = ref('전체')
 const searchTerm = ref('')
 
-const transferHistoryRows = ref([
-  {
-    transferNo: 'TRF-20260430-0012',
-    skuCode: 'PRD-TOP-SH-003-NVY-L',
-    itemName: '오버핏 옥스포드 셔츠',
-    fromWarehouseCode: 'WH-BSN-01',
-    fromWarehouseName: '부산 물류창고',
-    toWarehouseCode: 'WH-DJN-01',
-    toWarehouseName: '대전 허브창고',
-    transferQty: 24,
-    reason: '재고 불균형 해소',
-    requestedBy: '김본사',
-    requestedAt: '2026-04-30 09:42',
-    status: '완료',
-    fromStockBefore: 58,
-    toStockBefore: 8,
-  },
-  {
-    transferNo: 'TRF-20260429-0007',
-    skuCode: 'PRD-OUT-PD-001-NVY-XL',
-    itemName: '라이트 숏 패딩',
-    fromWarehouseCode: 'WH-ICN-01',
-    fromWarehouseName: '인천 제1창고',
-    toWarehouseCode: 'WH-BSN-01',
-    toWarehouseName: '부산 물류창고',
-    transferQty: 18,
-    reason: '품절 예방',
-    requestedBy: '이재고',
-    requestedAt: '2026-04-29 14:20',
-    status: '완료',
-    fromStockBefore: 56,
-    toStockBefore: 5,
-  },
-  {
-    transferNo: 'TRF-20260428-0019',
-    skuCode: 'PRD-TOP-SS-001-BLK-S',
-    itemName: '코튼 베이직 반팔 티셔츠',
-    fromWarehouseCode: 'WH-ICN-01',
-    fromWarehouseName: '인천 제1창고',
-    toWarehouseCode: 'WH-ICH-01',
-    toWarehouseName: '이천 풀필먼트',
-    transferQty: 30,
-    reason: '프로모션 대응',
-    requestedBy: '박운영',
-    requestedAt: '2026-04-28 11:05',
-    status: '진행중',
-    fromStockBefore: 128,
-    toStockBefore: 22,
-  },
-  {
-    transferNo: 'TRF-20260427-0005',
-    skuCode: 'PRD-PNT-SH-002-GRY-M',
-    itemName: '라이트 코튼 쇼츠',
-    fromWarehouseCode: 'WH-DJN-01',
-    fromWarehouseName: '대전 허브창고',
-    toWarehouseCode: 'WH-ICN-01',
-    toWarehouseName: '인천 제1창고',
-    transferQty: 12,
-    reason: '재고 불균형 해소',
-    requestedBy: '최관리',
-    requestedAt: '2026-04-27 16:32',
-    status: '취소',
-    fromStockBefore: 0,
-    toStockBefore: 45,
-  },
-])
+const transferHistoryRows = ref([])
+const loading = ref(false)
+const loadError = ref('')
+
+const uiStatus = (status) => {
+  if (status === 'IN_PROGRESS') return '출고 준비중'
+  if (status === 'COMPLETED') return '완료'
+  if (status === 'CANCELED') return '취소'
+  if (status === 'REQUESTED') return '요청'
+  return status || '-'
+}
 
 const statusClass = (status) => ({
   완료: 'bg-[#EBF5F5] text-black',
-  진행중: 'bg-amber-50 text-amber-700',
+  '출고 준비중': 'bg-amber-50 text-amber-700',
   취소: 'bg-red-50 text-red-700',
 })[status] ?? 'bg-gray-100 text-gray-600'
 
@@ -100,20 +61,58 @@ const filteredRows = computed(() => {
       if (!keyword) return true
       return [
         row.transferNo,
-        row.skuCode,
+        row.fromWarehouseCode,
+        row.toWarehouseCode,
         row.fromWarehouseName,
         row.toWarehouseName,
+        ...row.lines.map((line) => `${line.skuCode} ${line.itemName}`),
+        ...row.lines.map((line) => `${line.reason || ''} ${line.memo || ''}`),
       ].join(' ').toLowerCase().includes(keyword)
     })
     .sort((a, b) => new Date(b.requestedAt.replace(' ', 'T')) - new Date(a.requestedAt.replace(' ', 'T')))
 })
 
+const loadTransfers = async () => {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const params = {
+      fromDate: dateFrom.value || undefined,
+      toDate: dateTo.value || undefined,
+      status: selectedStatus.value === '전체'
+        ? undefined
+        : (selectedStatus.value === '출고 준비중' ? 'IN_PROGRESS'
+          : selectedStatus.value === '완료' ? 'COMPLETED'
+            : selectedStatus.value === '취소' ? 'CANCELED' : undefined),
+      keyword: searchTerm.value?.trim() || undefined,
+    }
+    const rows = await getWarehouseTransfers(params)
+    transferHistoryRows.value = (rows || []).map((row) => ({
+      ...row,
+      requestedAt: row.requestedAt ? new Date(row.requestedAt).toISOString().slice(0, 16).replace('T', ' ') : '',
+      status: uiStatus(row.status),
+    }))
+  } catch (error) {
+    loadError.value = extractErrorMessage(error, '이동 내역 조회에 실패했습니다.')
+    transferHistoryRows.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
 const resetFilters = () => {
-  dateFrom.value = '2026-04-01'
-  dateTo.value = '2026-04-30'
+  dateFrom.value = defaultFromDate
+  dateTo.value = defaultToDate
   selectedStatus.value = '전체'
   searchTerm.value = ''
+  loadTransfers()
 }
+
+
+onMounted(() => {
+  loadTransfers()
+})
+
 
 
 </script>
@@ -147,7 +146,7 @@ const resetFilters = () => {
             <select v-model="selectedStatus" class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
               <option value="전체">전체</option>
               <option value="완료">완료</option>
-              <option value="진행중">진행중</option>
+              <option value="출고 준비중">출고 준비중</option>
               <option value="취소">취소</option>
             </select>
           </label>
@@ -158,11 +157,14 @@ const resetFilters = () => {
               v-model="searchTerm"
               type="search"
               class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#004D3C]"
-              placeholder="이동번호, SKU 코드, 창고명"
+              placeholder="이동번호, SKU/품목, 창고명"
             />
           </label>
 
           <div class="flex items-end">
+            <button type="button" class="mr-2 h-10 border border-[#004D3C] px-4 text-xs font-black text-[#004D3C] transition hover:bg-[#EBF5F5]" @click="loadTransfers">
+              조회
+            </button>
             <button type="button" class="h-10 border border-gray-300 px-4 text-xs font-black text-gray-700 transition hover:bg-gray-100" @click="resetFilters">
               초기화
             </button>
@@ -175,19 +177,19 @@ const resetFilters = () => {
           <h2 class="text-sm font-black text-gray-900">이동 이력 리스트</h2>
           <p class="text-[11px] font-black text-gray-500">총 {{ filteredRows.length }}건 · 최신순</p>
         </div>
+        <p v-if="loadError" class="border-b border-red-100 bg-red-50 px-4 py-2 text-xs font-bold text-red-700">{{ loadError }}</p>
 
         <div class="overflow-x-auto">
-          <table class="min-w-[1400px] w-full border-collapse text-left text-xs">
+          <table class="min-w-[1320px] w-full border-collapse text-left text-xs">
             <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
               <tr>
                 <th class="px-3 py-3 font-black">이동일시</th>
                 <th class="px-3 py-3 font-black">이동번호</th>
-                <th class="px-3 py-3 font-black">SKU 코드</th>
-                <th class="px-3 py-3 font-black">품목명</th>
                 <th class="px-3 py-3 font-black">출발 창고</th>
                 <th class="px-3 py-3 font-black">도착 창고</th>
-                <th class="px-3 py-3 text-right font-black">이동수량</th>
-                <th class="px-3 py-3 font-black">사유</th>
+                <th class="px-3 py-3 text-right font-black">SKU 건수</th>
+                <th class="px-3 py-3 text-right font-black">총 이동수량</th>
+                <th class="px-3 py-3 font-black">사유/메모 요약</th>
                 <th class="px-3 py-3 text-center font-black">처리상태</th>
                 <th class="px-3 py-3 font-black">담당자</th>
               </tr>
@@ -201,21 +203,30 @@ const resetFilters = () => {
               >
                 <td class="px-3 py-3 font-bold text-gray-600">{{ row.requestedAt }}</td>
                 <td class="px-3 py-3 font-mono font-bold text-gray-700">{{ row.transferNo }}</td>
-                <td class="px-3 py-3 font-mono font-bold text-gray-700">{{ row.skuCode }}</td>
-                <td class="px-3 py-3 font-black text-gray-900">{{ row.itemName }}</td>
                 <td class="px-3 py-3 font-bold text-gray-600">{{ row.fromWarehouseName }}</td>
                 <td class="px-3 py-3 font-bold text-gray-600">{{ row.toWarehouseName }}</td>
-                <td class="px-3 py-3 text-right font-black text-gray-900">{{ row.transferQty.toLocaleString() }}</td>
-                <td class="px-3 py-3 font-bold text-gray-600">{{ row.reason }}</td>
+                <td class="px-3 py-3 text-right font-black text-gray-900">{{ row.skuCount.toLocaleString() }}</td>
+                <td class="px-3 py-3 text-right font-black text-gray-900">{{ row.totalQty.toLocaleString() }}</td>
+                <td class="px-3 py-3">
+                  <div class="flex flex-wrap gap-1">
+                    <span class="inline-flex items-center bg-gray-100 px-2 py-1 text-[10px] font-black text-gray-600">사유 {{ row.reasonCount }}종</span>
+                    <span class="inline-flex items-center bg-gray-100 px-2 py-1 text-[10px] font-black text-gray-600">메모 {{ row.memoCount }}건</span>
+                  </div>
+                </td>
                 <td class="px-3 py-3 text-center">
                   <span class="inline-flex min-w-14 justify-center px-2 py-1 text-[11px] font-black" :class="statusClass(row.status)">{{ row.status }}</span>
                 </td>
                 <td class="px-3 py-3 font-bold text-gray-600">{{ row.requestedBy }}</td>
               </tr>
 
-              <tr v-if="filteredRows.length === 0">
-                <td colspan="10" class="px-4 py-10 text-center text-xs font-bold text-gray-400">
+              <tr v-if="!loading && filteredRows.length === 0">
+                <td colspan="9" class="px-4 py-10 text-center text-xs font-bold text-gray-400">
                   조회 조건에 맞는 이동 내역이 없습니다.
+                </td>
+              </tr>
+              <tr v-if="loading">
+                <td colspan="9" class="px-4 py-10 text-center text-xs font-bold text-gray-400">
+                  이동 내역을 불러오는 중입니다.
                 </td>
               </tr>
             </tbody>

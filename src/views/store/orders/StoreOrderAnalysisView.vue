@@ -14,7 +14,8 @@ import { getStoreOrderAnalytics } from '@/api/store/orders.js'
  * ==============================================================================
  * 2. STATE & REFS
  * ==============================================================================
- */
+ */
+const router = useRouter()
 const auth = useAuthStore()
 
 const activeSideMenu = ref('발주 분석')
@@ -52,9 +53,9 @@ const activeTopMenu = computed(() => '발주 관리')
 // [함수] 발주 분석 API를 호출해 요약/랭킹 데이터를 갱신한다.
 async function fetchAnalytics() {
   try {
-    if (!auth.user?.storeCode || !auth.user?.storeLocationId) return
+    if (!auth.user?.locationCode) return
 
-    const res = await getStoreOrderAnalytics({ storeCode: auth.user.storeCode })
+    const res = await getStoreOrderAnalytics()
     analyticsSummary.value = {
       totalOrders: Number(res?.totalOrders ?? 0),
       totalRequestedQuantity: Number(res?.totalRequestedQuantity ?? 0),
@@ -79,12 +80,7 @@ async function fetchAnalytics() {
   }
 }
 
-/**
- * ==============================================================================
- * 7. METHODS - NAVIGATION
- * ==============================================================================
- */
-// [함수] 로그아웃 처리 후 로그인 화면으로 이동한다.
+
 
 /**
  * ==============================================================================
@@ -100,6 +96,7 @@ onMounted(fetchAnalytics)
     :top-menus="storeMenus"
     :side-menus="orderMenus"
     v-model:active-side-menu="activeSideMenu"
+
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-300 bg-white p-4 shadow-sm">
@@ -198,3 +195,4 @@ onMounted(fetchAnalytics)
     </div>
   </AppLayout>
 </template>
+

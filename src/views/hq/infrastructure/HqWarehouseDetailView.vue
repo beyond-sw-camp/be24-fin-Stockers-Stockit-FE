@@ -33,16 +33,6 @@ const backQuery = computed(() => ({
   search: typeof route.query.search === 'string' ? route.query.search : undefined,
 }))
 
-const occupancy = computed(() => {
-  if (!warehouse.value) return 0
-  return Math.min(95, 20 + Number(warehouse.value.mappedStoreCount || 0) * 15)
-})
-
-const stockQty = computed(() => {
-  if (!warehouse.value) return 0
-  return Number(warehouse.value.mappedStoreCount || 0) * 1000
-})
-
 const connectedStoresPlaceholder = computed(() => {
   if (!warehouse.value) return []
   return Array.from({ length: Number(warehouse.value.mappedStoreCount || 0) }).map((_, index) => `연결 매장 ${index + 1}`)
@@ -122,29 +112,7 @@ onMounted(() => {
             <p class="flex items-center justify-between"><span class="font-bold text-gray-500">주소</span><strong class="font-black text-gray-900">{{ warehouse.address }}</strong></p>
             <p class="flex items-center justify-between"><span class="font-bold text-gray-500">담당 책임자</span><strong class="font-black text-gray-900">{{ warehouse.managerName }}</strong></p>
             <p class="flex items-center justify-between"><span class="font-bold text-gray-500">연락처</span><strong class="font-black text-gray-900">{{ warehouse.contact }}</strong></p>
-            <p class="flex items-center justify-between"><span class="font-bold text-gray-500">창고 용량</span><strong class="font-black text-gray-900">{{ warehouse.capacity }}</strong></p>
             <p class="flex items-center justify-between"><span class="font-bold text-gray-500">상태</span><strong class="font-black text-gray-900">{{ statusToKor[warehouse.status] || warehouse.status }}</strong></p>
-          </div>
-        </article>
-
-        <article class="border border-gray-300 bg-white p-4 shadow-sm">
-          <h2 class="text-xs font-black uppercase tracking-[0.1em] text-gray-500">공간 점유율 / 현재 재고</h2>
-          <div class="mt-4">
-            <div class="mb-2 flex items-center justify-between text-xs font-bold text-gray-600">
-              <span>공간 점유율(추정)</span>
-              <strong class="text-base font-black" :class="occupancy >= 90 ? 'text-red-600' : 'text-gray-900'">{{ occupancy }}%</strong>
-            </div>
-            <div class="h-3 w-full bg-gray-200">
-              <div
-                class="h-full"
-                :class="occupancy >= 90 ? 'bg-red-500' : occupancy >= 80 ? 'bg-amber-500' : 'bg-[#0f766e]'"
-                :style="{ width: `${occupancy}%` }"
-              />
-            </div>
-            <p class="mt-2 text-right text-[11px] font-bold text-gray-500">
-              현재 재고(추정) {{ stockQty.toLocaleString() }} EA
-            </p>
-            <p class="mt-2 text-[10px] font-bold text-gray-400">* 점유율/재고는 mappedStoreCount 기반 임시 추정치입니다.</p>
           </div>
         </article>
 

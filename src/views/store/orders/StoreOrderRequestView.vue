@@ -10,8 +10,7 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { createStoreOrder, getStoreOrderDetail, updateStoreOrder } from '@/api/store/orders.js'
-import { getCompanyWideInventories, getCompanyWideInventorySkus } from '@/api/hq/inventory.js'
-import { getProductSkus } from '@/api/hq/productMaster.js'
+import { getStoreInventories, getStoreInventorySkus } from '@/api/store/inventory.js'
 
 /**
  * ==============================================================================
@@ -234,7 +233,7 @@ function decreaseLine(line) {
 async function submitRequest() {
   feedbackMessage.value = ''
 
-  if (!auth.user?.storeCode || !auth.user?.storeLocationId) {
+  if (!auth.user?.locationCode) {
     showFeedback('로그인 매장 정보가 없어 발주를 진행할 수 없습니다.', 'error')
     return
   }
@@ -274,8 +273,6 @@ async function submitRequest() {
 
   try {
     const result = await createStoreOrder({
-      storeCode: auth.user.storeCode,
-      storeLocationId: String(auth.user.storeLocationId),
       requestedByMemberId: auth.user.employeeCode ?? '',
       requestedByName: auth.user.name ?? '매장 관리자',
       memo: memo.value,
@@ -332,8 +329,7 @@ async function loadEditingOrder() {
 
 // [함수] 로그인 매장 기준으로 발주 가능 SKU 목록을 조회해 화면 상태를 갱신한다.
 async function loadSkuRows() {
-  const locationId = auth.user?.storeLocationId
-  if (!locationId) {
+  if (!auth.user?.locationCode) {
     showFeedback('매장 위치 정보가 없어 SKU 목록을 불러올 수 없습니다.', 'error')
     skuRows.value = []
     return
@@ -341,25 +337,16 @@ async function loadSkuRows() {
 
   loading.value = true
   try {
-    const params = { locationType: 'STORE', locationIds: [locationId] }
-    const page = await getCompanyWideInventories(params)
-    const items = page?.items ?? []
+    const items = await getStoreInventories()
 
-    const skuGroups = await Promise.all(items.map((item) => getCompanyWideInventorySkus(item.itemCode, params)))
-    const productSkuGroups = await Promise.all(items.map((item) => getProductSkus(item.itemCode)))
-
+    const skuGroups = await Promise.all(items.map((item) => getStoreInventorySkus(item.itemCode)))
     const rows = []
     items.forEach((item, index) => {
       const skus = skuGroups[index] ?? []
-      const productSkus = productSkuGroups[index] ?? []
-      const unitPriceBySkuCode = new Map(
-        productSkus.map((productSku) => [productSku.skuCode, Number(productSku.unitPrice ?? 0)]),
-      )
 
       skus.forEach((sku) => {
         const stock = Number(sku.actualStock ?? 0)
         const safetyStock = Number(sku.safetyStock ?? 0)
-        const inboundExpectedQuantity = Number(sku.inboundExpectedQuantity ?? 0)
 
         rows.push({
           skuId: sku.skuCode,
@@ -370,11 +357,11 @@ async function loadSkuRows() {
           subCategory: item.childCategory,
           color: sku.color,
           size: sku.size,
-          unitPrice: Number(sku.unitPrice ?? unitPriceBySkuCode.get(sku.skuCode) ?? 0),
+          unitPrice: Number(sku.unitPrice ?? 0),
           stock,
           safetyStock,
-          inboundExpectedQuantity,
-          availableStoreStock: stock + inboundExpectedQuantity,
+          inboundExpectedQuantity: Number(sku.inboundExpectedQuantity ?? 0),
+          availableStoreStock: Number(sku.availableStock ?? 0),
           recommendedQuantity: Math.max(0, safetyStock - stock),
           stockStatus: stock === 0 ? 'out' : stock <= safetyStock ? 'low' : 'normal',
         })
@@ -438,7 +425,7 @@ onMounted(async () => {
             </p>
           </div>
           <div class="text-right text-[11px] font-bold text-gray-500">
-            <p>{{ auth.user?.storeName ?? '매장' }} · 요청서 {{ requestLines.length }}건</p>
+            <p>{{ auth.user?.locationName ?? '매장' }} · 요청서 {{ requestLines.length }}건</p>
             <p class="mt-1 text-gray-400">
               총 요청 수량 {{ totalRequestedQuantity }}개 · 권장 수량
               {{ totalRecommendedQuantity }}개

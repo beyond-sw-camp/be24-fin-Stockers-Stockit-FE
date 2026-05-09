@@ -1,9 +1,11 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { getWarehouseInventorySkus } from '@/api/warehouse/inventory.js'
+import { extractErrorMessage } from '@/api/axios.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -15,41 +17,32 @@ const warehouseSideMenus = roleMenus.warehouse.find((menu) => menu.label === '�
 const activeSideMenu = ref('창고 재고 조회')
 const activeTopMenu = computed(() => '재고 관리')
 
-const colorOptions = ['검정', '흰색', '그레이', '아이보리']
-const colorCodeMap = { 검정: 'BLK', 흰색: 'WHT', 그레이: 'GRY', 아이보리: 'IVR' }
-const sizeOptions = ['XS', 'S', 'M', 'L', 'XL']
-
 const itemCode = computed(() => String(route.params.itemCode ?? route.query.itemCode ?? ''))
 const itemName = computed(() => String(route.query.itemName ?? '선택 품목'))
 const parentCategory = computed(() => String(route.query.parentCategory ?? '-'))
 const childCategory = computed(() => String(route.query.childCategory ?? '-'))
 
-const seed = computed(() =>
-  itemCode.value.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0),
-)
+const skuData = ref([])
+const isLoading = ref(false)
+const loadError = ref('')
+const requestSeq = ref(0)
+const COLOR_LABEL_BY_CODE = {
+  BLK: '검정',
+  WHT: '흰색',
+  NVY: '네이비',
+  GRY: '그레이',
+}
 
 const skuRows = computed(() =>
-  colorOptions.flatMap((color, colorIndex) =>
-    sizeOptions.map((size, sizeIndex) => {
-      const actualStock = 20 + ((seed.value + colorIndex * 17 + sizeIndex * 11) % 90)
-      const reservedStock = (seed.value + colorIndex * 7 + sizeIndex * 13) % 12
-      const availableStock = Math.max(actualStock - reservedStock, 0)
-      const safetyStock = 22 + (sizeIndex % 3) * 6
-      const status = availableStock === 0 ? '품절' : availableStock < safetyStock ? '부족' : '정상'
-      const updatedAt = `2026.04.${String(27 - (colorIndex % 3)).padStart(2, '0')} ${String(9 + sizeIndex).padStart(2, '0')}:15`
-
-      return {
-        skuCode: `${itemCode.value}-${colorCodeMap[color]}-${size}`,
-        color,
-        size,
-        actualStock,
-        availableStock,
-        safetyStock,
-        status,
-        updatedAt,
-      }
-    }),
-  ),
+  skuData.value
+    .map((sku) => ({
+      ...sku,
+      actualStock: Number(sku.actualStock ?? 0),
+      availableStock: Number(sku.availableStock ?? 0),
+      safetyStock: Number(sku.safetyStock ?? 0),
+      colorLabel: COLOR_LABEL_BY_CODE[String(sku.color ?? '').toUpperCase()] ?? sku.color,
+    }))
+    .sort((a, b) => String(a.color ?? '').localeCompare(String(b.color ?? ''), 'ko') || String(a.size ?? '').localeCompare(String(b.size ?? ''), 'ko')),
 )
 
 const statusClass = (status) => ({
@@ -73,6 +66,40 @@ function goBackToInventory() {
 }
 
 
+
+async function loadSkuRows() {
+  const seq = ++requestSeq.value
+  if (!itemCode.value) {
+    skuData.value = []
+    return
+  }
+  isLoading.value = true
+  loadError.value = ''
+  try {
+    const rows = await getWarehouseInventorySkus(itemCode.value)
+    if (seq !== requestSeq.value) return
+    skuData.value = Array.isArray(rows) ? rows : []
+  } catch (e) {
+    if (seq !== requestSeq.value) return
+    skuData.value = []
+    loadError.value = extractErrorMessage(e, 'SKU 재고를 불러오지 못했습니다.')
+  } finally {
+    if (seq !== requestSeq.value) return
+    isLoading.value = false
+  }
+}
+
+onMounted(() => {
+  loadSkuRows()
+})
+
+watch(
+  () => route.fullPath,
+  () => {
+    loadSkuRows()
+  },
+)
+
 </script>
 
 <template>
@@ -92,6 +119,7 @@ function goBackToInventory() {
             <p class="mt-1 text-xs font-bold text-gray-500">
               {{ itemCode }} · {{ parentCategory }} &gt; {{ childCategory }}
             </p>
+            <p v-if="loadError" class="mt-2 text-xs font-bold text-red-600">{{ loadError }}</p>
           </div>
           <button
             type="button"
@@ -109,6 +137,7 @@ function goBackToInventory() {
             <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
               <tr>
                 <th class="px-3 py-3 font-black">SKU 코드</th>
+                <th class="px-3 py-3 font-black">품목명</th>
                 <th class="px-3 py-3 font-black">색상</th>
                 <th class="px-3 py-3 font-black">사이즈</th>
                 <th class="px-3 py-3 text-right font-black">실재고</th>
@@ -121,7 +150,8 @@ function goBackToInventory() {
             <tbody class="divide-y divide-gray-100">
               <tr v-for="sku in skuRows" :key="sku.skuCode">
                 <td class="px-3 py-3 font-mono font-bold text-gray-600">{{ sku.skuCode }}</td>
-                <td class="px-3 py-3 font-bold text-gray-800">{{ sku.color }}</td>
+                <td class="px-3 py-3 font-bold text-gray-900">{{ itemName }}</td>
+                <td class="px-3 py-3 font-bold text-gray-800">{{ sku.colorLabel }}</td>
                 <td class="px-3 py-3 font-black text-gray-900">{{ sku.size }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ sku.actualStock.toLocaleString() }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ sku.availableStock.toLocaleString() }}</td>
@@ -131,7 +161,12 @@ function goBackToInventory() {
                     {{ sku.status }}
                   </span>
                 </td>
-                <td class="px-3 py-3 font-bold text-gray-500">{{ sku.updatedAt }}</td>
+                <td class="px-3 py-3 font-bold text-gray-500">{{ sku.updatedAt ? new Date(sku.updatedAt).toLocaleString('ko-KR', { hour12: false }) : '-' }}</td>
+              </tr>
+              <tr v-if="skuRows.length === 0">
+                <td colspan="9" class="px-3 py-14 text-center text-sm font-bold text-gray-400">
+                  {{ isLoading ? 'SKU 재고를 불러오는 중입니다.' : '조회 가능한 SKU 재고가 없습니다.' }}
+                </td>
               </tr>
             </tbody>
           </table>

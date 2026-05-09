@@ -1,14 +1,20 @@
 <script setup>
-import { computed, h, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { usePurchaseOrderStore } from '@/stores/purchaseOrder.js'
+import { PlusIcon, TruckIcon, ZapIcon } from '@/components/hq/purchase-order/icons.js'
+import PurchaseOrderCancelModal from '@/components/hq/purchase-order/PurchaseOrderCancelModal.vue'
+import PurchaseOrderDetailPanel from '@/components/hq/purchase-order/PurchaseOrderDetailPanel.vue'
+import { useStatusFormat } from '@/composables/hq/purchaseOrder/useStatusFormat.js'
 
 const router = useRouter()
 const auth = useAuthStore()
 const poStore = usePurchaseOrderStore()
+
+const { statusClass, statusLabel, historyDotClass, historyTextClass, formatDate } = useStatusFormat()
 
 // ─── 레이아웃 설정 ───────────────────────────────────────────────────────────
 const hqMenus = roleMenus.hq
@@ -23,14 +29,16 @@ const activeSideMenu = ref('공급처 발주')
 
 
 // ─── 상태 탭 ────────────────────────────────────────────────────────────────
+// 본사 화면이라 COMPLETED 라벨은 "종료" (창고 화면은 "입고 완료").
+// 공급처 책임 4단계(APPROVED/READY_TO_SHIP/IN_TRANSIT/ARRIVED)는 SYS-001 배치가
+// 자동 처리하므로 본사는 액션 불가 — '공급처 처리 중' 한 탭으로 그루핑해 인지 부담 감소.
+// 세부 단계는 우측 상세의 진행 이력 타임라인이 시각화한다.
 const STATUS_TABS = [
   { label: '전체', key: '전체' },
-  { label: '승인 대기', key: 'PENDING' },
-  { label: '승인 완료', key: 'APPROVED' },
-  { label: '배송 중', key: 'SHIPPING' },
-  { label: '배송 완료', key: 'DELIVERED' },
-  { label: '입고 완료', key: 'COMPLETED' },
-  { label: '취소', key: 'REJECTED' },
+  { label: '승인 대기', key: 'REQUESTED' },
+  { label: '공급처 처리 중', key: 'VENDOR_PROCESSING' },
+  { label: '종료', key: 'COMPLETED' },
+  { label: '취소', key: 'CANCELLED' },
 ]
 
 // ─── 발주 목록/상세 ──────────────────────────────────────────────────────────
@@ -41,8 +49,8 @@ function selectOrder(id) {
 // ─── 발주 취소 confirm ──────────────────────────────────────────────────────
 // 공급처 승인(PENDING→APPROVED)·출고 시작(APPROVED→SHIPPING) 두 단계는 SYS-001 배치가
 // 자동 처리한다 (5분 주기, 30분 경과 조건). 본사는 발주 작성·취소 + 시연용 강제 트리거만.
+// cancelReason 은 모달 로컬 state — 부모는 open/close 만 관리.
 const showCancelConfirm = ref(false)
-const cancelReason = ref('')
 
 const toast = ref({ show: false, message: '' })
 let toastTimer = null
@@ -55,19 +63,24 @@ function triggerToast(message) {
 }
 
 // ─── SYS-001 배치 강제 트리거 (시연·QA용) ─────────────────────────────────
-// 30분 대기 조건을 무시하고 PENDING/APPROVED 모두 즉시 다음 단계로 넘긴다.
+// 30분 대기 조건을 무시하고 공급처 책임 4단계(REQUESTED/APPROVED/READY_TO_SHIP/IN_TRANSIT)
+// 모두 즉시 다음 단계로 넘긴다.
 const isRunningBatch = ref(false)
 async function runBatchTrigger() {
   if (isRunningBatch.value) return
   isRunningBatch.value = true
   try {
     const result = await poStore.runBatch()
-    const total = (result?.approved ?? 0) + (result?.shipping ?? 0) + (result?.delivered ?? 0)
+    const total =
+      (result?.approved ?? 0) +
+      (result?.readyToShip ?? 0) +
+      (result?.inTransit ?? 0) +
+      (result?.arrived ?? 0)
     if (total === 0) {
       triggerToast('자동 전환 대상 발주가 없습니다')
     } else {
       triggerToast(
-        `자동 전환 ${total}건 (승인 ${result.approved} · 출고 ${result.shipping} · 배송완료 ${result.delivered ?? 0})`,
+        `자동 전환 ${total}건 (승인 ${result.approved} · 배송준비 ${result.readyToShip} · 배송중 ${result.inTransit} · 배송완료 ${result.arrived})`,
       )
     }
   } catch (e) {
@@ -78,9 +91,9 @@ async function runBatchTrigger() {
 }
 
 // ─── 발주 취소 (CEN-038) ────────────────────────────────────────────────────
+// REQUESTED (승인 대기) 단계에서만 취소 가능. 그 이후는 공급처가 이미 받았으므로 차단.
 function openCancelConfirm() {
-  if (poStore.selectedOrder?.status !== 'PENDING') return
-  cancelReason.value = '' // 모달 열 때마다 초기화
+  if (poStore.selectedOrder?.status !== 'REQUESTED') return
   showCancelConfirm.value = true
 }
 
@@ -88,12 +101,12 @@ function cancelCancelConfirm() {
   showCancelConfirm.value = false
 }
 
-async function confirmCancelOrder() {
+async function confirmCancelOrder(reason) {
   const id = poStore.selectedOrder?.id
   if (!id) return
   showCancelConfirm.value = false
   try {
-    await poStore.cancelOrder(id, cancelReason.value.trim())
+    await poStore.cancelOrder(id, (reason ?? '').trim())
     triggerToast('발주가 취소되었습니다')
   } catch (e) {
     triggerToast(e?.message ?? '취소 처리에 실패했습니다')
@@ -106,65 +119,8 @@ function changeTab(key) {
   poStore.selectedOrderId = null
 }
 
-// 상태 뱃지 클래스
-function statusClass(status) {
-  const map = {
-    PENDING: 'bg-amber-50 text-amber-700',
-    APPROVED: 'bg-emerald-50 text-emerald-700',
-    SHIPPING: 'bg-blue-50 text-blue-600',
-    DELIVERED: 'bg-violet-50 text-violet-700',
-    COMPLETED: 'bg-gray-100 text-gray-500',
-    REJECTED: 'bg-red-50 text-red-600',
-  }
-  return map[status] ?? 'bg-gray-100 text-gray-500'
-}
-
-// 상태 한국어 라벨
-function statusLabel(status) {
-  const map = {
-    PENDING: '승인 대기',
-    APPROVED: '승인 완료',
-    SHIPPING: '배송 중',
-    DELIVERED: '배송 완료',
-    COMPLETED: '입고 완료',
-    REJECTED: '취소',
-  }
-  return map[status] ?? status
-}
-
-// 날짜 포맷
-function formatDate(iso) {
-  if (!iso) return '-'
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return '-'
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
-// 진행 이력 타임라인 — 점/텍스트 색상
-function historyDotClass(status) {
-  const map = {
-    PENDING: 'bg-amber-500',
-    APPROVED: 'bg-emerald-500',
-    SHIPPING: 'bg-blue-500',
-    DELIVERED: 'bg-violet-500',
-    COMPLETED: 'bg-gray-700',
-    REJECTED: 'bg-red-600',
-  }
-  return map[status] ?? 'bg-gray-400'
-}
-
-function historyTextClass(status) {
-  const map = {
-    PENDING: 'text-amber-700',
-    APPROVED: 'text-emerald-700',
-    SHIPPING: 'text-blue-600',
-    DELIVERED: 'text-violet-700',
-    COMPLETED: 'text-gray-700',
-    REJECTED: 'text-red-700',
-  }
-  return map[status] ?? 'text-gray-700'
-}
+// statusClass / statusLabel / historyDotClass / historyTextClass / formatDate
+// 는 useStatusFormat() composable 에서 제공.
 
 // ─── 발주 작성/수정 페이지 라우팅 ──────────────────────────────────────────
 function goCreatePage() {
@@ -173,7 +129,7 @@ function goCreatePage() {
 
 function goEditPage() {
   const order = poStore.selectedOrder
-  if (!order || order.status !== 'PENDING') return
+  if (!order || order.status !== 'REQUESTED') return
   router.push({ name: 'hq-purchase-order-edit', params: { id: order.id } })
 }
 
@@ -183,81 +139,15 @@ function handleKeydown(e) {
     poStore.selectedOrderId = null
   }
 }
-onMounted(() => window.addEventListener('keydown', handleKeydown))
+// 화면 진입 시 발주 목록 강제 fetch — 다른 화면(창고 입고 확정 등)에서 status 가
+// 변경됐을 수 있으므로 stale data 방지. store 의 마운트 자동 fetch 는 첫 인스턴스에만 실행됨.
+onMounted(() => {
+  window.addEventListener('keydown', handleKeydown)
+  poStore.fetchOrders().catch(() => {})
+})
 onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
 
-// ─── inline SVG 아이콘 (render 함수 방식) ────────────────────────────────────
-const IconBase = (paths) => ({
-  props: {
-    size: { type: Number, default: 16 },
-    strokeWidth: { type: Number, default: 2 },
-  },
-  render() {
-    return h(
-      'svg',
-      {
-        width: this.size,
-        height: this.size,
-        viewBox: '0 0 24 24',
-        fill: 'none',
-        stroke: 'currentColor',
-        'stroke-width': this.strokeWidth,
-        'stroke-linecap': 'round',
-        'stroke-linejoin': 'round',
-        'aria-hidden': 'true',
-      },
-      paths.map((p) => h(p.tag, p.attrs)),
-    )
-  },
-})
-
-const PlusIcon = IconBase([
-  { tag: 'path', attrs: { d: 'M12 5v14' } },
-  { tag: 'path', attrs: { d: 'M5 12h14' } },
-])
-
-const SearchIcon = IconBase([
-  { tag: 'circle', attrs: { cx: '11', cy: '11', r: '7' } },
-  { tag: 'path', attrs: { d: 'm20 20-3.5-3.5' } },
-])
-
-const XIcon = IconBase([
-  { tag: 'path', attrs: { d: 'M18 6 6 18' } },
-  { tag: 'path', attrs: { d: 'm6 6 12 12' } },
-])
-
-const EditIcon = IconBase([
-  { tag: 'path', attrs: { d: 'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7' } },
-  { tag: 'path', attrs: { d: 'M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5Z' } },
-])
-
-const InfoIcon = IconBase([
-  { tag: 'circle', attrs: { cx: '12', cy: '12', r: '9' } },
-  { tag: 'path', attrs: { d: 'M12 10v6' } },
-  { tag: 'path', attrs: { d: 'M12 7h.01' } },
-])
-
-const WarehouseIcon = IconBase([
-  { tag: 'path', attrs: { d: 'M3 10.5 12 4l9 6.5' } },
-  { tag: 'path', attrs: { d: 'M5 9.5V20h14V9.5' } },
-  { tag: 'path', attrs: { d: 'M10 20v-5h4v5' } },
-])
-
-const UserIcon = IconBase([
-  { tag: 'path', attrs: { d: 'M20 21a8 8 0 0 0-16 0' } },
-  { tag: 'circle', attrs: { cx: '12', cy: '8', r: '4' } },
-])
-
-const ZapIcon = IconBase([
-  { tag: 'polygon', attrs: { points: '13 2 3 14 12 14 11 22 21 10 12 10 13 2' } },
-])
-
-const TruckIcon = IconBase([
-  { tag: 'path', attrs: { d: 'M10 17H5a2 2 0 0 1-2-2V7h11v10Z' } },
-  { tag: 'path', attrs: { d: 'M14 17h-1V9h3l3 3v5h-1' } },
-  { tag: 'circle', attrs: { cx: '7.5', cy: '17.5', r: '1.5' } },
-  { tag: 'circle', attrs: { cx: '17.5', cy: '17.5', r: '1.5' } },
-])
+// 아이콘은 @/components/hq/purchase-order/icons.js 에서 import.
 </script>
 
 <template>
@@ -269,9 +159,7 @@ const TruckIcon = IconBase([
   >
     <div class="flex flex-col gap-4">
       <!-- 총 발주 요약 (공급처/기간 컨텍스트 반영) -->
-      <section
-        class="flex items-center gap-4 border border-gray-200 bg-white px-5 py-4 shadow-sm"
-      >
+      <section class="flex items-center gap-4 border border-gray-200 bg-white px-5 py-4 shadow-sm">
         <div
           class="flex h-12 w-12 shrink-0 items-center justify-center bg-[#E6F2F0] text-[#004D3C]"
         >
@@ -318,6 +206,16 @@ const TruckIcon = IconBase([
             >
               {{ poStore.statusCounts[tab.key] }}
             </span>
+            <!-- 본사 액션 가능 단계 강조 — REQUESTED 카운트 > 0 + 비활성 탭일 때만 -->
+            <span
+              v-if="
+                tab.key === 'REQUESTED' &&
+                poStore.statusCounts.REQUESTED > 0 &&
+                poStore.activeStatusTab !== 'REQUESTED'
+              "
+              class="ml-0.5 inline-block h-1.5 w-1.5 rounded-full bg-amber-500"
+              aria-hidden="true"
+            />
           </button>
         </div>
       </section>
@@ -466,282 +364,22 @@ const TruckIcon = IconBase([
           </div>
         </div>
 
-        <!-- ── 우측: 발주 상세 패널 (선택 시에만 표시) ── -->
-        <aside
+        <PurchaseOrderDetailPanel
           v-if="poStore.selectedOrder"
-          class="flex w-full shrink-0 flex-col overflow-hidden border border-gray-300 bg-white shadow-sm xl:w-[420px]"
-        >
-          <!-- 상세 패널 헤더 -->
-          <div class="flex items-center justify-between bg-[#004D3C] px-4 py-3 text-white">
-            <h3
-              class="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-wider"
-            >
-              <InfoIcon :size="14" />
-              발주 상세
-            </h3>
-            <div class="flex items-center gap-3">
-              <span
-                class="inline-flex px-2 py-1 text-[10px] font-black"
-                :class="statusClass(poStore.selectedOrder.status)"
-              >
-                {{ statusLabel(poStore.selectedOrder.status) }}
-              </span>
-              <button
-                type="button"
-                class="p-1 text-white/80 hover:bg-white/10"
-                aria-label="닫기"
-                @click="poStore.selectedOrderId = null"
-              >
-                <XIcon :size="16" />
-              </button>
-            </div>
-          </div>
-
-          <!-- 상세 내용 -->
-          <div class="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
-            <!-- 기본 정보 카드 -->
-            <section class="space-y-3">
-              <div class="flex items-start justify-between gap-2">
-                <div>
-                  <p class="text-[10px] font-bold uppercase text-gray-400">발주번호</p>
-                  <p class="mt-0.5 text-sm font-black text-gray-900">
-                    {{ poStore.selectedOrder.id }}
-                  </p>
-                </div>
-              </div>
-
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <p class="text-[10px] font-bold uppercase text-gray-400">공급처</p>
-                  <p class="mt-0.5 text-xs font-black text-gray-800">
-                    {{ poStore.selectedOrder.vendorName }}
-                  </p>
-                </div>
-                <div>
-                  <p class="text-[10px] font-bold uppercase text-gray-400">입고 창고</p>
-                  <p class="mt-0.5 text-xs font-black text-gray-800">
-                    {{ poStore.selectedOrder.warehouseName }}
-                  </p>
-                </div>
-                <div>
-                  <p
-                    class="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-gray-400"
-                  >
-                    <UserIcon :size="10" />
-                    담당자
-                  </p>
-                  <p class="mt-0.5 text-xs font-black text-gray-800">
-                    {{ poStore.selectedOrder.memberName }}
-                  </p>
-                </div>
-                <div>
-                  <p class="text-[10px] font-bold uppercase text-gray-400">생성일시</p>
-                  <p class="mt-0.5 text-xs font-bold text-gray-500">
-                    {{ formatDate(poStore.selectedOrder.createdAt) }}
-                  </p>
-                </div>
-              </div>
-            </section>
-
-            <!-- 품목 테이블 -->
-            <section>
-              <p class="mb-2 text-[10px] font-black uppercase text-gray-400">발주 품목</p>
-              <table class="w-full text-xs">
-                <thead class="bg-gray-100 text-[10px] uppercase text-gray-500">
-                  <tr>
-                    <th class="px-2 py-2 text-left font-black">제품명</th>
-                    <th class="w-10 px-2 py-2 text-right font-black">수량</th>
-                    <th class="w-20 px-2 py-2 text-right font-black">단가</th>
-                    <th class="w-20 px-2 py-2 text-right font-black">소계</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                  <tr v-for="item in poStore.selectedOrder.items" :key="item.skuCode || item.productId">
-                    <td class="px-2 py-2 align-top">
-                      <div class="font-bold text-gray-800">{{ item.productName }}</div>
-                      <div v-if="item.displayOption" class="mt-0.5 text-[11px] font-bold text-[#004D3C]">
-                        {{ item.displayOption }}
-                      </div>
-                      <div v-if="item.skuCode" class="text-[10px] text-gray-400">
-                        {{ item.skuCode }}
-                      </div>
-                    </td>
-                    <td class="px-2 py-2 text-right font-bold text-gray-700 align-top">
-                      {{ item.quantity }}
-                    </td>
-                    <td class="px-2 py-2 text-right text-gray-500 align-top">
-                      ₩{{ item.unitPrice.toLocaleString() }}
-                    </td>
-                    <td class="px-2 py-2 text-right font-bold text-gray-700 align-top">
-                      ₩{{ item.subtotal.toLocaleString() }}
-                    </td>
-                  </tr>
-                </tbody>
-                <tfoot class="border-t border-gray-300 bg-gray-50 font-black text-gray-900">
-                  <tr>
-                    <td colspan="3" class="px-2 py-2">총계</td>
-                    <td class="px-2 py-2 text-right text-[#004D3C]">
-                      ₩{{ poStore.selectedOrder.totalPrice.toLocaleString() }}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </section>
-
-            <!-- 진행 이력 타임라인 -->
-            <section v-if="poStore.selectedOrder.statusHistory?.length">
-              <p class="mb-2 text-[10px] font-black uppercase text-gray-400">진행 이력</p>
-              <ol class="ml-2">
-                <li
-                  v-for="(h, idx) in poStore.selectedOrder.statusHistory"
-                  :key="idx"
-                  class="relative pb-3 pl-5 last:pb-0"
-                >
-                  <!-- 점 -->
-                  <span
-                    class="absolute left-0 top-1 block h-2.5 w-2.5"
-                    :class="historyDotClass(h.status)"
-                  />
-                  <!-- 다음 항목까지 잇는 세로선 (마지막 항목 제외) -->
-                  <span
-                    v-if="idx < poStore.selectedOrder.statusHistory.length - 1"
-                    class="absolute bottom-0 left-[4px] top-3.5 w-px bg-gray-300"
-                  />
-                  <p class="text-[11px] font-black" :class="historyTextClass(h.status)">
-                    {{ statusLabel(h.status) }}
-                  </p>
-                  <p class="text-[10px] text-gray-500">
-                    {{ formatDate(h.at) }} · {{ h.byName }}
-                  </p>
-                </li>
-              </ol>
-            </section>
-          </div>
-
-          <!-- 액션/안내 (상태별 조건부) -->
-          <!-- PENDING 단계에서만 본사 권한(수정/취소) 노출. 승인 이후 단계는 시스템 자동화(RQ-001/002) 및 창고관리자(PO-003/004) 영역이므로 조회만. -->
-          <div class="space-y-4 px-4 pb-6 pt-2">
-            <template v-if="poStore.selectedOrder.status === 'PENDING'">
-              <div class="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  class="inline-flex items-center justify-center gap-1 border border-gray-400 bg-white px-2 py-2.5 text-[11px] font-black text-gray-700 hover:bg-gray-50"
-                  @click="goEditPage"
-                >
-                  <EditIcon :size="12" />
-                  수정
-                </button>
-                <button
-                  type="button"
-                  class="inline-flex items-center justify-center gap-1 border border-red-500 bg-red-50 px-2 py-2.5 text-[11px] font-black text-red-700 hover:bg-red-100"
-                  @click="openCancelConfirm"
-                >
-                  <XIcon :size="12" />
-                  취소
-                </button>
-              </div>
-              <p class="pt-1 text-center text-[11px] leading-relaxed text-gray-500">
-                30분 후 시스템이 자동으로 공급처 승인을 처리합니다.<br />
-                그 전에 [수정] 또는 [취소] 가능합니다.
-              </p>
-            </template>
-
-            <template v-else-if="poStore.selectedOrder.status === 'APPROVED'">
-              <p class="text-center text-xs leading-relaxed text-gray-500">
-                승인 완료 · 30분 후 시스템이 자동으로 공급처 출고 처리합니다.
-              </p>
-            </template>
-
-            <template v-else-if="poStore.selectedOrder.status === 'SHIPPING'">
-              <p class="text-center text-xs text-gray-500">
-                배송 중 · 창고 입고 검수 대기
-              </p>
-            </template>
-
-            <template v-else>
-              <p
-                v-if="poStore.selectedOrder.status === 'REJECTED' && poStore.selectedOrder.cancelReason"
-                class="border border-red-200 bg-red-50 px-3 py-2.5 text-[11px] font-bold leading-relaxed text-red-700"
-              >
-                취소 사유: {{ poStore.selectedOrder.cancelReason }}
-              </p>
-              <p class="pt-2 text-center text-xs text-gray-400">
-                {{
-                  poStore.selectedOrder.status === 'COMPLETED'
-                    ? '입고 완료된 발주입니다.'
-                    : '취소된 발주입니다.'
-                }}
-              </p>
-            </template>
-          </div>
-
-          <!-- 하단: 닫기 버튼 -->
-          <div class="border-t border-gray-200">
-            <button
-              type="button"
-              class="w-full px-4 py-2.5 text-center text-[11px] font-bold text-gray-500 hover:bg-gray-50"
-              @click="poStore.selectedOrderId = null"
-            >
-              닫기 (ESC)
-            </button>
-          </div>
-        </aside>
+          :order="poStore.selectedOrder"
+          @close="poStore.selectedOrderId = null"
+          @edit="goEditPage"
+          @cancel="openCancelConfirm"
+        />
       </section>
     </div>
 
-    <!-- ───────── 모달: 발주 취소 confirm (파괴, red) ───────── -->
-    <div
-      v-if="showCancelConfirm && poStore.selectedOrder"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-      @click.self="cancelCancelConfirm"
-    >
-      <div class="w-full max-w-sm overflow-hidden bg-white shadow-xl">
-        <div class="bg-red-700 px-5 py-3 text-white">
-          <h2 class="text-sm font-black">발주 취소</h2>
-        </div>
-        <div class="space-y-3 p-5 text-xs text-gray-700">
-          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">발주 정보</p>
-          <p>
-            <strong>{{ poStore.selectedOrder.id }}</strong> ·
-            {{ poStore.selectedOrder.vendorName }} ·
-            <span class="font-bold text-[#004D3C]">
-              ₩{{ poStore.selectedOrder.totalPrice.toLocaleString() }}
-            </span>
-          </p>
-          <label class="block">
-            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-              취소 사유 (선택)
-            </span>
-            <textarea
-              v-model="cancelReason"
-              rows="3"
-              maxlength="500"
-              placeholder="예: 공급처 단가 변경, 수량 잘못 입력 등"
-              class="mt-1 w-full resize-none border border-gray-300 px-2 py-1.5 text-xs outline-none focus:border-red-500"
-            />
-          </label>
-          <p class="text-[11px] leading-relaxed text-red-600">
-            취소 후에는 되돌릴 수 없습니다. 같은 발주가 필요하면 새 발주로 다시 만들어야 합니다.
-          </p>
-        </div>
-        <div class="flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3">
-          <button
-            type="button"
-            class="border border-gray-300 bg-white px-4 py-2 text-xs font-black text-gray-700 hover:bg-gray-100"
-            @click="cancelCancelConfirm"
-          >
-            취소
-          </button>
-          <button
-            type="button"
-            class="border border-red-700 bg-red-700 px-4 py-2 text-xs font-black text-white hover:bg-red-600"
-            @click="confirmCancelOrder"
-          >
-            취소 확정
-          </button>
-        </div>
-      </div>
-    </div>
+    <PurchaseOrderCancelModal
+      :open="showCancelConfirm"
+      :order="poStore.selectedOrder"
+      @cancel="cancelCancelConfirm"
+      @confirm="confirmCancelOrder"
+    />
 
     <!-- ───────── 토스트 ───────── -->
     <Transition
@@ -757,6 +395,5 @@ const TruckIcon = IconBase([
         {{ toast.message }}
       </div>
     </Transition>
-
   </AppLayout>
 </template>
