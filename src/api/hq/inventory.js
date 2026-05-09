@@ -15,8 +15,8 @@ export async function refreshCircularCandidates() {
   return unwrap(res)
 }
 
-export async function getCircularCandidates() {
-  const res = await api.get('/api/hq/inventories/circular-candidates')
+export async function getCircularCandidates(params = {}) {
+  const res = await api.get('/api/hq/inventories/circular-candidates', { params })
   return unwrap(res)
 }
 

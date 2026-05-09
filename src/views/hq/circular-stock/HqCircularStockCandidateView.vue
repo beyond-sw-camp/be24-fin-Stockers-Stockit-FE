@@ -34,8 +34,11 @@ const isConvertModalOpen = ref(false)
 const isConverting = ref(false)
 const conversionInputs = ref({})
 
-const PAGE_SIZE = 20
+const PAGE_SIZE_OPTIONS = [20, 50, 100]
+const pageSize = ref(20)
 const currentPage = ref(1)
+const totalPages = ref(1)
+const totalElements = ref(0)
 const sortKey = ref('convertibleStock')
 const sortDirection = ref('desc')
 
@@ -126,68 +129,13 @@ const childCategoryOptions = computed(() => {
   )].sort((a, b) => a.localeCompare(b, 'ko'))
 })
 
-const filteredSkus = computed(() => {
-  const keyword = searchTerm.value.trim().toLowerCase()
-
-  return candidateSkus.value.filter((row) => {
-    const { parentCategory, childCategory } = parseCategory(row.category)
-    const matchesParentCategory = !selectedParentCategory.value || parentCategory === selectedParentCategory.value
-    const matchesChildCategory = !selectedChildCategory.value || childCategory === selectedChildCategory.value
-    const matchesWarehouse = selectedWarehouseCodes.value.length === 0
-      || selectedWarehouseCodes.value.includes(row.warehouseCode)
-    const matchesCondition = selectedConditionCodes.value.length === 0
-      || selectedConditionCodes.value.every(code => row.matchedConditionIndexes.includes(Number(code)))
-    const matchesKeyword = !keyword
-      || [row.skuCode, row.itemCode, row.itemName].join(' ').toLowerCase().includes(keyword)
-
-    return matchesParentCategory && matchesChildCategory && matchesWarehouse && matchesCondition && matchesKeyword
-  })
-})
-
-const sortedSkus = computed(() => {
-  const rows = [...filteredSkus.value]
-  const direction = sortDirection.value === 'asc' ? 1 : -1
-
-  const getComparable = (row) => {
-    switch (sortKey.value) {
-      case 'skuCode':
-        return row.skuCode
-      case 'availableStock':
-        return row.availableStock
-      case 'convertibleStock':
-        return row.convertibleStock
-      case 'updatedAt':
-        return row.updatedAt
-      default:
-        return row.convertibleStock
-    }
-  }
-
-  rows.sort((a, b) => {
-    const aValue = getComparable(a)
-    const bValue = getComparable(b)
-
-    if (typeof aValue === 'string' && typeof bValue === 'string') {
-      return aValue.localeCompare(bValue, 'ko') * direction
-    }
-
-    return (aValue - bValue) * direction
-  })
-
-  return rows
-})
-
-const totalPages = computed(() => Math.max(1, Math.ceil(sortedSkus.value.length / PAGE_SIZE)))
-
-const paginatedSkus = computed(() => {
-  const start = (currentPage.value - 1) * PAGE_SIZE
-  return sortedSkus.value.slice(start, start + PAGE_SIZE)
-})
+const sortedSkus = computed(() => candidateSkus.value)
+const paginatedSkus = computed(() => sortedSkus.value)
 
 const canConvertInventory = computed(() => selectedRowIds.value.length > 0)
 const selectedRows = computed(() => {
   const selectedSet = new Set(selectedRowIds.value)
-  return candidateSkus.value.filter(row => selectedSet.has(row.id))
+  return selectedRowsSnapshot.value.filter(row => selectedSet.has(row.id))
 })
 
 const conversionRows = computed(() =>
@@ -223,19 +171,55 @@ const isAllCurrentPageSelected = computed(() =>
   && paginatedSkus.value.every(row => selectedRowIds.value.includes(row.id)),
 )
 
-const rangeStart = computed(() => (sortedSkus.value.length === 0 ? 0 : (currentPage.value - 1) * PAGE_SIZE + 1))
-const rangeEnd = computed(() => Math.min(currentPage.value * PAGE_SIZE, sortedSkus.value.length))
-
-watch(totalPages, (pageCount) => {
-  if (currentPage.value > pageCount) currentPage.value = pageCount
+const rangeStart = computed(() => {
+  if (totalElements.value === 0) return 0
+  return (currentPage.value - 1) * pageSize.value + 1
 })
+const rangeEnd = computed(() => {
+  if (totalElements.value === 0) return 0
+  return Math.min(rangeStart.value + paginatedSkus.value.length - 1, totalElements.value)
+})
+
+const pageNumbers = computed(() => {
+  if (totalPages.value <= 0) return []
+  const start = Math.max(1, currentPage.value - 2)
+  const end = Math.min(totalPages.value, start + 4)
+  const adjustedStart = Math.max(1, end - 4)
+  return Array.from({ length: end - adjustedStart + 1 }, (_, idx) => adjustedStart + idx)
+})
+
+const selectedRowsSnapshot = ref([])
+const mergeSelectedRowsSnapshot = (rows) => {
+  const map = new Map(selectedRowsSnapshot.value.map(row => [row.id, row]))
+  for (const row of rows) {
+    if (selectedRowIds.value.includes(row.id)) {
+      map.set(row.id, row)
+    }
+  }
+  selectedRowsSnapshot.value = [...map.values()]
+}
 
 watch(selectedParentCategory, () => {
   selectedChildCategory.value = ''
 })
 
-watch([selectedParentCategory, selectedChildCategory, selectedWarehouseCodes, selectedConditionCodes, searchTerm], () => {
+watch([selectedParentCategory, selectedChildCategory, selectedWarehouseCodes, selectedConditionCodes], () => {
+  if (!hasRefreshed.value) return
   currentPage.value = 1
+  loadCandidates()
+}, { deep: true })
+
+const buildCandidateQueryParams = () => ({
+  page: Math.max(0, currentPage.value - 1),
+  size: pageSize.value,
+  sort: `${sortKey.value},${sortDirection.value}`,
+  keyword: searchTerm.value.trim() || undefined,
+  parentCategory: selectedParentCategory.value || undefined,
+  childCategory: selectedChildCategory.value || undefined,
+  warehouseCodes: selectedWarehouseCodes.value.length > 0 ? selectedWarehouseCodes.value : undefined,
+  conditionCodes: selectedConditionCodes.value.length > 0
+    ? selectedConditionCodes.value.map(code => Number(code))
+    : undefined,
 })
 
 const toggleWarehouseDropdown = () => {
@@ -266,6 +250,20 @@ const clearConditionCodes = () => {
   selectedConditionCodes.value = []
 }
 
+const applySearch = () => {
+  if (!hasRefreshed.value) return
+  currentPage.value = 1
+  loadCandidates()
+}
+
+const changePageSize = async (value) => {
+  const next = Number(value)
+  if (!PAGE_SIZE_OPTIONS.includes(next)) return
+  pageSize.value = next
+  currentPage.value = 1
+  await loadCandidates()
+}
+
 const handleDocumentClick = (event) => {
   if (!warehouseDropdownRef.value?.contains(event.target)) {
     isWarehouseDropdownOpen.value = false
@@ -293,12 +291,20 @@ const loadCandidates = async () => {
   isLoading.value = true
   loadError.value = ''
   try {
-    const rows = await getCircularCandidates()
-    candidateSkus.value = Array.isArray(rows) ? rows.map(mapCandidateRow) : []
+    const result = await getCircularCandidates(buildCandidateQueryParams())
+    const rows = Array.isArray(result?.content) ? result.content : []
+    candidateSkus.value = rows.map(mapCandidateRow)
+    totalElements.value = Number(result?.totalElements ?? 0)
+    totalPages.value = Math.max(1, Number(result?.totalPages ?? 1))
+    currentPage.value = Number(result?.page ?? 0) + 1
+    pageSize.value = Number(result?.size ?? pageSize.value)
+    mergeSelectedRowsSnapshot(candidateSkus.value)
     hasRefreshed.value = true
   } catch (e) {
     loadError.value = e.message || '순환 재고 후보 조회에 실패했습니다.'
     candidateSkus.value = []
+    totalElements.value = 0
+    totalPages.value = 1
     hasRefreshed.value = true
   } finally {
     isLoading.value = false
@@ -318,8 +324,10 @@ const refreshCandidates = async () => {
     selectedConditionCodes.value = []
     convertNotice.value = ''
     currentPage.value = 1
+    pageSize.value = 20
     sortKey.value = 'convertibleStock'
     sortDirection.value = 'desc'
+    selectedRowsSnapshot.value = []
   } catch (e) {
     loadError.value = e.message || '순환 재고 후보 갱신에 실패했습니다.'
   } finally {
@@ -360,6 +368,7 @@ const submitConversion = async () => {
 
     await loadCandidates()
     selectedRowIds.value = []
+    selectedRowsSnapshot.value = []
     conversionInputs.value = {}
     isConvertModalOpen.value = false
   } catch (e) {
@@ -378,6 +387,7 @@ const toggleSort = (key) => {
   }
 
   currentPage.value = 1
+  loadCandidates()
 }
 
 const sortIcon = (key) => {
@@ -402,6 +412,7 @@ const toggleAllCurrentPage = () => {
 const goToPage = (page) => {
   if (page < 1 || page > totalPages.value) return
   currentPage.value = page
+  loadCandidates()
 }
 
 function handleLogout() {
@@ -482,12 +493,9 @@ onBeforeUnmount(() => {
           <div>
             <h2 class="text-sm font-black text-gray-900">전환 후보 SKU 리스트</h2>
             <p class="mt-1 text-[11px] font-bold text-gray-400">
-              {{ hasRefreshed ? `조회 ${sortedSkus.length.toLocaleString()}건 · 선택 ${selectedRowIds.length.toLocaleString()}건` : '재고 새로고침 후 후보가 표시됩니다.' }}
+              {{ hasRefreshed ? `조회 ${totalElements.toLocaleString()}건 · 선택 ${selectedRowIds.length.toLocaleString()}건` : '재고 새로고침 후 후보가 표시됩니다.' }}
             </p>
           </div>
-          <p v-if="hasRefreshed" class="text-[11px] font-bold text-gray-400">
-            {{ rangeStart.toLocaleString() }}-{{ rangeEnd.toLocaleString() }} / 전체 {{ sortedSkus.length.toLocaleString() }}건
-          </p>
         </div>
 
         <div
@@ -613,6 +621,8 @@ onBeforeUnmount(() => {
               type="search"
               class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#004D3C]"
               placeholder="SKU 코드, 품목 코드, 품목명"
+              @keyup.enter="applySearch"
+              @change="applySearch"
             />
           </label>
         </div>
@@ -710,26 +720,36 @@ onBeforeUnmount(() => {
 
         <div
           v-if="hasRefreshed"
-          class="flex items-center justify-between border-t border-gray-100 bg-gray-50 px-3 py-2"
+          class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-4 py-3"
         >
-          <span class="text-[11px] font-medium text-gray-400">
-            {{ rangeStart.toLocaleString() }}-{{ rangeEnd.toLocaleString() }} / 전체 {{ sortedSkus.length.toLocaleString() }}건
-          </span>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-gray-600">페이지 크기</span>
+            <select
+              :value="pageSize"
+              class="h-8 border border-gray-300 bg-white px-2 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
+              @change="changePageSize($event.target.value)"
+            >
+              <option v-for="sizeOption in PAGE_SIZE_OPTIONS" :key="sizeOption" :value="sizeOption">
+                {{ sizeOption }}
+              </option>
+            </select>
+          </div>
+
           <div class="flex items-center gap-1">
             <button
               type="button"
               :disabled="currentPage === 1"
-              class="flex h-7 w-7 items-center justify-center border border-gray-300 bg-white text-[12px] text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+              class="h-8 border border-gray-300 px-3 text-xs font-bold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
               @click="goToPage(currentPage - 1)"
             >
-              ‹
+              이전
             </button>
             <button
-              v-for="page in totalPages"
+              v-for="page in pageNumbers"
               :key="page"
               type="button"
-              class="flex h-7 min-w-[28px] items-center justify-center border text-[12px] font-medium transition"
-              :class="page === currentPage ? 'border-[#004D3C] bg-[#004D3C] text-white' : 'border-gray-300 bg-white text-gray-500 hover:bg-gray-100'"
+              class="h-8 min-w-8 border px-2 text-xs font-bold"
+              :class="page === currentPage ? 'border-[#004D3C] bg-[#004D3C] text-white' : 'border-gray-300 text-gray-700'"
               @click="goToPage(page)"
             >
               {{ page }}
@@ -737,10 +757,10 @@ onBeforeUnmount(() => {
             <button
               type="button"
               :disabled="currentPage === totalPages"
-              class="flex h-7 w-7 items-center justify-center border border-gray-300 bg-white text-[12px] text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+              class="h-8 border border-gray-300 px-3 text-xs font-bold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
               @click="goToPage(currentPage + 1)"
             >
-              ›
+              다음
             </button>
           </div>
         </div>
