@@ -144,6 +144,10 @@ const shortDt = (yyyymmdd) => {
   return `${yyyymmdd.slice(4,6)}/${yyyymmdd.slice(6,8)}`
 }
 
+// ─────────── 기간 메타 ───────────
+const trendStartDate = computed(() => trend.value.length ? formatBasDt(trend.value[0].basDt) : '')
+const trendEndDate   = computed(() => trend.value.length ? formatBasDt(trend.value[trend.value.length - 1].basDt) : '')
+
 // ─────────── KPI 계산 ───────────
 const sevenDay = computed(() => trend.value.slice(-7))
 
@@ -207,8 +211,17 @@ const chartOptions = {
     x: {
       grid: { display: false },
       ticks: {
-        autoSkip: true,
-        maxTicksLimit: 12,    // 6개월 등 데이터 많을 때 자동 압축
+        autoSkip: false,
+        maxRotation: 0,
+        // 최근 거래일(마지막)과 첫 거래일은 항상 표시, 중간은 균등 압축
+        callback: function (value, index) {
+          const labels = this.chart?.data?.labels ?? []
+          const total = labels.length
+          if (total === 0) return ''
+          if (index === 0 || index === total - 1) return labels[index]
+          const skipN = Math.max(1, Math.ceil(total / 10))
+          return index % skipN === 0 ? labels[index] : ''
+        },
       },
     },
   },
@@ -339,6 +352,12 @@ const chartOptions = {
             <div>
               <h2 class="text-[14px] font-bold text-gray-800">시세 추이 ({{ trend.length }}거래일)</h2>
               <p class="text-[10px] text-gray-500">KAU25 일별 종가 (원/톤) · 거래량 0 인 날짜는 제외</p>
+              <p v-if="trend.length" class="mt-0.5 text-[10.5px] text-gray-600">
+                기간: <span class="font-mono">{{ trendStartDate }}</span>
+                <span class="mx-1 text-gray-400">~</span>
+                <span class="font-mono font-bold text-[#004D3C]">{{ trendEndDate }}</span>
+                <span class="ml-1 text-gray-400">(최근 거래일)</span>
+              </p>
             </div>
             <!-- 기간 필터 탭 -->
             <div class="flex gap-1">
