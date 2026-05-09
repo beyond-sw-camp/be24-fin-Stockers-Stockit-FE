@@ -12,13 +12,13 @@ import { useSalesStore } from '@/stores/store/storeSales.js'
 import { getSaleDetail, getSales } from '@/api/store/sales.js'
 import { buildHeadline, formatDateTime } from '@/features/store/common/ui.js'
 
+
 /**
  * ==============================================================================
  * 2. STATE & REFS
  * ==============================================================================
  */
 
-const router = useRouter()
 const auth = useAuthStore()
 const sales = useSalesStore()
 
@@ -154,11 +154,7 @@ async function loadSaleDetail(nextId) {
  * 6. METHODS - NAVIGATION
  * ==============================================================================
  */
-// [함수] 로그아웃 후 로그인 화면으로 이동한다.
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
+
 
 /**
  * ==============================================================================
