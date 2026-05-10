@@ -33,6 +33,7 @@ export function storeInboundStatusClass(status) {
     READY_TO_SHIP: 'bg-slate-100 text-slate-700',
     IN_TRANSIT: 'bg-blue-100 text-blue-700',
     ARRIVED: 'bg-amber-100 text-amber-700',
+    PENDING_RECEIPT: 'bg-amber-100 text-amber-700',
     RECEIVED: 'bg-[#EBF5F5] text-black',
   }[status] ?? 'bg-gray-100 text-gray-600'
 }

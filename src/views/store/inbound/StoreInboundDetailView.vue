@@ -1,114 +1,83 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
-import { useStoreInboundStore } from '@/stores/store/storeInbound.js'
-import { formatDateTime, storeInboundStatusClass, storeOrderStatusClass } from '@/features/store/common/ui.js'
+import {
+  confirmStoreInbound,
+  getStoreInboundDetail,
+} from '@/api/store/inbound.js'
+import { extractErrorMessage } from '@/api/axios.js'
+import { formatDateTime } from '@/features/store/common/ui.js'
+
 const route = useRoute()
 const router = useRouter()
-const auth = useAuthStore()
-const storeOrders = useStoreInboundStore()
 
 const storeMenus = roleMenus.store
 const inboundMenus = roleMenus.store.find((menu) => menu.label === '입고 관리')?.children ?? []
 const activeTopMenu = computed(() => '입고 관리')
 const activeSideMenu = ref('입고 리스트')
 
+const inboundNo = computed(() => String(route.params.id ?? ''))
+const inbound = ref(null)
+const loading = ref(false)
+const loadingAction = ref(false)
 const showConfirmModal = ref(false)
 const toastMessage = ref('')
+const errorMessage = ref('')
 
-const orderId = computed(() => String(route.params.id ?? ''))
-const selectedOrder = computed(() => storeOrders.getOrderById(orderId.value))
-const isHistoryMode = computed(() => route.name === 'store-inbound-history-detail')
-const canConfirmInbound = computed(() =>
-  !isHistoryMode.value
-  && selectedOrder.value?.status === 'APPROVED'
-  && selectedOrder.value?.inboundStatus === 'ARRIVED',
-)
-const highlightedInboundHistoryKey = computed(() => {
-  if (!selectedOrder.value || selectedOrder.value.inboundStatus === 'RECEIVED') return ''
-  const lastHistory = selectedOrder.value.inboundStatusHistory?.at(-1)
-  if (!lastHistory) return ''
-  return `${lastHistory.status}-${lastHistory.at}`
-})
-
-function statusClass(status) {
-  return storeOrderStatusClass(status)
-}
+const canConfirmInbound = computed(() => inbound.value?.status === 'PENDING_RECEIPT')
 
 function inboundStatusClass(status) {
-  return storeInboundStatusClass(status)
-}
-
-function historyDotClass(status) {
   return {
-    READY_TO_SHIP: 'bg-slate-500',
-    IN_TRANSIT: 'bg-blue-500',
-    ARRIVED: 'bg-amber-500',
-    RECEIVED: 'bg-emerald-500',
-  }[status] ?? 'bg-gray-400'
+    PENDING_RECEIPT: 'bg-amber-100 text-amber-700',
+    RECEIVED: 'bg-[#EBF5F5] text-black',
+  }[status] ?? 'bg-gray-100 text-gray-600'
 }
 
-function historyTextClass(status) {
+function inboundStatusLabel(status) {
   return {
-    READY_TO_SHIP: 'text-slate-700',
-    IN_TRANSIT: 'text-blue-700',
-    ARRIVED: 'text-amber-700',
-    RECEIVED: 'text-emerald-700',
-  }[status] ?? 'text-gray-700'
+    PENDING_RECEIPT: '입고 대기',
+    RECEIVED: '입고 완료',
+  }[status] ?? status
 }
 
-function shouldHighlightHistory(history) {
-  return highlightedInboundHistoryKey.value === `${history.status}-${history.at}`
-}
-
-function historyGlowStyle(status) {
-  const glowMap = {
-    READY_TO_SHIP: {
-      '--timeline-glow-rgb': '51, 65, 85',
-      '--timeline-glow-soft-rgb': '100, 116, 139',
-    },
-    IN_TRANSIT: {
-      '--timeline-glow-rgb': '29, 78, 216',
-      '--timeline-glow-soft-rgb': '96, 165, 250',
-    },
-    ARRIVED: {
-      '--timeline-glow-rgb': '180, 83, 9',
-      '--timeline-glow-soft-rgb': '251, 191, 36',
-    },
-    RECEIVED: {
-      '--timeline-glow-rgb': '22, 101, 52',
-      '--timeline-glow-soft-rgb': '74, 222, 128',
-    },
-  }
-
-  return glowMap[status] ?? {
-    '--timeline-glow-rgb': '75, 85, 99',
-    '--timeline-glow-soft-rgb': '156, 163, 175',
+async function fetchDetail() {
+  if (!inboundNo.value) return
+  loading.value = true
+  errorMessage.value = ''
+  try {
+    inbound.value = await getStoreInboundDetail(inboundNo.value)
+  } catch (error) {
+    inbound.value = null
+    errorMessage.value = extractErrorMessage(error, '입고 상세 조회 중 오류가 발생했습니다.')
+  } finally {
+    loading.value = false
   }
 }
 
 function openConfirmModal() {
-  if (!canConfirmInbound.value) return
+  if (!canConfirmInbound.value || loadingAction.value) return
   showConfirmModal.value = true
 }
 
-function confirmInbound() {
-  if (!selectedOrder.value) return
-  const result = storeOrders.confirmInbound(selectedOrder.value.orderId, auth.user?.name)
-  showConfirmModal.value = false
-
-  if (!result.success) {
-    toastMessage.value = result.message
-    return
+async function confirmInbound() {
+  if (!inbound.value) return
+  loadingAction.value = true
+  toastMessage.value = ''
+  try {
+    inbound.value = await confirmStoreInbound(inbound.value.inboundNo)
+    toastMessage.value = '입고 확정이 완료되었습니다.'
+  } catch (error) {
+    toastMessage.value = extractErrorMessage(error, '입고 확정 처리 중 오류가 발생했습니다.')
+  } finally {
+    loadingAction.value = false
+    showConfirmModal.value = false
+    await fetchDetail()
   }
-
-  toastMessage.value = '매장 입고가 확정되어 재고에 반영되었습니다.'
 }
 
-
+onMounted(fetchDetail)
 </script>
 
 <template>
@@ -124,9 +93,7 @@ function confirmInbound() {
           <div>
             <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Store Inbound</p>
             <h1 class="mt-1 text-lg font-black text-gray-900">입고 상세</h1>
-            <p class="mt-1 text-xs font-bold text-gray-500">
-              발주 원문과 입고 진행 상태를 함께 확인하고, 배송 완료 상태에서만 입고를 최종 확정합니다.
-            </p>
+            <p class="mt-1 text-xs font-bold text-gray-500">입고 상태와 품목을 확인하고 입고 확정을 처리합니다.</p>
           </div>
           <button
             type="button"
@@ -138,217 +105,125 @@ function confirmInbound() {
         </div>
       </section>
 
-      <section
-        v-if="selectedOrder"
-        class="border border-gray-300 bg-white shadow-sm"
-      >
+      <p v-if="errorMessage" class="border border-red-200 bg-red-50 px-4 py-2 text-xs font-black text-red-700">
+        {{ errorMessage }}
+      </p>
+
+      <section v-if="loading" class="border border-gray-300 bg-white px-6 py-16 text-center text-sm font-bold text-gray-400 shadow-sm">
+        조회 중입니다.
+      </section>
+
+      <section v-else-if="inbound" class="border border-gray-300 bg-white shadow-sm">
         <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3">
           <div>
-            <h2 class="text-sm font-black text-gray-900">{{ selectedOrder.orderId }}</h2>
-            <p class="mt-1 text-[11px] font-bold text-gray-400">
-              {{ formatDateTime(selectedOrder.requestedAt) }} · {{ selectedOrder.storeName }}
-            </p>
+            <h2 class="text-sm font-black text-gray-900">{{ inbound.inboundNo }}</h2>
+            <p class="mt-1 text-[11px] font-bold text-gray-400">{{ formatDateTime(inbound.requestedAt) }}</p>
           </div>
-          <div class="flex items-center gap-2">
-            <span
-              v-if="selectedOrder.inboundStatus"
-              class="inline-flex px-2 py-1 text-[10px] font-black"
-              :class="inboundStatusClass(selectedOrder.inboundStatus)"
-            >
-              {{ storeOrders.inboundStatusLabelMap[selectedOrder.inboundStatus] }}
-            </span>
-          </div>
+          <span class="inline-flex px-2 py-1 text-[10px] font-black" :class="inboundStatusClass(inbound.status)">
+            {{ inboundStatusLabel(inbound.status) }}
+          </span>
         </div>
 
         <div class="flex flex-col gap-4 p-4">
-          <section
-            v-if="canConfirmInbound"
-            class="border border-amber-200 bg-amber-50 px-4 py-3"
-          >
-            <div class="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p class="text-[10px] font-black uppercase tracking-[0.16em] text-amber-600">Inbound Check</p>
-                <p class="mt-1 text-sm font-black text-amber-900">
-                  실제 입고된 수량과 발주 수량을 먼저 확인한 뒤 입고 확정을 진행하세요.
-                </p>
-                <p class="mt-1 text-xs font-bold text-amber-700">
-                  입고 확정 버튼을 누르면 확인된 수량이 매장 재고에 즉시 반영됩니다.
-                </p>
-              </div>
+          <section class="grid gap-3 sm:grid-cols-2">
+            <div class="border border-gray-200 bg-gray-50 px-3 py-3">
+              <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">원천번호</p>
+              <p class="mt-1 text-sm font-black text-gray-900">{{ inbound.sourceRefNo }}</p>
+            </div>
+            <div class="border border-gray-200 bg-gray-50 px-3 py-3">
+              <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">연계 출고번호</p>
+              <p class="mt-1 text-sm font-black text-gray-900">{{ inbound.outboundNo || '-' }}</p>
+            </div>
+            <div class="border border-gray-200 bg-gray-50 px-3 py-3">
+              <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">예정수량</p>
+              <p class="mt-1 text-sm font-black text-gray-900">{{ inbound.totalExpectedQuantity || 0 }}</p>
+            </div>
+            <div class="border border-gray-200 bg-gray-50 px-3 py-3">
+              <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">입고확정일시</p>
+              <p class="mt-1 text-sm font-black text-gray-900">{{ formatDateTime(inbound.receivedAt) }}</p>
             </div>
           </section>
 
-          <div class="grid gap-4 xl:grid-cols-[minmax(0,0.7fr)_minmax(0,0.3fr)]">
-          <div class="flex flex-col gap-4">
-            <section class="grid gap-3 sm:grid-cols-2">
-              <div class="border border-gray-200 bg-gray-50 px-3 py-3">
-                <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">요청자</p>
-                <p class="mt-1 text-sm font-black text-gray-900">{{ selectedOrder.requestedBy }}</p>
-              </div>
-              <div class="border border-gray-200 bg-gray-50 px-3 py-3">
-                <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">입고 확정자</p>
-                <p class="mt-1 text-sm font-black text-gray-900">{{ selectedOrder.inboundConfirmedBy || '-' }}</p>
-              </div>
-              <div class="border border-gray-200 bg-gray-50 px-3 py-3">
-                <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">총 입고 예정 수량</p>
-                <p class="mt-1 text-sm font-black text-gray-900">
-                  {{ selectedOrder.items.reduce((sum, item) => sum + item.expectedInboundQuantity, 0) }}개
-                </p>
-              </div>
-              <div class="border border-gray-200 bg-gray-50 px-3 py-3">
-                <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">입고 완료일시</p>
-                <p class="mt-1 text-sm font-black text-gray-900">{{ formatDateTime(selectedOrder.inboundCompletedAt) }}</p>
-              </div>
-            </section>
+          <section class="min-w-0">
+            <table class="w-full table-fixed border-collapse text-xs">
+              <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
+                <tr>
+                  <th class="w-[18%] px-3 py-2.5 text-left font-black">상품코드</th>
+                  <th class="w-[20%] px-2 py-2.5 text-left font-black">상품명</th>
+                  <th class="w-[17%] px-2 py-2.5 text-left font-black">옵션</th>
+                  <th class="w-[18%] px-2 py-2.5 text-left font-black">카테고리</th>
+                  <th class="w-[12%] px-2 py-2.5 text-center font-black">예정수량</th>
+                  <th class="w-[15%] px-2 py-2.5 text-right font-black">단가</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                <tr v-for="item in inbound.items || []" :key="item.id || item.skuCode">
+                  <td class="px-3 py-2.5 font-mono font-bold text-gray-500">{{ item.productCode || item.skuCode }}</td>
+                  <td class="px-2 py-2.5">
+                    <p class="truncate font-black text-gray-900">{{ item.productName }}</p>
+                  </td>
+                  <td class="px-2 py-2.5 font-bold text-gray-700">{{ item.color }} / {{ item.size }}</td>
+                  <td class="px-2 py-2.5 font-bold text-gray-500">{{ item.mainCategory }} &gt; {{ item.subCategory }}</td>
+                  <td class="px-3 py-2.5 text-center font-black text-gray-900">{{ item.expectedQuantity }}</td>
+                  <td class="px-3 py-2.5 text-right font-black text-gray-900">₩{{ Number(item.unitPrice || 0).toLocaleString() }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
 
-            <section class="min-w-0">
-              <table class="w-full table-fixed border-collapse text-xs">
-                <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
-                  <tr>
-                    <th class="w-[18%] px-3 py-2.5 text-left font-black">품목코드</th>
-                    <th class="w-[20%] px-2 py-2.5 text-left font-black">상품명</th>
-                    <th class="w-[17%] px-2 py-2.5 text-left font-black">옵션</th>
-                    <th class="w-[18%] px-2 py-2.5 text-left font-black">카테고리</th>
-                    <th class="w-[10%] px-2 py-2.5 text-center font-black">현재고</th>
-                    <th class="w-[12%] px-2 py-2.5 text-center font-black">발주수량</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                  <tr v-for="item in selectedOrder.items" :key="`${selectedOrder.orderId}-${item.skuId}`">
-                    <td class="px-3 py-2.5 font-mono font-bold text-gray-500">{{ item.itemCode }}</td>
-                    <td class="px-2 py-2.5">
-                      <p class="truncate font-black text-gray-900">{{ item.productName }}</p>
-                    </td>
-                    <td class="px-2 py-2.5 font-bold text-gray-700">{{ item.color }} / {{ item.size }}</td>
-                    <td class="px-2 py-2.5 font-bold text-gray-500">{{ item.mainCategory }} &gt; {{ item.subCategory }}</td>
-                    <td class="px-2 py-2.5 text-center font-black text-gray-800">{{ item.currentStoreStock }}</td>
-                    <td class="px-3 py-2.5 text-center font-black text-gray-900">{{ item.expectedInboundQuantity }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </section>
+          <section class="w-full">
+            <p class="mb-2 text-[10px] font-black uppercase text-gray-400">입고 진행 이력</p>
+            <ol class="ml-2 border border-gray-200 bg-white px-4 py-4">
+              <li v-for="(history, index) in inbound.statusHistory || []" :key="`${history.id || history.changedAt}-${index}`" class="relative pb-3 pl-5 last:pb-0">
+                <span class="absolute left-0 top-1 block h-2.5 w-2.5 bg-slate-500" />
+                <span v-if="index < (inbound.statusHistory || []).length - 1" class="absolute bottom-0 left-[4px] top-3.5 w-px bg-gray-300" />
+                <p class="text-[11px] font-black text-slate-700">{{ inboundStatusLabel(history.status) }}</p>
+                <p class="text-[10px] text-gray-500">{{ formatDateTime(history.changedAt) }} · {{ history.changedByName || '-' }}</p>
+                <p v-if="history.reason" class="text-[10px] text-gray-400">{{ history.reason }}</p>
+              </li>
+            </ol>
+          </section>
 
-            <section class="border border-gray-200 bg-gray-50 px-3 py-3">
-              <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">발주 메모</p>
-              <p class="mt-2 text-xs font-bold text-gray-700">{{ selectedOrder.memo || '메모 없음' }}</p>
-            </section>
+          <div class="w-full space-y-3">
+            <button
+              v-if="canConfirmInbound"
+              type="button"
+              class="w-full border border-[#004D3C] bg-[#004D3C] px-3 py-2.5 text-[11px] font-black text-white hover:bg-[#003d30] disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500 disabled:border-gray-300"
+              :disabled="loadingAction"
+              @click="openConfirmModal"
+            >
+              입고 확정
+            </button>
+            <p v-else class="border border-gray-200 bg-gray-50 px-3 py-3 text-center text-xs font-bold text-gray-500">
+              입고 대기 상태에서만 입고 확정이 가능합니다.
+            </p>
+
+            <p v-if="toastMessage" class="border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-black text-emerald-700">
+              {{ toastMessage }}
+            </p>
           </div>
-
-          <div class="flex flex-col gap-4">
-            <section class="w-full border border-blue-200 bg-blue-50 px-3 py-3">
-              <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-blue-500">입고 정책</p>
-              <p class="mt-2 text-xs font-black text-blue-700">
-                입고 확정은 배송 완료 상태에서만 가능합니다. 이번 버전은 부분 입고 없이 발주 1건 전체를 한 번에 재고로 반영합니다.
-              </p>
-            </section>
-
-            <section class="w-full">
-              <p class="mb-2 text-[10px] font-black uppercase text-gray-400">입고 진행 이력</p>
-              <ol class="ml-2 border border-gray-200 bg-white px-4 py-4">
-                <li
-                  v-for="(history, index) in selectedOrder.inboundStatusHistory"
-                  :key="`${history.status}-${history.at}-${index}`"
-                  class="relative pb-3 pl-5 last:pb-0"
-                >
-                  <span
-                    class="absolute left-0 top-1 block h-2.5 w-2.5"
-                    :class="[historyDotClass(history.status), shouldHighlightHistory(history) && 'timeline-highlight-glow-box']"
-                    :style="shouldHighlightHistory(history) ? historyGlowStyle(history.status) : undefined"
-                  />
-                  <span
-                    v-if="index < selectedOrder.inboundStatusHistory.length - 1"
-                    class="absolute bottom-0 left-[4px] top-3.5 w-px bg-gray-300"
-                  />
-                  <p
-                    class="text-[11px] font-black"
-                    :class="[historyTextClass(history.status), shouldHighlightHistory(history) && 'timeline-highlight-glow']"
-                    :style="shouldHighlightHistory(history) ? historyGlowStyle(history.status) : undefined"
-                  >
-                    {{ storeOrders.inboundStatusLabelMap[history.status] ?? history.status }}
-                  </p>
-                  <p class="text-[10px] text-gray-500">
-                    {{ formatDateTime(history.at) }} · {{ history.byName }}
-                  </p>
-                  <p v-if="history.note" class="text-[10px] text-gray-400">{{ history.note }}</p>
-                </li>
-              </ol>
-            </section>
-
-            <div class="w-full space-y-3">
-              <template v-if="canConfirmInbound">
-                <button
-                  type="button"
-                  class="w-full border border-[#004D3C] bg-[#004D3C] px-3 py-2.5 text-[11px] font-black text-white hover:bg-[#003d30]"
-                  @click="openConfirmModal"
-                >
-                  입고 확정
-                </button>
-              </template>
-              <template v-else>
-                <p class="border border-gray-200 bg-gray-50 px-3 py-3 text-center text-xs font-bold text-gray-500">
-                  {{
-                    selectedOrder.status === 'COMPLETED'
-                      ? '입고까지 완료된 종료 발주입니다.'
-                      : '배송 완료 상태에서만 입고 확정이 가능합니다.'
-                  }}
-                </p>
-              </template>
-
-              <p
-                v-if="toastMessage"
-                class="border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-black text-emerald-700"
-              >
-                {{ toastMessage }}
-              </p>
-            </div>
-          </div>
-        </div>
         </div>
       </section>
 
-      <section
-        v-else
-        class="border border-gray-300 bg-white px-6 py-16 text-center text-sm font-bold text-gray-400 shadow-sm"
-      >
+      <section v-else class="border border-gray-300 bg-white px-6 py-16 text-center text-sm font-bold text-gray-400 shadow-sm">
         입고 상세 정보를 찾을 수 없습니다.
       </section>
 
-      <div
-        v-if="showConfirmModal && selectedOrder"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-        @click.self="showConfirmModal = false"
-      >
+      <div v-if="showConfirmModal && inbound" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showConfirmModal = false">
         <div class="w-full max-w-sm overflow-hidden bg-white shadow-xl">
           <div class="bg-[#004D3C] px-5 py-3 text-white">
             <h2 class="text-sm font-black">입고 확정</h2>
           </div>
           <div class="space-y-3 p-5 text-xs text-gray-700">
-            <p>
-              <strong>{{ selectedOrder.orderId }}</strong> 발주건을 매장 재고에 반영합니다.
-            </p>
-            <p>
-              입고 예정 수량
-              <strong>{{ selectedOrder.items.reduce((sum, item) => sum + item.expectedInboundQuantity, 0) }}개</strong>가
-              한 번에 반영됩니다.
-            </p>
-            <p class="text-gray-500">
-              확정 후 입고 상태는 <strong>입고 완료</strong>로 변경되며 다시 되돌릴 수 없습니다.
-            </p>
+            <p><strong>{{ inbound.inboundNo }}</strong> 건을 입고 확정합니다.</p>
+            <p>확정 후 상태가 <strong>입고 완료</strong>로 변경됩니다.</p>
           </div>
           <div class="flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3">
-            <button
-              type="button"
-              class="border border-gray-300 bg-white px-4 py-2 text-xs font-black text-gray-700 hover:bg-gray-100"
-              @click="showConfirmModal = false"
-            >
+            <button type="button" class="border border-gray-300 bg-white px-4 py-2 text-xs font-black text-gray-700 hover:bg-gray-100" @click="showConfirmModal = false">
               취소
             </button>
-            <button
-              type="button"
-              class="border border-[#004D3C] bg-[#004D3C] px-4 py-2 text-xs font-black text-white hover:bg-[#003d30]"
-              @click="confirmInbound"
-            >
-              입고 확정
+            <button type="button" class="border border-[#004D3C] bg-[#004D3C] px-4 py-2 text-xs font-black text-white hover:bg-[#003d30]" :disabled="loadingAction" @click="confirmInbound">
+              {{ loadingAction ? '처리 중...' : '입고 확정' }}
             </button>
           </div>
         </div>
@@ -356,64 +231,3 @@ function confirmInbound() {
     </div>
   </AppLayout>
 </template>
-
-<style scoped>
-@keyframes timelineGlowBlink {
-  0%,
-  100% {
-    opacity: 1;
-    text-shadow: 0 0 0 rgba(var(--timeline-glow-rgb), 0);
-  }
-
-  20%,
-  70% {
-    opacity: 0.78;
-    text-shadow:
-      0 0 12px rgba(var(--timeline-glow-rgb), 0.58),
-      0 0 24px rgba(var(--timeline-glow-soft-rgb), 0.32);
-  }
-
-  35%,
-  85% {
-    opacity: 1;
-    text-shadow:
-      0 0 18px rgba(var(--timeline-glow-rgb), 0.8),
-      0 0 32px rgba(var(--timeline-glow-soft-rgb), 0.42);
-  }
-}
-
-.timeline-highlight-glow {
-  animation: timelineGlowBlink 3s ease-in-out 1;
-}
-
-@keyframes timelineBoxBlink {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-    box-shadow: 0 0 0 rgba(var(--timeline-glow-rgb), 0);
-  }
-
-  20%,
-  70% {
-    opacity: 0.86;
-    transform: scale(1.14);
-    box-shadow:
-      0 0 12px rgba(var(--timeline-glow-rgb), 0.58),
-      0 0 20px rgba(var(--timeline-glow-soft-rgb), 0.3);
-  }
-
-  35%,
-  85% {
-    opacity: 1;
-    transform: scale(1.2);
-    box-shadow:
-      0 0 18px rgba(var(--timeline-glow-rgb), 0.82),
-      0 0 30px rgba(var(--timeline-glow-soft-rgb), 0.44);
-  }
-}
-
-.timeline-highlight-glow-box {
-  animation: timelineBoxBlink 3s ease-in-out 1;
-}
-</style>
