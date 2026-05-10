@@ -6,6 +6,7 @@ import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { getWarehouseTransferDetail } from '@/api/hq/inventory.js'
 import { extractErrorMessage } from '@/api/axios.js'
+import { Archive, BadgeCheck, PackageCheck, Truck } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -29,6 +30,12 @@ const statusLabelByCode = {
 
 const toUiStatus = (status) => statusLabelByCode[status] || status || '-'
 const transferSteps = ['READY_TO_SHIP', 'IN_TRANSIT', 'ARRIVED', 'RECEIVED']
+const transferStepMeta = [
+  { key: 'READY_TO_SHIP', label: '출고 준비', icon: Archive },
+  { key: 'IN_TRANSIT', label: '배송 중', icon: Truck },
+  { key: 'ARRIVED', label: '배송 완료', icon: BadgeCheck },
+  { key: 'RECEIVED', label: '입고 완료', icon: PackageCheck },
+]
 
 const skuCount = computed(() => record.value?.lines?.length ?? 0)
 const totalQty = computed(() =>
@@ -57,6 +64,40 @@ const currentStepIndex = computed(() => {
   // BE 연동 전에는 RECEIVED를 활성화하지 않는다.
   return Math.min(idx, transferSteps.indexOf('ARRIVED'))
 })
+
+const stepState = (stepKey) => {
+  const stepIdx = transferSteps.indexOf(stepKey)
+  const currentIdx = currentStepIndex.value
+  if (stepIdx < 0 || currentIdx < 0) return 'upcoming'
+  if (stepIdx < currentIdx) return 'done'
+  if (stepIdx === currentIdx) return 'current'
+  return 'upcoming'
+}
+
+const stepClass = (stepKey) => {
+  if (stepKey === 'RECEIVED' && currentStepIndex.value < transferSteps.indexOf('RECEIVED')) {
+    return 'bg-gray-100 text-gray-400 border-gray-200'
+  }
+  const state = stepState(stepKey)
+  if (state === 'done') return 'bg-emerald-500 text-white border-emerald-500 shadow-sm'
+  if (state === 'current') return 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200'
+  return 'bg-slate-100 text-slate-400 border-slate-200'
+}
+
+const stepLabelClass = (stepKey) => {
+  if (stepKey === 'RECEIVED' && currentStepIndex.value < transferSteps.indexOf('RECEIVED')) return 'text-gray-400'
+  const state = stepState(stepKey)
+  if (state === 'done') return 'text-emerald-700'
+  if (state === 'current') return 'text-blue-700'
+  return 'text-slate-500'
+}
+
+const connectorClass = (leftStepKey) => {
+  const leftState = stepState(leftStepKey)
+  if (leftState === 'done') return 'bg-emerald-400'
+  if (leftState === 'current') return 'bg-blue-300'
+  return 'bg-slate-200'
+}
 
 const statusConfig = computed(() => {
   const code = record.value?.statusCode
@@ -138,84 +179,99 @@ onMounted(() => loadDetail())
         </div>
 
         <!-- 상태 배너 -->
-        <div v-if="statusConfig.banner" class="mx-6 mb-5 border px-4 py-3 flex items-start gap-2" :class="statusConfig.banner.bg">
+        <div v-if="statusConfig.banner" class="mx-6 mb-8 border px-4 py-3 flex items-start gap-2" :class="statusConfig.banner.bg">
           <svg class="w-4 h-4 mt-0.5 flex-shrink-0" :class="statusConfig.banner.text" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <p class="text-xs font-bold" :class="statusConfig.banner.text">{{ statusConfig.banner.msg }}</p>
         </div>
 
-        <!-- 4단계 상태 스텝 -->
-        <div class="mx-6 mb-5 border border-gray-100 bg-gray-50 px-4 py-3">
-          <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">이동 상태 흐름</p>
-          <ol class="mt-2 flex items-center gap-2 text-[11px] font-black">
-            <li v-for="(step, index) in transferSteps" :key="step" class="flex items-center gap-2">
-              <span
-                class="px-2 py-1"
-                :class="index <= currentStepIndex ? 'bg-[#004D3C] text-white' : 'bg-gray-200 text-gray-500'"
-              >
-                {{ toUiStatus(step) }}
-              </span>
-              <span v-if="index < transferSteps.length - 1" class="text-gray-300">→</span>
-            </li>
-          </ol>
-          <p class="mt-2 text-[10px] font-bold text-gray-500">입고완료(RECEIVED)는 BE 입고 연동 전까지 표시 전용 단계입니다.</p>
-        </div>
-
-        <!-- 메타 정보 그리드 -->
-        <div class="px-6 pb-5 grid grid-cols-2 xl:grid-cols-4 gap-3">
-          <div class="border border-gray-100 bg-gray-50 px-4 py-3">
-            <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">요청자</p>
-            <p class="mt-1.5 text-sm font-black text-gray-900">{{ record.requestedBy }}</p>
-            <p class="mt-0.5 text-[11px] font-bold text-gray-500">{{ record.requestedAt }}</p>
-          </div>
-          <div class="border border-gray-100 bg-gray-50 px-4 py-3">
-            <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">SKU 종류</p>
-            <p class="mt-1.5 text-sm font-black text-gray-900">{{ skuCount }}<span class="ml-1 text-xs font-bold text-gray-500">건</span></p>
-          </div>
-          <div class="border border-gray-100 bg-gray-50 px-4 py-3">
-            <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">총 이동 수량</p>
-            <p class="mt-1.5 text-sm font-black text-gray-900">{{ totalQty.toLocaleString() }}<span class="ml-1 text-xs font-bold text-gray-500">개</span></p>
-          </div>
-          <div class="border border-gray-100 bg-gray-50 px-4 py-3">
-            <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">이동 사유 / 메모</p>
-            <p class="mt-1.5 text-sm font-black text-gray-900">{{ reasonCount }}<span class="ml-1 text-xs font-bold text-gray-500">종</span></p>
-            <p class="mt-0.5 text-[11px] font-bold text-gray-500">메모 {{ memoCount }}건 첨부</p>
-          </div>
-        </div>
-      </section>
-
-      <!-- 창고 이동 플로우 -->
-      <section class="bg-white border border-gray-200 shadow-sm px-6 py-5">
-        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400 mb-3">Transfer Route</p>
-        <div class="grid grid-cols-[1fr_auto_1fr] items-stretch gap-0">
-          <!-- 출발 창고 -->
-          <div class="border border-gray-200 bg-gray-50 px-4 py-4">
-            <div class="flex items-center gap-2 mb-2">
-              <span class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">출발 창고</span>
-              <span class="text-[10px] font-black px-2 py-0.5 bg-gray-200 text-gray-600">FROM</span>
+        <!-- 좌/우 패널 -->
+        <div class="px-6 pt-3 pb-5 grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+          <!-- 좌측: 메타 카드 -->
+          <section class="border border-gray-200 bg-gray-50 p-4">
+            <p class="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">재고이동 요청 내역 요약</p>
+            <div class="mt-3 grid grid-cols-2 gap-3">
+              <div class="border border-gray-100 bg-white px-4 py-3">
+                <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">요청자</p>
+                <p class="mt-1.5 text-sm font-black text-gray-900">{{ record.requestedBy }}</p>
+                <p class="mt-0.5 text-[11px] font-bold text-gray-500">{{ record.requestedAt }}</p>
+              </div>
+              <div class="border border-gray-100 bg-white px-4 py-3">
+                <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">SKU 종류</p>
+                <p class="mt-1.5 text-sm font-black text-gray-900">{{ skuCount }}<span class="ml-1 text-xs font-bold text-gray-500">건</span></p>
+              </div>
+              <div class="border border-gray-100 bg-white px-4 py-3">
+                <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">총 이동 수량</p>
+                <p class="mt-1.5 text-sm font-black text-gray-900">{{ totalQty.toLocaleString() }}<span class="ml-1 text-xs font-bold text-gray-500">개</span></p>
+              </div>
+              <div class="border border-gray-100 bg-white px-4 py-3">
+                <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">이동 사유 / 메모</p>
+                <p class="mt-1.5 text-sm font-black text-gray-900">{{ reasonCount }}<span class="ml-1 text-xs font-bold text-gray-500">종</span></p>
+                <p class="mt-0.5 text-[11px] font-bold text-gray-500">메모 {{ memoCount }}건 첨부</p>
+              </div>
             </div>
-            <p class="text-base font-black text-gray-900">{{ record.fromWarehouseName }}</p>
-            <p class="mt-1 font-mono text-[11px] font-bold text-gray-500">{{ record.fromWarehouseCode }}</p>
-          </div>
+          </section>
 
-          <!-- 화살표 -->
-          <div class="flex flex-col items-center justify-center bg-[#004D3C] px-5 gap-1.5">
-            <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-            </svg>
-            <p class="text-[9px] font-black uppercase tracking-widest text-white/70">이동</p>
-          </div>
-
-          <!-- 도착 창고 -->
-          <div class="border border-[#C8E6DE] bg-[#F0FAF6] px-4 py-4">
-            <div class="flex items-center gap-2 mb-2">
-              <span class="text-[10px] font-black uppercase tracking-[0.12em] text-[#0B6D57]/70">도착 창고</span>
-              <span class="text-[10px] font-black px-2 py-0.5 bg-[#0B6D57] text-white">TO</span>
+          <!-- 우측: 상태 흐름 + 라우트 -->
+          <section class="border border-gray-200 bg-white p-4">
+            <p class="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">재고 이동 현황</p>
+            <div class="rounded-lg border border-slate-100 bg-slate-50 p-3 mt-3">
+              <ol class="flex items-start justify-between gap-1">
+                <li
+                  v-for="(step, idx) in transferStepMeta"
+                  :key="step.key"
+                  class="relative flex min-w-0 flex-1 flex-col items-center"
+                >
+                  <div
+                    class="z-10 inline-flex h-11 w-11 items-center justify-center rounded-full border-2 transition-all"
+                    :class="stepClass(step.key)"
+                  >
+                    <component :is="step.icon" class="h-5 w-5" />
+                  </div>
+                  <p class="mt-2 text-center text-[11px] font-black" :class="stepLabelClass(step.key)">
+                    {{ step.label }}
+                  </p>
+                  <span
+                    v-if="idx < transferStepMeta.length - 1"
+                    class="absolute left-[calc(50%+22px)] top-[22px] h-[3px] w-[calc(100%-44px)] rounded-full"
+                    :class="connectorClass(step.key)"
+                  />
+                </li>
+              </ol>
             </div>
-            <p class="text-base font-black text-gray-900">{{ record.toWarehouseName }}</p>
-            <p class="mt-1 font-mono text-[11px] font-bold text-[#0B6D57]/80">{{ record.toWarehouseCode }}</p>
-          </div>
+            <p class="mt-2 text-[10px] font-bold text-gray-500">입고완료(RECEIVED)는 BE 입고 연동 전까지 표시 전용 단계입니다.</p>
+
+            <div class="grid grid-cols-[1fr_auto_1fr] items-stretch gap-0 mt-3" style="margin-top: 0.67rem;">
+              <!-- 출발 창고 -->
+              <div class="border border-gray-200 bg-gray-50 px-4 py-4">
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">출발 창고</span>
+                  <span class="text-[10px] font-black px-2 py-0.5 bg-gray-200 text-gray-600">FROM</span>
+                </div>
+                <p class="text-base font-black text-gray-900">{{ record.fromWarehouseName }}</p>
+                <p class="mt-1 font-mono text-[11px] font-bold text-gray-500">{{ record.fromWarehouseCode }}</p>
+              </div>
+
+              <!-- 화살표 -->
+              <div class="flex flex-col items-center justify-center bg-[#004D3C] px-5 gap-1.5">
+                <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+                <p class="text-[9px] font-black uppercase tracking-widest text-white/70">이동</p>
+              </div>
+
+              <!-- 도착 창고 -->
+              <div class="border border-[#C8E6DE] bg-[#F0FAF6] px-4 py-4">
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="text-[10px] font-black uppercase tracking-[0.12em] text-[#0B6D57]/70">도착 창고</span>
+                  <span class="text-[10px] font-black px-2 py-0.5 bg-[#0B6D57] text-white">TO</span>
+                </div>
+                <p class="text-base font-black text-gray-900">{{ record.toWarehouseName }}</p>
+                <p class="mt-1 font-mono text-[11px] font-bold text-[#0B6D57]/80">{{ record.toWarehouseCode }}</p>
+              </div>
+            </div>
+          </section>
         </div>
       </section>
 
@@ -316,7 +372,6 @@ onMounted(() => loadDetail())
                 <!-- 출발 후 -->
                 <td class="px-3 py-3.5 text-right border-r border-gray-100">
                   <span class="font-black text-rose-600">{{ line.fromStockAfter.toLocaleString() }}</span>
-                  <span class="ml-1 text-[10px] font-black text-rose-400">{{ line.fromDelta }}</span>
                 </td>
 
                 <!-- 도착 전 -->
@@ -325,7 +380,6 @@ onMounted(() => loadDetail())
                 <!-- 도착 후 -->
                 <td class="px-3 py-3.5 text-right bg-[#F7FCFA]/60">
                   <span class="font-black text-[#0B6D57]">{{ line.toStockAfter.toLocaleString() }}</span>
-                  <span class="ml-1 text-[10px] font-black text-[#0B6D57]/60">+{{ line.toDelta }}</span>
                 </td>
               </tr>
             </tbody>
