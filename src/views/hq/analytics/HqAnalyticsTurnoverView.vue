@@ -18,7 +18,7 @@ const activeTopMenu = computed(() => '정산/통계')
 const activeSideMenu = ref('재고 회전율 통계')
 
 // ─── 필터 ──────────────────────────────────────────────────────────────
-const periodUnit = ref('월간')
+const periodUnit = ref('연간')
 const scopeFilter = ref('전사 통합')        // '전사 통합' | '매장' | '창고'
 const locationCode = ref('')                // 특정 위치 한정 (옵션, '' = 전체)
 
@@ -109,6 +109,17 @@ onMounted(async () => {
 const dateLabel = computed(() =>
   new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
 )
+
+// ─── 금액 표기 — 풀 콤마 원 단위 (₩X,XXX,XXX) — 통계 페이지 통일 ──────
+//   BE 응답의 value/totalValue/lockedValue 는 백만원 단위 (예: 808.4 = 8.084억원)
+function formatKoreanMoney(won) {
+  if (won == null || isNaN(won)) return '₩0'
+  return `₩${Number(won).toLocaleString('ko-KR')}`
+}
+function formatMillionWon(million) {
+  if (million == null || isNaN(million)) return '₩0'
+  return formatKoreanMoney(Math.round(Number(million) * 1_000_000))
+}
 
 // ─── 매장·창고별 회전율 (BE 응답 → FE 매핑) ──────────────────────────
 const filteredData = computed(() => {
@@ -278,11 +289,11 @@ function transferToCirculation(items) {
     alert('전환할 품목을 선택해주세요.')
     return
   }
-  const totalValue = list.reduce((s, d) => s + d.value, 0).toFixed(1)
+  const totalValueMillion = list.reduce((s, d) => s + d.value, 0)
   const totalUnits = list.reduce((s, d) => s + d.units, 0)
   alert(
     `🔄 ${list.length}개 품목을 순환재고로 전환합니다\n` +
-    `총 ${totalUnits}개 / ₩${totalValue}M\n\n` +
+    `총 ${totalUnits}개 / ${formatMillionWon(totalValueMillion)}\n\n` +
     `→ 순환재고 후보 목록으로 이동합니다.`,
   )
   router.push('/hq/circular-inventory/candidates')
@@ -379,7 +390,7 @@ const statusCls = {
               </p>
               <p class="mt-1 text-[11px] text-gray-500">
                 ⚠️ 단, <span class="font-bold text-red-600">{{ inventoryHealth.danger }}개 품목</span>이
-                1년 넘게 안 팔리고 있어요 (묶인 자금 <span class="font-bold text-red-600">₩{{ inventoryHealth.lockedValue }}M</span>)
+                1년 넘게 안 팔리고 있어요 (묶인 자금 <span class="font-bold text-red-600">{{ formatMillionWon(inventoryHealth.lockedValue) }}</span>)
               </p>
             </div>
           </div>
@@ -423,7 +434,7 @@ const statusCls = {
             </h3>
             <p class="mt-0.5 text-[10px] text-gray-500">
               1년 이상 회전이 멈춘 재고 — 묶인 자금 큰 순 상위 5건 ·
-              총 묶인 자금 <span class="font-bold text-red-600">₩{{ inventoryHealth.lockedValue }}M</span>
+              총 묶인 자금 <span class="font-bold text-red-600">{{ formatMillionWon(inventoryHealth.lockedValue) }}</span>
             </p>
           </div>
           <div class="flex items-center gap-2">
@@ -481,7 +492,7 @@ const statusCls = {
                   <span class="font-bold text-red-600">{{ d.turnover }}x</span>
                 </td>
                 <td class="px-3 py-2 text-right font-mono text-gray-700">{{ d.units }}개</td>
-                <td class="px-3 py-2 text-right font-mono font-bold text-red-700">₩{{ d.value }}M</td>
+                <td class="px-3 py-2 text-right font-mono font-bold text-red-700">{{ formatMillionWon(d.value) }}</td>
               </tr>
             </tbody>
           </table>

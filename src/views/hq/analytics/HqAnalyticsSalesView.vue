@@ -134,6 +134,12 @@ const dateLabel = computed(() =>
   new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
 )
 
+// ─── 금액 표기 — 풀 콤마 원 단위 (₩X,XXX,XXX) — 통계 페이지 통일 ──────
+function formatKoreanMoney(won) {
+  if (won == null || isNaN(won)) return '₩0'
+  return `₩${Number(won).toLocaleString('ko-KR')}`
+}
+
 // ─── BE 연동 — 판매량 통계 ──────────────────────────────────────────────
 const salesData = ref(null)
 const loading = ref(false)
@@ -268,8 +274,8 @@ const overviewTrendData = computed(() => {
     labels: cur.map((p) => p.label),
     datasets: [
       {
-        label: '매출 (M원)',
-        data: cur.map((p) => Number(((p.revenue ?? 0) / 1_000_000).toFixed(2))),
+        label: '매출',
+        data: cur.map((p) => Number(p.revenue ?? 0)),
         borderColor: '#059669',
         backgroundColor: 'rgba(16, 185, 129, 0.12)',
         borderWidth: 2,
@@ -279,7 +285,7 @@ const overviewTrendData = computed(() => {
       },
       {
         label: '전기 동기',
-        data: prev.map((p) => Number(((p.revenue ?? 0) / 1_000_000).toFixed(2))),
+        data: prev.map((p) => Number(p.revenue ?? 0)),
         borderColor: '#94a3b8',
         backgroundColor: 'rgba(148, 163, 184, 0.05)',
         borderWidth: 2,
@@ -303,11 +309,12 @@ const lineChartOptions = {
       bodyColor: '#fff',
       padding: 10,
       cornerRadius: 6,
+      callbacks: { label: (ctx) => `${ctx.dataset.label}: ${formatKoreanMoney(ctx.parsed.y)}` },
     },
   },
   scales: {
     x: { grid: { display: false }, ticks: { font: { size: 10 } } },
-    y: { grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, callback: (v) => v + 'M' } },
+    y: { grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, callback: (v) => formatKoreanMoney(v) } },
   },
   interaction: { mode: 'index', intersect: false },
 }
@@ -382,9 +389,8 @@ const categoryDoughnutData = computed(() => ({
 const productBarData = computed(() => ({
   labels: productStats.value.slice(0, 10).map((p) => p.name),
   datasets: [{
-    label: '매출 (M원)',
-    // 차트만 M 단위로 압축 표시 (raw 는 원)
-    data: productStats.value.slice(0, 10).map((p) => Number((p.sales / 1_000_000).toFixed(2))),
+    label: '매출',
+    data: productStats.value.slice(0, 10).map((p) => Number(p.sales ?? 0)),
     backgroundColor: productStats.value.slice(0, 10).map((p) => PRODUCT_CATEGORY_COLORS[p.category]),
     borderRadius: 4,
   }],
@@ -487,9 +493,8 @@ const top10ProductDetails = computed(() =>
 const productDetailBarData = computed(() => ({
   labels: top10ProductDetails.value.map((p) => p.name),
   datasets: [{
-    label: '매출 (M원)',
-    // 차트만 M 단위로 압축 표시 (raw 는 원)
-    data: top10ProductDetails.value.map((p) => Number((p.sales / 1_000_000).toFixed(2))),
+    label: '매출',
+    data: top10ProductDetails.value.map((p) => Number(p.sales ?? 0)),
     backgroundColor: top10ProductDetails.value.map((p) => PRODUCT_CATEGORY_COLORS[p.category] ?? '#6b7280'),
     borderRadius: 4,
   }],
@@ -501,10 +506,10 @@ const productDetailBarOptions = {
   indexAxis: 'y',
   plugins: {
     legend: { display: false },
-    tooltip: { callbacks: { label: (ctx) => `₩${ctx.parsed.x}M` } },
+    tooltip: { callbacks: { label: (ctx) => formatKoreanMoney(ctx.parsed.x) } },
   },
   scales: {
-    x: { grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, callback: (v) => '₩' + v + 'M' } },
+    x: { grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, callback: (v) => formatKoreanMoney(v) } },
     y: { grid: { display: false }, ticks: { font: { size: 10 } } },
   },
 }
@@ -542,11 +547,11 @@ const barOptions = {
   plugins: {
     legend: { display: false },
     tooltip: {
-      callbacks: { label: (ctx) => `₩${ctx.parsed.x}M` },
+      callbacks: { label: (ctx) => formatKoreanMoney(ctx.parsed.x) },
     },
   },
   scales: {
-    x: { grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, callback: (v) => v + 'M' } },
+    x: { grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, callback: (v) => formatKoreanMoney(v) } },
     y: { grid: { display: false }, ticks: { font: { size: 10 } } },
   },
 }

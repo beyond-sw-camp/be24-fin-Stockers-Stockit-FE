@@ -5,7 +5,7 @@
  *   GET /api/hq/analytics/sales       — 판매량 통계
  *   GET /api/hq/analytics/order-stats — 발주량 통계
  *   GET /api/hq/analytics/turnover    — 재고 회전율 통계
- *   GET /api/hq/analytics/vendors     — 순환재고 거래처 (예정)
+ *   GET /api/hq/analytics/vendor      — 순환재고 거래처 통계
  *   GET /api/hq/analytics/dashboard   — 통합 KPI (예정)
  */
 
@@ -64,6 +64,22 @@ export const turnoverAnalyticsApi = {
     if (locationCode) params.locationCode = locationCode
     return apiClient
       .get('/api/hq/analytics/turnover', { params })
+      .then(unwrap)
+  },
+}
+
+export const vendorAnalyticsApi = {
+  /**
+   * 순환재고 거래처 통계 조회.
+   * @param {{ period: 'MONTH'|'HALF_YEAR'|'YEAR',
+   *           from: string,   // 'YYYY-MM-DD'
+   *           to: string }} params
+   * @returns {Promise<object>} BE result (kpi/vendors/circularMaterials)
+   */
+  get: ({ period, from, to } = {}) => {
+    const params = { period, from, to }
+    return apiClient
+      .get('/api/hq/analytics/vendor', { params })
       .then(unwrap)
   },
 }

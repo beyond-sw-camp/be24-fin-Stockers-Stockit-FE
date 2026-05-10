@@ -18,7 +18,7 @@ import {
 import AppLayout from '@/components/common/AppLayout.vue'
 import LineChart from '@/components/common/charts/LineChart.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
+import { useAuthStore } from '@/stores/auth.js'
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 const sideMenus = roleMenus.hq.find((menu) => menu.label === '정산/통계')?.children ?? []
@@ -31,17 +31,23 @@ const dateLabel = computed(() =>
   new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
 )
 
+// ─── 금액 표기 — 풀 콤마 원 단위 (₩X,XXX,XXX) — 통계 페이지 통일 ──────
+function formatKoreanMoney(won) {
+  if (won == null || isNaN(won)) return '₩0'
+  return `₩${Number(won).toLocaleString('ko-KR')}`
+}
+
 // 횡단 KPI (5개) — 핵심 숫자만 강조
 const kpiStats = [
-  { label: '금일 매출',     value: '128.4', unit: 'M원', sub: '↗ +8.2%',         icon: TrendingUp,   valueCls: 'text-emerald-700', iconBg: 'bg-emerald-50', iconCls: 'text-emerald-600', subCls: 'text-emerald-600' },
-  { label: '평균 회전율',    value: '4.2',   unit: 'x',   sub: '⚠ 목표 4.5x 미달', icon: Repeat,       valueCls: 'text-violet-700', iconBg: 'bg-violet-50', iconCls: 'text-violet-600', subCls: 'text-amber-600' },
-  { label: '이번 달 발주',   value: '42.8',  unit: 'M원', sub: '승인 대기 18건',   icon: Truck,        valueCls: 'text-amber-700',  iconBg: 'bg-amber-50',  iconCls: 'text-amber-600',  subCls: 'text-gray-500' },
-  { label: '활성 거래처',    value: '14',    unit: '곳',  sub: 'A 6 · B 5 · C 3',  icon: Calendar,     valueCls: 'text-blue-700',   iconBg: 'bg-blue-50',   iconCls: 'text-blue-600',   subCls: 'text-gray-500' },
-  { label: '🚨 위험 알림',   value: '12',    unit: '건',  sub: '악성재고 ₩22.4M',  icon: AlertCircle,  valueCls: 'text-red-700',    iconBg: 'bg-red-50',    iconCls: 'text-red-600',    subCls: 'text-red-600' },
+  { label: '금일 매출',     value: formatKoreanMoney(128_400_000), unit: '', sub: '↗ +8.2%',         icon: TrendingUp,   valueCls: 'text-emerald-700', iconBg: 'bg-emerald-50', iconCls: 'text-emerald-600', subCls: 'text-emerald-600' },
+  { label: '평균 회전율',    value: '4.2',                            unit: 'x',  sub: '⚠ 목표 4.5x 미달', icon: Repeat,       valueCls: 'text-violet-700', iconBg: 'bg-violet-50', iconCls: 'text-violet-600', subCls: 'text-amber-600' },
+  { label: '이번 달 발주',   value: formatKoreanMoney(42_800_000),  unit: '', sub: '승인 대기 18건',   icon: Truck,        valueCls: 'text-amber-700',  iconBg: 'bg-amber-50',  iconCls: 'text-amber-600',  subCls: 'text-gray-500' },
+  { label: '활성 거래처',    value: '14',                             unit: '곳', sub: 'A 6 · B 5 · C 3',  icon: Calendar,     valueCls: 'text-blue-700',   iconBg: 'bg-blue-50',   iconCls: 'text-blue-600',   subCls: 'text-gray-500' },
+  { label: '🚨 위험 알림',   value: '12',                             unit: '건', sub: `악성재고 ${formatKoreanMoney(22_400_000)}`, icon: AlertCircle,  valueCls: 'text-red-700',    iconBg: 'bg-red-50',    iconCls: 'text-red-600',    subCls: 'text-red-600' },
 ]
 
-// 일자별 매출 추이 (12일)
-const salesTrend = [76, 82, 88, 84, 92, 98, 104, 101, 110, 118, 124, 128]
+// 일자별 매출 추이 (12일) — 원 단위
+const salesTrend = [76_000_000, 82_000_000, 88_000_000, 84_000_000, 92_000_000, 98_000_000, 104_000_000, 101_000_000, 110_000_000, 118_000_000, 124_000_000, 128_000_000]
 const salesTrendLabels = ['04/17', '04/18', '04/19', '04/20', '04/21', '04/22', '04/23', '04/24', '04/25', '04/26', '04/27', '04/28']
 
 const salesTrendChartData = computed(() => ({
@@ -79,13 +85,13 @@ const salesTrendChartOptions = {
       displayColors: false,
       callbacks: {
         title: (items) => items[0].label,
-        label: (ctx) => `₩${ctx.parsed.y}M`,
+        label: (ctx) => formatKoreanMoney(ctx.parsed.y),
       },
     },
   },
   scales: {
     x: { grid: { display: false }, ticks: { font: { size: 10 } } },
-    y: { grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, callback: (v) => v + 'M' } },
+    y: { grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, callback: (v) => formatKoreanMoney(v) } },
   },
   interaction: { mode: 'index', intersect: false },
 }
@@ -103,13 +109,13 @@ const severityCls = {
   low: 'border-gray-300 bg-gray-50/50',
 }
 
-// CEN-045 소재 TOP3
+// CEN-045 소재 TOP3 — 원 단위
 const topMaterials = [
-  { name: '면 (Cotton)', share: 19.5, units: 4500, sales: 65 },
-  { name: '데님 (Denim)', share: 15.6, units: 2500, sales: 52 },
-  { name: '셔츠 (Shirts)', share: 12.6, units: 2800, sales: 42 },
+  { name: '면 (Cotton)', share: 19.5, units: 4500, sales: 65_000_000 },
+  { name: '데님 (Denim)', share: 15.6, units: 2500, sales: 52_000_000 },
+  { name: '셔츠 (Shirts)', share: 12.6, units: 2800, sales: 42_000_000 },
 ]
-const totalMaterialSales = 333 // M원
+const totalMaterialSales = 333_000_000
 
 // CEN-046 24h sparkline
 const hourlySpark = [1.2, 0.6, 0.3, 0.2, 0.2, 0.4, 1.1, 2.4, 4.8, 6.2, 7.4, 8.6, 11.2, 9.8, 8.4, 7.6, 7.2, 8.4, 10.6, 12.4, 11.8, 8.2, 5.4, 2.8]
@@ -197,9 +203,9 @@ const orderCycleSummary = {
           <div class="flex items-center justify-between border-b border-gray-200 px-3 py-2.5">
             <div>
               <h3 class="text-sm font-medium text-gray-800">일자별 매출 추이</h3>
-              <p class="mt-0.5 text-[10px] text-gray-400">최근 12일 (단위: 백만원)</p>
+              <p class="mt-0.5 text-[10px] text-gray-400">최근 12일</p>
             </div>
-            <span class="text-[10px] text-gray-500">최저 {{ Math.min(...salesTrend) }}M ↔ 최고 {{ Math.max(...salesTrend) }}M</span>
+            <span class="text-[10px] text-gray-500">최저 {{ formatKoreanMoney(Math.min(...salesTrend)) }} ↔ 최고 {{ formatKoreanMoney(Math.max(...salesTrend)) }}</span>
           </div>
           <div class="px-3 py-3">
             <LineChart :data="salesTrendChartData" :options="salesTrendChartOptions" :height="180" />
@@ -256,7 +262,7 @@ const orderCycleSummary = {
             <div>
               <p class="text-[10px] font-bold uppercase text-gray-400">🏆 매출 1위 품목</p>
               <p class="mt-1 text-2xl font-black text-emerald-700">패딩</p>
-              <p class="mt-1 text-[11px] text-gray-500">₩68M · 850개 판매</p>
+              <p class="mt-1 text-[11px] text-gray-500">{{ formatKoreanMoney(68_000_000) }} · 850개 판매</p>
             </div>
             <p class="border-l-2 border-emerald-500 bg-emerald-50/50 px-2 py-1 text-[10px] font-bold text-emerald-700">
               아우터 카테고리 · 전체 매출 비중 14%
@@ -286,7 +292,7 @@ const orderCycleSummary = {
               <p class="mt-1 text-[11px] text-gray-500">목표 4.5x ⚠ 미달</p>
             </div>
             <p class="border-l-2 border-red-500 bg-red-50/50 px-2 py-1 text-[10px] font-bold text-red-700">
-              🚨 악성 재고 12건 · ₩22.4M 묶임
+              🚨 악성 재고 12건 · {{ formatKoreanMoney(22_400_000) }} 묶임
             </p>
           </router-link>
 
@@ -334,7 +340,7 @@ const orderCycleSummary = {
             <div>
               <p class="text-[10px] font-bold uppercase text-gray-400">⭐ TOP 거래처</p>
               <p class="mt-1 text-2xl font-black text-blue-700">(주)봄섬유</p>
-              <p class="mt-1 text-[11px] text-gray-500">Cotton (면) · ₩280M / 의존도 18%</p>
+              <p class="mt-1 text-[11px] text-gray-500">Cotton (면) · {{ formatKoreanMoney(280_000_000) }} / 의존도 18%</p>
             </div>
             <div class="flex items-center gap-1.5 text-[10px]">
               <span class="bg-emerald-100 px-2 py-0.5 font-black text-emerald-700">A 6</span>

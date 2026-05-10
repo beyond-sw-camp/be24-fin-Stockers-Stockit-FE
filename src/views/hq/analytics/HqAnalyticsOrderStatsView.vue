@@ -115,16 +115,22 @@ watch([categoryFilter, dateRange], () => {
 })
 onMounted(fetchOrderStats)
 
+// ─── 금액 표기 — 풀 콤마 원 단위 (₩X,XXX,XXX) — 통계 페이지 통일 ──────
+function formatKoreanMoney(won) {
+  if (won == null || isNaN(won)) return '₩0'
+  return `₩${Number(won).toLocaleString('ko-KR')}`
+}
+
 // ─── 창고별 발주 데이터 (BE → FE 매핑) ──────────────────────────────
 //   BE: { warehouseCode, warehouseName, orders, items, totalValue(원), sharePct }
-//   FE 표시: name, orders, items, totalValue(M원), share(%)
+//   FE 표시: 원 단위 그대로 사용
 const warehouseOrders = computed(() => {
   return (statsData.value?.warehouseOrders ?? []).map((w) => ({
     name: w.warehouseName,
     code: w.warehouseCode,
     orders: w.orders,
     items: w.items,
-    totalValue: Number((Number(w.totalValue ?? 0) / 1_000_000).toFixed(1)),
+    totalValue: Number(w.totalValue ?? 0),
     share: Number(w.sharePct ?? 0),
   }))
 })
@@ -137,7 +143,7 @@ const totalWarehouseOrders = computed(() =>
   warehouseOrders.value.reduce((s, w) => s + w.orders, 0),
 )
 const totalWarehouseValue = computed(() =>
-  warehouseOrders.value.reduce((s, w) => s + w.totalValue, 0).toFixed(1),
+  warehouseOrders.value.reduce((s, w) => s + w.totalValue, 0),
 )
 
 
@@ -579,7 +585,7 @@ const monthlyTrendChartOptions = {
               <Warehouse :size="14" class="text-emerald-600" />
               창고별 발주 분포
             </h3>
-            <p class="mt-0.5 text-[10px] text-gray-400">{{ warehouseOrders.length }}개 본사 창고 · 누적 {{ totalWarehouseOrders }}건 · ₩{{ totalWarehouseValue }}M</p>
+            <p class="mt-0.5 text-[10px] text-gray-400">{{ warehouseOrders.length }}개 본사 창고 · 누적 {{ totalWarehouseOrders }}건 · {{ formatKoreanMoney(totalWarehouseValue) }}</p>
           </div>
           <span
             v-if="warehouseOrders.length"
@@ -600,7 +606,7 @@ const monthlyTrendChartOptions = {
             </span>
             <div class="min-w-0 flex-1">
               <p class="text-[12px] font-bold text-gray-800">{{ w.name }}</p>
-              <p class="text-[10px] text-gray-500">{{ w.items }}개 품목 · 누적 ₩{{ w.totalValue }}M</p>
+              <p class="text-[10px] text-gray-500">{{ w.items }}개 품목 · 누적 {{ formatKoreanMoney(w.totalValue) }}</p>
             </div>
             <div class="hidden md:block w-48">
               <div class="h-2 w-full bg-gray-100">
