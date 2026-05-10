@@ -6,7 +6,7 @@
  *   GET /api/hq/analytics/order-stats — 발주량 통계
  *   GET /api/hq/analytics/turnover    — 재고 회전율 통계
  *   GET /api/hq/analytics/vendor      — 순환재고 거래처 통계
- *   GET /api/hq/analytics/dashboard   — 통합 KPI (예정)
+ *   GET /api/hq/analytics/dashboard   — 통합 KPI 대시보드
  */
 
 import { apiClient, unwrap } from '../axios.js'
@@ -80,6 +80,21 @@ export const vendorAnalyticsApi = {
     const params = { period, from, to }
     return apiClient
       .get('/api/hq/analytics/vendor', { params })
+      .then(unwrap)
+  },
+}
+
+export const dashboardAnalyticsApi = {
+  /**
+   * 통합 KPI 대시보드 조회.
+   * @param {{ period: 'DAY'|'MONTH'|'YEAR',
+   *           from: string,   // 'YYYY-MM-DD'
+   *           to: string }} params
+   * @returns {Promise<object>} BE result (fromDate/toDate/period/kpi/trendCurrent)
+   */
+  get: ({ period = 'YEAR', from, to } = {}) => {
+    return apiClient
+      .get('/api/hq/analytics/dashboard', { params: { period, from, to } })
       .then(unwrap)
   },
 }
