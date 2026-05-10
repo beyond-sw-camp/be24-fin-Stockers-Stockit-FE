@@ -15,7 +15,6 @@ import { getStoreOrderAnalytics } from '@/api/store/orders.js'
  * 2. STATE & REFS
  * ==============================================================================
  */
-const router = useRouter()
 const auth = useAuthStore()
 
 const activeSideMenu = ref('발주 분석')
@@ -195,4 +194,3 @@ onMounted(fetchAnalytics)
     </div>
   </AppLayout>
 </template>
-
