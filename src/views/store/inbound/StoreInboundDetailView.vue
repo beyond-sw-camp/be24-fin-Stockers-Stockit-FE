@@ -276,12 +276,12 @@ onMounted(fetchDetail)
                 <p class="mt-1 text-sm font-black text-gray-900">{{ inbound.outboundNo || '-' }}</p>
               </div>
               <div class="border border-gray-200 bg-gray-50 px-3 py-3">
-                <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">입고예정수량</p>
-                <p class="mt-1 text-sm font-black text-gray-900">{{ inbound.totalExpectedQuantity || 0 }}</p>
+                <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">출고지 물류창고</p>
+                <p class="mt-1 text-sm font-black text-gray-900">{{ inbound.fromWarehouseName || '-' }}</p>
               </div>
               <div class="border border-gray-200 bg-gray-50 px-3 py-3">
-                <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">입고확정일시</p>
-                <p class="mt-1 text-sm font-black text-gray-900">{{ formatDateTime(inbound.receivedAt) }}</p>
+                <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">입고예정수량</p>
+                <p class="mt-1 text-sm font-black text-gray-900">{{ inbound.totalExpectedQuantity || 0 }}</p>
               </div>
             </section>
 

@@ -119,6 +119,7 @@ function statusLabel(status) {
 }
 
 function destinationLabel(row) {
+  if (row.destinationName && String(row.destinationName).trim()) return row.destinationName
   if (!row.destinationType) return '-'
   return row.destinationId ? `${row.destinationType} (${row.destinationId})` : row.destinationType
 }
@@ -293,4 +294,3 @@ onMounted(() => {
     </div>
   </AppLayout>
 </template>
-

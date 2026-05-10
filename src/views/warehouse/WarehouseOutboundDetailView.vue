@@ -137,7 +137,12 @@ onMounted(fetchDetail)
               <p class="text-xs font-bold text-gray-500">출고번호 <strong class="ml-2 text-gray-900">{{ outbound.outboundNo }}</strong></p>
               <p class="text-xs font-bold text-gray-500">원천번호 <strong class="ml-2 text-gray-900">{{ outbound.sourceRefNo }}</strong></p>
               <p class="text-xs font-bold text-gray-500">창고 <strong class="ml-2 text-gray-900">{{ outbound.warehouseName || '-' }}</strong></p>
-              <p class="text-xs font-bold text-gray-500">목적지 <strong class="ml-2 text-gray-900">{{ outbound.destinationType }} / {{ outbound.destinationId }}</strong></p>
+              <p class="text-xs font-bold text-gray-500">
+                목적지
+                <strong class="ml-2 text-gray-900">
+                  {{ outbound.destinationName || `${outbound.destinationType || '-'}${outbound.destinationId ? ` (${outbound.destinationId})` : ''}` }}
+                </strong>
+              </p>
               <p class="text-xs font-bold text-gray-500">유형 <strong class="ml-2 text-gray-900">{{ outbound.sourceType }}</strong></p>
               <p class="text-xs font-bold text-gray-500">요청일시 <strong class="ml-2 text-gray-900">{{ formatDateTime(outbound.requestedAt) }}</strong></p>
             </div>

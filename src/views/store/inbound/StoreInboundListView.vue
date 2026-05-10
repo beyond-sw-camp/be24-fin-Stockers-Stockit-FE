@@ -232,15 +232,16 @@ onMounted(fetchInbounds)
                 <th class="w-[14%] px-2 py-2 text-left font-black">입고번호</th>
                 <th class="w-[14%] px-2 py-2 text-left font-black">원천번호</th>
                 <th class="w-[14%] px-2 py-2 text-left font-black">출고번호</th>
+                <th class="w-[14%] px-2 py-2 text-left font-black">출고지 창고</th>
                 <th class="w-[11%] px-2 py-2 text-center font-black">출고상태</th>
-                <th class="w-[8%] px-2 py-2 text-right font-black">예정수량</th>
-                <th class="w-[12%] px-2 py-2 text-center font-black">입고상태</th>
-                <th class="w-[12%] px-2 py-2 text-center font-black">도착예정일</th>
+                <th class="w-[7%] px-2 py-2 text-right font-black">예정수량</th>
+                <th class="w-[11%] px-2 py-2 text-center font-black">입고상태</th>
+                <th class="w-[10%] px-2 py-2 text-center font-black">도착예정일</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
               <tr v-if="loading">
-                <td colspan="8" class="px-4 py-12 text-center text-gray-400">조회 중입니다.</td>
+                <td colspan="9" class="px-4 py-12 text-center text-gray-400">조회 중입니다.</td>
               </tr>
               <tr
                 v-for="row in filteredRows"
@@ -253,6 +254,7 @@ onMounted(fetchInbounds)
                 <td class="px-2 py-2.5 font-mono font-black text-gray-800">{{ row.inboundNo }}</td>
                 <td class="px-2 py-2.5 font-black text-gray-900">{{ row.sourceRefNo }}</td>
                 <td class="px-2 py-2.5 font-black text-gray-700">{{ row.outboundNo || '-' }}</td>
+                <td class="px-2 py-2.5 font-bold text-gray-700">{{ row.fromWarehouseName || '-' }}</td>
                 <td class="px-2 py-2.5 text-center">
                   <span class="inline-flex px-2 py-1 text-[10px] font-black" :class="outboundStatusClass(row.outboundStatus)">
                     {{ outboundStatusLabel(row.outboundStatus) }}
@@ -267,7 +269,7 @@ onMounted(fetchInbounds)
                 <td class="px-2 py-2.5 text-center font-bold text-gray-700">{{ formatDate(row.expectedArrivalAt) }}</td>
               </tr>
               <tr v-if="!loading && filteredRows.length === 0">
-                <td colspan="8" class="px-4 py-12 text-center text-gray-400">조회 가능한 입고 내역이 없습니다.</td>
+                <td colspan="9" class="px-4 py-12 text-center text-gray-400">조회 가능한 입고 내역이 없습니다.</td>
               </tr>
             </tbody>
           </table>
