@@ -162,7 +162,7 @@ onMounted(() => {
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
   >
-    <div class="flex flex-col gap-4">
+    <div class="flex flex-col gap-3">
       <section class="border border-slate-200 bg-gradient-to-r from-slate-50 via-white to-emerald-50/40 p-5 shadow-sm">
         <p class="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-500">Warehouse Outbound</p>
         <h1 class="mt-1 text-xl font-black text-slate-900">출고 리스트</h1>
@@ -209,7 +209,7 @@ onMounted(() => {
         </div>
       </section>
 
-      <section class="overflow-hidden border border-slate-200 bg-white shadow-sm">
+      <section class="mt-1 overflow-hidden border border-slate-200 bg-white shadow-sm">
         <p v-if="errorMessage" class="border-b border-red-200 bg-red-50 px-4 py-2 text-xs font-black text-red-700">
           {{ errorMessage }}
         </p>
