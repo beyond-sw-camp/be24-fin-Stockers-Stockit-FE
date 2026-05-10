@@ -60,6 +60,16 @@ function outboundTypeLabel(sourceType) {
   }[normalizeOutboundType(sourceType)] ?? sourceType
 }
 
+function outboundTypeClass(sourceType) {
+  return (
+    {
+      STORE_OUTBOUND: 'bg-blue-50 text-blue-700 border-blue-200',
+      WH_TRANSFER: 'bg-amber-50 text-amber-700 border-amber-200',
+      CIRCULAR_SALE: 'bg-violet-50 text-violet-700 border-violet-200',
+    }[normalizeOutboundType(sourceType)] ?? 'bg-gray-100 text-gray-600 border-gray-200'
+  )
+}
+
 const visibleRows = computed(() => {
   if (activeTypeTab.value === 'ALL') return outboundRows.value
   return outboundRows.value.filter((row) => normalizeOutboundType(row.sourceType) === activeTypeTab.value)
@@ -275,7 +285,11 @@ onMounted(() => {
               >
                 <td class="whitespace-nowrap px-4 py-3 font-bold text-slate-500">{{ row.outboundNo }}</td>
                 <td class="px-4 py-3 font-black text-slate-900">{{ row.sourceRefNo }}</td>
-                <td class="px-4 py-3 font-bold text-slate-700">{{ outboundTypeLabel(row.sourceType) }}</td>
+                <td class="px-4 py-3">
+                  <span class="inline-flex rounded-md border px-2.5 py-1 text-[10px] font-black" :class="outboundTypeClass(row.sourceType)">
+                    {{ outboundTypeLabel(row.sourceType) }}
+                  </span>
+                </td>
                 <td class="px-4 py-3 font-bold text-slate-700">{{ destinationLabel(row) }}</td>
                 <td class="px-4 py-3 text-right font-black text-slate-700">{{ row.totalRequestedQuantity ?? 0 }}</td>
                 <td class="px-4 py-3 text-center">
