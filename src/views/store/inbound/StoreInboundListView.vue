@@ -20,6 +20,12 @@ const STATUS_TABS = [
   { key: 'PENDING_RECEIPT', label: '입고 대기' },
   { key: 'RECEIVED', label: '입고 완료' },
 ]
+const PERIOD_TABS = [
+  { key: 'ALL', label: '전체' },
+  { key: 'DAY', label: '일' },
+  { key: 'MONTH', label: '월' },
+  { key: 'YEAR', label: '년' },
+]
 
 const loading = ref(false)
 const errorMessage = ref('')
@@ -30,6 +36,7 @@ const searchKeyword = ref('')
 const dateFrom = ref('')
 const dateTo = ref('')
 const sortBy = ref('latest')
+const activePeriod = ref('ALL')
 
 const statusCounts = computed(() => ({
   ALL: inboundRows.value.length,
@@ -85,6 +92,32 @@ function outboundStatusLabel(status) {
   }[status] ?? '-'
 }
 
+function toYmd(date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function applyPeriod(periodKey) {
+  const now = new Date()
+  const fromDate = new Date(now)
+
+  if (periodKey === 'ALL') {
+    activePeriod.value = periodKey
+    dateFrom.value = ''
+    dateTo.value = ''
+    return
+  }
+
+  if (periodKey === 'MONTH') fromDate.setMonth(now.getMonth() - 1)
+  if (periodKey === 'YEAR') fromDate.setFullYear(now.getFullYear() - 1)
+
+  activePeriod.value = periodKey
+  dateFrom.value = toYmd(fromDate)
+  dateTo.value = toYmd(now)
+}
+
 async function fetchInbounds() {
   loading.value = true
   errorMessage.value = ''
@@ -120,7 +153,10 @@ function goToFirstConfirmableRow() {
 watch([activeStatusTab, dateFrom, dateTo], fetchInbounds)
 watch(searchKeyword, fetchInbounds)
 
-onMounted(fetchInbounds)
+onMounted(() => {
+  applyPeriod('ALL')
+  fetchInbounds()
+})
 </script>
 
 <template>
@@ -145,21 +181,28 @@ onMounted(fetchInbounds)
         </div>
       </section>
 
-      <section class="border border-gray-300 bg-white p-3 shadow-sm">
+      <section class="border border-gray-300 bg-white px-4 py-3 shadow-sm">
         <div class="flex flex-wrap gap-1">
-          <button
-            v-for="tab in STATUS_TABS"
-            :key="tab.key"
-            type="button"
-            class="inline-flex items-center gap-1.5 border px-3 py-1.5 text-xs font-black transition-colors"
-            :class="activeStatusTab === tab.key ? 'border-[#004D3C] bg-[#004D3C] text-white' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'"
-            @click="activeStatusTab = tab.key"
-          >
-            <span>{{ tab.label }}</span>
-            <span class="min-w-[18px] px-1 py-0.5 text-center text-[10px]" :class="activeStatusTab === tab.key ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'">
-              {{ statusCounts[tab.key] }}
-            </span>
-          </button>
+          <div class="inline-flex w-max flex-wrap gap-1 rounded-xl bg-slate-100/80 px-1.5 py-1">
+            <button
+              v-for="tab in STATUS_TABS"
+              :key="tab.key"
+              type="button"
+              class="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-black transition-colors"
+              :class="activeStatusTab === tab.key
+                ? 'border-emerald-800 bg-emerald-800 text-white shadow-sm'
+                : 'border-transparent bg-white text-slate-600 hover:bg-slate-50'"
+              @click="activeStatusTab = tab.key"
+            >
+              <span>{{ tab.label }}</span>
+              <span
+                class="min-w-[20px] rounded-md px-1.5 py-0.5 text-center text-[10px]"
+                :class="activeStatusTab === tab.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'"
+              >
+                {{ statusCounts[tab.key] }}
+              </span>
+            </button>
+          </div>
         </div>
       </section>
 
@@ -213,6 +256,18 @@ onMounted(fetchInbounds)
         </div>
 
         <div class="flex flex-wrap items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2">
+          <div class="inline-flex overflow-hidden rounded-lg border border-gray-300 bg-white">
+            <button
+              v-for="period in PERIOD_TABS"
+              :key="period.key"
+              type="button"
+              class="px-3 py-1.5 text-xs font-black transition-colors"
+              :class="activePeriod === period.key ? 'bg-[#004D3C] text-white' : 'text-gray-600 hover:bg-gray-100'"
+              @click="applyPeriod(period.key)"
+            >
+              {{ period.label }}
+            </button>
+          </div>
           <input v-model="dateFrom" type="date" class="border border-gray-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-[#004D3C]" />
           <span class="text-xs text-gray-400">~</span>
           <input v-model="dateTo" type="date" class="border border-gray-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-[#004D3C]" />

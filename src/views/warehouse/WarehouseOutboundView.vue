@@ -169,16 +169,15 @@ onMounted(() => {
         <p class="mt-1 text-sm font-semibold text-slate-600">창고 출고 목록을 조회하고 상태 전이를 관리합니다.</p>
       </section>
 
-      <section class="border border-slate-200 bg-white p-4 shadow-sm">
-        <div class="mb-4 flex flex-col gap-3 pb-1 lg:flex-row lg:items-start lg:justify-between">
-          <div class="grid gap-1 lg:grid-cols-[66px_1fr] lg:items-center">
-            <p class="text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-500">출고 상태</p>
-            <div class="inline-flex flex-wrap gap-1 rounded-xl bg-slate-100/80 p-1">
+      <section class="border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <div class="mb-2 flex flex-col gap-2 pb-0">
+          <div class="grid gap-1 lg:items-center">
+            <div class="inline-flex w-max flex-wrap gap-1 rounded-xl bg-slate-100/80 px-1 py-1">
               <button
                 v-for="tab in STATUS_TABS"
                 :key="tab.key"
                 type="button"
-                class="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-black transition-colors"
+                class="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-black transition-colors"
                 :class="activeStatusTab === tab.key
                   ? 'border-emerald-800 bg-emerald-800 text-white shadow-sm'
                   : 'border-transparent bg-white text-slate-600 hover:bg-slate-50'"
@@ -194,18 +193,6 @@ onMounted(() => {
               </button>
             </div>
           </div>
-
-          <div class="grid gap-1 lg:grid-cols-[66px_1fr] lg:items-center">
-            <p class="text-[11px] font-extrabold uppercase tracking-[0.12em] text-slate-500">출고 유형</p>
-            <select
-              v-model="activeTypeTab"
-              class="h-10 rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition-colors focus:border-emerald-700"
-            >
-              <option v-for="option in TYPE_OPTIONS" :key="option.value" :value="option.value">
-                {{ option.label }}
-              </option>
-            </select>
-          </div>
         </div>
       </section>
 
@@ -214,36 +201,52 @@ onMounted(() => {
           {{ errorMessage }}
         </p>
 
-        <div class="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-slate-50/70 px-4 py-3">
-          <div class="inline-flex overflow-hidden rounded-xl border border-slate-300 bg-white">
-            <button
-              v-for="period in PERIOD_TABS"
-              :key="period.key"
-              type="button"
-              class="px-3 py-2 text-xs font-extrabold transition-colors"
-              :class="activePeriod === period.key ? 'bg-emerald-800 text-white' : 'text-slate-600 hover:bg-slate-100'"
-              @click="applyPeriod(period.key)"
-            >
-              {{ period.label }}
-            </button>
+        <div class="flex min-h-[40px] flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2">
+          <span class="text-xs font-bold text-gray-600">총 {{ visibleRows.length }}건</span>
+        </div>
+
+        <div class="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/70 px-4 py-2.5">
+          <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            <div class="inline-flex overflow-hidden rounded-lg border border-slate-300 bg-white">
+              <button
+                v-for="period in PERIOD_TABS"
+                :key="period.key"
+                type="button"
+                class="px-3 py-1.5 text-xs font-extrabold transition-colors"
+                :class="activePeriod === period.key ? 'bg-emerald-800 text-white' : 'text-slate-600 hover:bg-slate-100'"
+                @click="applyPeriod(period.key)"
+              >
+                {{ period.label }}
+              </button>
+            </div>
+            <input
+              v-model="dateFrom"
+              type="date"
+              class="h-8 rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-700 outline-none focus:border-emerald-700"
+            />
+            <span class="text-xs font-bold text-slate-400">~</span>
+            <input
+              v-model="dateTo"
+              type="date"
+              class="h-8 rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-700 outline-none focus:border-emerald-700"
+            />
+            <input
+              v-model="searchKeyword"
+              type="text"
+              placeholder="출고번호/발주번호 검색"
+              class="h-8 min-w-[260px] w-[260px] rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-emerald-700"
+            />
           </div>
-          <input
-            v-model="dateFrom"
-            type="date"
-            class="h-9 rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-700 outline-none focus:border-emerald-700"
-          />
-          <span class="text-xs font-bold text-slate-400">~</span>
-          <input
-            v-model="dateTo"
-            type="date"
-            class="h-9 rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-700 outline-none focus:border-emerald-700"
-          />
-          <input
-            v-model="searchKeyword"
-            type="text"
-            placeholder="출고번호/발주번호 검색"
-            class="h-9 min-w-[260px] flex-1 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 outline-none focus:border-emerald-700 lg:ml-auto lg:max-w-[420px]"
-          />
+          <div class="flex shrink-0 items-center">
+            <select
+              v-model="activeTypeTab"
+              class="h-8 w-[150px] rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 outline-none transition-colors focus:border-emerald-700"
+            >
+              <option v-for="option in TYPE_OPTIONS" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+          </div>
         </div>
 
         <div class="overflow-auto">
