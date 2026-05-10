@@ -2,16 +2,12 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
 import {
   getInfrastructureMappingOptions,
   getStoreInfrastructureMappings,
   updateStoreInfrastructureMappings,
 } from '@/api/hq/infrastructure.js'
 
-
-const router = useRouter()
-const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 
 const activeTopMenu = computed(() => '인프라 관리')
@@ -243,4 +239,3 @@ onMounted(async () => {
     </div>
   </AppLayout>
 </template>
->>>>>>> 6c7016aa57c471f851db80fc2bac659572b1e605
