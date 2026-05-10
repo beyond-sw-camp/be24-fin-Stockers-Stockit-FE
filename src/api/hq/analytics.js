@@ -3,8 +3,8 @@
  *
  * BE 엔드포인트:
  *   GET /api/hq/analytics/sales       — 판매량 통계
+ *   GET /api/hq/analytics/order-stats — 발주량 통계
  *   GET /api/hq/analytics/turnover    — 재고 회전율 (예정)
- *   GET /api/hq/analytics/order-stats — 발주량 (예정)
  *   GET /api/hq/analytics/vendors     — 순환재고 거래처 (예정)
  *   GET /api/hq/analytics/dashboard   — 통합 KPI (예정)
  */
@@ -27,6 +27,24 @@ export const salesAnalyticsApi = {
     if (mainCategory) params.mainCategory = mainCategory
     return apiClient
       .get('/api/hq/analytics/sales', { params })
+      .then(unwrap)
+  },
+}
+
+export const orderStatsAnalyticsApi = {
+  /**
+   * 발주량 통계 조회.
+   * @param {{ period: 'MONTH'|'QUARTER'|'YEAR',
+   *           from: string,           // 'YYYY-MM-DD'
+   *           to: string,              // 'YYYY-MM-DD'
+   *           category?: string|null }} params  // '상의'|'바지'|'치마'|'아우터' 또는 null(=전체)
+   * @returns {Promise<object>} BE result (kpi/warehouseOrders/orderCycleData/productOrderData/monthlyTrend)
+   */
+  get: ({ period, from, to, category = null } = {}) => {
+    const params = { period, from, to }
+    if (category) params.category = category
+    return apiClient
+      .get('/api/hq/analytics/order-stats', { params })
       .then(unwrap)
   },
 }

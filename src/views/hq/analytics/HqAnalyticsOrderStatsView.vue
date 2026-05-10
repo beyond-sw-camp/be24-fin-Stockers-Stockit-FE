@@ -1,12 +1,13 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { Truck, Clock, Package, RefreshCw, Warehouse, Tag } from 'lucide-vue-next'
+import { computed, onMounted, ref, watch } from 'vue'
+import { Truck, TrendingDown, Package, RefreshCw, Warehouse, Tag } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import LineChart from '@/components/common/charts/LineChart.vue'
 import BarChart from '@/components/common/charts/BarChart.vue'
 import DoughnutChart from '@/components/common/charts/DoughnutChart.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
+import { useAuthStore } from '@/stores/auth.js'
+import { orderStatsAnalyticsApi } from '@/api/hq/analytics.js'
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 const sideMenus = roleMenus.hq.find((menu) => menu.label === '정산/통계')?.children ?? []
@@ -14,27 +15,129 @@ const sideMenus = roleMenus.hq.find((menu) => menu.label === '정산/통계')?.c
 const activeTopMenu = computed(() => '정산/통계')
 const activeSideMenu = ref('발주량 통계')
 
-const periodUnit = ref('월간')
 const categoryFilter = ref('전체')
-const sizeFilter = ref('전체')
 const detailViewMode = ref('item') // 'item' | 'product'
 const productTypeFilter = ref('전체') // 상품별 모드 전용 품목 필터
 
-// ─── 창고별 발주 데이터 ──────────────────────────────────────────────
-const warehouseOrders = [
-  { name: '본사 인천 제1창고',  orders: 92, items: 22, totalValue: 28.4, share: 53.2 },
-  { name: '본사 이천 풀필먼트', orders: 56, items: 18, totalValue: 12.8, share: 32.4 },
-  { name: '본사 부산 물류창고', orders: 25, items: 12, totalValue: 6.2,  share: 14.4 },
-]
+// ─── 기간 단위별 dateRange 헬퍼 (판매량 통계와 동일 패턴) ──────────────
+//   일간 → YYYY-MM-DD,  월간 → YYYY-MM,  연간 → YYYY
+const pad2 = (n) => String(n).padStart(2, '0')
 
-const topWarehouse = computed(() =>
-  [...warehouseOrders].sort((a, b) => b.orders - a.orders)[0],
-)
+function defaultDateForPeriod(unit) {
+  const now = new Date()
+  if (unit === '일간') return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`
+  if (unit === '월간') return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`
+  if (unit === '연간') return String(now.getFullYear())
+  return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`
+}
+
+const periodUnit = ref('연간')
+const dateRange = ref(defaultDateForPeriod('연간'))
+
+const periodOptions = ['일간', '월간', '연간']
+
+const periodInputType = computed(() => {
+  if (periodUnit.value === '일간') return 'date'
+  if (periodUnit.value === '월간') return 'month'
+  return 'number'   // 연간
+})
+
+const periodInputLabel = computed(() => {
+  if (periodUnit.value === '일간') return '기준 일'
+  if (periodUnit.value === '월간') return '기준 월'
+  return '기준 연'
+})
+
+// ─── BE 연동 — 발주량 통계 ──────────────────────────────────────────────
+const statsData = ref(null)
+const loading = ref(false)
+const loadError = ref('')
+
+const PERIOD_MAP = {
+  '일간': 'DAY', '월간': 'MONTH', '연간': 'YEAR',
+}
+
+function resolveDateRange() {
+  const v = dateRange.value ?? ''
+  const unit = periodUnit.value
+
+  if (unit === '일간') {
+    const m = v.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (m) return { from: v, to: v }
+  }
+  if (unit === '월간') {
+    const m = v.match(/^(\d{4})-(\d{2})$/)
+    if (m) {
+      const lastDay = new Date(parseInt(m[1]), parseInt(m[2]), 0).getDate()
+      return { from: `${m[1]}-${m[2]}-01`, to: `${m[1]}-${m[2]}-${pad2(lastDay)}` }
+    }
+  }
+  if (unit === '연간') {
+    const m = v.match(/^(\d{4})$/)
+    if (m) return { from: `${m[1]}-01-01`, to: `${m[1]}-12-31` }
+  }
+
+  // fallback: 오늘 월
+  const today = new Date()
+  const y = today.getFullYear()
+  const mo = pad2(today.getMonth() + 1)
+  const lastDay = new Date(y, today.getMonth() + 1, 0).getDate()
+  return { from: `${y}-${mo}-01`, to: `${y}-${mo}-${pad2(lastDay)}` }
+}
+
+async function fetchOrderStats() {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const { from, to } = resolveDateRange()
+    statsData.value = await orderStatsAnalyticsApi.get({
+      period: PERIOD_MAP[periodUnit.value] ?? 'MONTH',
+      from, to,
+      category: categoryFilter.value === '전체' ? null : categoryFilter.value,
+    })
+  } catch (e) {
+    console.error('[OrderStatsView] fetch failed', e)
+    loadError.value = '발주량 통계를 불러오지 못했습니다.'
+    statsData.value = null
+  } finally {
+    loading.value = false
+  }
+}
+
+// periodUnit 변경 시 dateRange 를 새 단위 default 로 리셋 → dateRange watch 가 fetch 트리거
+watch(periodUnit, (newUnit) => {
+  dateRange.value = defaultDateForPeriod(newUnit)
+})
+
+watch([categoryFilter, dateRange], () => {
+  productTypeFilter.value = '전체'
+  fetchOrderStats()
+})
+onMounted(fetchOrderStats)
+
+// ─── 창고별 발주 데이터 (BE → FE 매핑) ──────────────────────────────
+//   BE: { warehouseCode, warehouseName, orders, items, totalValue(원), sharePct }
+//   FE 표시: name, orders, items, totalValue(M원), share(%)
+const warehouseOrders = computed(() => {
+  return (statsData.value?.warehouseOrders ?? []).map((w) => ({
+    name: w.warehouseName,
+    code: w.warehouseCode,
+    orders: w.orders,
+    items: w.items,
+    totalValue: Number((Number(w.totalValue ?? 0) / 1_000_000).toFixed(1)),
+    share: Number(w.sharePct ?? 0),
+  }))
+})
+
+const topWarehouse = computed(() => {
+  if (!warehouseOrders.value.length) return { name: '-', orders: 0 }
+  return [...warehouseOrders.value].sort((a, b) => b.orders - a.orders)[0]
+})
 const totalWarehouseOrders = computed(() =>
-  warehouseOrders.reduce((s, w) => s + w.orders, 0),
+  warehouseOrders.value.reduce((s, w) => s + w.orders, 0),
 )
 const totalWarehouseValue = computed(() =>
-  warehouseOrders.reduce((s, w) => s + w.totalValue, 0).toFixed(1),
+  warehouseOrders.value.reduce((s, w) => s + w.totalValue, 0).toFixed(1),
 )
 
 
@@ -42,66 +145,24 @@ const dateLabel = computed(() =>
   new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
 )
 
-const orderCycleData = [
-  { item: '반팔 티셔츠', category: '상의', avgCycle: 7, avgQty: 480, totalOrders: 26, lastOrderedAt: '2026-04-22' },
-  { item: '청바지', category: '바지', avgCycle: 10, avgQty: 360, totalOrders: 18, lastOrderedAt: '2026-04-19' },
-  { item: '셔츠', category: '상의', avgCycle: 12, avgQty: 280, totalOrders: 15, lastOrderedAt: '2026-04-21' },
-  { item: '긴팔 티셔츠', category: '상의', avgCycle: 14, avgQty: 320, totalOrders: 13, lastOrderedAt: '2026-04-18' },
-  { item: '후드티', category: '상의', avgCycle: 14, avgQty: 240, totalOrders: 12, lastOrderedAt: '2026-04-17' },
-  { item: '긴바지', category: '바지', avgCycle: 18, avgQty: 240, totalOrders: 11, lastOrderedAt: '2026-04-15' },
-  { item: '후드집업', category: '아우터', avgCycle: 21, avgQty: 180, totalOrders: 9, lastOrderedAt: '2026-04-10' },
-  { item: '반바지', category: '바지', avgCycle: 21, avgQty: 220, totalOrders: 9, lastOrderedAt: '2026-04-08' },
-  { item: '자켓', category: '아우터', avgCycle: 28, avgQty: 120, totalOrders: 7, lastOrderedAt: '2026-04-02' },
-  { item: '니트', category: '상의', avgCycle: 28, avgQty: 180, totalOrders: 7, lastOrderedAt: '2026-03-28' },
-  { item: '가디건', category: '아우터', avgCycle: 30, avgQty: 140, totalOrders: 6, lastOrderedAt: '2026-03-26' },
-  { item: '츄리닝', category: '바지', avgCycle: 32, avgQty: 150, totalOrders: 6, lastOrderedAt: '2026-03-25' },
-  { item: '미니스커트', category: '치마', avgCycle: 35, avgQty: 100, totalOrders: 5, lastOrderedAt: '2026-03-22' },
-  { item: '롱스커트', category: '치마', avgCycle: 38, avgQty: 80, totalOrders: 5, lastOrderedAt: '2026-03-18' },
-  { item: '패딩', category: '아우터', avgCycle: 42, avgQty: 110, totalOrders: 4, lastOrderedAt: '2026-03-15' },
-]
+// ─── 품목별 발주 (BE orderCycleData 그대로) ───────────────────────────
+const orderCycleData = computed(() => statsData.value?.orderCycleData ?? [])
 
-// ─── 상품별 발주 데이터 (각 품목당 1-3개 대표 상품) ────────────────────
-const productOrderData = [
-  // 상의
-  { item: '베이직 코튼 반팔티셔츠', productType: '반팔', category: '상의',   avgCycle: 6,  avgQty: 220, totalOrders: 12, lastOrderedAt: '2026-04-23' },
-  { item: '슬림핏 라운드넥 반팔',  productType: '반팔', category: '상의',   avgCycle: 8,  avgQty: 180, totalOrders: 9,  lastOrderedAt: '2026-04-22' },
-  { item: '베이직 긴팔티',         productType: '긴팔', category: '상의',   avgCycle: 12, avgQty: 160, totalOrders: 8,  lastOrderedAt: '2026-04-19' },
-  { item: '와플 텍스처 긴팔',      productType: '긴팔', category: '상의',   avgCycle: 16, avgQty: 130, totalOrders: 6,  lastOrderedAt: '2026-04-15' },
-  { item: '오버핏 옥스포드 셔츠',  productType: '셔츠', category: '상의',   avgCycle: 10, avgQty: 140, totalOrders: 9,  lastOrderedAt: '2026-04-21' },
-  { item: '슬림핏 화이트셔츠',     productType: '셔츠', category: '상의',   avgCycle: 14, avgQty: 110, totalOrders: 6,  lastOrderedAt: '2026-04-18' },
-  { item: '베이직 풀오버 후드티',  productType: '후드티', category: '상의', avgCycle: 12, avgQty: 200, totalOrders: 8,  lastOrderedAt: '2026-04-20' },
-  { item: '오버사이즈 후드티',     productType: '후드티', category: '상의', avgCycle: 16, avgQty: 160, totalOrders: 5,  lastOrderedAt: '2026-04-14' },
-  { item: '라운드 케이블 니트',    productType: '니트', category: '상의',   avgCycle: 26, avgQty: 100, totalOrders: 4,  lastOrderedAt: '2026-03-30' },
-  { item: 'V넥 캐시미어 니트',     productType: '니트', category: '상의',   avgCycle: 32, avgQty: 80,  totalOrders: 3,  lastOrderedAt: '2026-03-25' },
-  // 바지
-  { item: '스트레이트 데님 팬츠',  productType: '청바지', category: '바지', avgCycle: 9,  avgQty: 180, totalOrders: 11, lastOrderedAt: '2026-04-22' },
-  { item: '슬림 와이드 진',        productType: '청바지', category: '바지', avgCycle: 13, avgQty: 150, totalOrders: 7,  lastOrderedAt: '2026-04-17' },
-  { item: '데님 숏팬츠',           productType: '반바지', category: '바지', avgCycle: 19, avgQty: 130, totalOrders: 5,  lastOrderedAt: '2026-04-10' },
-  { item: '와이드 슬랙스',         productType: '긴바지', category: '바지', avgCycle: 17, avgQty: 140, totalOrders: 6,  lastOrderedAt: '2026-04-12' },
-  { item: '베이직 트레이닝팬츠',   productType: '츄리닝', category: '바지', avgCycle: 30, avgQty: 100, totalOrders: 4,  lastOrderedAt: '2026-03-28' },
-  // 치마
-  { item: '데님 미니스커트',       productType: '미니스커트', category: '치마', avgCycle: 33, avgQty: 80,  totalOrders: 4,  lastOrderedAt: '2026-03-26' },
-  { item: '플리츠 롱스커트',       productType: '롱스커트',   category: '치마', avgCycle: 36, avgQty: 60,  totalOrders: 3,  lastOrderedAt: '2026-03-22' },
-  // 아우터
-  { item: '노스페이스 눕시 패딩',  productType: '패딩',     category: '아우터', avgCycle: 40, avgQty: 90,  totalOrders: 3,  lastOrderedAt: '2026-03-18' },
-  { item: '롱 다운 패딩',          productType: '패딩',     category: '아우터', avgCycle: 45, avgQty: 70,  totalOrders: 2,  lastOrderedAt: '2026-03-12' },
-  { item: '베이직 후드집업',       productType: '후드집업', category: '아우터', avgCycle: 20, avgQty: 130, totalOrders: 5,  lastOrderedAt: '2026-04-08' },
-  { item: '데님 트러커 자켓',      productType: '자켓',     category: '아우터', avgCycle: 27, avgQty: 90,  totalOrders: 4,  lastOrderedAt: '2026-04-02' },
-  { item: '베이직 V넥 가디건',     productType: '가디건',   category: '아우터', avgCycle: 29, avgQty: 100, totalOrders: 4,  lastOrderedAt: '2026-03-30' },
-]
+// ─── 상품별 발주 (BE productOrderData 그대로) ─────────────────────────
+const productOrderData = computed(() => statsData.value?.productOrderData ?? [])
 
 // 상품별 모드에서 사용할 품목 옵션 (동적)
 const productTypeOptions = computed(() => {
-  const types = [...new Set(productOrderData.map((p) => p.productType))]
+  const types = [...new Set(productOrderData.value.map((p) => p.productType))]
   return ['전체', ...types]
 })
 
 // 현재 보기 모드에 따른 데이터 (품목 또는 상품, 품목 필터 적용)
 const currentDetailData = computed(() => {
-  if (detailViewMode.value === 'item') return orderCycleData
+  if (detailViewMode.value === 'item') return orderCycleData.value
   // 상품 모드 + 품목 필터
-  if (productTypeFilter.value === '전체') return productOrderData
-  return productOrderData.filter((p) => p.productType === productTypeFilter.value)
+  if (productTypeFilter.value === '전체') return productOrderData.value
+  return productOrderData.value.filter((p) => p.productType === productTypeFilter.value)
 })
 
 const currentShortest = computed(() => {
@@ -114,29 +175,35 @@ const currentLongest = computed(() => {
   return currentDetailData.value.reduce((a, b) => (a.avgCycle > b.avgCycle ? a : b))
 })
 
-const monthlyTrend = [
-  { m: '11월', orders: 156, items: 32 },
-  { m: '12월', orders: 184, items: 38 },
-  { m: '1월', orders: 142, items: 28 },
-  { m: '2월', orders: 168, items: 34 },
-  { m: '3월', orders: 198, items: 42 },
-  { m: '4월', orders: 174, items: 36 },
-]
+// ─── 월별 추이 (BE month 'YYYY-MM' → FE m '11월') ─────────────────────
+const monthlyTrend = computed(() => {
+  return (statsData.value?.monthlyTrend ?? []).map((p) => {
+    const monthNum = parseInt(String(p.month).split('-')[1] ?? '0')
+    return { m: `${monthNum}월`, orders: p.orders ?? 0, items: p.items ?? 0 }
+  })
+})
 
-const totalItems = orderCycleData.length
-const avgCycleAll = computed(() =>
-  Math.round(orderCycleData.reduce((s, d) => s + d.avgCycle, 0) / orderCycleData.length),
-)
-const shortest = computed(() => orderCycleData.reduce((a, b) => (a.avgCycle < b.avgCycle ? a : b)))
-const longest = computed(() => orderCycleData.reduce((a, b) => (a.avgCycle > b.avgCycle ? a : b)))
-const totalOrdersSum = computed(() => orderCycleData.reduce((s, d) => s + d.totalOrders, 0))
-
-const kpiMetrics = computed(() => [
-  { label: '관리 품목 수', value: totalItems, unit: '개', sub: '발주 이력 기준', icon: Package, valueCls: 'text-emerald-700', iconBg: 'bg-emerald-50', iconCls: 'text-emerald-600' },
-  { label: '평균 발주 주기', value: avgCycleAll.value, unit: '일', sub: '품목 평균', icon: Clock, valueCls: 'text-blue-700', iconBg: 'bg-blue-50', iconCls: 'text-blue-600' },
-  { label: '가장 짧은 주기', value: shortest.value.avgCycle, unit: '일', sub: shortest.value.item, icon: RefreshCw, valueCls: 'text-amber-700', iconBg: 'bg-amber-50', iconCls: 'text-amber-600' },
-  { label: '누적 발주', value: totalOrdersSum.value, unit: '건', sub: '최근 6개월', icon: Truck, valueCls: 'text-violet-700', iconBg: 'bg-violet-50', iconCls: 'text-violet-600' },
-])
+// ─── KPI (BE 응답 기반) ─────────────────────────────────────────────────
+const kpiMetrics = computed(() => {
+  const k = statsData.value?.kpi
+  const empty = (label, unit, icon, valueCls, iconBg, iconCls, sub) => ({
+    label, value: '—', unit, sub, icon, valueCls, iconBg, iconCls,
+  })
+  if (!k) {
+    return [
+      empty('관리 품목 수',  '개', Package,   'text-emerald-700', 'bg-emerald-50', 'text-emerald-600', '발주 이력 기준'),
+      empty('가장 긴 주기',  '일', TrendingDown, 'text-slate-700',   'bg-slate-50',   'text-slate-600',   '-'),
+      empty('가장 짧은 주기', '일', RefreshCw, 'text-amber-700',   'bg-amber-50',   'text-amber-600',   '-'),
+      empty('누적 발주',     '건', Truck,     'text-violet-700',  'bg-violet-50',  'text-violet-600',  '최근 6개월'),
+    ]
+  }
+  return [
+    { label: '관리 품목 수',  value: k.managedItemCount ?? 0,    unit: '개', sub: '발주 이력 기준',           icon: Package,   valueCls: 'text-emerald-700', iconBg: 'bg-emerald-50', iconCls: 'text-emerald-600' },
+    { label: '가장 긴 주기',  value: k.longestCycleDays ?? 0,    unit: '일', sub: k.longestCycleItem || '-',   icon: TrendingDown, valueCls: 'text-slate-700',   iconBg: 'bg-slate-50',   iconCls: 'text-slate-600' },
+    { label: '가장 짧은 주기', value: k.shortestCycleDays ?? 0,   unit: '일', sub: k.shortestCycleItem || '-',  icon: RefreshCw, valueCls: 'text-amber-700',   iconBg: 'bg-amber-50',   iconCls: 'text-amber-600' },
+    { label: '누적 발주',     value: k.totalOrders ?? 0,         unit: '건', sub: '최근 6개월',               icon: Truck,     valueCls: 'text-violet-700',  iconBg: 'bg-violet-50',  iconCls: 'text-violet-600' },
+  ]
+})
 
 // 품목별/상품별 평균 발주 주기 BarChart (보기 모드에 따라 동적 전환)
 const cycleChartData = computed(() => ({
@@ -221,16 +288,27 @@ const cycleChartOptions = computed(() => {
           },
         }
       : {
-          // 품목 모드: 세로 막대 (현재)
+          // 품목 모드: 세로 막대 — 데이터 9개 이상이면 짝수 인덱스만 글씨, 홀수는 ● (색깔점) 으로 자리만 표시.
+          //   막대 hover 시 tooltip 에서 풀 정보. 라벨 생략 없음.
           x: {
             grid: { display: false },
             ticks: {
               font: { size: 10 },
-              color: '#4b5563',
+              color: (ctx) => {
+                const dense = currentDetailData.value.length > 8
+                if (!dense) return '#4b5563'
+                return ctx.index % 2 === 0 ? '#4b5563' : '#059669'  // 점은 emerald (막대 색과 동일)
+              },
               maxRotation: 0,
               minRotation: 0,
               autoSkip: false,
               padding: 4,
+              callback: function (value, index) {
+                const label = this.getLabelForValue(value)
+                const dense = currentDetailData.value.length > 8
+                if (!dense) return label
+                return index % 2 === 0 ? label : '●'
+              },
             },
           },
           y: {
@@ -320,11 +398,11 @@ const topProductByOrders = computed(() => {
 })
 
 const monthlyTrendChartData = computed(() => ({
-  labels: monthlyTrend.map((m) => m.m),
+  labels: monthlyTrend.value.map((m) => m.m),
   datasets: [
     {
       label: '발주 건수',
-      data: monthlyTrend.map((m) => m.orders),
+      data: monthlyTrend.value.map((m) => m.orders),
       borderColor: '#2563eb',
       backgroundColor: 'rgba(59, 130, 246, 0.12)',
       borderWidth: 2,
@@ -339,7 +417,7 @@ const monthlyTrendChartData = computed(() => ({
     },
     {
       label: '관리 품목 수',
-      data: monthlyTrend.map((m) => m.items),
+      data: monthlyTrend.value.map((m) => m.items),
       borderColor: '#f59e0b',
       backgroundColor: 'rgba(245, 158, 11, 0.08)',
       borderWidth: 2,
@@ -379,8 +457,28 @@ const monthlyTrendChartOptions = {
   },
   scales: {
     x: { grid: { display: false }, ticks: { font: { size: 10 } } },
-    y: { position: 'left', grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, callback: (v) => v + '건' }, beginAtZero: true },
-    y1: { position: 'right', grid: { display: false }, ticks: { font: { size: 10 }, callback: (v) => v + '개' }, beginAtZero: true },
+    y: {
+      position: 'left',
+      grid: { color: '#f3f4f6' },
+      beginAtZero: true,
+      ticks: {
+        font: { size: 10 },
+        stepSize: 1,
+        precision: 0,
+        callback: (v) => Number.isInteger(v) ? `${v}건` : '',
+      },
+    },
+    y1: {
+      position: 'right',
+      grid: { display: false },
+      beginAtZero: true,
+      ticks: {
+        font: { size: 10 },
+        stepSize: 1,
+        precision: 0,
+        callback: (v) => Number.isInteger(v) ? `${v}개` : '',
+      },
+    },
   },
   interaction: { mode: 'index', intersect: false },
 }
@@ -405,6 +503,8 @@ const monthlyTrendChartOptions = {
           <span class="border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] font-medium text-gray-500">
             기준: {{ dateLabel }}
           </span>
+          <span v-if="loading" class="text-[11px] font-medium text-emerald-600">불러오는 중…</span>
+          <span v-else-if="loadError" class="text-[11px] font-medium text-rose-600">{{ loadError }}</span>
         </div>
         <span class="text-[11px] text-gray-500">품목별 평균 발주 주기 분석 (막대 차트)</span>
       </section>
@@ -414,7 +514,7 @@ const monthlyTrendChartOptions = {
           <span class="text-[10px] font-bold uppercase text-gray-400">집계 단위</span>
           <div class="flex border border-gray-200">
             <button
-              v-for="opt in ['월간', '분기']"
+              v-for="opt in periodOptions"
               :key="opt"
               type="button"
               class="px-3 py-1 text-[11px] font-semibold transition-colors"
@@ -427,6 +527,17 @@ const monthlyTrendChartOptions = {
         </div>
         <div class="h-4 w-px bg-gray-200" />
         <div class="flex items-center gap-2">
+          <span class="text-[10px] font-bold uppercase text-gray-400">{{ periodInputLabel }}</span>
+          <input
+            v-model="dateRange"
+            :type="periodInputType"
+            :min="periodUnit === '연간' ? 2020 : undefined"
+            :max="periodUnit === '연간' ? 2099 : undefined"
+            class="border border-gray-200 bg-white px-2 py-1 text-[11px]"
+          />
+        </div>
+        <div class="h-4 w-px bg-gray-200" />
+        <div class="flex items-center gap-2">
           <span class="text-[10px] font-bold uppercase text-gray-400">카테고리</span>
           <select v-model="categoryFilter" class="border border-gray-200 bg-white px-2 py-1 text-[11px]">
             <option>전체</option>
@@ -434,19 +545,6 @@ const monthlyTrendChartOptions = {
             <option>바지</option>
             <option>치마</option>
             <option>아우터</option>
-          </select>
-        </div>
-        <div class="h-4 w-px bg-gray-200" />
-        <div class="flex items-center gap-2">
-          <span class="text-[10px] font-bold uppercase text-gray-400">사이즈</span>
-          <select v-model="sizeFilter" class="border border-gray-200 bg-white px-2 py-1 text-[11px]">
-            <option>전체</option>
-            <option>XS</option>
-            <option>S</option>
-            <option>M</option>
-            <option>L</option>
-            <option>XL</option>
-            <option>XXL</option>
           </select>
         </div>
       </section>
@@ -481,9 +579,12 @@ const monthlyTrendChartOptions = {
               <Warehouse :size="14" class="text-emerald-600" />
               창고별 발주 분포
             </h3>
-            <p class="mt-0.5 text-[10px] text-gray-400">3개 본사 창고 · 누적 {{ totalWarehouseOrders }}건 · ₩{{ totalWarehouseValue }}M</p>
+            <p class="mt-0.5 text-[10px] text-gray-400">{{ warehouseOrders.length }}개 본사 창고 · 누적 {{ totalWarehouseOrders }}건 · ₩{{ totalWarehouseValue }}M</p>
           </div>
-          <span class="inline-flex items-center gap-1 border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+          <span
+            v-if="warehouseOrders.length"
+            class="inline-flex items-center gap-1 border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700"
+          >
             🥇 1위 {{ topWarehouse.name }} · {{ topWarehouse.orders }}건
           </span>
         </div>
@@ -532,6 +633,12 @@ const monthlyTrendChartOptions = {
                 <template v-else>
                   세로 막대 · 단위: 일 (기간: {{ periodUnit }})
                 </template>
+              </p>
+              <p
+                v-if="detailViewMode === 'item'"
+                class="mt-1 text-[10.5px] font-medium text-emerald-700/80"
+              >
+                💡 막대에 마우스를 올리면 상세 정보가 표시됩니다
               </p>
             </div>
             <div class="flex flex-wrap items-center gap-2">

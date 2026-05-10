@@ -52,34 +52,12 @@ watch(() => route.query.tab, (tab) => {
 
 // ─── 공통 필터 바 ──────────────────────────────────────────────────────
 // ─── 기간 단위별 dateRange 헬퍼 ──────────────────────────────────────
-//   일간 → YYYY-MM-DD,  주간 → YYYY-Www (ISO),  월간 → YYYY-MM,  연간 → YYYY
+//   일간 → YYYY-MM-DD,  월간 → YYYY-MM,  연간 → YYYY
 const pad2 = (n) => String(n).padStart(2, '0')
-
-function isoWeekFormat(d) {
-  // ISO 8601 week (월요일 시작)
-  const target = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
-  const dayNr = (target.getUTCDay() + 6) % 7
-  target.setUTCDate(target.getUTCDate() - dayNr + 3)
-  const firstThursday = new Date(Date.UTC(target.getUTCFullYear(), 0, 4))
-  const week = 1 + Math.round(((target - firstThursday) / 86400000 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7)
-  return `${target.getUTCFullYear()}-W${pad2(week)}`
-}
-
-function isoWeekStartDate(year, week) {
-  // ISO week 의 월요일 (UTC 기준 후 로컬화)
-  const jan4 = new Date(Date.UTC(year, 0, 4))
-  const jan4Day = (jan4.getUTCDay() + 6) % 7
-  const mondayOfWeek1 = new Date(jan4)
-  mondayOfWeek1.setUTCDate(jan4.getUTCDate() - jan4Day)
-  const monday = new Date(mondayOfWeek1)
-  monday.setUTCDate(mondayOfWeek1.getUTCDate() + (week - 1) * 7)
-  return monday
-}
 
 function defaultDateForPeriod(unit) {
   const now = new Date()
   if (unit === '일간') return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`
-  if (unit === '주간') return isoWeekFormat(now)
   if (unit === '월간') return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`
   if (unit === '연간') return String(now.getFullYear())
   return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}`
@@ -90,19 +68,17 @@ const storeFilter = ref('전사 통합')
 const categoryFilter = ref('전체')
 const dateRange = ref(defaultDateForPeriod('연간'))
 
-const periodOptions = ['일간', '주간', '월간', '연간']
+const periodOptions = ['일간', '월간', '연간']
 
 // 기간 단위별 input type 과 라벨
 const periodInputType = computed(() => {
   if (periodUnit.value === '일간') return 'date'
-  if (periodUnit.value === '주간') return 'week'
   if (periodUnit.value === '월간') return 'month'
   return 'number'   // 연간
 })
 
 const periodInputLabel = computed(() => {
   if (periodUnit.value === '일간') return '기준 일'
-  if (periodUnit.value === '주간') return '기준 주'
   if (periodUnit.value === '월간') return '기준 월'
   return '기준 연'
 })
@@ -151,7 +127,7 @@ const storeCodeByLabel = computed(() => {
 })
 
 const PERIOD_MAP = {
-  '일간': 'DAY', '주간': 'WEEK', '월간': 'MONTH', '연간': 'YEAR',
+  '일간': 'DAY', '월간': 'MONTH', '연간': 'YEAR',
 }
 
 const dateLabel = computed(() =>
@@ -171,18 +147,6 @@ function resolveDateRange() {
   if (unit === '일간') {
     const m = v.match(/^(\d{4})-(\d{2})-(\d{2})$/)
     if (m) return { from: v, to: v }
-  }
-
-  // 주간: YYYY-Www → 그 주 월요일~일요일
-  if (unit === '주간') {
-    const m = v.match(/^(\d{4})-W(\d{1,2})$/)
-    if (m) {
-      const monday = isoWeekStartDate(parseInt(m[1]), parseInt(m[2]))
-      const sunday = new Date(monday)
-      sunday.setUTCDate(sunday.getUTCDate() + 6)
-      const fmt = (d) => `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`
-      return { from: fmt(monday), to: fmt(sunday) }
-    }
   }
 
   // 월간: YYYY-MM → 1일~말일
