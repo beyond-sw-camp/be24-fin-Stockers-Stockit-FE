@@ -238,7 +238,7 @@ async function loadCircularInventoryRows() {
   isInventoryLoading.value = true
   inventoryLoadError.value = ''
   try {
-    await circularStockStore.loadCircularInventoryRows()
+    await circularStockStore.loadCircularInventoryRows({ page: 0, size: 100, sort: 'skuCode,asc' })
   } catch (e) {
     inventoryLoadError.value = e.message || '순환 재고 불러오기에 실패했습니다.'
   } finally {
