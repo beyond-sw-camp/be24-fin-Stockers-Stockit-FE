@@ -64,7 +64,7 @@ function outboundTypeClass(sourceType) {
   return (
     {
       STORE_OUTBOUND: 'bg-blue-50 text-blue-700 border-blue-200',
-      WH_TRANSFER: 'bg-amber-50 text-amber-700 border-amber-200',
+      WH_TRANSFER: 'bg-orange-50 text-orange-700 border-orange-200',
       CIRCULAR_SALE: 'bg-violet-50 text-violet-700 border-violet-200',
     }[normalizeOutboundType(sourceType)] ?? 'bg-gray-100 text-gray-600 border-gray-200'
   )
