@@ -4,7 +4,6 @@ import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
 import AiBuyerRecommendationPanel from '@/components/hq/circular-stock/AiBuyerRecommendationPanel.vue'
-
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
@@ -230,10 +229,6 @@ function handleDocumentClick(event) {
   }
 }
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 function materialFitLabel(value) {
   return buyerStore.materialFitLabel(value)
@@ -243,7 +238,7 @@ async function loadCircularInventoryRows() {
   isInventoryLoading.value = true
   inventoryLoadError.value = ''
   try {
-    await circularStockStore.loadCircularInventoryRows()
+    await circularStockStore.loadCircularInventoryRows({ page: 0, size: 100, sort: 'skuCode,asc' })
   } catch (e) {
     inventoryLoadError.value = e.message || '순환 재고 불러오기에 실패했습니다.'
   } finally {
@@ -279,7 +274,6 @@ onBeforeUnmount(() => {
     :top-menus="hqMenus"
     :side-menus="circularStockMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4 pb-36">
       <section class="border border-gray-200 bg-white p-4 shadow-sm">

@@ -44,13 +44,33 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  serverMode: {
+    type: Boolean,
+    default: false,
+  },
+  page: {
+    type: Number,
+    default: 0,
+  },
+  size: {
+    type: Number,
+    default: 20,
+  },
+  totalPages: {
+    type: Number,
+    default: 0,
+  },
+  totalElements: {
+    type: Number,
+    default: 0,
+  },
   inventoryRows: {
     type: Array,
     default: () => [],
   },
 })
 
-const emit = defineEmits(['row-click', 'toggle-all-visible'])
+const emit = defineEmits(['row-click', 'toggle-all-visible', 'query-change', 'page-change', 'size-change', 'sort-change'])
 const slots = useSlots()
 
 const searchTerm = ref('')
@@ -122,6 +142,16 @@ const warehouseSummaryLabel = computed(() => {
   if (selectedWarehouseCodes.value.length === 0) return '전체 창고'
   if (selectedWarehouseCodes.value.length === 1) return selectedWarehouseNames.value[0]
   return `${selectedWarehouseCodes.value.length}개 창고 선택됨`
+})
+
+const pageSizeOptions = [20, 50, 100]
+const pageNumbers = computed(() => {
+  if (!props.serverMode || props.totalPages <= 0) return []
+  const current = props.page + 1
+  const start = Math.max(1, current - 2)
+  const end = Math.min(props.totalPages, start + 4)
+  const adjustedStart = Math.max(1, end - 4)
+  return Array.from({ length: end - adjustedStart + 1 }, (_, idx) => adjustedStart + idx)
 })
 
 const normalizedInventoryData = computed(() =>
@@ -220,6 +250,8 @@ const filteredRowsBase = computed(() => {
 })
 
 const filteredRows = computed(() => {
+  if (props.serverMode) return filteredRowsBase.value
+
   const rows = [...filteredRowsBase.value]
   if (!sortKey.value) return rows
 
@@ -348,14 +380,17 @@ function addMaterialFilter() {
   const maxFilterCount = materialGroupOptions.length + materialOptions.length
   if (materialFilters.value.length >= maxFilterCount) return
   materialFilters.value = [...materialFilters.value, { materialGroup: '', material: '', minRatio: '' }]
+  emitQueryChange()
 }
 
 function removeMaterialFilter(index) {
   materialFilters.value = materialFilters.value.filter((_, filterIndex) => filterIndex !== index)
+  emitQueryChange()
 }
 
 function clearMaterialFilters() {
   materialFilters.value = []
+  emitQueryChange()
 }
 
 function toggleWarehouseDropdown() {
@@ -366,13 +401,23 @@ function toggleWarehouseCode(code) {
   selectedWarehouseCodes.value = selectedWarehouseCodes.value.includes(code)
     ? selectedWarehouseCodes.value.filter(value => value !== code)
     : [...selectedWarehouseCodes.value, code]
+  emitQueryChange()
 }
 
 function clearWarehouseCodes() {
   selectedWarehouseCodes.value = []
+  emitQueryChange()
 }
 
 function toggleSort(key) {
+  if (props.serverMode) {
+    const nextDirection = sortKey.value === key && sortDirection.value === 'asc' ? 'desc' : 'asc'
+    sortKey.value = key
+    sortDirection.value = nextDirection
+    emit('sort-change', { sort: `${key},${nextDirection}` })
+    return
+  }
+
   if (sortKey.value === key) {
     sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc'
     return
@@ -393,6 +438,15 @@ function resetFilters() {
   selectedWarehouseCodes.value = []
   isMaterialDropdownOpen.value = false
   isWarehouseDropdownOpen.value = false
+  if (props.serverMode) {
+    emit('query-change', {
+      keyword: '',
+      warehouseCodes: [],
+      materialGroup: '',
+      materialName: '',
+      minRatio: 0,
+    })
+  }
 }
 
 function handleDocumentClick(event) {
@@ -431,6 +485,25 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener('mousedown', handleDocumentClick)
 })
+
+function emitQueryChange() {
+  if (!props.serverMode) return
+  const first = activeMaterialFilters.value[0] ?? { materialGroup: '', material: '', minRatio: 0 }
+  emit('query-change', {
+    keyword: searchTerm.value.trim(),
+    warehouseCodes: [...selectedWarehouseCodes.value],
+    materialGroup: first.materialGroup || '',
+    materialName: first.material || '',
+    minRatio: Number(first.minRatio) || 0,
+  })
+}
+
+function goToPage(pageNumber) {
+  if (!props.serverMode) return
+  const nextPage = Math.max(0, pageNumber)
+  if (nextPage === props.page) return
+  emit('page-change', nextPage)
+}
 </script>
 
 <template>
@@ -481,7 +554,7 @@ onBeforeUnmount(() => {
                 <select
                   v-model="filter.materialGroup"
                   class="h-8 border border-gray-200 bg-gray-50 px-2 text-[11px] font-bold text-gray-900 outline-none focus:border-[#004D3C] focus:bg-white"
-                  @change="filter.material = ''"
+                  @change="filter.material = ''; emitQueryChange()"
                 >
                   <option value="">소재 구분 선택</option>
                   <option v-for="group in materialGroupOptions" :key="group" :value="group">
@@ -493,6 +566,7 @@ onBeforeUnmount(() => {
                   v-model="filter.material"
                   class="h-8 border border-gray-200 bg-gray-50 px-2 text-[11px] font-bold text-gray-900 outline-none focus:border-[#004D3C] focus:bg-white"
                   :disabled="!filter.materialGroup"
+                  @change="emitQueryChange"
                 >
                   <option value="">소재 상세 선택</option>
                   <option
@@ -512,6 +586,7 @@ onBeforeUnmount(() => {
                   max="100"
                   class="h-8 border border-gray-200 bg-gray-50 px-2 text-right text-[11px] font-bold text-gray-900 outline-none focus:border-[#004D3C] focus:bg-white"
                   placeholder="0"
+                  @change="emitQueryChange"
                 />
                 <span class="text-[10px] font-black text-gray-400">% 이상</span>
                 <button
@@ -591,6 +666,8 @@ onBeforeUnmount(() => {
             type="search"
             class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#004D3C]"
             placeholder="품목 코드, 품목명, 소재 상세"
+            @keyup.enter="emitQueryChange"
+            @change="emitQueryChange"
           />
         </label>
 
@@ -610,7 +687,12 @@ onBeforeUnmount(() => {
           <h2 class="text-sm font-black text-gray-900">{{ title }}</h2>
           <p v-if="description" class="mt-1 text-[11px] font-bold text-gray-400">{{ description }}</p>
           <p class="mt-1 text-[11px] font-bold text-gray-400">
-            조회 품목 {{ filteredItemCount.toLocaleString() }}건 · 조회 SKU {{ filteredRows.length.toLocaleString() }}건
+            <template v-if="serverMode">
+              전체 SKU {{ totalElements.toLocaleString() }}건 · 현재 페이지 {{ filteredRows.length.toLocaleString() }}건
+            </template>
+            <template v-else>
+              조회 품목 {{ filteredItemCount.toLocaleString() }}건 · 조회 SKU {{ filteredRows.length.toLocaleString() }}건
+            </template>
             <template v-if="summaryText"> · {{ summaryText }}</template>
           </p>
         </div>
@@ -773,6 +855,51 @@ onBeforeUnmount(() => {
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div
+        v-if="serverMode"
+        class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-4 py-3"
+      >
+        <div class="flex items-center gap-2 text-xs font-bold text-gray-600">
+          <span>페이지 크기</span>
+          <select
+            :value="size"
+            class="h-8 border border-gray-300 bg-white px-2 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
+            @change="emit('size-change', Number($event.target.value))"
+          >
+            <option v-for="opt in pageSizeOptions" :key="opt" :value="opt">{{ opt }}</option>
+          </select>
+        </div>
+
+        <div class="flex items-center gap-1">
+          <button
+            type="button"
+            class="h-8 border border-gray-300 px-3 text-xs font-bold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
+            :disabled="page <= 0"
+            @click="goToPage(page - 1)"
+          >
+            이전
+          </button>
+          <button
+            v-for="num in pageNumbers"
+            :key="num"
+            type="button"
+            class="h-8 min-w-8 border px-2 text-xs font-bold"
+            :class="num - 1 === page ? 'border-[#004D3C] bg-[#004D3C] text-white' : 'border-gray-300 text-gray-700'"
+            @click="goToPage(num - 1)"
+          >
+            {{ num }}
+          </button>
+          <button
+            type="button"
+            class="h-8 border border-gray-300 px-3 text-xs font-bold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
+            :disabled="page >= totalPages - 1"
+            @click="goToPage(page + 1)"
+          >
+            다음
+          </button>
+        </div>
       </div>
     </section>
   </div>

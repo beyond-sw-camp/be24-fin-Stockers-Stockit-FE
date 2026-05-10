@@ -457,6 +457,18 @@ export const useCircularStockStore = defineStore('circularStock', () => {
   const saleStep = ref(1)
   const lockedMaterialType = ref('')
   const liveCircularInventoryRows = ref([])
+  const inventoryPage = ref(0)
+  const inventorySize = ref(20)
+  const inventoryTotalPages = ref(0)
+  const inventoryTotalElements = ref(0)
+  const inventoryHasNext = ref(false)
+  const inventoryHasPrevious = ref(false)
+  const inventorySort = ref('skuCode,asc')
+  const inventoryKeyword = ref('')
+  const inventoryWarehouseCodes = ref([])
+  const inventoryMaterialGroup = ref('')
+  const inventoryMaterialName = ref('')
+  const inventoryMinRatio = ref(0)
 
   // ADR-021 AI 거래처 추천 — Step 1 → Step 2 [다음] 클릭 시 1회 호출 (사용자 결정 2026-04-30).
   const recommendations = ref([])
@@ -526,7 +538,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     const totalKg = items.reduce((sum, item) => sum + (Number(item.availableWeightKg) || 0), 0)
     const totalQty = items.reduce((sum, item) => sum + (Number(item.availableQuantity) || 0), 0)
     const quantityHint = `약 ${totalKg.toFixed(1)}kg / ${totalQty}벌`
-    return { materialFit, productName, description, quantityHint }
+    return { materialFit, productName, description, quantityHint, productCode: head.itemCode ?? null }
   })
 
   const matchedBuyerCandidates = computed(() => {
@@ -631,13 +643,57 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     }
   }
 
-  async function loadCircularInventoryRows() {
-    const rows = await getCircularInventories()
-    const mapped = Array.isArray(rows) ? rows.map(mapCircularApiRowToInventoryItem) : []
+  async function loadCircularInventoryRows(overrides = {}) {
+    const nextPage = Number.isInteger(overrides.page) ? overrides.page : inventoryPage.value
+    const nextSize = [20, 50, 100].includes(Number(overrides.size)) ? Number(overrides.size) : inventorySize.value
+    const nextSort = String((overrides.sort ?? inventorySort.value) || 'skuCode,asc')
+    const nextKeyword = String((overrides.keyword ?? inventoryKeyword.value) || '').trim()
+    const nextWarehouseCodes = Array.isArray(overrides.warehouseCodes)
+      ? overrides.warehouseCodes
+      : inventoryWarehouseCodes.value
+    const nextMaterialGroup = String((overrides.materialGroup ?? inventoryMaterialGroup.value) || '').trim()
+    const nextMaterialName = String((overrides.materialName ?? inventoryMaterialName.value) || '').trim()
+    const nextMinRatio = Number((overrides.minRatio ?? inventoryMinRatio.value) || 0)
+
+    const response = await getCircularInventories({
+      page: Math.max(0, Number(nextPage) || 0),
+      size: nextSize,
+      sort: nextSort,
+      keyword: nextKeyword || undefined,
+      warehouseCodes: nextWarehouseCodes.length > 0 ? nextWarehouseCodes : undefined,
+      materialGroup: nextMaterialGroup || undefined,
+      materialName: nextMaterialName || undefined,
+      minRatio: nextMaterialName ? Math.max(0, nextMinRatio) : undefined,
+    })
+
+    const rows = Array.isArray(response?.content) ? response.content : []
+    const mapped = rows.map(mapCircularApiRowToInventoryItem)
+
+    inventoryPage.value = Number(response?.page ?? 0)
+    inventorySize.value = Number(response?.size ?? nextSize)
+    inventoryTotalPages.value = Number(response?.totalPages ?? 0)
+    inventoryTotalElements.value = Number(response?.totalElements ?? 0)
+    inventoryHasNext.value = Boolean(response?.hasNext)
+    inventoryHasPrevious.value = Boolean(response?.hasPrevious)
+    inventorySort.value = nextSort
+    inventoryKeyword.value = nextKeyword
+    inventoryWarehouseCodes.value = [...nextWarehouseCodes]
+    inventoryMaterialGroup.value = nextMaterialGroup
+    inventoryMaterialName.value = nextMaterialName
+    inventoryMinRatio.value = Math.max(0, nextMinRatio)
+
     liveCircularInventoryRows.value = mapped
     inventoryItems.value = mapped.map(enrichInventoryItem)
     persistInventory()
-    return mapped
+    return {
+      rows: mapped,
+      page: inventoryPage.value,
+      size: inventorySize.value,
+      totalPages: inventoryTotalPages.value,
+      totalElements: inventoryTotalElements.value,
+      hasNext: inventoryHasNext.value,
+      hasPrevious: inventoryHasPrevious.value,
+    }
   }
 
   function getSaleById(saleId) {
@@ -980,6 +1036,18 @@ export const useCircularStockStore = defineStore('circularStock', () => {
 
   return {
     inventoryRows,
+    inventoryPage,
+    inventorySize,
+    inventoryTotalPages,
+    inventoryTotalElements,
+    inventoryHasNext,
+    inventoryHasPrevious,
+    inventorySort,
+    inventoryKeyword,
+    inventoryWarehouseCodes,
+    inventoryMaterialGroup,
+    inventoryMaterialName,
+    inventoryMinRatio,
     sortedSales,
     draftBuyerId,
     draftMemo,

@@ -1,5 +1,6 @@
+
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, h, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import WarehouseInboundConfirmModal from '@/components/warehouse/inbound/WarehouseInboundConfirmModal.vue'
@@ -25,10 +26,7 @@ const activeSideMenu = ref('입고 관리')
 const topMenus = roleMenus.warehouse
 const sideMenus = roleMenus.warehouse.find((menu) => menu.label === '입/출고 관리')?.children ?? []
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
+
 
 // ─── 상태 탭 ────────────────────────────────────────────────────────────────
 // 5탭 — [전체] + 거래처 책임 4단계 (READY_TO_SHIP 부터 노출). [입고 확정] 은 ARRIVED 일 때만.
@@ -114,7 +112,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
     :top-menus="topMenus"
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
+
   >
     <div class="flex flex-col gap-4">
       <!-- 상단 헤더 영역: 상태 탭 -->
@@ -314,3 +312,4 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
     </Transition>
   </AppLayout>
 </template>
+>>>>>>> 6c7016aa57c471f851db80fc2bac659572b1e605

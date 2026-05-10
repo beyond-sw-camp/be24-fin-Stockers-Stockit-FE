@@ -240,10 +240,7 @@ function handleBack() {
   router.push({ name: 'hq-circular-inventory-sales-history' })
 }
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
+
 </script>
 
 <template>
@@ -252,7 +249,6 @@ function handleLogout() {
     :top-menus="hqMenus"
     :side-menus="circularStockMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-300 bg-white p-4 shadow-sm">

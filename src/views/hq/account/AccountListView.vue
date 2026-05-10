@@ -1,6 +1,5 @@
 <script setup>
 import { ref, computed, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import {
   Users,
   Search,
@@ -17,9 +16,7 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { accountApi } from '@/api/hq/account.js'
-import { extractErrorMessage } from '@/api/axios.js'
-
-const router = useRouter()
+import { extractErrorMessage } from '@/api/axios.js'
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 
@@ -30,10 +27,6 @@ const sideMenus = [
 
 const activeTopMenu = computed(() => '계정 관리')
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 // ── BE 응답 매핑 (HQ/STORE/WAREHOUSE)
 const roleLabel = (r) => ({
@@ -197,7 +190,6 @@ async function confirmWithdraw() {
     :top-menus="hqMenus"
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-3">
 

@@ -37,10 +37,6 @@ const activePeriod = ref('ALL')
 
 const rows = computed(() => outboundStore.filteredOutboundList)
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 function changeTab(key) {
   outboundStore.activeStatusTab = key
@@ -103,7 +99,6 @@ applyPeriod('ALL')
     :top-menus="topMenus"
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <section class="border border-slate-200 bg-gradient-to-r from-slate-50 via-white to-emerald-50/40 p-5 shadow-sm">

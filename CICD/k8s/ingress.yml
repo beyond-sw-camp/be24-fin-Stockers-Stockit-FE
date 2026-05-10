@@ -20,7 +20,14 @@ spec:
               service:
                 name: stockit-be
                 port:
-                  number: 80
+                  number: 8080
+          - path: /actuator
+            pathType: Prefix
+            backend:
+              service:
+                name: stockit-be
+                port:
+                  number: 8080
           - path: /
             pathType: Prefix
             backend:

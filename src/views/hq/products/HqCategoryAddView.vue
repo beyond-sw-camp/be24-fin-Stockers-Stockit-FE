@@ -11,10 +11,6 @@ const router = useRouter()
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 const activeTopMenu = computed(() => '상품 관리')
 const activeSideMenu = ref('카테고리 관리')
@@ -116,7 +112,6 @@ onMounted(() => {
     :side-menus="productSideMenus"
     v-model:active-side-menu="activeSideMenu"
     show-system-card
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <!-- 페이지 헤더 -->

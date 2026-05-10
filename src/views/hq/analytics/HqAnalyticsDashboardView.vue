@@ -1,6 +1,5 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import {
   LayoutDashboard,
   TrendingUp,
@@ -19,9 +18,7 @@ import {
 import AppLayout from '@/components/common/AppLayout.vue'
 import LineChart from '@/components/common/charts/LineChart.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
-
-const router = useRouter()
+import { useAuthStore } from '@/stores/auth.js'
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 const sideMenus = roleMenus.hq.find((menu) => menu.label === '정산/통계')?.children ?? []
@@ -29,10 +26,6 @@ const sideMenus = roleMenus.hq.find((menu) => menu.label === '정산/통계')?.c
 const activeTopMenu = computed(() => '정산/통계')
 const activeSideMenu = ref('통합 KPI 대시보드')
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 const dateLabel = computed(() =>
   new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
@@ -159,7 +152,6 @@ const orderCycleSummary = {
     :top-menus="hqMenus"
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-3">
 
