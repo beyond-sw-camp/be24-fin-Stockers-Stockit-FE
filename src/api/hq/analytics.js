@@ -4,7 +4,7 @@
  * BE 엔드포인트:
  *   GET /api/hq/analytics/sales       — 판매량 통계
  *   GET /api/hq/analytics/order-stats — 발주량 통계
- *   GET /api/hq/analytics/turnover    — 재고 회전율 (예정)
+ *   GET /api/hq/analytics/turnover    — 재고 회전율 통계
  *   GET /api/hq/analytics/vendors     — 순환재고 거래처 (예정)
  *   GET /api/hq/analytics/dashboard   — 통합 KPI (예정)
  */
@@ -45,6 +45,25 @@ export const orderStatsAnalyticsApi = {
     if (category) params.category = category
     return apiClient
       .get('/api/hq/analytics/order-stats', { params })
+      .then(unwrap)
+  },
+}
+
+export const turnoverAnalyticsApi = {
+  /**
+   * 재고 회전율 통계 조회.
+   * @param {{ period: 'DAY'|'MONTH'|'YEAR',
+   *           from: string,
+   *           to: string,
+   *           scope?: 'ALL'|'STORE'|'WAREHOUSE',
+   *           locationCode?: string|null }} params  // 특정 위치 한정 (예: 'ST-SL-0001')
+   * @returns {Promise<object>} BE result (locationStats/inventoryHealth)
+   */
+  get: ({ period, from, to, scope = 'ALL', locationCode = null } = {}) => {
+    const params = { period, from, to, scope }
+    if (locationCode) params.locationCode = locationCode
+    return apiClient
+      .get('/api/hq/analytics/turnover', { params })
       .then(unwrap)
   },
 }
