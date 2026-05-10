@@ -63,7 +63,7 @@ function statusLabel(status) {
     {
       READY_TO_SHIP: '출고 준비중',
       IN_TRANSIT: '배송중',
-      ARRIVED: '도착 완료',
+      ARRIVED: '배송 완료',
     }[status] ?? status
   )
 }
