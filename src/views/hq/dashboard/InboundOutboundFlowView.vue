@@ -61,10 +61,6 @@ const dateLabel = computed(() =>
   }).format(new Date()),
 )
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 function goToAllFlowTransactions() {
   router.push('/hq/dashboard/flow/all')
@@ -78,7 +74,6 @@ function goToAllFlowTransactions() {
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
     show-system-card
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-3">
       <section class="flex flex-wrap items-center justify-between gap-3 border border-gray-300 bg-white px-3 py-2.5 shadow-sm">

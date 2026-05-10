@@ -80,10 +80,7 @@ const loadDetail = async () => {
 watch(() => route.params.transferNo, () => loadDetail())
 onMounted(() => loadDetail())
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
+
 </script>
 
 <template>
@@ -92,7 +89,6 @@ function handleLogout() {
     :top-menus="hqMenus"
     :side-menus="inventoryMenus"
     :active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div v-if="loading" class="bg-white border border-gray-200 shadow-sm flex items-center justify-center py-20">
       <p class="text-xs font-bold text-gray-400">이동 상세를 불러오는 중입니다.</p>

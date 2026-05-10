@@ -1,12 +1,9 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useStoreInboundStore } from '@/stores/store/storeInbound.js'
-
-const router = useRouter()
+import { useStoreInboundStore } from '@/stores/store/storeInbound.js'
 const auth = useAuthStore()
 const storeOrders = useStoreInboundStore()
 
@@ -22,10 +19,7 @@ const statusRows = computed(() => [
   { label: '입고 완료', value: storeOrders.inboundAnalytics.statusCounts.RECEIVED },
 ])
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
+
 </script>
 
 <template>
@@ -34,7 +28,6 @@ function handleLogout() {
     :top-menus="storeMenus"
     :side-menus="inboundMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-300 bg-white p-4 shadow-sm">

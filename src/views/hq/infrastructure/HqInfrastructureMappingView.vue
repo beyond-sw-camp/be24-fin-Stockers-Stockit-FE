@@ -1,6 +1,5 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
@@ -9,6 +8,7 @@ import {
   getStoreInfrastructureMappings,
   updateStoreInfrastructureMappings,
 } from '@/api/hq/infrastructure.js'
+
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -44,10 +44,6 @@ function warehouseOptionLabel(code) {
   return `${found.code} · ${found.name}`
 }
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 async function loadOptions() {
   const options = await getInfrastructureMappingOptions()
@@ -151,7 +147,6 @@ onMounted(async () => {
     :side-menus="infraSideMenus"
     v-model:active-side-menu="activeSideMenu"
     show-system-card
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-300 bg-white p-4 shadow-sm">
@@ -248,3 +243,4 @@ onMounted(async () => {
     </div>
   </AppLayout>
 </template>
+>>>>>>> 6c7016aa57c471f851db80fc2bac659572b1e605

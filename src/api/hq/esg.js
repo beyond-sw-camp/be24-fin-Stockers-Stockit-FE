@@ -1,43 +1,77 @@
 /**
- * esg.js — BE 연동 지점 주석 스텁
+ * esg.js — 본사 ESG 도메인 BE 연동
  *
- * BE에서 ESG/배출권 관련 Controller/Service가 완성되면
- * 이 파일의 각 함수를 실제 axios 호출로 채우고,
- * stores/esg.js의 fetchKauPrice action에서 import하여 호출하도록 교체한다.
+ * BE 엔드포인트:
+ *   GET  /api/hq/esg/carbon-price/latest   (KAU25 최신 시세 1건)
+ *   GET  /api/hq/esg/carbon-price/trend    (최근 2주 일별 시계열)
+ *   GET  /api/hq/esg/quota                 (자발적 탄소중립 — 할당/YTD/경고 임계 조회)
+ *   PUT  /api/hq/esg/quota                 (할당/YTD/경고 임계 수기 저장)
  *
- * 기본 axios 인스턴스: src/api/axios.js (BE 연동 시 신설 예정)
- * baseURL: http://localhost:8080
+ * 응답 형태(Snapshot — carbon-price):
+ *   {
+ *     pricePerTon: number,   // 원/톤
+ *     symbol:      string,   // 'KAU25' (정상) 또는 'FALLBACK'
+ *     basDt:       string,   // 'YYYYMMDD'
+ *     fltRt:       string,   // 등락률(%)
+ *     fallback:    boolean   // true 면 외부 API 실패 → 폴백값
+ *   }
  */
 
-// ─────────────────────────────────────────────
-// 배출권(KAU) 시세 관련 API
-// ─────────────────────────────────────────────
+import { apiClient, unwrap } from '../axios.js'
+
+export const carbonPriceApi = {
+  /**
+   * 가장 최근 거래일의 KAU 종가 1건 (KPI 카드용).
+   * @returns {Promise<{ pricePerTon: number, symbol: string, basDt: string, fltRt: string, fallback: boolean }>}
+   */
+  getLatest: () => apiClient.get('/api/hq/esg/carbon-price/latest').then(unwrap),
+
+  /**
+   * KAU25 일별 시세 시계열 (차트용).
+   *  - SEVEN_DAYS: 최근 7거래일
+   *  - ONE_MONTH:  최근 1개월
+   *  - SIX_MONTHS: 최근 6개월 (KAU25 거래 활성 기간 거의 전체)
+   *
+   * @param {'SEVEN_DAYS'|'ONE_MONTH'|'SIX_MONTHS'} period
+   */
+  getTrend: (period = 'SEVEN_DAYS') =>
+    apiClient.get('/api/hq/esg/carbon-price/trend', { params: { period } }).then(unwrap),
+}
 
 /**
- * KAU(Korean Allowance Unit) 최신 시세 조회
- * GET /api/v1/esg/kau-price
+ * 탄소중립 관리 (할당량 + YTD 실효 배출 + 경고 임계)
  *
- * BE는 KRX 배출권 시장(ets.krx.co.kr) 또는 공공데이터포털 배출권 시세 정보 API에서
- * 가져온 최신 시세를 일/시간 단위로 캐싱하여 응답한다.
- *
- * @returns {Promise<{ price: number, updatedAt: string, source: string }>}
- *   price     - tCO₂당 원화 가격 (KRW)
- *   updatedAt - ISO8601 (시세 기준 시각)
- *   source    - 'KRX' | 'data.go.kr' | 기타
+ * 응답 형태(Response):
+ *   {
+ *     fiscalYear:         number,
+ *     yearlyAllocation:   number,
+ *     ytdEmissionsManual: number | null,   // null = 미입력 상태
+ *     warnThresholdPct:   number,
+ *     remaining:          number,          // 잔여 한도 = allocation - ytd
+ *     utilizationPct:     number,          // 사용률 % = ytd / allocation × 100
+ *     warning:            boolean,         // utilizationPct ≥ warnThresholdPct
+ *     updatedBy:          string | null,
+ *     updatedAt:          string           // ISO-8601
+ *   }
  */
-// export async function getKauPrice() {
-//   const res = await axios.get('/api/v1/esg/kau-price')
-//   return res.data.result
-// }
+export const emissionQuotaApi = {
+  /**
+   * 회계연도별 할당량/YTD/경고 임계 조회.
+   * BE 가 row 없으면 자동으로 기본값(0/null/75) 으로 새 row 생성 후 응답.
+   * @param {number} [year] — 미지정 시 BE 가 현재 연도 자동 사용
+   */
+  get: (year) =>
+    apiClient
+      .get('/api/hq/esg/quota', { params: year ? { year } : {} })
+      .then(unwrap),
 
-/**
- * KAU 시세 이력 조회 (월별/일별 추이용)
- * GET /api/v1/esg/kau-price/history?from=&to=&interval=
- *
- * @param {{ from: string, to: string, interval?: 'day'|'month' }} params
- * @returns {Promise<Array<{ date: string, price: number }>>}
- */
-// export async function getKauPriceHistory(params = {}) {
-//   const res = await axios.get('/api/v1/esg/kau-price/history', { params })
-//   return res.data.result
-// }
+  /**
+   * 본사 관리자 수기 입력 — 수정 버튼 → 저장.
+   * @param {number} [year]
+   * @param {{ yearlyAllocation: number, ytdEmissionsManual: number|null, warnThresholdPct: number }} payload
+   */
+  update: (year, payload) =>
+    apiClient
+      .put('/api/hq/esg/quota', payload, { params: year ? { year } : {} })
+      .then(unwrap),
+}

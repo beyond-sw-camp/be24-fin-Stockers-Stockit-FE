@@ -4,7 +4,6 @@ import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
 import AiBuyerRecommendationPanel from '@/components/hq/circular-stock/AiBuyerRecommendationPanel.vue'
-
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
@@ -230,10 +229,6 @@ function handleDocumentClick(event) {
   }
 }
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 function materialFitLabel(value) {
   return buyerStore.materialFitLabel(value)
@@ -279,7 +274,6 @@ onBeforeUnmount(() => {
     :top-menus="hqMenus"
     :side-menus="circularStockMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4 pb-36">
       <section class="border border-gray-200 bg-white p-4 shadow-sm">

@@ -1,12 +1,9 @@
 ﻿<script setup>
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
-
-const router = useRouter()
+import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
 const auth = useAuthStore()
 const buyerStore = useCircularStockBuyerStore()
 
@@ -173,10 +170,7 @@ function partnerTypeBadgeClass(value) {
   return 'bg-gray-100 text-gray-500'
 }
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
+
 </script>
 
 <template>
@@ -185,7 +179,6 @@ function handleLogout() {
     :top-menus="hqMenus"
     :side-menus="circularStockMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-5">
       <section

@@ -65,10 +65,7 @@ function goBackToInventory() {
   })
 }
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
+
 
 async function loadSkuRows() {
   const seq = ++requestSeq.value
@@ -102,6 +99,7 @@ watch(
     loadSkuRows()
   },
 )
+
 </script>
 
 <template>
@@ -110,7 +108,6 @@ watch(
     :top-menus="warehouseTopMenus"
     :side-menus="warehouseSideMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-200 bg-white p-4 shadow-sm">

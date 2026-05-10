@@ -25,10 +25,6 @@ const sideMenus = roleMenus.warehouse.find((menu) => menu.label === '대시보�
 const activeTopMenu = computed(() => '대시보드')
 const activeSideMenu = ref('창고 대시보드')
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 function goTo(path) {
   router.push(path)
@@ -189,7 +185,6 @@ function formatDate(iso) {
     :top-menus="topMenus"
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <!-- 헤더 -->

@@ -54,10 +54,7 @@ function handleActionClick(event, orderId) {
   goToInboundDetail(orderId)
 }
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
+
 </script>
 
 <template>
@@ -66,7 +63,6 @@ function handleLogout() {
     :top-menus="storeMenus"
     :side-menus="inboundMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-300 bg-white p-4 shadow-sm">

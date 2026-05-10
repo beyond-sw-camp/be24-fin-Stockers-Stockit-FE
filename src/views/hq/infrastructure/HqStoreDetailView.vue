@@ -131,10 +131,6 @@ function goBack() {
   })
 }
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 onMounted(() => {
   loadStoreDetail()
@@ -148,7 +144,6 @@ onMounted(() => {
     :side-menus="infraSideMenus"
     v-model:active-side-menu="activeSideMenu"
     show-system-card
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-300 bg-white p-4 shadow-sm">

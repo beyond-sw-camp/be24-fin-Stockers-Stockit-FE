@@ -1,15 +1,12 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import { Truck, Clock, Package, RefreshCw, Warehouse, Tag } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import LineChart from '@/components/common/charts/LineChart.vue'
 import BarChart from '@/components/common/charts/BarChart.vue'
 import DoughnutChart from '@/components/common/charts/DoughnutChart.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
-
-const router = useRouter()
+import { useAuthStore } from '@/stores/auth.js'
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 const sideMenus = roleMenus.hq.find((menu) => menu.label === '정산/통계')?.children ?? []
@@ -40,10 +37,6 @@ const totalWarehouseValue = computed(() =>
   warehouseOrders.reduce((s, w) => s + w.totalValue, 0).toFixed(1),
 )
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 const dateLabel = computed(() =>
   new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
@@ -400,7 +393,6 @@ const monthlyTrendChartOptions = {
     :top-menus="hqMenus"
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-3">
 

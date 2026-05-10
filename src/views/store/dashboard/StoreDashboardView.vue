@@ -4,7 +4,6 @@ import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-
 const router = useRouter()
 const auth = useAuthStore()
 const storeMenus = roleMenus.store
@@ -48,10 +47,7 @@ const dateLabel = computed(() =>
   }).format(new Date()),
 )
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
+
 </script>
 
 <template>
@@ -60,7 +56,6 @@ function handleLogout() {
     :top-menus="storeMenus"
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-3">
 

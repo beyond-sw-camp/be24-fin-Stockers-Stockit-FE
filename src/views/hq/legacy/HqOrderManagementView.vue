@@ -9,10 +9,6 @@ const router = useRouter()
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 const brandColor = '#004D3C'
 const brandColorLight = '#E6F2F0'
@@ -542,7 +538,6 @@ const iconMap = {
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
     show-system-card
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4 overflow-hidden">
       <section class="flex flex-wrap gap-2 border border-gray-300 bg-white p-2 shadow-sm">
