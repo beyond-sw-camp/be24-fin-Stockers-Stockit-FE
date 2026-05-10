@@ -37,8 +37,10 @@ const statusCounts = computed(() => ({
   RECEIVED: inboundRows.value.filter((row) => row.status === 'RECEIVED').length,
 }))
 
-const pendingReceiptRows = computed(() =>
-  inboundRows.value.filter((row) => row.status === 'PENDING_RECEIPT'),
+const confirmableRows = computed(() =>
+  inboundRows.value.filter(
+    (row) => row.status === 'PENDING_RECEIPT' && row.outboundStatus === 'ARRIVED',
+  ),
 )
 
 const filteredRows = computed(() => {
@@ -67,6 +69,22 @@ function inboundStatusLabel(status) {
   }[status] ?? status
 }
 
+function outboundStatusClass(status) {
+  return {
+    READY_TO_SHIP: 'bg-gray-100 text-gray-600',
+    IN_TRANSIT: 'bg-sky-100 text-sky-700',
+    ARRIVED: 'bg-emerald-100 text-emerald-700',
+  }[status] ?? 'bg-gray-100 text-gray-600'
+}
+
+function outboundStatusLabel(status) {
+  return {
+    READY_TO_SHIP: '출고 준비중',
+    IN_TRANSIT: '배송 중',
+    ARRIVED: '배송 완료',
+  }[status] ?? '-'
+}
+
 async function fetchInbounds() {
   loading.value = true
   errorMessage.value = ''
@@ -89,12 +107,12 @@ function goToInboundDetail(inboundNo) {
   router.push({ name: 'store-inbound-detail', params: { id: inboundNo } })
 }
 
-function focusPendingReceiptRows() {
+function focusConfirmableRows() {
   activeStatusTab.value = 'PENDING_RECEIPT'
 }
 
-function goToFirstPendingReceiptRow() {
-  const firstInboundNo = pendingReceiptRows.value[0]?.inboundNo
+function goToFirstConfirmableRow() {
+  const firstInboundNo = confirmableRows.value[0]?.inboundNo
   if (!firstInboundNo) return
   goToInboundDetail(firstInboundNo)
 }
@@ -146,35 +164,33 @@ onMounted(fetchInbounds)
       </section>
 
       <section
-        v-if="pendingReceiptRows.length > 0"
-        class="border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm"
+        v-if="confirmableRows.length > 0"
+        class="border border-emerald-200 bg-emerald-50 px-4 py-3 shadow-sm"
       >
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p class="text-[10px] font-black uppercase tracking-[0.16em] text-amber-600">
-              Inbound Action
+            <p class="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">Inbound Action</p>
+            <p class="mt-1 text-sm font-black text-emerald-900">
+              배송 완료된 입고 대기 건이 {{ confirmableRows.length }}건 있습니다.
             </p>
-            <p class="mt-1 text-sm font-black text-amber-900">
-              입고 확정이 필요한 입고건이 {{ pendingReceiptRows.length }}건 있습니다.
-            </p>
-            <p class="mt-1 text-xs font-bold text-amber-700">
-              배송 완료된 입고건은 매장 재고 반영 전 단계입니다. 상세로 들어가 입고 확정을 진행하세요.
+            <p class="mt-1 text-xs font-bold text-emerald-700">
+              배송 완료(ARRIVED) 건만 입고 확정할 수 있습니다.
             </p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              class="border border-amber-300 bg-white px-3 py-2 text-xs font-black text-amber-800 hover:bg-amber-100"
-              @click="focusPendingReceiptRows"
+              class="border border-emerald-300 bg-white px-3 py-2 text-xs font-black text-emerald-800 hover:bg-emerald-100"
+              @click="focusConfirmableRows"
             >
-              배송 완료만 보기
+              입고 대기만 보기
             </button>
             <button
               type="button"
-              class="border border-amber-700 bg-amber-700 px-3 py-2 text-xs font-black text-white hover:bg-amber-800"
-              @click="goToFirstPendingReceiptRow"
+              class="border border-emerald-700 bg-emerald-700 px-3 py-2 text-xs font-black text-white hover:bg-emerald-800"
+              @click="goToFirstConfirmableRow"
             >
-              첫 건 바로 처리
+              첫 배송완료 건 처리
             </button>
           </div>
         </div>
@@ -212,18 +228,19 @@ onMounted(fetchInbounds)
           <table class="w-full table-fixed border-collapse text-xs">
             <thead class="bg-gray-100 text-[10px] uppercase tracking-wider text-gray-500">
               <tr>
-                <th class="w-[18%] px-2 py-2 text-left font-black">요청일시</th>
-                <th class="w-[16%] px-2 py-2 text-left font-black">입고번호</th>
-                <th class="w-[16%] px-2 py-2 text-left font-black">원천번호</th>
-                <th class="w-[16%] px-2 py-2 text-left font-black">출고번호</th>
-                <th class="w-[10%] px-2 py-2 text-right font-black">예정수량</th>
-                <th class="w-[12%] px-2 py-2 text-center font-black">상태</th>
+                <th class="w-[15%] px-2 py-2 text-left font-black">요청일시</th>
+                <th class="w-[14%] px-2 py-2 text-left font-black">입고번호</th>
+                <th class="w-[14%] px-2 py-2 text-left font-black">원천번호</th>
+                <th class="w-[14%] px-2 py-2 text-left font-black">출고번호</th>
+                <th class="w-[11%] px-2 py-2 text-center font-black">출고상태</th>
+                <th class="w-[8%] px-2 py-2 text-right font-black">예정수량</th>
+                <th class="w-[12%] px-2 py-2 text-center font-black">입고상태</th>
                 <th class="w-[12%] px-2 py-2 text-center font-black">도착예정일</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
               <tr v-if="loading">
-                <td colspan="7" class="px-4 py-12 text-center text-gray-400">조회 중입니다.</td>
+                <td colspan="8" class="px-4 py-12 text-center text-gray-400">조회 중입니다.</td>
               </tr>
               <tr
                 v-for="row in filteredRows"
@@ -235,7 +252,12 @@ onMounted(fetchInbounds)
                 <td class="px-2 py-2.5 font-bold text-gray-600">{{ formatDateTime(row.requestedAt) }}</td>
                 <td class="px-2 py-2.5 font-mono font-black text-gray-800">{{ row.inboundNo }}</td>
                 <td class="px-2 py-2.5 font-black text-gray-900">{{ row.sourceRefNo }}</td>
-                <td class="px-2 py-2.5 font-black text-gray-700">{{ row.outboundNo }}</td>
+                <td class="px-2 py-2.5 font-black text-gray-700">{{ row.outboundNo || '-' }}</td>
+                <td class="px-2 py-2.5 text-center">
+                  <span class="inline-flex px-2 py-1 text-[10px] font-black" :class="outboundStatusClass(row.outboundStatus)">
+                    {{ outboundStatusLabel(row.outboundStatus) }}
+                  </span>
+                </td>
                 <td class="px-2 py-2.5 text-right font-black text-gray-900">{{ row.totalExpectedQuantity || 0 }}</td>
                 <td class="px-2 py-2.5 text-center">
                   <span class="inline-flex px-2 py-1 text-[10px] font-black" :class="inboundStatusClass(row.status)">
@@ -245,7 +267,7 @@ onMounted(fetchInbounds)
                 <td class="px-2 py-2.5 text-center font-bold text-gray-700">{{ formatDate(row.expectedArrivalAt) }}</td>
               </tr>
               <tr v-if="!loading && filteredRows.length === 0">
-                <td colspan="7" class="px-4 py-12 text-center text-gray-400">조회 가능한 입고 내역이 없습니다.</td>
+                <td colspan="8" class="px-4 py-12 text-center text-gray-400">조회 가능한 입고 내역이 없습니다.</td>
               </tr>
             </tbody>
           </table>
