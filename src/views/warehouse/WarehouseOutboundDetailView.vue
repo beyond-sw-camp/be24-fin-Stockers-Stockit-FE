@@ -31,6 +31,23 @@ const outboundSteps = [
   { key: 'ARRIVED', label: '배송 완료' },
 ]
 
+function normalizeOutboundType(sourceType) {
+  if (sourceType === 'STORE_ORDER' || sourceType === 'STORE_OUTBOUND') return 'STORE_OUTBOUND'
+  if (sourceType === 'WAREHOUSE_TRANSFER' || sourceType === 'WH_TRANSFER') return 'WH_TRANSFER'
+  if (sourceType === 'CIRCULAR_SALE') return 'CIRCULAR_SALE'
+  return sourceType
+}
+
+function outboundTypeLabel(sourceType) {
+  return (
+    {
+      STORE_OUTBOUND: '매장 출고',
+      WH_TRANSFER: '창고간 이동',
+      CIRCULAR_SALE: '순환재고 판매',
+    }[normalizeOutboundType(sourceType)] ?? sourceType
+  )
+}
+
 function statusClass(status) {
   return (
     {
@@ -46,7 +63,7 @@ function statusLabel(status) {
     {
       READY_TO_SHIP: '출고 준비중',
       IN_TRANSIT: '배송중',
-      ARRIVED: '도착 완료',
+      ARRIVED: '배송 완료',
     }[status] ?? status
   )
 }
@@ -186,7 +203,7 @@ onMounted(fetchDetail)
                   {{ outbound.destinationName || `${outbound.destinationType || '-'}${outbound.destinationId ? ` (${outbound.destinationId})` : ''}` }}
                 </strong>
               </p>
-              <p class="text-xs font-bold text-gray-500">유형 <strong class="ml-2 text-gray-900">{{ outbound.sourceType }}</strong></p>
+              <p class="text-xs font-bold text-gray-500">유형 <strong class="ml-2 text-gray-900">{{ outboundTypeLabel(outbound.sourceType) }}</strong></p>
               <p class="text-xs font-bold text-gray-500">요청일시 <strong class="ml-2 text-gray-900">{{ formatDateTime(outbound.requestedAt) }}</strong></p>
             </div>
             <div class="overflow-auto" style="margin-top: 16px;">

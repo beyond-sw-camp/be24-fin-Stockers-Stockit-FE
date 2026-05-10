@@ -5,7 +5,6 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useWarehouseTransferCartStore } from '@/stores/hq/warehouseTransferCart.js'
-import { transferSkuCatalog } from '@/constants/hqWarehouseTransferData.js'
 import { executeWarehouseTransfers, getWarehouseSkuDistribution } from '@/api/hq/inventory.js'
 import { extractErrorMessage } from '@/api/axios.js'
 
@@ -29,13 +28,12 @@ const sheetOpen = ref(false)
 const cartDrawerOpen = ref(false)
 const toastMessage = ref('')
 const toastShowHistoryAction = ref(false)
+const failedTransfers = ref([])
+const failedModalOpen = ref(false)
 const warehouseLoading = ref(false)
 let toastTimer = null
 
 const selectedSku = computed(() => {
-  const matched = transferSkuCatalog.find((sku) => sku.skuCode === route.params.skuCode)
-  if (matched) return matched
-
   const skuCode = String(route.params.skuCode || '')
   if (!skuCode) return null
 
@@ -202,6 +200,10 @@ const closeCartDrawer = () => {
   cartDrawerOpen.value = false
 }
 
+const closeFailedModal = () => {
+  failedModalOpen.value = false
+}
+
 const resetTransferForm = () => {
   selectedWarehouseCodes.value = []
   transferQty.value = ''
@@ -246,10 +248,12 @@ const executeCartTransfers = async () => {
     }
     const result = await executeWarehouseTransfers(payload)
     const lineResults = Array.isArray(result?.lineResults) ? result.lineResults : []
+    const failed = Array.isArray(result?.failedTransfers) ? result.failedTransfers : []
     const successLineIds = lineResults.filter((row) => row.success).map((row) => row.lineId).filter(Boolean)
     if (successLineIds.length) {
       successLineIds.forEach((lineId) => cartStore.removeLine(lineId))
     }
+    failedTransfers.value = failed
 
     const successCount = Number(result?.successCount || successLineIds.length || 0)
     const failureCount = Number(result?.failureCount || Math.max(0, cartLineCount.value - successCount))
@@ -257,8 +261,10 @@ const executeCartTransfers = async () => {
       showToast(`장바구니 실행 완료: ${successCount}건 처리됨`, true)
     } else {
       showToast(`부분 완료: 성공 ${successCount}건 / 실패 ${failureCount}건`)
+      failedModalOpen.value = failed.length > 0
     }
   } catch (error) {
+    failedTransfers.value = []
     showToast(extractErrorMessage(error, '재고 이동 실행에 실패했습니다.'))
   }
 }
@@ -324,10 +330,10 @@ const moveBack = () => {
 
         <div class="flex flex-wrap gap-2 text-[11px] font-bold text-gray-600">
           <span class="bg-gray-100 px-2 py-1">{{ selectedSku.skuCode }}</span>
-          <span class="bg-gray-100 px-2 py-1">{{ selectedSku.itemCode }}</span>
-          <span class="bg-gray-100 px-2 py-1">{{ selectedSku.itemName }}</span>
-          <span class="bg-gray-100 px-2 py-1">{{ selectedSku.category }}</span>
-          <span class="bg-gray-100 px-2 py-1">{{ selectedSku.color }}/{{ selectedSku.size }}</span>
+          <span class="bg-gray-100 px-2 py-1">{{ selectedSku.itemCode || '-' }}</span>
+          <span class="bg-gray-100 px-2 py-1">{{ selectedSku.itemName || '-' }}</span>
+          <span class="bg-gray-100 px-2 py-1">{{ selectedSku.category || '-' }}</span>
+          <span class="bg-gray-100 px-2 py-1">{{ selectedSku.color || '-' }}/{{ selectedSku.size || '-' }}</span>
         </div>
       </section>
 
@@ -655,6 +661,51 @@ const moveBack = () => {
       >
         이동내역 보기
       </button>
+    </div>
+
+    <div v-if="failedModalOpen" class="fixed inset-0 z-[60]">
+      <div class="absolute inset-0 bg-black/40" @click="closeFailedModal" />
+      <section class="absolute left-1/2 top-1/2 w-[92%] max-w-[820px] -translate-x-1/2 -translate-y-1/2 border border-gray-200 bg-white shadow-2xl">
+        <header class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+          <div>
+            <h3 class="text-sm font-black text-gray-900">재고 이동 실패 상세</h3>
+            <p class="mt-1 text-[11px] font-bold text-gray-500">라우트/라인별 실패 사유를 확인하고 재시도하세요.</p>
+          </div>
+          <button type="button" class="h-8 border border-gray-300 px-3 text-xs font-black text-gray-700 hover:bg-gray-100" @click="closeFailedModal">닫기</button>
+        </header>
+        <div class="max-h-[60vh] overflow-y-auto p-5">
+          <article v-for="(routeFailure, idx) in failedTransfers" :key="`${routeFailure.fromWarehouseCode}-${routeFailure.toWarehouseCode}-${idx}`" class="mb-4 border border-red-100 bg-red-50/40">
+            <div class="border-b border-red-100 px-4 py-3">
+              <p class="text-xs font-black text-red-800">
+                {{ routeFailure.fromWarehouseCode || '-' }} → {{ routeFailure.toWarehouseCode || '-' }}
+              </p>
+              <p class="mt-1 text-[11px] font-bold text-red-700">
+                {{ routeFailure.errorCode || '-' }} · {{ routeFailure.errorMessage || '실패 사유 없음' }}
+              </p>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="min-w-[620px] w-full border-collapse text-xs">
+                <thead class="bg-red-100/70 text-[10px] uppercase tracking-[0.08em] text-red-700">
+                  <tr>
+                    <th class="px-3 py-2 text-left font-black">lineId</th>
+                    <th class="px-3 py-2 text-left font-black">SKU</th>
+                    <th class="px-3 py-2 text-right font-black">수량</th>
+                    <th class="px-3 py-2 text-left font-black">실패 사유</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-red-100">
+                  <tr v-for="line in routeFailure.failedLines || []" :key="`${line.lineId}-${line.skuCode}`">
+                    <td class="px-3 py-2 font-mono font-bold text-red-900">{{ line.lineId || '-' }}</td>
+                    <td class="px-3 py-2 font-bold text-gray-800">{{ line.skuCode || '-' }}</td>
+                    <td class="px-3 py-2 text-right font-black text-gray-900">{{ Number(line.qty || 0).toLocaleString() }}</td>
+                    <td class="px-3 py-2 font-bold text-red-700">{{ line.reason || '-' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+      </section>
     </div>
   </AppLayout>
 </template>
