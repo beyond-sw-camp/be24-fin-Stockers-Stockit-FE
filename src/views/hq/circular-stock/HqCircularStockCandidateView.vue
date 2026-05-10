@@ -39,6 +39,7 @@ const totalPages = ref(1)
 const totalElements = ref(0)
 const sortKey = ref('convertibleStock')
 const sortDirection = ref('desc')
+const isBulkUpdatingFilters = ref(false)
 
 const conditionItems = [
   '최근 24개월 이상 판매 이력이 없는 SKU',
@@ -202,9 +203,8 @@ watch(selectedParentCategory, () => {
 })
 
 watch([selectedParentCategory, selectedChildCategory, selectedWarehouseCodes, selectedConditionCodes], () => {
-  if (!hasRefreshed.value) return
-  currentPage.value = 1
-  loadCandidates()
+  if (!hasRefreshed.value || isBulkUpdatingFilters.value) return
+  requestCandidates({ resetPage: true })
 }, { deep: true })
 
 const buildCandidateQueryParams = () => ({
@@ -250,16 +250,14 @@ const clearConditionCodes = () => {
 
 const applySearch = () => {
   if (!hasRefreshed.value) return
-  currentPage.value = 1
-  loadCandidates()
+  requestCandidates({ resetPage: true })
 }
 
-const changePageSize = async (value) => {
+const changePageSize = (value) => {
   const next = Number(value)
   if (!PAGE_SIZE_OPTIONS.includes(next)) return
   pageSize.value = next
-  currentPage.value = 1
-  await loadCandidates()
+  requestCandidates({ resetPage: true })
 }
 
 const handleDocumentClick = (event) => {
@@ -309,12 +307,17 @@ const loadCandidates = async () => {
   }
 }
 
+const requestCandidates = async ({ resetPage = false } = {}) => {
+  if (resetPage) currentPage.value = 1
+  await loadCandidates()
+}
+
 const refreshCandidates = async () => {
   isLoading.value = true
   loadError.value = ''
   try {
     await refreshCircularCandidates()
-    await loadCandidates()
+    isBulkUpdatingFilters.value = true
     selectedRowIds.value = []
     selectedParentCategory.value = ''
     selectedChildCategory.value = ''
@@ -326,8 +329,11 @@ const refreshCandidates = async () => {
     sortKey.value = 'convertibleStock'
     sortDirection.value = 'desc'
     selectedRowsSnapshot.value = []
+    isBulkUpdatingFilters.value = false
+    await requestCandidates()
   } catch (e) {
     loadError.value = e.message || '순환 재고 후보 갱신에 실패했습니다.'
+    isBulkUpdatingFilters.value = false
   } finally {
     isLoading.value = false
   }
@@ -364,7 +370,7 @@ const submitConversion = async () => {
       ? `부분 전환 완료: 성공 ${convertedCount}건, 실패 ${skippedCount}건`
       : `전환 완료: ${convertedCount}건`
 
-    await loadCandidates()
+    await requestCandidates()
     selectedRowIds.value = []
     selectedRowsSnapshot.value = []
     conversionInputs.value = {}
@@ -383,9 +389,7 @@ const toggleSort = (key) => {
     sortKey.value = key
     sortDirection.value = 'asc'
   }
-
-  currentPage.value = 1
-  loadCandidates()
+  requestCandidates({ resetPage: true })
 }
 
 const sortIcon = (key) => {
@@ -410,7 +414,7 @@ const toggleAllCurrentPage = () => {
 const goToPage = (page) => {
   if (page < 1 || page > totalPages.value) return
   currentPage.value = page
-  loadCandidates()
+  requestCandidates()
 }
 
 
