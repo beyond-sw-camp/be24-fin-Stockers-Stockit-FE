@@ -41,38 +41,48 @@ const shippingSteps = [
 const combinedFlowHistory = computed(() => {
   if (!inbound.value) return []
 
-  const outboundFlow = []
-  const outboundOrder = ['READY_TO_SHIP', 'IN_TRANSIT', 'ARRIVED']
-  const currentOutboundIdx = outboundOrder.indexOf(outboundStatus.value)
-
-  outboundOrder.forEach((statusKey, idx) => {
-    if (currentOutboundIdx >= idx || inbound.value.status === 'RECEIVED') {
-      outboundFlow.push({
-        id: `outbound-${statusKey}-${idx}`,
-        type: 'OUTBOUND',
-        status: statusKey,
-        changedAt:
-          statusKey === 'READY_TO_SHIP'
-            ? inbound.value.requestedAt
-            : statusKey === 'ARRIVED'
-              ? inbound.value.expectedArrivalAt
-              : null,
-        changedByName: '물류 시스템',
-        reason: null,
-      })
-    }
-  })
-
-  const inboundFlow = (inbound.value.statusHistory || []).map((history, index) => ({
-    id: history.id || `inbound-${index}`,
-    type: 'INBOUND',
+  const outboundFlow = (inbound.value.outboundStatusHistory || []).map((history, index) => ({
+    id: history.id || `outbound-${index}`,
+    type: 'OUTBOUND',
     status: history.status,
     changedAt: history.changedAt,
-    changedByName: history.changedByName,
+    changedByName: history.changedByName || '물류 시스템',
     reason: history.reason,
   }))
 
-  return [...outboundFlow, ...inboundFlow]
+  const hasArrivedInOutbound = outboundFlow.some((entry) => entry.status === 'ARRIVED')
+
+  const inboundFlow = (inbound.value.statusHistory || [])
+    .filter((history) => {
+      if (history.status !== 'PENDING_RECEIPT') return true
+      return hasArrivedInOutbound || inbound.value?.status === 'RECEIVED'
+    })
+    .map((history, index) => ({
+      id: history.id || `inbound-${index}`,
+      type: 'INBOUND',
+      status: history.status,
+      changedAt: history.changedAt,
+      changedByName: history.changedByName,
+      reason: history.reason,
+    }))
+
+  const stageOrder = {
+    READY_TO_SHIP: 1,
+    IN_TRANSIT: 2,
+    ARRIVED: 3,
+    PENDING_RECEIPT: 4,
+    RECEIVED: 5,
+  }
+
+  return [...outboundFlow, ...inboundFlow].sort((a, b) => {
+    const sa = stageOrder[a.status] ?? 999
+    const sb = stageOrder[b.status] ?? 999
+    if (sa !== sb) return sa - sb
+
+    const at = a.changedAt ? new Date(a.changedAt).getTime() : 0
+    const bt = b.changedAt ? new Date(b.changedAt).getTime() : 0
+    return at - bt
+  })
 })
 
 function inboundStatusClass(status) {
