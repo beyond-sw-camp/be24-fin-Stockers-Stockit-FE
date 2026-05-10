@@ -90,10 +90,10 @@ export const roleMenus = {
       path: '/hq/esg',
       icon: 'sprout',
       children: [
-        { label: '친환경 발자국 현황판',     path: '/hq/esg' },
-        { label: '친환경 나무 키우기 점수',  path: '/hq/esg/tree-score' },
-        { label: '탄소중립 관리',             path: '/hq/esg/emissionquota' },
-        { label: '배출권 시장 가치',         path: '/hq/esg/carbon-price' },
+        { label: '친환경 발자국 현황판', path: '/hq/esg' },
+        { label: '친환경 나무 키우기 점수', path: '/hq/esg/tree-score' },
+        { label: '탄소중립 관리', path: '/hq/esg/emissionquota' },
+        { label: '배출권 시장 가치', path: '/hq/esg/carbon-price' },
       ],
     },
   ],
@@ -102,17 +102,13 @@ export const roleMenus = {
       label: '대시보드',
       path: '/store/dashboard',
       icon: 'layout',
-      children: [
-        { label: '대시보드', path: '/store/dashboard' },
-      ],
+      children: [{ label: '대시보드', path: '/store/dashboard' }],
     },
     {
       label: '재고 관리',
       path: '/store/inventory',
       icon: 'warehouse',
-      children: [
-        { label: '매장 재고 조회', path: '/store/inventory' },
-      ],
+      children: [{ label: '매장 재고 조회', path: '/store/inventory' }],
     },
     {
       label: '판매 관리',
@@ -148,8 +144,8 @@ export const roleMenus = {
       path: '/store/stats',
       icon: 'chart',
       children: [
-        { label: '매장 통계', path: '/store/stats' },
-        { label: '매출 조회', path: '/store/stats/sales' },
+        { label: '재고 운영 통계', path: '/store/stats' },
+        { label: '재고·발주 리포트', path: '/store/stats/sales' },
       ],
     },
   ],
