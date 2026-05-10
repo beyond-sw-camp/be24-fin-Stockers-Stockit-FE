@@ -1,115 +1,134 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import AppLayout from '@/components/common/AppLayout.vue'
-import LineChart from '@/components/common/charts/LineChart.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
-const auth = useAuthStore()
+import { getStoreInventories } from '@/api/store/inventory.js'
+import { getStoreOrderAnalytics } from '@/api/store/orders.js'
 
 const storeMenus = roleMenus.store
 const statsMenus = roleMenus.store.find((menu) => menu.label === '통계')?.children ?? []
 const activeTopMenu = computed(() => '통계')
-const activeSideMenu = ref('매장 통계')
+const activeSideMenu = ref('재고 운영 통계')
 
-const kpi = [
-  { label: '오늘 매출', value: '₩4,821,500', delta: '+12.3%', tone: 'up' },
-  { label: '주간 매출', value: '₩29,484,000', delta: '+6.8%', tone: 'up' },
-  { label: '객단가', value: '₩38,900', delta: '-2.1%', tone: 'down' },
-  { label: '판매 건수', value: '124건', delta: '+9건', tone: 'up' },
-  { label: '재고 부족 SKU', value: '7개', delta: '주의 필요', tone: 'warn' },
-  { label: '발주 진행 건수', value: '5건', delta: '승인대기 2건', tone: 'neutral' },
-]
+const loading = ref(false)
+const inventoryError = ref(false)
+const analyticsError = ref(false)
 
-const trend = [58, 72, 66, 81, 75, 92, 88]
-const trendLabels = ['월', '화', '수', '목', '금', '토', '일']
+const inventories = ref([])
+const analyticsSummary = ref({
+  totalOrders: 0,
+  totalRequestedQuantity: 0,
+})
+const analyticsTopSkus = ref([])
+const analyticsCategoryBreakdown = ref([])
 
-const salesTrendChartData = computed(() => ({
-  labels: trendLabels,
-  datasets: [
-    {
-      label: '일 매출',
-      data: trend,
-      borderColor: '#0E7A60',
-      backgroundColor: 'rgba(14, 122, 96, 0.14)',
-      borderWidth: 2.5,
-      pointRadius: 3,
-      pointHoverRadius: 5,
-      pointBackgroundColor: '#fff',
-      pointBorderColor: '#0E7A60',
-      pointBorderWidth: 2,
-      tension: 0.35,
-      fill: true,
-    },
-  ],
-}))
+const topSkuPage = ref(0)
+const topSkuSize = ref(10)
+const riskPage = ref(0)
+const riskSize = ref(10)
+const pageSizeOptions = [10, 20, 50]
 
-const salesTrendChartOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: {
-    legend: { display: false },
-    tooltip: {
-      backgroundColor: 'rgba(17, 24, 39, 0.95)',
-      titleColor: '#6ee7b7',
-      titleFont: { size: 11, weight: 'bold' },
-      bodyColor: '#fff',
-      padding: 10,
-      cornerRadius: 6,
-      displayColors: false,
-      callbacks: {
-        title: (items) => items[0].label,
-        label: (ctx) => `${ctx.parsed.y}`,
-      },
-    },
-  },
-  scales: {
-    x: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#9ca3af' } },
-    y: {
-      display: true,
-      grid: { color: '#f3f4f6' },
-      ticks: { font: { size: 10 }, color: '#9ca3af' },
-      border: { display: false },
-    },
-  },
-  interaction: { mode: 'index', intersect: false },
+const safeInventories = computed(() => (Array.isArray(inventories.value) ? inventories.value : []))
+const totalItems = computed(() => safeInventories.value.length)
+const lowStockCount = computed(() => safeInventories.value.filter((row) => Number(row.availableStock ?? 0) > 0 && Number(row.availableStock ?? 0) <= Number(row.safetyStock ?? 0)).length)
+const outOfStockCount = computed(() => safeInventories.value.filter((row) => Number(row.availableStock ?? 0) <= 0).length)
+const riskItems = computed(() => safeInventories.value.filter((row) => Number(row.availableStock ?? 0) <= Number(row.safetyStock ?? 0)))
+const riskRatio = computed(() => {
+  if (!totalItems.value) return 0
+  return Math.round((riskItems.value.length / totalItems.value) * 1000) / 10
+})
+
+const topSkuTotalPages = computed(() => Math.ceil(analyticsTopSkus.value.length / topSkuSize.value) || 0)
+const riskTotalPages = computed(() => Math.ceil(riskItems.value.length / riskSize.value) || 0)
+
+const pagedTopSkus = computed(() => {
+  const start = topSkuPage.value * topSkuSize.value
+  return analyticsTopSkus.value.slice(start, start + topSkuSize.value)
+})
+
+const pagedRiskItems = computed(() => {
+  const start = riskPage.value * riskSize.value
+  return riskItems.value.slice(start, start + riskSize.value)
+})
+
+const topSkuPageNumbers = computed(() => buildPageNumbers(topSkuPage.value, topSkuTotalPages.value))
+const riskPageNumbers = computed(() => buildPageNumbers(riskPage.value, riskTotalPages.value))
+
+const statusDistribution = computed(() => {
+  const normal = safeInventories.value.filter((row) => Number(row.availableStock ?? 0) > Number(row.safetyStock ?? 0)).length
+  const low = lowStockCount.value
+  const out = outOfStockCount.value
+  const sum = Math.max(normal + low + out, 1)
+  return [
+    { label: '정상', count: normal, ratio: Math.round((normal / sum) * 100) },
+    { label: '부족', count: low, ratio: Math.round((low / sum) * 100) },
+    { label: '품절', count: out, ratio: Math.round((out / sum) * 100) },
+  ]
+})
+
+function buildPageNumbers(page, totalPages) {
+  if (!totalPages) return []
+  const maxButtons = 5
+  const start = Math.max(0, Math.min(page - 2, totalPages - maxButtons))
+  const end = Math.min(totalPages, start + maxButtons)
+  return Array.from({ length: end - start }, (_, idx) => start + idx)
 }
 
-const categoryMix = [
-  { name: '상의', percent: 38, color: '#0E7A60' },
-  { name: '하의', percent: 27, color: '#3A9D85' },
-  { name: '아우터', percent: 19, color: '#77BEAD' },
-  { name: '잡화', percent: 16, color: '#B8DDD4' },
-]
-
-const topSkus = [
-  { sku: 'SKU-0132', name: '오버핏 코튼 티셔츠', qty: 48, amount: 1152000 },
-  { sku: 'SKU-0084', name: '슬림 데님 팬츠', qty: 37, amount: 1776000 },
-  { sku: 'SKU-0201', name: '린넨 블렌드 셔츠', qty: 32, amount: 1536000 },
-  { sku: 'SKU-0314', name: '라운드 니트 가디건', qty: 24, amount: 2112000 },
-  { sku: 'SKU-0160', name: '캔버스 토트백', qty: 21, amount: 756000 },
-]
-
-const riskSkus = [
-  { sku: 'SKU-0084-BLK-28', name: '슬림 데님 팬츠 / 28', stock: 2, safe: 10, risk: '높음' },
-  { sku: 'SKU-0132-WHT-XS', name: '오버핏 코튼 티셔츠 / XS', stock: 5, safe: 15, risk: '중간' },
-  { sku: 'SKU-0314-GRY-M', name: '라운드 니트 가디건 / M', stock: 8, safe: 20, risk: '중간' },
-  { sku: 'SKU-0201-IVR-L', name: '린넨 블렌드 셔츠 / L', stock: 11, safe: 18, risk: '관심' },
-]
-
-function toneClass(tone) {
-  if (tone === 'up') return 'text-emerald-600'
-  if (tone === 'down') return 'text-red-500'
-  if (tone === 'warn') return 'text-amber-600'
-  return 'text-gray-500'
+function statusClass(status) {
+  if (status === '품절') return 'bg-red-50 text-red-700'
+  if (status === '부족') return 'bg-amber-50 text-amber-700'
+  return 'bg-emerald-50 text-emerald-700'
 }
 
-function riskClass(risk) {
-  if (risk === '높음') return 'bg-red-50 text-red-600'
-  if (risk === '중간') return 'bg-amber-50 text-amber-600'
-  return 'bg-slate-100 text-slate-600'
+function clampPages() {
+  if (topSkuTotalPages.value === 0) topSkuPage.value = 0
+  else if (topSkuPage.value >= topSkuTotalPages.value) topSkuPage.value = topSkuTotalPages.value - 1
+
+  if (riskTotalPages.value === 0) riskPage.value = 0
+  else if (riskPage.value >= riskTotalPages.value) riskPage.value = riskTotalPages.value - 1
 }
 
+function onTopSkuSizeChange() {
+  topSkuPage.value = 0
+}
 
+function onRiskSizeChange() {
+  riskPage.value = 0
+}
+
+async function fetchStats() {
+  loading.value = true
+  inventoryError.value = false
+  analyticsError.value = false
+
+  try {
+    const inventoryRes = await getStoreInventories()
+    inventories.value = Array.isArray(inventoryRes) ? inventoryRes : []
+  } catch {
+    inventories.value = []
+    inventoryError.value = true
+  }
+
+  try {
+    const analyticsRes = await getStoreOrderAnalytics()
+    analyticsSummary.value = {
+      totalOrders: Number(analyticsRes?.totalOrders ?? 0),
+      totalRequestedQuantity: Number(analyticsRes?.totalRequestedQuantity ?? 0),
+    }
+    analyticsTopSkus.value = Array.isArray(analyticsRes?.topSkus) ? analyticsRes.topSkus : []
+    analyticsCategoryBreakdown.value = Array.isArray(analyticsRes?.categoryBreakdown) ? analyticsRes.categoryBreakdown : []
+  } catch {
+    analyticsSummary.value = { totalOrders: 0, totalRequestedQuantity: 0 }
+    analyticsTopSkus.value = []
+    analyticsCategoryBreakdown.value = []
+    analyticsError.value = true
+  }
+
+  clampPages()
+  loading.value = false
+}
+
+onMounted(fetchStats)
 </script>
 
 <template>
@@ -121,104 +140,95 @@ function riskClass(risk) {
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-300 bg-white p-4 shadow-sm">
-        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Store Statistics</p>
-        <h1 class="mt-1 text-lg font-black text-gray-900">매장 통계</h1>
-        <p class="mt-1 text-xs font-bold text-gray-500">매장 운영에 필요한 핵심 지표를 한 페이지에서 확인합니다.</p>
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Inventory Operations</p>
+        <h1 class="mt-1 text-lg font-black text-gray-900">재고 운영 통계</h1>
+        <p class="mt-1 text-xs font-bold text-gray-500">재고 상태와 발주 분석 데이터를 기반으로 운영 리스크를 확인합니다.</p>
       </section>
 
       <section class="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <article v-for="item in kpi" :key="item.label" class="border border-gray-300 bg-white px-3 py-3 shadow-sm">
-          <p class="text-[11px] font-bold text-gray-500">{{ item.label }}</p>
-          <p class="mt-2 text-xl font-black text-gray-900">{{ item.value }}</p>
-          <p class="mt-1 text-[11px] font-bold" :class="toneClass(item.tone)">{{ item.delta }}</p>
-        </article>
+        <article class="border border-gray-300 bg-white p-3 shadow-sm"><p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">전체 품목 수</p><p class="mt-2 text-2xl font-black text-gray-900">{{ totalItems.toLocaleString() }}</p></article>
+        <article class="border border-gray-300 bg-white p-3 shadow-sm"><p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">부족 SKU 수</p><p class="mt-2 text-2xl font-black text-gray-900">{{ lowStockCount.toLocaleString() }}</p></article>
+        <article class="border border-gray-300 bg-white p-3 shadow-sm"><p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">품절 SKU 수</p><p class="mt-2 text-2xl font-black text-gray-900">{{ outOfStockCount.toLocaleString() }}</p></article>
+        <article class="border border-gray-300 bg-white p-3 shadow-sm"><p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">안전재고 이하 비율</p><p class="mt-2 text-2xl font-black text-gray-900">{{ riskRatio }}%</p></article>
+        <article class="border border-gray-300 bg-white p-3 shadow-sm"><p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">누적 발주 건수</p><p class="mt-2 text-2xl font-black text-gray-900">{{ analyticsSummary.totalOrders.toLocaleString() }}</p></article>
+        <article class="border border-gray-300 bg-white p-3 shadow-sm"><p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">누적 발주 수량</p><p class="mt-2 text-2xl font-black text-gray-900">{{ analyticsSummary.totalRequestedQuantity.toLocaleString() }}</p></article>
       </section>
 
-      <section class="grid gap-3 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <section class="grid gap-3 xl:grid-cols-2">
         <article class="border border-gray-300 bg-white shadow-sm">
-          <div class="border-b border-gray-200 px-4 py-3">
-            <h2 class="text-sm font-black text-gray-900">최근 7일 매출 추이</h2>
-          </div>
-          <div class="px-4 pb-4 pt-3">
-            <div class="h-[140px]">
-              <LineChart :data="salesTrendChartData" :options="salesTrendChartOptions" :height="140" />
+          <div class="border-b border-gray-200 px-4 py-3"><h2 class="text-sm font-black text-gray-900">재고 상태 분포</h2></div>
+          <div class="space-y-3 p-4">
+            <div v-for="row in statusDistribution" :key="row.label" class="space-y-1">
+              <div class="flex items-center justify-between text-xs"><span class="font-bold text-gray-700">{{ row.label }}</span><span class="font-black text-gray-900">{{ row.count }}개 ({{ row.ratio }}%)</span></div>
+              <div class="h-2 overflow-hidden bg-gray-100"><div class="h-full bg-[#0E7A60]" :style="{ width: `${row.ratio}%` }" /></div>
             </div>
+            <p v-if="inventoryError" class="text-xs font-bold text-red-500">재고 데이터를 불러오지 못해 0값으로 표시했습니다.</p>
           </div>
         </article>
 
         <article class="border border-gray-300 bg-white shadow-sm">
-          <div class="border-b border-gray-200 px-4 py-3">
-            <h2 class="text-sm font-black text-gray-900">카테고리별 매출 비중</h2>
-          </div>
-          <div class="space-y-3 px-4 py-4">
-            <div v-for="row in categoryMix" :key="row.name" class="space-y-1">
-              <div class="flex items-center justify-between text-xs">
-                <span class="font-bold text-gray-700">{{ row.name }}</span>
-                <span class="font-black text-gray-900">{{ row.percent }}%</span>
-              </div>
-              <div class="h-2 overflow-hidden bg-gray-100">
-                <div class="h-full" :style="{ width: `${row.percent}%`, backgroundColor: row.color }" />
-              </div>
-            </div>
+          <div class="border-b border-gray-200 px-4 py-3"><h2 class="text-sm font-black text-gray-900">카테고리별 발주 비중</h2></div>
+          <div class="space-y-2 p-4">
+            <div v-for="row in analyticsCategoryBreakdown" :key="row.label" class="flex items-center justify-between border border-gray-200 bg-gray-50 px-3 py-2"><span class="text-xs font-bold text-gray-700">{{ row.label }}</span><span class="text-xs font-black text-gray-900">{{ Number(row.requestedQuantity ?? 0).toLocaleString() }}개</span></div>
+            <p v-if="!analyticsCategoryBreakdown.length" class="py-6 text-center text-xs font-bold text-gray-400">발주 분석 데이터가 없습니다.</p>
+            <p v-if="analyticsError" class="text-xs font-bold text-red-500">발주 분석 데이터를 불러오지 못해 0값으로 표시했습니다.</p>
           </div>
         </article>
       </section>
 
       <section class="grid gap-3 xl:grid-cols-2">
         <article class="border border-gray-300 bg-white shadow-sm">
-          <div class="border-b border-gray-200 px-4 py-3">
-            <h2 class="text-sm font-black text-gray-900">판매 TOP SKU</h2>
+          <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+            <h2 class="text-sm font-black text-gray-900">발주 TOP SKU</h2>
+            <div class="flex items-center gap-2 text-xs font-bold text-gray-500">
+              <span>현재 {{ pagedTopSkus.length }}건 / 전체 {{ analyticsTopSkus.length }}건</span>
+              <select v-model.number="topSkuSize" class="h-8 border border-gray-300 px-2 text-xs font-bold text-gray-700" @change="onTopSkuSizeChange">
+                <option v-for="option in pageSizeOptions" :key="`top-size-${option}`" :value="option">{{ option }}개</option>
+              </select>
+            </div>
           </div>
           <div class="overflow-x-auto">
-            <table class="w-full min-w-[520px] text-xs">
-              <thead class="bg-gray-50 text-[10px] uppercase text-gray-500">
-                <tr>
-                  <th class="px-3 py-3 text-left font-black">SKU</th>
-                  <th class="px-3 py-3 text-left font-black">상품명</th>
-                  <th class="px-3 py-3 text-right font-black">판매수량</th>
-                  <th class="px-3 py-3 text-right font-black">매출</th>
-                </tr>
-              </thead>
+            <table class="w-full min-w-[620px] text-xs"><thead class="bg-gray-50 text-[10px] uppercase text-gray-500"><tr><th class="px-3 py-3 text-left font-black">SKU</th><th class="px-3 py-3 text-left font-black">상품명</th><th class="px-3 py-3 text-right font-black">발주 수량</th><th class="px-3 py-3 text-right font-black">발주 건수</th></tr></thead>
               <tbody class="divide-y divide-gray-100">
-                <tr v-for="row in topSkus" :key="row.sku">
-                  <td class="px-3 py-3 font-mono font-bold text-gray-500">{{ row.sku }}</td>
-                  <td class="px-3 py-3 font-bold text-gray-800">{{ row.name }}</td>
-                  <td class="px-3 py-3 text-right font-black text-gray-700">{{ row.qty }}</td>
-                  <td class="px-3 py-3 text-right font-black text-gray-900">₩{{ row.amount.toLocaleString() }}</td>
-                </tr>
+                <tr v-for="row in pagedTopSkus" :key="row.skuCode"><td class="px-3 py-3 font-mono font-bold text-gray-600">{{ row.skuCode }}</td><td class="px-3 py-3 font-bold text-gray-900">{{ row.productName }}</td><td class="px-3 py-3 text-right font-black text-gray-900">{{ Number(row.requestedQuantity ?? 0).toLocaleString() }}</td><td class="px-3 py-3 text-right font-black text-gray-700">{{ Number(row.orderCount ?? 0).toLocaleString() }}</td></tr>
+                <tr v-if="!pagedTopSkus.length"><td colspan="4" class="px-4 py-10 text-center text-gray-400">발주 TOP SKU 데이터가 없습니다.</td></tr>
               </tbody>
             </table>
+          </div>
+          <div class="flex items-center justify-center gap-1 border-t border-gray-200 px-3 py-3">
+            <button class="h-8 px-2 text-xs font-bold border border-gray-300 disabled:opacity-40" :disabled="topSkuPage <= 0" @click="topSkuPage = Math.max(0, topSkuPage - 1)">이전</button>
+            <button v-for="num in topSkuPageNumbers" :key="`top-page-${num}`" class="h-8 min-w-8 px-2 text-xs font-bold border" :class="num === topSkuPage ? 'border-[#0E7A60] bg-[#0E7A60] text-white' : 'border-gray-300 text-gray-700'" @click="topSkuPage = num">{{ num + 1 }}</button>
+            <button class="h-8 px-2 text-xs font-bold border border-gray-300 disabled:opacity-40" :disabled="topSkuPage >= Math.max(0, topSkuTotalPages - 1) || topSkuTotalPages === 0" @click="topSkuPage = Math.min(topSkuTotalPages - 1, topSkuPage + 1)">다음</button>
           </div>
         </article>
 
         <article class="border border-gray-300 bg-white shadow-sm">
-          <div class="border-b border-gray-200 px-4 py-3">
-            <h2 class="text-sm font-black text-gray-900">재고 리스크 SKU</h2>
+          <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+            <h2 class="text-sm font-black text-gray-900">재고 리스크 목록</h2>
+            <div class="flex items-center gap-2 text-xs font-bold text-gray-500">
+              <span>현재 {{ pagedRiskItems.length }}건 / 전체 {{ riskItems.length }}건</span>
+              <select v-model.number="riskSize" class="h-8 border border-gray-300 px-2 text-xs font-bold text-gray-700" @change="onRiskSizeChange">
+                <option v-for="option in pageSizeOptions" :key="`risk-size-${option}`" :value="option">{{ option }}개</option>
+              </select>
+            </div>
           </div>
           <div class="overflow-x-auto">
-            <table class="w-full min-w-[520px] text-xs">
-              <thead class="bg-gray-50 text-[10px] uppercase text-gray-500">
-                <tr>
-                  <th class="px-3 py-3 text-left font-black">SKU</th>
-                  <th class="px-3 py-3 text-left font-black">상품명</th>
-                  <th class="px-3 py-3 text-right font-black">재고/안전</th>
-                  <th class="px-3 py-3 text-center font-black">위험도</th>
-                </tr>
-              </thead>
+            <table class="w-full min-w-[620px] text-xs"><thead class="bg-gray-50 text-[10px] uppercase text-gray-500"><tr><th class="px-3 py-3 text-left font-black">품목코드</th><th class="px-3 py-3 text-left font-black">품목명</th><th class="px-3 py-3 text-right font-black">가용/안전</th><th class="px-3 py-3 text-center font-black">상태</th></tr></thead>
               <tbody class="divide-y divide-gray-100">
-                <tr v-for="row in riskSkus" :key="row.sku">
-                  <td class="px-3 py-3 font-mono font-bold text-gray-500">{{ row.sku }}</td>
-                  <td class="px-3 py-3 font-bold text-gray-800">{{ row.name }}</td>
-                  <td class="px-3 py-3 text-right font-black text-gray-700">{{ row.stock }} / {{ row.safe }}</td>
-                  <td class="px-3 py-3 text-center">
-                    <span class="px-2 py-1 text-[11px] font-black" :class="riskClass(row.risk)">{{ row.risk }}</span>
-                  </td>
-                </tr>
+                <tr v-for="row in pagedRiskItems" :key="row.itemCode"><td class="px-3 py-3 font-mono font-bold text-gray-600">{{ row.itemCode }}</td><td class="px-3 py-3 font-bold text-gray-900">{{ row.itemName }}</td><td class="px-3 py-3 text-right font-black text-gray-700">{{ Number(row.availableStock ?? 0) }} / {{ Number(row.safetyStock ?? 0) }}</td><td class="px-3 py-3 text-center"><span class="px-2 py-1 text-[11px] font-black" :class="statusClass(row.status)">{{ row.status }}</span></td></tr>
+                <tr v-if="!pagedRiskItems.length"><td colspan="4" class="px-4 py-10 text-center text-gray-400">안전재고 이하 SKU가 없습니다.</td></tr>
               </tbody>
             </table>
           </div>
+          <div class="flex items-center justify-center gap-1 border-t border-gray-200 px-3 py-3">
+            <button class="h-8 px-2 text-xs font-bold border border-gray-300 disabled:opacity-40" :disabled="riskPage <= 0" @click="riskPage = Math.max(0, riskPage - 1)">이전</button>
+            <button v-for="num in riskPageNumbers" :key="`risk-page-${num}`" class="h-8 min-w-8 px-2 text-xs font-bold border" :class="num === riskPage ? 'border-[#0E7A60] bg-[#0E7A60] text-white' : 'border-gray-300 text-gray-700'" @click="riskPage = num">{{ num + 1 }}</button>
+            <button class="h-8 px-2 text-xs font-bold border border-gray-300 disabled:opacity-40" :disabled="riskPage >= Math.max(0, riskTotalPages - 1) || riskTotalPages === 0" @click="riskPage = Math.min(riskTotalPages - 1, riskPage + 1)">다음</button>
+          </div>
         </article>
       </section>
+
+      <p v-if="loading" class="text-xs font-bold text-gray-500">데이터를 불러오는 중입니다.</p>
     </div>
   </AppLayout>
 </template>
