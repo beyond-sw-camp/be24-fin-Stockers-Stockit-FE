@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
@@ -130,7 +130,7 @@ onMounted(fetchInbounds)
     :side-menus="inboundMenus"
     v-model:active-side-menu="activeSideMenu"
   >
-    <div class="flex flex-col gap-4">
+    <div class="flex flex-col gap-3">
       <section class="border border-gray-300 bg-white p-4 shadow-sm">
         <div class="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -278,3 +278,4 @@ onMounted(fetchInbounds)
     </div>
   </AppLayout>
 </template>
+

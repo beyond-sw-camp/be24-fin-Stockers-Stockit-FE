@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Archive, BadgeCheck, CircleCheckBig, Truck } from 'lucide-vue-next'
@@ -162,14 +162,6 @@ function connectorClass(leftStepKey) {
   return 'bg-slate-200'
 }
 
-function statusGuideText() {
-  if (!inbound.value) return ''
-  if (inbound.value.status === 'RECEIVED') return '입고 확정이 완료되었습니다.'
-  if (outboundStatus.value === 'ARRIVED') return '배송 완료되었습니다. 입고 확정이 가능합니다.'
-  if (outboundStatus.value === 'IN_TRANSIT') return '현재 배송 중입니다.'
-  return '현재 출고 준비 단계입니다.'
-}
-
 function confirmGuardMessage() {
   if (!inbound.value) return ''
   if (inbound.value.status === 'RECEIVED') return '이미 입고 완료된 건입니다.'
@@ -265,7 +257,7 @@ onMounted(fetchDetail)
         </div>
 
         <div class="grid gap-4 p-4 lg:grid-cols-[1.5fr_1fr]">
-          <section class="space-y-4">
+          <section>
             <section class="grid gap-3 sm:grid-cols-2">
               <div class="border border-gray-200 bg-gray-50 px-3 py-3">
                 <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">원천번호</p>
@@ -285,7 +277,7 @@ onMounted(fetchDetail)
               </div>
             </section>
 
-            <section class="min-w-0">
+            <section class="min-w-0" style="margin-top: 12px;">
               <table class="w-full table-fixed border-collapse text-xs">
                 <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
                   <tr>
@@ -313,8 +305,8 @@ onMounted(fetchDetail)
             </section>
           </section>
 
-          <section class="space-y-4">
-            <section class="border border-gray-200 bg-white p-3">
+          <section>
+            <section class="border border-gray-200 bg-white p-4">
               <p class="mb-3 text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">배송 흐름</p>
               <div class="rounded-lg border border-slate-100 bg-slate-50 p-3">
                 <ol class="flex items-start justify-between gap-1">
@@ -343,13 +335,10 @@ onMounted(fetchDetail)
                     />
                   </li>
                 </ol>
-                <p class="mt-3 text-center text-sm font-black text-slate-700">
-                  {{ statusGuideText() }}
-                </p>
               </div>
             </section>
 
-            <section class="border border-gray-200 bg-white p-3">
+            <section class="border border-gray-200 bg-white p-4" style="margin-top: 12px;">
               <p class="mb-2 text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">입고 진행 이력</p>
               <ol class="ml-1">
                 <li
@@ -365,7 +354,7 @@ onMounted(fetchDetail)
               </ol>
             </section>
 
-            <section class="space-y-2">
+            <section class="space-y-3 border border-gray-200 bg-white p-4" style="margin-top: 12px;">
               <button
                 v-if="canConfirmInbound"
                 type="button"
@@ -413,3 +402,4 @@ onMounted(fetchDetail)
     </div>
   </AppLayout>
 </template>
+
