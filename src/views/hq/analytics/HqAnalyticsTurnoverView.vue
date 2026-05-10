@@ -1,12 +1,13 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Repeat, Timer, TrendingUp, AlertTriangle } from 'lucide-vue-next'
+import { Repeat } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import ChartTooltip from '@/components/common/charts/ChartTooltip.vue'
-import LineChart from '@/components/common/charts/LineChart.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { turnoverAnalyticsApi } from '@/api/hq/analytics.js'
+import { getInfrastructures } from '@/api/hq/infrastructure.js'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -16,90 +17,150 @@ const sideMenus = roleMenus.hq.find((menu) => menu.label === '정산/통계')?.c
 const activeTopMenu = computed(() => '정산/통계')
 const activeSideMenu = ref('재고 회전율 통계')
 
-const periodUnit = ref('월간')
-const scopeFilter = ref('전사 통합')
-const categoryFilter = ref('전체')
-const sizeFilter = ref('전체')
+// ─── 필터 ──────────────────────────────────────────────────────────────
+const periodUnit = ref('연간')
+const scopeFilter = ref('전사 통합')        // '전사 통합' | '매장' | '창고'
+const locationCode = ref('')                // 특정 위치 한정 (옵션, '' = 전체)
 
+const PERIOD_MAP = { '일간': 'DAY', '월간': 'MONTH', '연간': 'YEAR' }
+const SCOPE_MAP  = { '전사 통합': 'ALL', '매장': 'STORE', '창고': 'WAREHOUSE' }
+
+// ─── 인프라 마스터 (위치 드롭다운 동적 옵션) ─────────────────────────
+const stores = ref([])
+const warehouses = ref([])
+
+async function loadInfrastructures() {
+  try {
+    const [s, w] = await Promise.all([
+      getInfrastructures({ type: 'STORE', status: 'ACTIVE' }),
+      getInfrastructures({ type: 'WAREHOUSE', status: 'ACTIVE' }),
+    ])
+    stores.value = Array.isArray(s) ? s : []
+    warehouses.value = Array.isArray(w) ? w : []
+  } catch (e) {
+    console.error('[TurnoverView] loadInfrastructures failed', e)
+    stores.value = []
+    warehouses.value = []
+  }
+}
+
+// 그룹 따라 위치 옵션 동적 노출
+const locationOptions = computed(() => {
+  if (scopeFilter.value === '매장') return stores.value
+  if (scopeFilter.value === '창고') return warehouses.value
+  return []  // 전사 통합: 개별 위치 선택 불가
+})
+
+// ─── BE 연동 — 회전율 통계 ─────────────────────────────────────────────
+const statsData = ref(null)
+const loading = ref(false)
+const loadError = ref('')
+
+// 기간 단위 → from/to 산출 (이번 주기는 단순화: 최근 N개월)
+function resolveDateRange() {
+  const today = new Date()
+  const pad2 = (n) => String(n).padStart(2, '0')
+  const fmt = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+  // 회전율 통계는 보통 최근 1~12개월 윈도우. 단위별 윈도우:
+  //   일간 → 최근 30일 / 월간 → 최근 60일 (전월+당월) / 연간 → 최근 365일
+  let fromDate
+  if (periodUnit.value === '일간') {
+    fromDate = new Date(today)
+    fromDate.setDate(fromDate.getDate() - 29)
+  } else if (periodUnit.value === '연간') {
+    fromDate = new Date(today)
+    fromDate.setDate(fromDate.getDate() - 364)
+  } else {
+    // 월간 — 전월 1일 ~ 오늘
+    fromDate = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+  }
+  return { from: fmt(fromDate), to: fmt(today) }
+}
+
+async function fetchTurnoverStats() {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const { from, to } = resolveDateRange()
+    statsData.value = await turnoverAnalyticsApi.get({
+      period: PERIOD_MAP[periodUnit.value] ?? 'MONTH',
+      from, to,
+      scope: SCOPE_MAP[scopeFilter.value] ?? 'ALL',
+      locationCode: locationCode.value || null,
+    })
+  } catch (e) {
+    console.error('[TurnoverView] fetch failed', e)
+    loadError.value = '재고 회전율 통계를 불러오지 못했습니다.'
+    statsData.value = null
+  } finally {
+    loading.value = false
+  }
+}
+
+// scope 변경 시 locationCode 자동 리셋 (옛 그룹의 위치코드가 새 그룹엔 없을 수 있음)
+watch(scopeFilter, () => { locationCode.value = '' })
+watch([periodUnit, scopeFilter, locationCode], fetchTurnoverStats)
+
+onMounted(async () => {
+  await loadInfrastructures()
+  await fetchTurnoverStats()
+})
 
 const dateLabel = computed(() =>
   new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
 )
 
-// 매장·창고별 회전율 (CEN-047: 본사 창고 + 가맹점)
-const turnoverData = [
-  { name: '본사 인천 제1창고', type: '본사 창고', avgInventory: 18420, sales: 92100, turnover: 5.0, daysOnHand: 6.0, status: '우수' },
-  { name: '본사 이천 풀필먼트', type: '본사 창고', avgInventory: 12640, sales: 50560, turnover: 4.0, daysOnHand: 7.5, status: '정상' },
-  { name: '본사 부산 물류창고', type: '본사 창고', avgInventory: 9820, sales: 27496, turnover: 2.8, daysOnHand: 10.7, status: '저조' },
-  { name: '스톡잇 강남점', type: '직영점', avgInventory: 1240, sales: 8060, turnover: 6.5, daysOnHand: 4.6, status: '우수' },
-  { name: '판교 테크노점', type: '직영점', avgInventory: 1080, sales: 5832, turnover: 5.4, daysOnHand: 5.6, status: '우수' },
-  { name: '여의도 IFC몰점', type: '직영점', avgInventory: 1340, sales: 6432, turnover: 4.8, daysOnHand: 6.3, status: '정상' },
-  { name: '성수 리빙샵', type: '직영점', avgInventory: 980, sales: 2842, turnover: 2.9, daysOnHand: 10.3, status: '저조' },
-  { name: '부산 센텀점', type: '직영점', avgInventory: 1450, sales: 3045, turnover: 2.1, daysOnHand: 14.3, status: '경고' },
-]
+// ─── 금액 표기 — 풀 콤마 원 단위 (₩X,XXX,XXX) — 통계 페이지 통일 ──────
+//   BE 응답의 value/totalValue/lockedValue 는 백만원 단위 (예: 808.4 = 8.084억원)
+function formatKoreanMoney(won) {
+  if (won == null || isNaN(won)) return '₩0'
+  return `₩${Number(won).toLocaleString('ko-KR')}`
+}
+function formatMillionWon(million) {
+  if (million == null || isNaN(million)) return '₩0'
+  return formatKoreanMoney(Math.round(Number(million) * 1_000_000))
+}
 
+// ─── 매장·창고별 회전율 (BE 응답 → FE 매핑) ──────────────────────────
 const filteredData = computed(() => {
-  if (scopeFilter.value === '본사 창고만') return turnoverData.filter((d) => d.type === '본사 창고')
-  if (scopeFilter.value === '직영점만') return turnoverData.filter((d) => d.type === '직영점')
-  return turnoverData
+  return (statsData.value?.locationStats ?? []).map((d) => ({
+    name: d.name,
+    type: d.type,
+    avgInventory: d.avgInventory ?? 0,
+    sales: d.sales ?? 0,
+    turnover: Number(d.turnover ?? 0),
+    daysOnHand: Number(d.daysOnHand ?? 0),
+    status: d.status ?? '품절',
+  }))
 })
 
-const avgTurnover = computed(() => {
-  const list = filteredData.value
-  if (list.length === 0) return '0.00'
-  return (list.reduce((s, d) => s + d.turnover, 0) / list.length).toFixed(2)
-})
-
+// 재고 건강 진단 영역의 안내 텍스트에서 사용
 const avgDaysOnHand = computed(() => {
   const list = filteredData.value
   if (list.length === 0) return '0.0'
   return (list.reduce((s, d) => s + d.daysOnHand, 0) / list.length).toFixed(1)
 })
 
-const bestTurnover = computed(() =>
-  filteredData.value.length ? filteredData.value.reduce((a, b) => (a.turnover > b.turnover ? a : b)) : { name: '-', turnover: 0 },
-)
-
-const worstTurnover = computed(() =>
-  filteredData.value.length ? filteredData.value.reduce((a, b) => (a.turnover < b.turnover ? a : b)) : { name: '-', daysOnHand: 0 },
-)
-
 const maxTurnover = computed(() => Math.max(...filteredData.value.map((d) => d.turnover), 1))
 
-// 6개월 추이
-const trendByMonth = [
-  { m: '11월', value: 4.2 },
-  { m: '12월', value: 4.5 },
-  { m: '1월', value: 4.0 },
-  { m: '2월', value: 4.3 },
-  { m: '3월', value: 4.6 },
-  { m: '4월', value: 4.2 },
-]
-
-// 카테고리별 회전율
-const categoryTurnover = [
-  { category: '상의', avgInventory: 8420, sales: 51360, turnover: 6.1, daysOnHand: 4.9 },
-  { category: '바지', avgInventory: 6240, sales: 31200, turnover: 5.0, daysOnHand: 6.0 },
-  { category: '치마', avgInventory: 1820, sales: 6916, turnover: 3.8, daysOnHand: 7.9 },
-  { category: '아우터', avgInventory: 5240, sales: 13624, turnover: 2.6, daysOnHand: 11.5 },
-]
-
-const kpiMetrics = computed(() => [
-  { label: '평균 회전율', value: avgTurnover.value, unit: 'x', sub: `목표 4.5x ${parseFloat(avgTurnover.value) >= 4.5 ? '상회' : '미달'}`, icon: Repeat, valueCls: 'text-emerald-700', iconBg: 'bg-emerald-50', iconCls: 'text-emerald-600' },
-  { label: '평균 보유일', value: avgDaysOnHand.value, unit: '일', sub: '평균 재고 ÷ 일 평균 판매', icon: Timer, valueCls: 'text-blue-700', iconBg: 'bg-blue-50', iconCls: 'text-blue-600' },
-  { label: '회전율 1위', value: bestTurnover.value.turnover, unit: 'x', sub: bestTurnover.value.name, icon: TrendingUp, valueCls: 'text-amber-700', iconBg: 'bg-amber-50', iconCls: 'text-amber-600' },
-  { label: '주의 필요', value: worstTurnover.value.daysOnHand, unit: '일', sub: worstTurnover.value.name, icon: AlertTriangle, valueCls: 'text-red-700', iconBg: 'bg-red-50', iconCls: 'text-red-600' },
-])
-
-// ─── 재고 건강도 진단 + 신호등 분포 ────────────────────────────────────
-const inventoryHealth = ref({
-  totalSku: 217,
-  healthy: 150,   // 🟢 회전율 4x+ (보유 90일 이내)
-  caution: 35,    // 🟡 회전율 2~4x (보유 90~180일)
-  warning: 20,    // 🟠 회전율 1~2x (보유 180~365일)
-  danger: 12,     // 🔴 회전율 1x 미만 (보유 365일 초과 = 악성)
-  totalValue: 412.5,    // 단위 M원
-  lockedValue: 22.4,    // 악성재고 묶인 금액 M원
+// ─── 재고 건강도 진단 + 신호등 분포 (BE 응답 그대로) ─────────────────
+const inventoryHealth = computed(() => {
+  const h = statsData.value?.inventoryHealth
+  if (!h) {
+    return {
+      totalSku: 0, healthy: 0, caution: 0, warning: 0, danger: 0,
+      totalValue: 0, lockedValue: 0,
+    }
+  }
+  return {
+    totalSku: h.totalSku ?? 0,
+    healthy: h.healthy ?? 0,
+    caution: h.caution ?? 0,
+    warning: h.warning ?? 0,
+    danger: h.danger ?? 0,
+    totalValue: Number(h.totalValue ?? 0),
+    lockedValue: Number(h.lockedValue ?? 0),
+  }
 })
 
 const overallDiagnosis = computed(() => {
@@ -122,21 +183,84 @@ const overallDiagnosis = computed(() => {
   }
 })
 
-const healthSegments = computed(() => [
-  { key: 'healthy', label: '🟢 정상', count: inventoryHealth.value.healthy, desc: '잘 팔리고 있어요',         range: '회전율 4x+ · 90일 이내', cls: 'bg-emerald-50 border-emerald-200 text-emerald-700' },
-  { key: 'caution', label: '🟡 주의', count: inventoryHealth.value.caution, desc: '살짝 느려요',              range: '회전율 2~4x · 90~180일', cls: 'bg-amber-50 border-amber-200 text-amber-700' },
-  { key: 'warning', label: '🟠 경고', count: inventoryHealth.value.warning, desc: '6개월 이상 보유',           range: '회전율 1~2x · 180~365일', cls: 'bg-orange-50 border-orange-300 text-orange-700' },
-  { key: 'danger',  label: '🔴 위험', count: inventoryHealth.value.danger,  desc: '1년 넘게 안 팔림',          range: '회전율 1x 미만 · 악성', cls: 'bg-red-50 border-red-300 text-red-700' },
-])
+// 팀 컨벤션 통일 — 정상/부족/품절 3단계 (BE 응답 4단계 caution+warning 합산)
+const healthSegments = computed(() => {
+  const h = inventoryHealth.value
+  return [
+    { key: 'normal', label: '🟢 정상', count: h.healthy,                desc: '잘 팔리고 있어요',         range: '회전율 4x+ · 90일 이내',     cls: 'bg-emerald-50 border-emerald-200 text-emerald-700' },
+    { key: 'short',  label: '🟡 부족', count: h.caution + h.warning,    desc: '회전이 느려요',             range: '회전율 1~4x · 90~365일',     cls: 'bg-amber-50 border-amber-200 text-amber-700' },
+    { key: 'out',    label: '🔴 품절', count: h.danger,                 desc: '1년 넘게 안 팔림',          range: '회전율 1x 미만 · 악성',     cls: 'bg-red-50 border-red-300 text-red-700' },
+  ]
+})
 
-// ─── 악성 재고 리스트 (순환재고 전환 워크플로우) ──────────────────────
-const deadStockList = ref([
-  { rank: 1, sku: 'SKU-OUT-001', name: '롱 패딩 (블랙, L)',     category: '아우터', location: '강남점',    daysHeld: 245, units: 120, value: 9.6, turnover: 0.5, selected: true },
-  { rank: 2, sku: 'SKU-OUT-088', name: '캐시미어 가디건 (베이지)', category: '아우터', location: '부산 센텀점', daysHeld: 198, units: 85,  value: 4.2, turnover: 0.8, selected: true },
-  { rank: 3, sku: 'SKU-SKR-012', name: '미니 스커트 (네이비)',    category: '치마',    location: '여의도점',  daysHeld: 178, units: 60,  value: 1.8, turnover: 1.0, selected: true },
-  { rank: 4, sku: 'SKU-OUT-042', name: '울 자켓 (그레이, M)',     category: '아우터', location: '판교점',    daysHeld: 165, units: 38,  value: 2.5, turnover: 1.1, selected: false },
-  { rank: 5, sku: 'SKU-SKR-007', name: '플레어 롱스커트 (블랙)',  category: '치마',    location: '성수점',    daysHeld: 152, units: 45,  value: 1.4, turnover: 1.3, selected: false },
-])
+// ─── 신호등 단계별 SKU 리스트 (BE 4단계 → FE 3단계 통합) ──────────
+//   short = caution + warning 합쳐서 회전율 오름차순 (악성 가까운 순)
+const skuByHealth = computed(() => {
+  const h = statsData.value?.inventoryHealth
+  if (!h) return { normal: [], short: [], out: [] }
+  const cautionList = h.cautionSkus ?? []
+  const warningList = h.warningSkus ?? []
+  const merged = [...warningList, ...cautionList].sort(
+    (a, b) => Number(a.turnover ?? 0) - Number(b.turnover ?? 0)
+  )
+  return {
+    normal: h.healthySkus ?? [],
+    short: merged,
+    out: h.dangerSkus ?? [],
+  }
+})
+
+// ─── 신호등 모달 ──────────────────────────────────────────────────────
+const segmentModalOpen = ref(false)
+const segmentModalKey = ref(null)
+
+const segmentModalData = computed(() => {
+  if (!segmentModalKey.value) return null
+  const seg = healthSegments.value.find((s) => s.key === segmentModalKey.value)
+  if (!seg) return null
+  return {
+    ...seg,
+    items: skuByHealth.value[segmentModalKey.value] ?? [],
+  }
+})
+
+function openSegmentModal(key) {
+  segmentModalKey.value = key
+  segmentModalOpen.value = true
+}
+
+function closeSegmentModal() {
+  segmentModalOpen.value = false
+  segmentModalKey.value = null
+}
+
+// ─── 악성 재고 TOP 5 (BE dangerSkus 회전율 오름차순 + units 큰 순 = 묶인 자금 大 순) ──────
+//   체크박스 선택 상태는 클라사이드. 순환재고 전환 액션 (POST) 은 다음 사이클.
+const deadStockSelected = ref(new Set())  // skuCode + location 조합으로 식별
+
+const deadStockList = computed(() => {
+  const dangers = statsData.value?.inventoryHealth?.dangerSkus ?? []
+  // value 내림차순 (묶인 자금 큰 순) Top 5
+  return [...dangers]
+    .sort((a, b) => Number(b.value ?? 0) - Number(a.value ?? 0))
+    .slice(0, 5)
+    .map((d, i) => {
+      const id = `${d.skuCode}__${d.location}`
+      return {
+        id,
+        rank: i + 1,
+        sku: d.skuCode,
+        name: d.productName,
+        category: d.category,
+        location: d.location,
+        daysHeld: d.daysOnHand,
+        units: d.units,
+        value: Number(d.value ?? 0),
+        turnover: Number(d.turnover ?? 0),
+        selected: deadStockSelected.value.has(id),
+      }
+    })
+})
 
 const selectedDeadStock = computed(() => deadStockList.value.filter((d) => d.selected))
 const selectedTotalValue = computed(() =>
@@ -147,9 +271,17 @@ const selectedTotalUnits = computed(() =>
 )
 
 const allSelected = computed({
-  get: () => deadStockList.value.every((d) => d.selected),
-  set: (v) => deadStockList.value.forEach((d) => { d.selected = v }),
+  get: () => deadStockList.value.length > 0 && deadStockList.value.every((d) => d.selected),
+  set: (v) => {
+    if (v) deadStockList.value.forEach((d) => deadStockSelected.value.add(d.id))
+    else deadStockSelected.value.clear()
+  },
 })
+
+function toggleDeadStock(item) {
+  if (deadStockSelected.value.has(item.id)) deadStockSelected.value.delete(item.id)
+  else deadStockSelected.value.add(item.id)
+}
 
 function transferToCirculation(items) {
   const list = Array.isArray(items) ? items : [items]
@@ -157,92 +289,23 @@ function transferToCirculation(items) {
     alert('전환할 품목을 선택해주세요.')
     return
   }
-  const totalValue = list.reduce((s, d) => s + d.value, 0).toFixed(1)
+  const totalValueMillion = list.reduce((s, d) => s + d.value, 0)
   const totalUnits = list.reduce((s, d) => s + d.units, 0)
   alert(
     `🔄 ${list.length}개 품목을 순환재고로 전환합니다\n` +
-    `총 ${totalUnits}개 / ₩${totalValue}M\n\n` +
+    `총 ${totalUnits}개 / ${formatMillionWon(totalValueMillion)}\n\n` +
     `→ 순환재고 후보 목록으로 이동합니다.`,
   )
   router.push('/hq/circular-inventory/candidates')
 }
 
+// 팀 컨벤션 통일: 재고 페이지의 "정상/부족/품절" 3단계 라벨 사용
 const statusCls = {
-  우수: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  정상: 'bg-blue-50 text-blue-700 border-blue-200',
-  저조: 'bg-amber-50 text-amber-700 border-amber-200',
-  경고: 'bg-red-50 text-red-700 border-red-200',
+  정상: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  부족: 'bg-amber-50 text-amber-700 border-amber-200',
+  품절: 'bg-red-50 text-red-700 border-red-200',
 }
 
-const turnoverTrendChartData = computed(() => ({
-  labels: trendByMonth.map((p) => p.m),
-  datasets: [
-    {
-      label: '평균 회전율',
-      data: trendByMonth.map((p) => p.value),
-      borderColor: '#7c3aed',
-      backgroundColor: 'rgba(139, 92, 246, 0.12)',
-      borderWidth: 2.5,
-      pointRadius: 4,
-      pointHoverRadius: 6,
-      pointBackgroundColor: '#fff',
-      pointBorderColor: '#7c3aed',
-      pointBorderWidth: 2,
-      tension: 0.35,
-      fill: true,
-    },
-    {
-      label: '목표 (4.5x)',
-      data: trendByMonth.map(() => 4.5),
-      borderColor: '#f59e0b',
-      borderDash: [4, 4],
-      borderWidth: 1.5,
-      pointRadius: 0,
-      pointHoverRadius: 0,
-      tension: 0,
-      fill: false,
-    },
-  ],
-}))
-
-const turnoverTrendChartOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: {
-    legend: {
-      display: true,
-      position: 'bottom',
-      labels: { font: { size: 10 }, boxWidth: 12, usePointStyle: true },
-    },
-    tooltip: {
-      backgroundColor: 'rgba(17, 24, 39, 0.95)',
-      titleColor: '#c4b5fd',
-      titleFont: { size: 11, weight: 'bold' },
-      bodyColor: '#fff',
-      padding: 10,
-      cornerRadius: 6,
-      callbacks: {
-        label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y}x`,
-      },
-    },
-  },
-  scales: {
-    x: { grid: { display: false }, ticks: { font: { size: 10 } } },
-    y: {
-      grid: { color: '#f3f4f6' },
-      ticks: {
-        font: { size: 10 },
-        stepSize: 1,
-        autoSkip: false,
-        callback: (v) => v + 'x',
-      },
-      beginAtZero: true,
-      min: 0,
-      max: 9,
-    },
-  },
-  interaction: { mode: 'index', intersect: false },
-}
 </script>
 
 <template>
@@ -275,7 +338,7 @@ const turnoverTrendChartOptions = {
           <span class="text-[10px] font-bold uppercase text-gray-400">기간</span>
           <div class="flex border border-gray-200">
             <button
-              v-for="opt in ['월간', '분기', '연간']"
+              v-for="opt in ['일간', '월간', '연간']"
               :key="opt"
               type="button"
               class="px-3 py-1 text-[11px] font-semibold transition-colors"
@@ -288,60 +351,24 @@ const turnoverTrendChartOptions = {
         </div>
         <div class="h-4 w-px bg-gray-200" />
         <div class="flex items-center gap-2">
-          <span class="text-[10px] font-bold uppercase text-gray-400">범위</span>
+          <span class="text-[10px] font-bold uppercase text-gray-400">유형</span>
           <select v-model="scopeFilter" class="border border-gray-200 bg-white px-2 py-1 text-[11px]">
             <option>전사 통합</option>
-            <option>본사 창고만</option>
-            <option>직영점만</option>
+            <option>매장</option>
+            <option>창고</option>
           </select>
         </div>
-        <div class="h-4 w-px bg-gray-200" />
-        <div class="flex items-center gap-2">
-          <span class="text-[10px] font-bold uppercase text-gray-400">카테고리</span>
-          <select v-model="categoryFilter" class="border border-gray-200 bg-white px-2 py-1 text-[11px]">
-            <option>전체</option>
-            <option>상의</option>
-            <option>바지</option>
-            <option>치마</option>
-            <option>아우터</option>
+        <div v-if="scopeFilter !== '전사 통합'" class="flex items-center gap-2">
+          <span class="text-[10px] font-bold uppercase text-gray-400">위치</span>
+          <select v-model="locationCode" class="border border-gray-200 bg-white px-2 py-1 text-[11px]">
+            <option value="">전체</option>
+            <option v-for="opt in locationOptions" :key="opt.code" :value="opt.code">{{ opt.name }}</option>
           </select>
         </div>
-        <div class="h-4 w-px bg-gray-200" />
-        <div class="flex items-center gap-2">
-          <span class="text-[10px] font-bold uppercase text-gray-400">사이즈</span>
-          <select v-model="sizeFilter" class="border border-gray-200 bg-white px-2 py-1 text-[11px]">
-            <option>전체</option>
-            <option>XS</option>
-            <option>S</option>
-            <option>M</option>
-            <option>L</option>
-            <option>XL</option>
-            <option>XXL</option>
-          </select>
-        </div>
+        <span v-if="loading" class="text-[11px] font-medium text-emerald-600">불러오는 중…</span>
+        <span v-else-if="loadError" class="text-[11px] font-medium text-rose-600">{{ loadError }}</span>
       </section>
 
-      <section class="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <article
-          v-for="m in kpiMetrics"
-          :key="m.label"
-          class="flex h-[90px] flex-col justify-between border border-gray-300 bg-white px-3 py-3 shadow-sm"
-        >
-          <div class="flex items-center justify-between">
-            <p class="text-[11px] font-medium text-gray-500">{{ m.label }}</p>
-            <div :class="[m.iconBg, 'flex h-7 w-7 items-center justify-center']">
-              <component :is="m.icon" :size="14" :class="m.iconCls" />
-            </div>
-          </div>
-          <div>
-            <div class="flex items-end gap-1 leading-none">
-              <span :class="[m.valueCls, 'text-[20px] font-bold tracking-tight']">{{ m.value }}</span>
-              <span class="mb-0.5 text-[11px] text-gray-400">{{ m.unit }}</span>
-            </div>
-            <p class="mt-1 truncate text-[10px] text-gray-400">{{ m.sub }}</p>
-          </div>
-        </article>
-      </section>
 
       <!-- ━━━━━━━ 재고 건강 진단 배너 + 회전율 의미 ━━━━━━━ -->
       <section
@@ -363,7 +390,7 @@ const turnoverTrendChartOptions = {
               </p>
               <p class="mt-1 text-[11px] text-gray-500">
                 ⚠️ 단, <span class="font-bold text-red-600">{{ inventoryHealth.danger }}개 품목</span>이
-                1년 넘게 안 팔리고 있어요 (묶인 자금 <span class="font-bold text-red-600">₩{{ inventoryHealth.lockedValue }}M</span>)
+                1년 넘게 안 팔리고 있어요 (묶인 자금 <span class="font-bold text-red-600">{{ formatMillionWon(inventoryHealth.lockedValue) }}</span>)
               </p>
             </div>
           </div>
@@ -380,39 +407,42 @@ const turnoverTrendChartOptions = {
         </div>
       </section>
 
-      <!-- ━━━━━━━ 신호등 분포 4구간 (한눈에 어디에 뭐가 많은지) ━━━━━━━ -->
-      <section class="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <article
+      <!-- ━━━━━━━ 신호등 분포 3구간 (정상/부족/품절, 클릭 시 모달) ━━━━━━━ -->
+      <section class="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <button
           v-for="seg in healthSegments"
           :key="seg.key"
+          type="button"
           :class="[seg.cls]"
-          class="border-2 px-4 py-4 shadow-sm transition-transform hover:-translate-y-0.5"
+          class="cursor-pointer border-2 px-4 py-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-1"
+          @click="openSegmentModal(seg.key)"
         >
           <p class="text-[11px] font-black uppercase tracking-wider">{{ seg.label }}</p>
           <p class="mt-2 text-3xl font-black">{{ seg.count }}<span class="ml-1 text-xs font-bold opacity-70">품목</span></p>
           <p class="mt-1 text-[11px] font-bold opacity-90">{{ seg.desc }}</p>
           <p class="mt-2 border-t border-current/20 pt-2 text-[10px] opacity-60">{{ seg.range }}</p>
-        </article>
+          <p class="mt-2 text-[10px] font-bold opacity-70">📋 클릭하여 품목 보기 →</p>
+        </button>
       </section>
 
-      <!-- ━━━━━━━ 악성 재고 TOP 5 → 순환재고 전환 워크플로우 ━━━━━━━ -->
+      <!-- ━━━━━━━ 악성 재고 TOP 5 ━━━━━━━ -->
       <section class="border border-red-300 bg-white shadow-sm">
         <header class="flex flex-wrap items-center justify-between gap-3 border-b border-red-200 bg-red-50/50 px-4 py-3">
           <div>
             <h3 class="flex items-center gap-2 text-sm font-black text-red-700">
-              🚨 악성 재고 TOP 5 → 순환재고 전환
+              🚨 악성 재고 TOP 5
             </h3>
             <p class="mt-0.5 text-[10px] text-gray-500">
-              1년 이상 묶인 재고를 <b>순환재고</b>로 전환해 매장 간 재배치/특별 채널로 처분합니다 ·
-              묶인 자금 <span class="font-bold text-red-600">₩{{ inventoryHealth.lockedValue }}M</span>
+              1년 이상 회전이 멈춘 재고 — 묶인 자금 큰 순 상위 5건 ·
+              총 묶인 자금 <span class="font-bold text-red-600">{{ formatMillionWon(inventoryHealth.lockedValue) }}</span>
             </p>
           </div>
           <div class="flex items-center gap-2">
             <button
               class="border border-[#004D3C] bg-[#004D3C] px-3 py-2 text-[11px] font-black text-white shadow-sm transition-colors hover:bg-[#003d30]"
-              @click="router.push('/hq/circular-inventory/candidates')"
+              @click="router.push('/hq/circular-inventory')"
             >
-              🔄 순환재고 후보 조회
+              🔄 전체 순환재고 보기
             </button>
           </div>
         </header>
@@ -437,12 +467,17 @@ const turnoverTrendChartOptions = {
             <tbody class="divide-y divide-gray-100">
               <tr
                 v-for="d in deadStockList"
-                :key="d.sku"
+                :key="d.id"
                 class="hover:bg-red-50/30"
                 :class="d.selected ? 'bg-emerald-50/40' : ''"
               >
                 <td class="px-2 py-2 text-center">
-                  <input type="checkbox" v-model="d.selected" class="cursor-pointer accent-[#004D3C]" />
+                  <input
+                    type="checkbox"
+                    :checked="d.selected"
+                    @change="toggleDeadStock(d)"
+                    class="cursor-pointer accent-[#004D3C]"
+                  />
                 </td>
                 <td class="px-3 py-2 text-center font-black text-red-600">{{ d.rank }}</td>
                 <td class="px-3 py-2 font-mono text-[10px] text-gray-600">{{ d.sku }}</td>
@@ -457,19 +492,13 @@ const turnoverTrendChartOptions = {
                   <span class="font-bold text-red-600">{{ d.turnover }}x</span>
                 </td>
                 <td class="px-3 py-2 text-right font-mono text-gray-700">{{ d.units }}개</td>
-                <td class="px-3 py-2 text-right font-mono font-bold text-red-700">₩{{ d.value }}M</td>
+                <td class="px-3 py-2 text-right font-mono font-bold text-red-700">{{ formatMillionWon(d.value) }}</td>
               </tr>
             </tbody>
           </table>
         </div>
-        <footer class="flex items-center justify-between border-t border-gray-100 bg-gray-50/50 px-4 py-2 text-[10px] text-gray-500">
-          <span>💡 순환재고로 전환된 품목은 <b>순환 재고 후보 조회</b>에서 매장 재배치/특별 처분 정책을 결정합니다.</span>
-          <button
-            class="font-bold text-[#004D3C] hover:underline"
-            @click="router.push('/hq/circular-inventory')"
-          >
-            전체 순환재고 보기 →
-          </button>
+        <footer class="border-t border-gray-100 bg-gray-50/50 px-4 py-2 text-[10px] text-gray-500">
+          <span>💡 1년 이상 회전이 멈춘 SKU 입니다. 순환재고 운영 정책은 <b>순환재고 메뉴</b>에서 결정하세요.</span>
         </footer>
       </section>
 
@@ -512,51 +541,11 @@ const turnoverTrendChartOptions = {
                     <span class="text-gray-400">판매량</span>
                     <span class="text-right font-semibold">{{ d.sales.toLocaleString() }}</span>
                     <span class="text-gray-400">상태</span>
-                    <span class="text-right font-bold" :class="d.status === '우수' ? 'text-emerald-400' : d.status === '정상' ? 'text-blue-400' : d.status === '저조' ? 'text-amber-400' : 'text-red-400'">{{ d.status }}</span>
+                    <span class="text-right font-bold" :class="d.status === '정상' ? 'text-emerald-400' : d.status === '부족' ? 'text-amber-400' : 'text-red-400'">{{ d.status }}</span>
                   </div>
                 </ChartTooltip>
               </div>
             </div>
-          </div>
-        </article>
-
-        <article class="flex flex-col border border-gray-300 bg-white shadow-sm">
-          <div class="border-b border-gray-200 px-3 py-2.5">
-            <h3 class="text-sm font-medium text-gray-800">전사 회전율 추이</h3>
-            <p class="mt-0.5 text-[10px] text-gray-400">최근 6개월 (목표선 4.5x)</p>
-          </div>
-          <div class="flex flex-1 items-center px-3 py-3">
-            <LineChart :data="turnoverTrendChartData" :options="turnoverTrendChartOptions" :height="320" />
-          </div>
-        </article>
-      </section>
-
-      <section class="grid gap-3 xl:grid-cols-2">
-        <article class="border border-gray-300 bg-white shadow-sm">
-          <div class="border-b border-gray-200 px-3 py-2.5">
-            <h3 class="text-sm font-medium text-gray-800">카테고리별 회전율</h3>
-          </div>
-          <div class="overflow-auto">
-            <table class="w-full text-[12px]">
-              <thead class="bg-gray-50 text-[10px] uppercase text-gray-500">
-                <tr>
-                  <th class="px-3 py-2 text-left font-semibold">카테고리</th>
-                  <th class="px-3 py-2 text-right font-semibold">평균 재고</th>
-                  <th class="px-3 py-2 text-right font-semibold">판매량</th>
-                  <th class="px-3 py-2 text-right font-semibold">회전율</th>
-                  <th class="px-3 py-2 text-right font-semibold">보유일수</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-gray-100 border-t border-gray-200">
-                <tr v-for="c in categoryTurnover" :key="c.category" class="hover:bg-gray-50/60">
-                  <td class="px-3 py-2 font-medium text-gray-800">{{ c.category }}</td>
-                  <td class="px-3 py-2 text-right text-gray-600">{{ c.avgInventory.toLocaleString() }}</td>
-                  <td class="px-3 py-2 text-right text-gray-600">{{ c.sales.toLocaleString() }}</td>
-                  <td class="px-3 py-2 text-right font-bold text-emerald-700">{{ c.turnover }}x</td>
-                  <td class="px-3 py-2 text-right font-medium text-gray-700">{{ c.daysOnHand }}일</td>
-                </tr>
-              </tbody>
-            </table>
           </div>
         </article>
 
@@ -591,6 +580,91 @@ const turnoverTrendChartOptions = {
         </article>
       </section>
 
+
     </div>
+
+    <!-- ━━━━━━━ 신호등 단계별 SKU 모달 ━━━━━━━ -->
+    <Teleport to="body">
+      <div
+        v-if="segmentModalOpen && segmentModalData"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+        @click.self="closeSegmentModal"
+      >
+        <div class="flex max-h-[85vh] w-full max-w-4xl flex-col border border-gray-300 bg-white shadow-xl">
+          <!-- Header -->
+          <header
+            :class="[segmentModalData.cls]"
+            class="flex items-center justify-between border-b-2 px-5 py-3"
+          >
+            <div>
+              <p class="text-[11px] font-black uppercase tracking-wider">{{ segmentModalData.label }}</p>
+              <h3 class="mt-0.5 text-base font-black">
+                {{ segmentModalData.count }}품목 — {{ segmentModalData.desc }}
+              </h3>
+              <p class="mt-0.5 text-[10px] opacity-70">{{ segmentModalData.range }}</p>
+            </div>
+            <button
+              type="button"
+              class="border border-current/30 bg-white/60 px-2 py-1 text-[11px] font-bold hover:bg-white"
+              @click="closeSegmentModal"
+            >
+              ✕ 닫기
+            </button>
+          </header>
+
+          <!-- Body -->
+          <div class="flex-1 overflow-auto">
+            <table class="w-full min-w-[760px] text-[12px]">
+              <thead class="sticky top-0 bg-gray-50 text-[10px] uppercase text-gray-500">
+                <tr>
+                  <th class="px-3 py-2 text-left font-semibold">SKU</th>
+                  <th class="px-3 py-2 text-left font-semibold">상품명</th>
+                  <th class="px-3 py-2 text-left font-semibold">카테고리</th>
+                  <th class="px-3 py-2 text-left font-semibold">위치</th>
+                  <th class="px-3 py-2 text-right font-semibold">회전율</th>
+                  <th class="px-3 py-2 text-right font-semibold">보유일</th>
+                  <th class="px-3 py-2 text-right font-semibold">재고</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100 border-t border-gray-200">
+                <tr
+                  v-for="item in segmentModalData.items"
+                  :key="item.skuCode"
+                  class="hover:bg-gray-50/60"
+                >
+                  <td class="px-3 py-2 font-mono text-[11px] text-gray-600">{{ item.skuCode }}</td>
+                  <td class="px-3 py-2 font-medium text-gray-800">{{ item.productName }}</td>
+                  <td class="px-3 py-2 text-gray-600">{{ item.category }}</td>
+                  <td class="px-3 py-2 text-gray-600">{{ item.location }}</td>
+                  <td class="px-3 py-2 text-right font-bold text-gray-700">{{ item.turnover }}x</td>
+                  <td class="px-3 py-2 text-right text-gray-600">{{ item.daysOnHand }}일</td>
+                  <td class="px-3 py-2 text-right text-gray-600">{{ item.units }}개</td>
+                </tr>
+                <tr v-if="!segmentModalData.items.length">
+                  <td colspan="7" class="px-3 py-8 text-center text-xs text-gray-400">
+                    표시할 품목이 없습니다.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Footer -->
+          <footer class="flex items-center justify-between border-t border-gray-200 bg-gray-50/50 px-5 py-2.5 text-[10px] text-gray-500">
+            <span>
+              표시 중: <b>{{ segmentModalData.items.length }}</b>개 / 전체 <b>{{ segmentModalData.count }}</b>품목
+              <span v-if="segmentModalData.items.length < segmentModalData.count" class="ml-1 text-gray-400">(샘플)</span>
+            </span>
+            <button
+              type="button"
+              class="border border-gray-300 bg-white px-3 py-1 text-[11px] font-bold text-gray-700 hover:bg-gray-100"
+              @click="closeSegmentModal"
+            >
+              닫기
+            </button>
+          </footer>
+        </div>
+      </div>
+    </Teleport>
   </AppLayout>
 </template>
