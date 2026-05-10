@@ -10,40 +10,19 @@ import {
 } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
-import { dashboardSideMenus } from '@/views/hq/dashboard/dashboardMenus.js'
-const auth = useAuthStore()
+import { dashboardSideMenus } from '@/views/hq/dashboard/dashboardMenus.js'
 const hqMenus = roleMenus.hq
 
 const activeSideMenu = ref('재고 위험')
 const sideMenus = dashboardSideMenus
 
-const riskStats = [
-  { label: '안전재고 미만 매장', value: '12', unit: '곳', tone: 'danger' },
-  { label: '품절 임박 SKU', value: '27', unit: '개', tone: 'warning' },
-  { label: '창고 위험 품목', value: '9', unit: '개', tone: 'warning' },
-  { label: '즉시 보충 필요', value: '6', unit: '건', tone: 'danger' },
-]
+const riskStats = []
 
-const riskStores = [
-  { name: '성수 직영점', sku: '아메리카노 원두 1kg', current: 8, safety: 30, gap: 22, eta: '오늘 18:00 전', level: 'high' },
-  { name: '판교 테크노점', sku: '종이컵 6.5온스', current: 120, safety: 300, gap: 180, eta: '내일 오전', level: 'high' },
-  { name: '강남 서초점', sku: '손세정제 리필 500ml', current: 24, safety: 50, gap: 26, eta: '오늘 21:00 전', level: 'medium' },
-  { name: '여의도 IFC점', sku: 'KF94 마스크 50매입', current: 17, safety: 40, gap: 23, eta: '내일 오전', level: 'medium' },
-]
+const riskStores = []
 
-const riskWarehouses = [
-  { name: '인천 제2센터', sku: '무선 마우스 블랙', status: '품절', action: '대체 센터 이동 필요', level: 'high' },
-  { name: '용인 물류센터', sku: '생활가전 카테고리', status: '과적재', action: '재고 재배치 권장', level: 'medium' },
-  { name: '부산 중앙창고', sku: '유리제 머그컵 350ml', status: '입고 지연', action: '긴급 발주 검토', level: 'high' },
-]
+const riskWarehouses = []
 
-const shortageRanking = [
-  { rank: 1, target: '성수 직영점', issue: '원두 / 우유 / 컵 동시 부족', severity: '즉시 조치' },
-  { rank: 2, target: '판교 테크노점', issue: '소모품류 재고 급감', severity: '오늘 보충' },
-  { rank: 3, target: '인천 제2센터', issue: '전자제품 SKU 품절 증가', severity: '센터 이동' },
-  { rank: 4, target: '강남 서초점', issue: '위생용품 안전재고 하회', severity: '내일 오전' },
-]
+const shortageRanking = []
 
 const activeTopMenu = computed(() => '대시보드')
 const dateLabel = computed(() =>
@@ -101,6 +80,12 @@ const dateLabel = computed(() =>
             />
           </div>
         </article>
+        <article
+          v-if="riskStats.length === 0"
+          class="col-span-2 border border-gray-300 bg-white px-3 py-6 text-center text-xs font-medium text-gray-400 xl:col-span-4"
+        >
+          표시할 위험 지표가 없습니다.
+        </article>
       </section>
 
       <section class="grid gap-3 xl:grid-cols-[minmax(0,1.7fr)_minmax(300px,1fr)]">
@@ -142,6 +127,11 @@ const dateLabel = computed(() =>
                     </span>
                   </td>
                 </tr>
+                <tr v-if="riskStores.length === 0">
+                  <td colspan="6" class="px-3 py-10 text-center text-xs text-gray-400">
+                    매장 재고 위험 데이터가 없습니다.
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -171,6 +161,9 @@ const dateLabel = computed(() =>
                 </span>
               </div>
             </div>
+            <div v-if="riskWarehouses.length === 0" class="px-3 py-10 text-center text-xs text-gray-400">
+              창고 위험 신호 데이터가 없습니다.
+            </div>
           </div>
         </article>
       </section>
@@ -191,6 +184,12 @@ const dateLabel = computed(() =>
             <p class="mt-2 text-[15px] font-semibold text-gray-900">{{ item.target }}</p>
             <p class="mt-2 text-[13px] text-gray-600">{{ item.issue }}</p>
             <p class="mt-3 text-[11px] font-semibold text-red-600">{{ item.severity }}</p>
+          </article>
+          <article
+            v-if="shortageRanking.length === 0"
+            class="border-b border-gray-100 px-3 py-10 text-center text-xs text-gray-400 md:col-span-2 xl:col-span-4"
+          >
+            위험 우선순위 데이터가 없습니다.
           </article>
         </div>
       </section>

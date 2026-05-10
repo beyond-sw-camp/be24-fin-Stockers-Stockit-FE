@@ -9,48 +9,23 @@ import {
 } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
 import { dashboardSideMenus } from '@/views/hq/dashboard/dashboardMenus.js'
 
 const router = useRouter()
-const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 
 const activeSideMenu = ref('입출고 흐름')
 const sideMenus = dashboardSideMenus
 
-const flowStats = [
-  { label: '금일 입고 예정', value: '22', unit: '건' },
-  { label: '금일 출고 예정', value: '54', unit: '건' },
-  { label: '이동 지시 진행중', value: '8', unit: '건' },
-  { label: '지연 처리 건수', value: '3', unit: '건' },
-]
+const flowStats = []
 
-const inboundQueues = [
-  { center: '인천 제1센터', item: '고속 충전기 25W', qty: '500 EA', eta: '15:40', state: '입고 대기' },
-  { center: '용인 물류센터', item: '종이컵 6.5온스', qty: '4,500 EA', eta: '16:10', state: '검수 진행' },
-  { center: '부산 중앙창고', item: '유리제 머그컵 350ml', qty: '220 EA', eta: '17:20', state: '지연' },
-]
+const inboundQueues = []
 
-const outboundQueues = [
-  { target: '성수 직영점', item: '아메리카노 원두 1kg', qty: '120 EA', depart: '14:20', state: '출고 완료' },
-  { target: '판교 테크노점', item: '종이컵 6.5온스', qty: '800 EA', depart: '15:10', state: '상차 진행' },
-  { target: '강남 서초점', item: '손세정제 리필 500ml', qty: '240 EA', depart: '16:00', state: '출고 대기' },
-]
+const outboundQueues = []
 
-const centerFlows = [
-  { center: '인천 제1센터', inbound: 12, outbound: 18, transfer: 3, status: '정상' },
-  { center: '인천 제2센터', inbound: 4, outbound: 9, transfer: 2, status: '주의' },
-  { center: '용인 물류센터', inbound: 15, outbound: 21, transfer: 2, status: '혼잡' },
-  { center: '부산 중앙창고', inbound: 3, outbound: 6, transfer: 1, status: '지연' },
-]
+const centerFlows = []
 
-const liveLogs = [
-  { id: 'FLOW-240420-01', type: '입고', location: '용인 물류센터', item: '종이컵 6.5온스', qty: '+4,500', status: '검수 진행', time: '15:12:20' },
-  { id: 'FLOW-240420-02', type: '출고', location: '성수 직영점', item: '아메리카노 원두 1kg', qty: '-120', status: '출고 완료', time: '15:09:42' },
-  { id: 'FLOW-240420-03', type: '이동', location: '인천 제2센터 → 인천 제1센터', item: '무선 마우스 블랙', qty: '-60', status: '이동중', time: '14:58:11' },
-  { id: 'FLOW-240420-04', type: '입고', location: '부산 중앙창고', item: '유리제 머그컵 350ml', qty: '+220', status: '지연', time: '14:41:05' },
-]
+const liveLogs = []
 
 const activeTopMenu = computed(() => '대시보드')
 const dateLabel = computed(() =>
@@ -106,6 +81,12 @@ function goToAllFlowTransactions() {
             <Truck :size="14" class="text-[#1f4b3a]" />
           </div>
         </article>
+        <article
+          v-if="flowStats.length === 0"
+          class="col-span-2 border border-gray-300 bg-white px-3 py-6 text-center text-xs font-medium text-gray-400 xl:col-span-4"
+        >
+          표시할 흐름 지표가 없습니다.
+        </article>
       </section>
 
       <section class="grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1.2fr)_minmax(300px,0.9fr)]">
@@ -129,6 +110,9 @@ function goToAllFlowTransactions() {
                   {{ row.state }}
                 </span>
               </div>
+            </div>
+            <div v-if="inboundQueues.length === 0" class="px-3 py-10 text-center text-xs text-gray-400">
+              입고 진행 데이터가 없습니다.
             </div>
           </div>
         </article>
@@ -154,6 +138,9 @@ function goToAllFlowTransactions() {
                 </span>
               </div>
             </div>
+            <div v-if="outboundQueues.length === 0" class="px-3 py-10 text-center text-xs text-gray-400">
+              출고 진행 데이터가 없습니다.
+            </div>
           </div>
         </article>
 
@@ -173,6 +160,9 @@ function goToAllFlowTransactions() {
                   {{ row.status }}
                 </span>
               </div>
+            </div>
+            <div v-if="centerFlows.length === 0" class="px-3 py-10 text-center text-xs text-gray-400">
+              거점별 흐름 데이터가 없습니다.
             </div>
           </div>
         </article>
@@ -208,6 +198,11 @@ function goToAllFlowTransactions() {
                 <td class="px-3 py-2.5 text-right font-bold" :class="row.qty.startsWith('+') ? 'text-emerald-600' : 'text-red-600'">{{ row.qty }}</td>
                 <td class="px-3 py-2.5 text-gray-700">{{ row.status }}</td>
                 <td class="px-3 py-2.5 text-gray-400">{{ row.time }}</td>
+              </tr>
+              <tr v-if="liveLogs.length === 0">
+                <td colspan="7" class="px-3 py-10 text-center text-xs text-gray-400">
+                  최근 입출고 로그가 없습니다.
+                </td>
               </tr>
             </tbody>
           </table>

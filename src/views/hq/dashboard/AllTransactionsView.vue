@@ -4,25 +4,14 @@ import { useRouter } from 'vue-router'
 import { Clock3, ListOrdered } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
 import { dashboardSideMenus } from '@/views/hq/dashboard/dashboardMenus.js'
 const router = useRouter()
-const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 
 const activeSideMenu = ref('운영 현황')
 const sideMenus = dashboardSideMenus
 
-const transactions = [
-  { id: '20240416-001', type: '입고', center: '인천 제1물류센터', item: 'A사 프리미엄 원두 (500g)', qty: '+500', status: '승인완료', time: '16:45:10' },
-  { id: '20240416-002', type: '출고', center: '강남 서초점', item: '유기농 우유 1L (12입)', qty: '-24', status: '출고대기', time: '16:30:22' },
-  { id: '20240416-003', type: '입고', center: '성수 직영점', item: '친환경 종이컵 (1000ea)', qty: '+10', status: '검수중', time: '16:15:45' },
-  { id: '20240416-004', type: '출고', center: '판교 테크노점', item: '무라벨 생수 500ml', qty: '+120', status: '승인완료', time: '15:50:12' },
-  { id: '20240416-005', type: '이동', center: '부산 중앙창고', item: '질소 포장 디저트 박스', qty: '-1200', status: '이동중', time: '15:20:30' },
-  { id: '20240416-006', type: '입고', center: '용인 물류센터', item: '종이컵 6.5온스', qty: '+4500', status: '검수중', time: '15:12:20' },
-  { id: '20240416-007', type: '출고', center: '성수 직영점', item: '아메리카노 원두 1kg', qty: '-120', status: '출고완료', time: '15:09:42' },
-  { id: '20240416-008', type: '이동', center: '인천 제2센터 → 인천 제1센터', item: '무선 마우스 블랙', qty: '-60', status: '이동중', time: '14:58:11' },
-]
+const transactions = []
 
 const activeTopMenu = computed(() => '대시보드')
 const dateLabel = computed(() =>
@@ -109,6 +98,11 @@ const dateLabel = computed(() =>
                 </td>
                 <td class="px-3 py-2.5 text-gray-700">{{ row.status }}</td>
                 <td class="px-3 py-2.5 text-gray-400">{{ row.time }}</td>
+              </tr>
+              <tr v-if="transactions.length === 0">
+                <td colspan="7" class="px-3 py-10 text-center text-xs text-gray-400">
+                  트랜잭션 데이터가 없습니다.
+                </td>
               </tr>
             </tbody>
           </table>

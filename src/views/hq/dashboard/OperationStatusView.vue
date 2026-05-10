@@ -12,10 +12,8 @@ import {
 } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
 
 const router = useRouter()
-const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 const sideMenus = roleMenus.hq.find((menu) => menu.label === '대시보드')?.children ?? []
 
@@ -32,147 +30,31 @@ const dateLabel = computed(() =>
   }).format(new Date()),
 )
 
-const kpiStats = [
-  { label: '가용 재고율', value: '84.7', unit: '%', caption: '비가용 제외', tone: 'blue' },
-  { label: '부족 재고', value: '18', unit: 'SKU', caption: '안전재고 이하', tone: 'red' },
-  { label: '순환 재고 후보', value: '126', unit: '품목', caption: '전환 검토 필요', tone: 'lime' },
-  { label: '발주 진행', value: '14', unit: '건', caption: '본사 거래처 발주', tone: 'gray' },
-]
+const kpiStats = []
 
-const inventoryRisks = [
-  {
-    item: '코튼 베이직 반팔 티셔츠',
-    category: '상의 > 반팔',
-    location: '이천 풀필먼트',
-    status: '부족',
-    stock: 74,
-    safety: 90,
-  },
-  {
-    item: '코튼 베이직 반팔 티셔츠',
-    category: '상의 > 반팔',
-    location: '부산 물류창고',
-    status: '품절',
-    stock: 0,
-    safety: 70,
-  },
-  {
-    item: '플리츠 롱스커트',
-    category: '치마 > 롱스커트',
-    location: '인천 제1창고',
-    status: '부족',
-    stock: 18,
-    safety: 55,
-  },
-  {
-    item: '라이트 숏 패딩',
-    category: '아우터 > 패딩',
-    location: '대전 허브창고',
-    status: '품절',
-    stock: 0,
-    safety: 30,
-  },
-  {
-    item: '오버핏 옥스포드 셔츠',
-    category: '상의 > 셔츠',
-    location: '인천 제1창고',
-    status: '안전',
-    stock: 490,
-    safety: 130,
-  },
-]
+const inventoryRisks = []
 
-const warehouseImbalances = [
-  {
-    item: '코튼 베이직 반팔 티셔츠',
-    category: '상의 > 반팔',
-    warehouses: [
-      { warehouse: '인천 제1창고', stock: 398, safety: 120, status: '안전' },
-      { warehouse: '이천 풀필먼트', stock: 74, safety: 90, status: '부족' },
-      { warehouse: '부산 물류창고', stock: 0, safety: 70, status: '품절' },
-      { warehouse: '대전 허브창고', stock: 132, safety: 80, status: '안전' },
-    ],
-  },
-  {
-    item: '플리츠 롱스커트',
-    category: '치마 > 롱스커트',
-    warehouses: [
-      { warehouse: '인천 제1창고', stock: 18, safety: 55, status: '부족' },
-      { warehouse: '이천 풀필먼트', stock: 0, safety: 45, status: '품절' },
-      { warehouse: '부산 물류창고', stock: 58, safety: 50, status: '안전' },
-      { warehouse: '대전 허브창고', stock: 32, safety: 50, status: '부족' },
-    ],
-  },
-  {
-    item: '라이트 숏 패딩',
-    category: '아우터 > 패딩',
-    warehouses: [
-      { warehouse: '인천 제1창고', stock: 116, safety: 50, status: '안전' },
-      { warehouse: '이천 풀필먼트', stock: 92, safety: 45, status: '안전' },
-      { warehouse: '부산 물류창고', stock: 14, safety: 35, status: '부족' },
-      { warehouse: '대전 허브창고', stock: 0, safety: 30, status: '품절' },
-    ],
-  },
-  {
-    item: '라이트 코튼 쇼츠',
-    category: '바지 > 반바지',
-    warehouses: [
-      { warehouse: '인천 제1창고', stock: 98, safety: 80, status: '안전' },
-      { warehouse: '이천 풀필먼트', stock: 39, safety: 65, status: '부족' },
-      { warehouse: '부산 물류창고', stock: 296, safety: 90, status: '안전' },
-      { warehouse: '대전 허브창고', stock: 64, safety: 60, status: '안전' },
-    ],
-  },
-]
+const warehouseImbalances = []
 
 const currentImbalanceIndex = ref(0)
 
-const currentWarehouseImbalance = computed(() => warehouseImbalances[currentImbalanceIndex.value])
+const currentWarehouseImbalance = computed(() => warehouseImbalances[currentImbalanceIndex.value] ?? null)
 
 const imbalancePositionLabel = computed(
-  () => `${currentImbalanceIndex.value + 1} / ${warehouseImbalances.length}`,
+  () => `${warehouseImbalances.length === 0 ? 0 : currentImbalanceIndex.value + 1} / ${warehouseImbalances.length}`,
 )
 
-const orderStatuses = [
-  { label: '발주 요청', value: 36, color: 'bg-[#004D3C]' },
-  { label: '창고 배정', value: 28, color: 'bg-[#7fb3a8]' },
-  { label: '출고 준비', value: 18, color: 'bg-[#D6EAEA]' },
-  { label: '배송 중', value: 12, color: 'bg-sky-200' },
-]
+const orderStatuses = []
 
-const purchaseStatuses = [
-  { label: '발주 요청', value: 14, color: 'bg-[#004D3C]' },
-  { label: '거래처 확인', value: 9, color: 'bg-[#7fb3a8]' },
-  { label: '입고 예정', value: 5, color: 'bg-[#D6EAEA]' },
-]
+const purchaseStatuses = []
 
-const alerts = [
-  {
-    type: '매장 발주량 이상 감지',
-    message: '성수 쇼룸 반팔 티셔츠 발주량 평균 대비 3배 초과',
-    time: '8분 전',
-  },
-  {
-    type: '창고 발주량 이상 알림',
-    message: '이천 풀필먼트 플리츠 롱스커트 대량 발주 이상 감지',
-    time: '21분 전',
-  },
-  {
-    type: '매장 재고 부족 알림',
-    message: '홍대 플래그십 후드티 안전재고 미달 보충 필요',
-    time: '42분 전',
-  },
-  {
-    type: '창고 재고 부족 알림',
-    message: '부산 물류창고 라이트 숏 패딩 재고 부족',
-    time: '1시간 전',
-  },
-]
+const alerts = []
 
 
 const goTo = (path) => router.push(path)
 
 const moveImbalance = (direction) => {
+  if (warehouseImbalances.length === 0) return
   currentImbalanceIndex.value =
     (currentImbalanceIndex.value + direction + warehouseImbalances.length) %
     warehouseImbalances.length
@@ -257,6 +139,12 @@ const alertTypeBadgeClass = (type) =>
           </div>
           <p class="mt-2 text-[11px] font-bold text-gray-400">{{ stat.caption }}</p>
         </article>
+        <article
+          v-if="kpiStats.length === 0"
+          class="col-span-2 border border-gray-200 bg-white p-3 text-xs font-bold text-gray-400 lg:col-span-4"
+        >
+          표시할 운영 지표가 없습니다.
+        </article>
       </section>
 
       <section class="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.9fr)]">
@@ -305,6 +193,11 @@ const alertTypeBadgeClass = (type) =>
                     >
                   </td>
                 </tr>
+                <tr v-if="inventoryRisks.length === 0">
+                  <td colspan="5" class="px-4 py-8 text-center text-xs font-bold text-gray-400">
+                    재고 위험 데이터가 없습니다.
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -350,6 +243,7 @@ const alertTypeBadgeClass = (type) =>
             </div>
           </div>
           <div class="px-4 py-3">
+            <template v-if="currentWarehouseImbalance">
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
                 <p class="truncate font-black text-gray-900">
@@ -387,6 +281,10 @@ const alertTypeBadgeClass = (type) =>
                 </div>
               </div>
             </div>
+            </template>
+            <p v-else class="py-8 text-center text-xs font-bold text-gray-400">
+              창고 불균형 데이터가 없습니다.
+            </p>
           </div>
         </article>
       </section>
@@ -432,6 +330,9 @@ const alertTypeBadgeClass = (type) =>
                     />
                   </div>
                 </div>
+                <p v-if="orderStatuses.length === 0" class="py-6 text-center text-xs font-bold text-gray-400">
+                  데이터가 없습니다.
+                </p>
               </div>
             </div>
             <div>
@@ -450,6 +351,9 @@ const alertTypeBadgeClass = (type) =>
                     />
                   </div>
                 </div>
+                <p v-if="purchaseStatuses.length === 0" class="py-6 text-center text-xs font-bold text-gray-400">
+                  데이터가 없습니다.
+                </p>
               </div>
             </div>
           </div>
@@ -474,6 +378,9 @@ const alertTypeBadgeClass = (type) =>
               </div>
               <p class="mt-2 text-xs font-black text-gray-900">{{ alert.message }}</p>
             </div>
+            <p v-if="alerts.length === 0" class="px-4 py-8 text-center text-xs font-bold text-gray-400">
+              알림 데이터가 없습니다.
+            </p>
           </div>
         </article>
       </section>
