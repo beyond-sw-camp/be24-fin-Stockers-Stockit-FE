@@ -20,13 +20,15 @@ const record = ref(null)
 const loading = ref(false)
 const loadError = ref('')
 
-const toUiStatus = (status) => {
-  if (status === 'IN_PROGRESS') return '출고 준비중'
-  if (status === 'COMPLETED') return '완료'
-  if (status === 'CANCELED') return '취소'
-  if (status === 'REQUESTED') return '요청'
-  return status || '-'
+const statusLabelByCode = {
+  READY_TO_SHIP: '출고 준비중',
+  IN_TRANSIT: '배송중',
+  ARRIVED: '배송완료',
+  RECEIVED: '입고완료',
 }
+
+const toUiStatus = (status) => statusLabelByCode[status] || status || '-'
+const transferSteps = ['READY_TO_SHIP', 'IN_TRANSIT', 'ARRIVED', 'RECEIVED']
 
 const skuCount = computed(() => record.value?.lines?.length ?? 0)
 const totalQty = computed(() =>
@@ -41,22 +43,28 @@ const memoCount = computed(() =>
 
 const lineRows = computed(() => {
   if (!record.value) return []
-  const isCanceled = record.value.status === '취소'
   return record.value.lines.map((line) => ({
     ...line,
-    fromStockAfter: isCanceled ? line.fromStockBefore : line.fromStockAfter,
-    toStockAfter: isCanceled ? line.toStockBefore : line.toStockAfter,
-    fromDelta: isCanceled ? 0 : -line.qty,
-    toDelta: isCanceled ? 0 : line.qty,
+    fromDelta: -line.qty,
+    toDelta: line.qty,
   }))
 })
 
+const currentStepIndex = computed(() => {
+  const current = record.value?.statusCode
+  const idx = transferSteps.indexOf(current)
+  if (idx < 0) return -1
+  // BE 연동 전에는 RECEIVED를 활성화하지 않는다.
+  return Math.min(idx, transferSteps.indexOf('ARRIVED'))
+})
+
 const statusConfig = computed(() => {
-  const s = record.value?.status
-  if (s === '완료') return { label: '완료', bg: 'bg-[#E8F6F2]', text: 'text-[#0B6D57]', dot: 'bg-[#0B6D57]', banner: null }
-  if (s === '출고 준비중') return { label: '출고 준비중', bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500', banner: { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-800', msg: '현재 이동이 진행 중입니다. 도착 창고의 재고 수치는 예상값입니다.' } }
-  if (s === '취소') return { label: '취소', bg: 'bg-rose-50', text: 'text-rose-700', dot: 'bg-rose-500', banner: { bg: 'bg-rose-50 border-rose-200', text: 'text-rose-800', msg: '취소된 이동 건입니다. 재고 변동이 발생하지 않았습니다.' } }
-  return { label: s ?? '-', bg: 'bg-gray-100', text: 'text-gray-700', dot: 'bg-gray-400', banner: null }
+  const code = record.value?.statusCode
+  if (code === 'READY_TO_SHIP') return { label: '출고 준비중', bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500', banner: { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-800', msg: '출고 준비 단계입니다. 재고 이동 실행 직후 상태입니다.' } }
+  if (code === 'IN_TRANSIT') return { label: '배송중', bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500', banner: { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-800', msg: '배송중 단계입니다. 도착 창고의 재고 수치는 예상값입니다.' } }
+  if (code === 'ARRIVED') return { label: '배송완료', bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500', banner: { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-800', msg: '배송 완료 상태입니다. 입고 완료(RECEIVED) 연동은 후속 단계에서 제공됩니다.' } }
+  if (code === 'RECEIVED') return { label: '입고완료', bg: 'bg-[#E8F6F2]', text: 'text-[#0B6D57]', dot: 'bg-[#0B6D57]', banner: null }
+  return { label: record.value?.status ?? '-', bg: 'bg-gray-100', text: 'text-gray-700', dot: 'bg-gray-400', banner: null }
 })
 
 const loadDetail = async () => {
@@ -67,6 +75,7 @@ const loadDetail = async () => {
     record.value = {
       ...data,
       requestedAt: data.requestedAt ? new Date(data.requestedAt).toISOString().slice(0, 16).replace('T', ' ') : '',
+      statusCode: data.status,
       status: toUiStatus(data.status),
     }
   } catch (error) {
@@ -136,6 +145,23 @@ onMounted(() => loadDetail())
           <p class="text-xs font-bold" :class="statusConfig.banner.text">{{ statusConfig.banner.msg }}</p>
         </div>
 
+        <!-- 4단계 상태 스텝 -->
+        <div class="mx-6 mb-5 border border-gray-100 bg-gray-50 px-4 py-3">
+          <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">이동 상태 흐름</p>
+          <ol class="mt-2 flex items-center gap-2 text-[11px] font-black">
+            <li v-for="(step, index) in transferSteps" :key="step" class="flex items-center gap-2">
+              <span
+                class="px-2 py-1"
+                :class="index <= currentStepIndex ? 'bg-[#004D3C] text-white' : 'bg-gray-200 text-gray-500'"
+              >
+                {{ toUiStatus(step) }}
+              </span>
+              <span v-if="index < transferSteps.length - 1" class="text-gray-300">→</span>
+            </li>
+          </ol>
+          <p class="mt-2 text-[10px] font-bold text-gray-500">입고완료(RECEIVED)는 BE 입고 연동 전까지 표시 전용 단계입니다.</p>
+        </div>
+
         <!-- 메타 정보 그리드 -->
         <div class="px-6 pb-5 grid grid-cols-2 xl:grid-cols-4 gap-3">
           <div class="border border-gray-100 bg-gray-50 px-4 py-3">
@@ -200,13 +226,9 @@ onMounted(() => loadDetail())
             <h2 class="text-sm font-black text-gray-900">SKU 이동 라인</h2>
             <p class="mt-0.5 text-[11px] font-bold text-gray-500">{{ skuCount }}건 SKU · 총 {{ totalQty.toLocaleString() }}개 이동</p>
           </div>
-          <span v-if="record.status === '출고 준비중'" class="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 text-[11px] font-black text-amber-700">
+          <span v-if="record.statusCode === 'READY_TO_SHIP' || record.statusCode === 'IN_TRANSIT'" class="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 border border-amber-200 text-[11px] font-black text-amber-700">
             <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             도착 후 재고는 예상값
-          </span>
-          <span v-else-if="record.status === '취소'" class="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 border border-rose-200 text-[11px] font-black text-rose-700">
-            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
-            재고 변동 없음
           </span>
         </div>
 
@@ -240,7 +262,7 @@ onMounted(() => loadDetail())
                 <th class="px-3 py-2.5 text-right font-black w-[80px] border-r border-gray-200">이후</th>
                 <th class="px-3 py-2.5 text-right font-black w-[80px] bg-[#F7FCFA]">이전</th>
                 <th class="px-3 py-2.5 text-right font-black w-[80px] bg-[#F7FCFA]">
-                  <span v-if="record.status === '출고 준비중'" class="text-amber-600">이후(예상)</span>
+                  <span v-if="record.statusCode === 'READY_TO_SHIP' || record.statusCode === 'IN_TRANSIT'" class="text-amber-600">이후(예상)</span>
                   <span v-else>이후</span>
                 </th>
               </tr>
@@ -293,13 +315,8 @@ onMounted(() => loadDetail())
 
                 <!-- 출발 후 -->
                 <td class="px-3 py-3.5 text-right border-r border-gray-100">
-                  <template v-if="record.status === '취소'">
-                    <span class="font-black text-gray-400">{{ line.fromStockAfter.toLocaleString() }}</span>
-                  </template>
-                  <template v-else>
-                    <span class="font-black text-rose-600">{{ line.fromStockAfter.toLocaleString() }}</span>
-                    <span class="ml-1 text-[10px] font-black text-rose-400">{{ line.fromDelta }}</span>
-                  </template>
+                  <span class="font-black text-rose-600">{{ line.fromStockAfter.toLocaleString() }}</span>
+                  <span class="ml-1 text-[10px] font-black text-rose-400">{{ line.fromDelta }}</span>
                 </td>
 
                 <!-- 도착 전 -->
@@ -307,13 +324,8 @@ onMounted(() => loadDetail())
 
                 <!-- 도착 후 -->
                 <td class="px-3 py-3.5 text-right bg-[#F7FCFA]/60">
-                  <template v-if="record.status === '취소'">
-                    <span class="font-black text-gray-400">{{ line.toStockAfter.toLocaleString() }}</span>
-                  </template>
-                  <template v-else>
-                    <span class="font-black text-[#0B6D57]">{{ line.toStockAfter.toLocaleString() }}</span>
-                    <span class="ml-1 text-[10px] font-black text-[#0B6D57]/60">+{{ line.toDelta }}</span>
-                  </template>
+                  <span class="font-black text-[#0B6D57]">{{ line.toStockAfter.toLocaleString() }}</span>
+                  <span class="ml-1 text-[10px] font-black text-[#0B6D57]/60">+{{ line.toDelta }}</span>
                 </td>
               </tr>
             </tbody>

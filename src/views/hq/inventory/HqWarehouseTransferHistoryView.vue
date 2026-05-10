@@ -37,18 +37,27 @@ const transferHistoryRows = ref([])
 const loading = ref(false)
 const loadError = ref('')
 
-const uiStatus = (status) => {
-  if (status === 'IN_PROGRESS') return '출고 준비중'
-  if (status === 'COMPLETED') return '완료'
-  if (status === 'CANCELED') return '취소'
-  if (status === 'REQUESTED') return '요청'
-  return status || '-'
+const statusCodeByLabel = {
+  '출고 준비중': 'READY_TO_SHIP',
+  '배송중': 'IN_TRANSIT',
+  '배송완료': 'ARRIVED',
+  '입고완료': 'RECEIVED',
 }
 
+const statusLabelByCode = {
+  READY_TO_SHIP: '출고 준비중',
+  IN_TRANSIT: '배송중',
+  ARRIVED: '배송완료',
+  RECEIVED: '입고완료',
+}
+
+const uiStatus = (status) => statusLabelByCode[status] || status || '-'
+
 const statusClass = (status) => ({
-  완료: 'bg-[#EBF5F5] text-black',
   '출고 준비중': 'bg-amber-50 text-amber-700',
-  취소: 'bg-red-50 text-red-700',
+  '배송중': 'bg-blue-50 text-blue-700',
+  '배송완료': 'bg-emerald-50 text-emerald-700',
+  '입고완료': 'bg-[#E8F6F2] text-[#0B6D57]',
 })[status] ?? 'bg-gray-100 text-gray-600'
 
 const filteredRows = computed(() => {
@@ -79,11 +88,7 @@ const loadTransfers = async () => {
     const params = {
       fromDate: dateFrom.value || undefined,
       toDate: dateTo.value || undefined,
-      status: selectedStatus.value === '전체'
-        ? undefined
-        : (selectedStatus.value === '출고 준비중' ? 'IN_PROGRESS'
-          : selectedStatus.value === '완료' ? 'COMPLETED'
-            : selectedStatus.value === '취소' ? 'CANCELED' : undefined),
+      status: selectedStatus.value === '전체' ? undefined : statusCodeByLabel[selectedStatus.value],
       keyword: searchTerm.value?.trim() || undefined,
     }
     const rows = await getWarehouseTransfers(params)
@@ -129,6 +134,15 @@ onMounted(() => {
         <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Inventory</p>
         <h1 class="mt-1 text-lg font-black text-gray-900">창고간 재고 이동 내역</h1>
         <p class="mt-1 text-xs font-bold text-gray-500">창고 간 재고 이동 이력을 조회하고 상태를 확인합니다.</p>
+        <div class="mt-3 flex flex-wrap items-center gap-2 text-[10px] font-black">
+          <span class="px-2 py-1 bg-amber-50 text-amber-700">출고 준비중</span>
+          <span class="text-gray-300">→</span>
+          <span class="px-2 py-1 bg-blue-50 text-blue-700">배송중</span>
+          <span class="text-gray-300">→</span>
+          <span class="px-2 py-1 bg-emerald-50 text-emerald-700">배송완료</span>
+          <span class="text-gray-300">→</span>
+          <span class="px-2 py-1 bg-[#E8F6F2] text-[#0B6D57]">입고완료(연동예정)</span>
+        </div>
 
         <div class="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-[0.9fr_0.9fr_0.8fr_1.4fr_auto]">
           <label class="flex flex-col gap-1">
@@ -145,9 +159,10 @@ onMounted(() => {
             <span class="text-[11px] font-bold text-gray-500">처리 상태</span>
             <select v-model="selectedStatus" class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
               <option value="전체">전체</option>
-              <option value="완료">완료</option>
               <option value="출고 준비중">출고 준비중</option>
-              <option value="취소">취소</option>
+              <option value="배송중">배송중</option>
+              <option value="배송완료">배송완료</option>
+              <option value="입고완료">입고완료</option>
             </select>
           </label>
 
