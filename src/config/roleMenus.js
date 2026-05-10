@@ -145,7 +145,6 @@ export const roleMenus = {
       icon: 'chart',
       children: [
         { label: '재고 운영 통계', path: '/store/stats' },
-        { label: '재고·발주 리포트', path: '/store/stats/sales' },
       ],
     },
   ],
