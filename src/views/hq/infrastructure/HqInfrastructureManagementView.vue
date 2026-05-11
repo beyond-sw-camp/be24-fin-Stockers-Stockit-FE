@@ -265,41 +265,41 @@ void quickCreateWarehouse
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-200 bg-white p-4 shadow-sm">
-        <div class="grid gap-2 xl:grid-cols-[auto_auto_auto_1fr]">
-          <label class="grid gap-1">
+        <div class="grid gap-2 xl:grid-cols-[12rem_14rem_12rem_minmax(20rem,1fr)]">
+          <label class="grid min-w-[12rem] gap-1">
             <span class="text-[11px] font-black text-gray-500">조회 대상</span>
-            <select v-model="viewType" class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
+            <select v-model="viewType" class="h-10 w-full border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
               <option value="store">매장</option>
               <option value="warehouse">창고</option>
             </select>
           </label>
-          <label class="grid gap-1">
+          <label class="grid min-w-[14rem] gap-1">
             <span class="text-[11px] font-black text-gray-500">지역 분류</span>
-            <select v-if="isStoreView" v-model="storeRegionFilter" class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
+            <select v-if="isStoreView" v-model="storeRegionFilter" class="h-10 w-full border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
               <option v-for="region in storeRegionOptions" :key="region" :value="region">{{ region }}</option>
             </select>
-            <select v-else-if="isWarehouseView" v-model="warehouseRegionFilter" class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
+            <select v-else-if="isWarehouseView" v-model="warehouseRegionFilter" class="h-10 w-full border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
               <option v-for="region in warehouseRegionOptions" :key="region" :value="region">{{ region }}</option>
             </select>
-            <select v-else class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
+            <select v-else class="h-10 w-full border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
               <option>전체 지역</option>
             </select>
           </label>
-          <label class="grid gap-1">
+          <label class="grid min-w-[12rem] gap-1">
             <span class="text-[11px] font-black text-gray-500">운영 상태</span>
-            <select v-if="isStoreView" v-model="storeStatusFilter" class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
+            <select v-if="isStoreView" v-model="storeStatusFilter" class="h-10 w-full border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
               <option>전체</option>
               <option>활성</option>
               <option>비활성</option>
             </select>
-            <select v-else-if="isWarehouseView" v-model="warehouseStatusFilter" class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
+            <select v-else-if="isWarehouseView" v-model="warehouseStatusFilter" class="h-10 w-full border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
               <option v-for="status in warehouseStatusOptions" :key="status" :value="status">{{ status }}</option>
             </select>
-            <select v-else class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
+            <select v-else class="h-10 w-full border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
               <option>전체</option>
             </select>
           </label>
-          <label class="relative grid gap-1">
+          <label class="relative grid min-w-[20rem] gap-1">
             <span class="text-[11px] font-black text-gray-500">통합 검색</span>
             <SearchIcon :size="14" class="pointer-events-none absolute left-3 top-[35px] text-gray-400" />
             <input
