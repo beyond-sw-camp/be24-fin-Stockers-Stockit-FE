@@ -345,11 +345,12 @@ const moveBack = () => {
         </div>
 
         <div class="overflow-x-auto">
-          <table class="min-w-[980px] w-full border-collapse text-left text-xs">
+          <table class="min-w-[1120px] w-full border-collapse text-left text-xs">
             <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
               <tr>
                 <th class="w-16 px-3 py-3 text-center font-black">선택</th>
                 <th class="px-3 py-3 font-black">창고 코드</th>
+                <th class="px-3 py-3 font-black">품목명</th>
                 <th class="px-3 py-3 font-black">창고명</th>
                 <th class="px-3 py-3 font-black">위치</th>
                 <th class="px-3 py-3 text-right font-black">
@@ -397,6 +398,7 @@ const moveBack = () => {
                   />
                 </td>
                 <td class="px-3 py-3 font-mono font-bold text-gray-500">{{ row.warehouseCode }}</td>
+                <td class="px-3 py-3 font-bold text-gray-700 whitespace-nowrap max-w-[220px] truncate">{{ selectedSku?.itemName || '-' }}</td>
                 <td class="px-3 py-3 font-black text-gray-900">{{ row.warehouseName }}</td>
                 <td class="px-3 py-3 font-bold text-gray-600">{{ row.location }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ row.onHandStock.toLocaleString() }}</td>
@@ -409,12 +411,12 @@ const moveBack = () => {
                 <td class="px-3 py-3 font-bold text-gray-500">{{ row.updatedAt }}</td>
               </tr>
               <tr v-if="warehouseLoading">
-                <td colspan="10" class="px-4 py-8 text-center text-xs font-bold text-gray-400">
+                <td colspan="11" class="px-4 py-8 text-center text-xs font-bold text-gray-400">
                   창고별 재고를 불러오는 중입니다.
                 </td>
               </tr>
               <tr v-else-if="sortedWarehouseRows.length === 0">
-                <td colspan="10" class="px-4 py-8 text-center text-xs font-bold text-gray-400">
+                <td colspan="11" class="px-4 py-8 text-center text-xs font-bold text-gray-400">
                   표시할 창고 재고 데이터가 없습니다.
                 </td>
               </tr>
