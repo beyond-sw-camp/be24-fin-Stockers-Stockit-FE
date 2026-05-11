@@ -11,6 +11,11 @@ export const roleMenus = {
       icon: 'warehouse',
     },
     {
+      label: '물류 창고 발주',
+      path: '/hq/purchase-orders',
+      icon: 'truck',
+    },
+    {
       label: '물류 창고간 재고이동',
       path: '/hq/inventory/warehouse-comparison',
       icon: 'warehouse',
@@ -18,11 +23,6 @@ export const roleMenus = {
         { label: '재고 이동', path: '/hq/inventory/warehouse-comparison' },
         { label: '재고 이동 내역', path: '/hq/inventory/warehouse-transfer-history' },
       ],
-    },
-    {
-      label: '물류 창고 발주',
-      path: '/hq/purchase-orders',
-      icon: 'truck',
     },
     {
       label: '순환 재고 관리',
@@ -56,6 +56,17 @@ export const roleMenus = {
       icon: 'check',
     },
     {
+      label: 'ESG 대시보드',
+      path: '/hq/esg',
+      icon: 'sprout',
+      children: [
+        { label: '친환경 발자국 현황판', path: '/hq/esg' },
+        { label: '친환경 나무 키우기 점수', path: '/hq/esg/tree-score' },
+        { label: '탄소중립 관리', path: '/hq/esg/emissionquota' },
+        { label: '배출권 시장 가치', path: '/hq/esg/carbon-price' },
+      ],
+    },
+    {
       label: '정산/통계',
       path: '/hq/analytics',
       icon: 'chart',
@@ -74,17 +85,6 @@ export const roleMenus = {
       children: [
         { label: '회원가입 승인', path: '/hq/accounts/approvals' },
         { label: '계정 관리', path: '/hq/accounts' },
-      ],
-    },
-    {
-      label: 'ESG 대시보드',
-      path: '/hq/esg',
-      icon: 'sprout',
-      children: [
-        { label: '친환경 발자국 현황판', path: '/hq/esg' },
-        { label: '친환경 나무 키우기 점수', path: '/hq/esg/tree-score' },
-        { label: '탄소중립 관리', path: '/hq/esg/emissionquota' },
-        { label: '배출권 시장 가치', path: '/hq/esg/carbon-price' },
       ],
     },
   ],
