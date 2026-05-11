@@ -120,21 +120,50 @@ STORE
 
 ---
 
-## 4) Warehouse(물류창고 관리자) 개편 섹션 (추가 예정)
+## 4) Warehouse(물류창고 관리자) 개편 정리
 
-### 4-1. 작성 가이드
-Warehouse 개편 시작 시 아래 순서로 본 섹션에 추가:
-1. 핵심 개편 요약(무엇을 단일화/삭제/이동했는지)
-2. 라우터/파일 정리 요약(삭제/이동/리네이밍)
-3. 최신 메뉴 트리(폴더 형식)
-4. 라우트 핵심 매핑
+### 4-1. 핵심 개편 요약
+- 대시보드/재고 단일 상위화 + 라벨 변경:
+  - `대시보드` → `창고 대시보드` (상위 단일)
+  - `재고 관리` → `창고 재고 조회` (상위 단일)
+- 홈 진입 경로 변경:
+  - `warehouse` 기본 진입을 `/warehouse/dashboard`로 통일
+- 입출고 구조 분리:
+  - 기존 상위 `입/출고 관리` 삭제
+  - `입고 관리`, `출고 관리`를 각각 상위 단일 메뉴로 분리
+- 화면 바인딩 동기화:
+  - 대시보드/재고/입고/출고(상세 포함) 화면에서 children 의존 제거
+  - 단일 상위 구조에 맞춰 `:side-menus="[]"` 방식으로 정리
+- 아이콘 체계 정리:
+  - Lucide 기반 매핑 유지
+  - `입고 관리`/`출고 관리`는 `inbound`/`outbound` 키로 분리해 서로 다른 아이콘 적용
 
-### 4-2. 템플릿
+### 4-2. 라우터/파일 정리 요약
+- 라우트 경로 유지(구조/라벨 중심 개편):
+  - `/warehouse/dashboard`
+  - `/warehouse/inventory`
+  - `/warehouse/inbound`
+  - `/warehouse/outbound`
+  - `/warehouse/outbound/:id`
+- 본 개편에서 Warehouse 라우트 삭제는 없음
+- 관련 화면의 활성 메뉴/사이드메뉴 바인딩 로직 정리 완료
+
+### 4-3. 현재 Warehouse 상위 메뉴 구조 (최신)
 ```text
 WAREHOUSE
-├─ ...
-└─ ...
+├─ 창고 대시보드 (/warehouse/dashboard)
+├─ 창고 재고 조회 (/warehouse/inventory)
+├─ 입고 관리 (/warehouse/inbound)
+└─ 출고 관리 (/warehouse/outbound)
 ```
+
+### 4-4. Warehouse 라우트 핵심 매핑
+- `/warehouse/dashboard` → `WarehouseDashboardView`
+- `/warehouse/inventory` → `WarehouseInventoryView`
+- `/warehouse/inventory/:itemCode/skus` → `WarehouseInventorySkuDetailView`
+- `/warehouse/inbound` → `WarehouseInboundView`
+- `/warehouse/outbound` → `WarehouseOutboundView`
+- `/warehouse/outbound/:id` → `WarehouseOutboundDetailView`
 
 ---
 
@@ -151,4 +180,3 @@ WAREHOUSE
 
 ## 7) 다음 작업 메모
 - HQ의 `정산/통계`, `계정 관리`, `ESG 대시보드`는 후속 개편 예정 항목
-- Warehouse 사이드바 개편 시 본 문서 4장 섹션에 연속 업데이트 예정
