@@ -143,6 +143,12 @@ const warehouseSummaryLabel = computed(() => {
   if (selectedWarehouseCodes.value.length === 1) return selectedWarehouseNames.value[0]
   return `${selectedWarehouseCodes.value.length}개 창고 선택됨`
 })
+const COLOR_LABEL_BY_CODE = {
+  BLK: '검정',
+  WHT: '흰색',
+  NVY: '네이비',
+  GRY: '그레이',
+}
 
 const pageSizeOptions = [20, 50, 100]
 const pageNumbers = computed(() => {
@@ -179,6 +185,7 @@ const normalizedInventoryData = computed(() =>
         parentCategory: String(row.parentCategory ?? ''),
         childCategory: String(row.childCategory ?? ''),
         color: String(row.color ?? ''),
+        colorLabel: COLOR_LABEL_BY_CODE[String(row.color ?? '').toUpperCase()] ?? String(row.color ?? ''),
         size: String(row.size ?? ''),
         materialType: String(row.materialType ?? deriveMaterialType(materials)),
         materials,
@@ -828,7 +835,7 @@ function goToPage(pageNumber) {
                     : 'bg-white'"
               >{{ item.itemName }}</td>
               <td class="px-3 py-3 font-bold text-gray-700">{{ item.warehouseName || '-' }}</td>
-              <td v-if="visibleColumns.color" class="px-3 py-3 text-center font-black text-gray-900">{{ item.color }}</td>
+              <td v-if="visibleColumns.color" class="px-3 py-3 text-center font-black text-gray-900">{{ item.colorLabel }}</td>
               <td v-if="visibleColumns.size" class="px-3 py-3 text-center font-black text-gray-900">{{ item.size }}</td>
               <td class="px-3 py-3 font-black text-gray-900">{{ item.materialType }}</td>
               <td class="truncate px-3 py-3 font-black text-gray-900">{{ item.materialDetail }}</td>
