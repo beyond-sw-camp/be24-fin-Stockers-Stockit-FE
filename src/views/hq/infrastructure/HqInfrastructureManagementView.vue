@@ -1,14 +1,13 @@
 <script setup>
 import { computed, h, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import {
   createInfrastructure,
   getInfrastructures,
+  getInfrastructureByCode,
 } from '@/api/hq/infrastructure.js'
 
-const router = useRouter()
 const hqMenus = roleMenus.hq
 const activeTopMenu = computed(() => '매장/창고 정보 관리')
 const viewType = ref('store')
@@ -24,6 +23,11 @@ const warehouseRegionMaster = ref([])
 const storeData = ref([])
 const warehouseData = ref([])
 const infraError = ref('')
+const detailModalOpen = ref(false)
+const detailType = ref('store')
+const detailLoading = ref(false)
+const detailError = ref('')
+const selectedDetail = ref(null)
 
 const storeRegionOptions = computed(() => ['전체 지역', ...storeRegionMaster.value])
 const storeStatusOptions = ['전체', '활성', '비활성']
@@ -66,28 +70,28 @@ const activeSearchTerm = computed({
   },
 })
 
-const goToStoreDetail = (store) => {
-  router.push({
-    name: 'hq-infrastructure-store-detail',
-    params: { storeId: store.code },
-    query: {
-      region: storeRegionFilter.value !== '전체 지역' ? storeRegionFilter.value : undefined,
-      status: storeStatusFilter.value !== '전체' ? storeStatusFilter.value : undefined,
-      search: storeSearchTerm.value || undefined,
-    },
-  })
+const closeDetailModal = () => {
+  detailModalOpen.value = false
+  detailLoading.value = false
+  detailError.value = ''
+  selectedDetail.value = null
 }
 
-const goToWarehouseDetail = (warehouse) => {
-  router.push({
-    name: 'hq-infrastructure-warehouse-detail',
-    params: { warehouseId: warehouse.code },
-    query: {
-      region: warehouseRegionFilter.value !== '전체 지역' ? warehouseRegionFilter.value : undefined,
-      status: warehouseStatusFilter.value !== '전체' ? warehouseStatusFilter.value : undefined,
-      search: warehouseSearchTerm.value || undefined,
-    },
-  })
+const openDetailModal = async (type, code) => {
+  detailType.value = type
+  detailModalOpen.value = true
+  detailLoading.value = true
+  detailError.value = ''
+  selectedDetail.value = null
+  try {
+    const found = await getInfrastructureByCode(code)
+    if (!found) throw new Error('상세 정보를 찾을 수 없습니다.')
+    selectedDetail.value = found
+  } catch (error) {
+    detailError.value = error?.message || '상세 정보를 불러오지 못했습니다.'
+  } finally {
+    detailLoading.value = false
+  }
 }
 
 const statusToKor = {
@@ -354,7 +358,7 @@ void quickCreateWarehouse
                 v-for="store in filteredStoreData"
                 :key="store.id"
                 class="cursor-pointer transition hover:bg-[#EBF5F5]/60"
-                @click="goToStoreDetail(store)"
+                @click="openDetailModal('store', store.code)"
               >
                 <td class="px-3 py-2.5 font-mono font-bold text-gray-600">{{ store.id }}</td>
                 <td class="px-3 py-2.5 font-black text-gray-900">{{ store.name }}</td>
@@ -415,7 +419,7 @@ void quickCreateWarehouse
                 v-for="warehouse in filteredWarehouseData"
                 :key="warehouse.id"
                 class="cursor-pointer transition hover:bg-[#EBF5F5]/60"
-                @click="goToWarehouseDetail(warehouse)"
+                @click="openDetailModal('warehouse', warehouse.code)"
               >
                 <td class="px-3 py-2.5 font-mono font-bold text-gray-600">{{ warehouse.id }}</td>
                 <td class="px-3 py-2.5 font-black text-gray-900">{{ warehouse.name }}</td>
@@ -449,6 +453,64 @@ void quickCreateWarehouse
 
       <section v-else class="border border-dashed border-gray-300 bg-white p-10 text-center text-sm font-bold text-gray-400 shadow-sm">
         <p>현재 페이지가 준비 중입니다.</p>
+      </section>
+    </div>
+
+    <div
+      v-if="detailModalOpen"
+      class="fixed inset-0 z-50"
+      @keydown.esc="closeDetailModal"
+    >
+      <div class="absolute inset-0 bg-black/40" @click="closeDetailModal" />
+      <section class="absolute left-1/2 top-1/2 w-[min(760px,94vw)] -translate-x-1/2 -translate-y-1/2 border border-gray-200 bg-white shadow-2xl">
+        <div class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-5 py-4">
+          <div>
+            <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">Infrastructure Detail</p>
+            <h2 class="mt-1 text-base font-black text-gray-900">{{ detailType === 'store' ? '매장 상세 정보' : '창고 상세 정보' }}</h2>
+          </div>
+          <button type="button" class="h-8 border border-gray-300 bg-white px-3 text-xs font-black text-gray-700 hover:bg-gray-100" @click="closeDetailModal">
+            닫기
+          </button>
+        </div>
+
+        <div class="max-h-[72vh] overflow-y-auto p-5">
+          <div v-if="detailLoading" class="border border-gray-200 bg-gray-50 px-3 py-12 text-center text-sm font-bold text-gray-400">
+            상세 정보를 불러오는 중입니다.
+          </div>
+          <div v-else-if="detailError" class="border border-red-200 bg-red-50 px-3 py-3 text-xs font-bold text-red-600">
+            {{ detailError }}
+          </div>
+          <div v-else-if="selectedDetail" class="border border-gray-200">
+            <div class="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2 text-[11px] font-black text-gray-600">
+              <span>{{ detailType === 'store' ? '매장' : '창고' }}</span>
+              <span>·</span>
+              <span>{{ selectedDetail.code || '-' }}</span>
+              <span>·</span>
+              <span class="truncate">{{ selectedDetail.name || '-' }}</span>
+            </div>
+            <dl class="divide-y divide-gray-100 text-xs">
+            <template v-if="detailType === 'store'">
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">매장 코드</dt><dd class="font-black text-gray-900">{{ selectedDetail.code }}</dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">매장명</dt><dd class="font-black text-gray-900">{{ selectedDetail.name }}</dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">지역</dt><dd class="font-black text-gray-900">{{ selectedDetail.region || '-' }}</dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">상태</dt><dd><span class="inline-flex h-6 items-center px-2 text-[10px] font-black" :class="statusBadgeClass(statusToKor[selectedDetail.status] || selectedDetail.status)">{{ statusToKor[selectedDetail.status] || selectedDetail.status }}</span></dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">담당자</dt><dd class="font-black text-gray-900">{{ selectedDetail.managerName || '-' }}</dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">연락처</dt><dd class="font-black text-gray-900">{{ selectedDetail.contact || '-' }}</dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-start px-3 py-2.5"><dt class="pt-0.5 font-bold text-gray-500">주소</dt><dd class="font-black text-gray-900">{{ selectedDetail.address || '-' }}</dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">담당 창고</dt><dd class="font-black text-gray-900">매핑 관리에서 설정</dd></div>
+            </template>
+            <template v-else>
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">창고 코드</dt><dd class="font-black text-gray-900">{{ selectedDetail.code }}</dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">창고명</dt><dd class="font-black text-gray-900">{{ selectedDetail.name }}</dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">상태</dt><dd><span class="inline-flex h-6 items-center px-2 text-[10px] font-black" :class="statusBadgeClass(statusToKor[selectedDetail.status] || selectedDetail.status)">{{ statusToKor[selectedDetail.status] || selectedDetail.status }}</span></dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">연결 매장 수</dt><dd class="font-black text-gray-900">{{ Number(selectedDetail.mappedStoreCount || 0).toLocaleString() }}개</dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">담당 책임자</dt><dd class="font-black text-gray-900">{{ selectedDetail.managerName || '-' }}</dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">연락처</dt><dd class="font-black text-gray-900">{{ selectedDetail.contact || '-' }}</dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-start px-3 py-2.5"><dt class="pt-0.5 font-bold text-gray-500">주소</dt><dd class="font-black text-gray-900">{{ selectedDetail.address || '-' }}</dd></div>
+            </template>
+            </dl>
+          </div>
+        </div>
       </section>
     </div>
   </AppLayout>
