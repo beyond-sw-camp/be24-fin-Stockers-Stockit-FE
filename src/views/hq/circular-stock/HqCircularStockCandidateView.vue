@@ -11,7 +11,7 @@ const hqMenus = roleMenus.hq
 const circularStockMenus = roleMenus.hq.find(menu => menu.label === '순환 재고 관리')?.children ?? []
 
 const activeTopMenu = computed(() => '순환 재고 관리')
-const activeSideMenu = ref('순환 재고 후보 조회')
+const activeSideMenu = ref('순환 재고 전환')
 const hasRefreshed = ref(false)
 const candidateSkus = ref([])
 const selectedRowIds = ref([])

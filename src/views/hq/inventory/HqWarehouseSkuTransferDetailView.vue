@@ -13,16 +13,10 @@ const router = useRouter()
 const auth = useAuthStore()
 const cartStore = useWarehouseTransferCartStore()
 const hqMenus = roleMenus.hq
-const inventoryMenus = roleMenus.hq.find(menu => menu.label === '재고 관리')?.children ?? []
+const inventoryMenus = roleMenus.hq.find(menu => menu.label === '물류 창고간 재고이동')?.children ?? []
 
-const activeTopMenu = computed(() => '재고 관리')
-const activeSideMenu = ref('창고간 재고 이동')
-const COLOR_LABEL_BY_CODE = {
-  BLK: '검정',
-  WHT: '흰색',
-  NVY: '네이비',
-  GRY: '그레이',
-}
+const activeTopMenu = computed(() => '물류 창고간 재고이동')
+const activeSideMenu = ref('재고 이동')
 
 const selectedWarehouseCodes = ref([])
 const transferQty = ref('')
@@ -49,7 +43,6 @@ const selectedSku = computed(() => {
     itemName: String(route.query.itemName || ''),
     category: String(route.query.category || route.query.filterCategory || ''),
     color: String(route.query.color || ''),
-    colorLabel: COLOR_LABEL_BY_CODE[String(route.query.color || '').toUpperCase()] ?? String(route.query.color || ''),
     size: String(route.query.size || ''),
   }
 })
@@ -341,10 +334,6 @@ const moveBack = () => {
           <span class="bg-gray-100 px-2 py-1">{{ selectedSku.itemName || '-' }}</span>
           <span class="bg-gray-100 px-2 py-1">{{ selectedSku.category || '-' }}</span>
           <span class="bg-gray-100 px-2 py-1">{{ selectedSku.color || '-' }}/{{ selectedSku.size || '-' }}</span>
-          <span class="bg-gray-100 px-2 py-1">{{ selectedSku.itemCode }}</span>
-          <span class="bg-gray-100 px-2 py-1">{{ selectedSku.itemName }}</span>
-          <span class="bg-gray-100 px-2 py-1">{{ selectedSku.category }}</span>
-          <span class="bg-gray-100 px-2 py-1">{{ selectedSku.colorLabel }}/{{ selectedSku.size }}</span>
         </div>
       </section>
 

@@ -3,25 +3,17 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
 import { useWarehouseTransferCartStore } from '@/stores/hq/warehouseTransferCart.js'
 import { getWarehouseTransferImbalancedSkus } from '@/api/hq/inventory.js'
 
 const router = useRouter()
 const route = useRoute()
-const auth = useAuthStore()
 const cartStore = useWarehouseTransferCartStore()
 const hqMenus = roleMenus.hq
-const inventoryMenus = roleMenus.hq.find(menu => menu.label === '재고 관리')?.children ?? []
+const inventoryMenus = roleMenus.hq.find(menu => menu.label === '물류 창고간 재고이동')?.children ?? []
 
-const activeTopMenu = computed(() => '재고 관리')
-const activeSideMenu = ref('창고간 재고 이동')
-const COLOR_LABEL_BY_CODE = {
-  BLK: '검정',
-  WHT: '흰색',
-  NVY: '네이비',
-  GRY: '그레이',
-}
+const activeTopMenu = computed(() => '물류 창고간 재고이동')
+const activeSideMenu = ref('재고 이동')
 
 const searchTerm = ref(String(route.query.search || ''))
 const selectedCategory = ref(String(route.query.category || '전체'))
@@ -62,7 +54,6 @@ const loadImbalancedSkus = async () => {
     const items = await getWarehouseTransferImbalancedSkus()
     skuRows.value = (items ?? []).map((item) => ({
       ...item,
-      colorLabel: COLOR_LABEL_BY_CODE[String(item.color ?? '').toUpperCase()] ?? item.color,
       warehouseGroups: inferWarehouseGroups(item.itemCode),
     }))
   } catch (error) {
@@ -192,7 +183,7 @@ const resetFilters = () => {
                 <td class="px-3 py-3 font-mono font-bold text-gray-700">{{ row.skuCode }}</td>
                 <td class="px-3 py-3 font-mono font-bold text-gray-500">{{ row.itemCode }}</td>
                 <td class="px-3 py-3 font-black text-gray-900">{{ row.itemName }}</td>
-                <td class="px-3 py-3 font-bold text-gray-600">{{ row.colorLabel }}</td>
+                <td class="px-3 py-3 font-bold text-gray-600">{{ row.color }}</td>
                 <td class="px-3 py-3 font-bold text-gray-600">{{ row.size }}</td>
                 <td class="px-3 py-3 font-bold text-gray-600">{{ row.category }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ row.totalOnHand.toLocaleString() }}</td>

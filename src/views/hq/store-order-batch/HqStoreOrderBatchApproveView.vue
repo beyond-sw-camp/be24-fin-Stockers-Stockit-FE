@@ -12,11 +12,7 @@ const router = useRouter()
 const auth = useAuthStore()
 
 const hqMenus = roleMenus.hq
-const activeTopMenu = computed(() => '매장 발주 승인')
-const activeSideMenu = ref('매장 발주 수동 배치 승인')
-const sideMenus = computed(
-  () => hqMenus.find((menu) => menu.path === '/hq/batch/store-order-approve')?.children ?? [],
-)
+const activeTopMenu = computed(() => '매장 발주 배치 처리')
 
 const selectedRegion = ref('')
 const selectedStoreCode = ref('')
@@ -185,8 +181,7 @@ onMounted(async () => {
   <AppLayout
     :active-top-menu="activeTopMenu"
     :top-menus="hqMenus"
-    :side-menus="sideMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
     @logout="handleLogout"
   >
     <div class="flex flex-col gap-6">
@@ -194,7 +189,7 @@ onMounted(async () => {
         <div class="flex flex-wrap items-start justify-between gap-5">
           <div class="space-y-2">
             <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">HQ BATCH</p>
-            <h1 class="text-lg font-black text-gray-900">매장 발주 수동 배치 승인</h1>
+            <h1 class="text-lg font-black text-gray-900">매장 발주 배치 처리</h1>
             <p class="text-xs font-bold text-gray-500">
               본사 관리자 권한으로 매장 발주 승인 배치를 수동 실행합니다.
             </p>

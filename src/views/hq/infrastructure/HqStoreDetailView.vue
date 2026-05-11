@@ -3,20 +3,13 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
 import { getInfrastructureByCode, updateInfrastructure } from '@/api/hq/infrastructure.js'
 
 const route = useRoute()
 const router = useRouter()
-const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 
-const activeTopMenu = computed(() => '인프라 관리')
-const activeSideMenu = ref('매장 정보 관리')
-const infraSideMenus = [
-  { label: '매장 정보 관리', icon: 'store' },
-  { label: '창고 정보 관리', icon: 'warehouse' },
-]
+const activeTopMenu = computed(() => '매장/창고 정보 관리')
 
 const store = ref(null)
 const isLoading = ref(false)
@@ -141,8 +134,7 @@ onMounted(() => {
   <AppLayout
     :active-top-menu="activeTopMenu"
     :top-menus="hqMenus"
-    :side-menus="infraSideMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
     show-system-card
   >
     <div class="flex flex-col gap-4">

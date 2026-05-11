@@ -13,8 +13,10 @@ import { useAuthStore } from '@/stores/auth.js'
 const router = useRouter()
 const auth = useAuthStore()
 const topMenus = computed(() => roleMenus.hq ?? [])
-const sideMenus = ref([])
-const activeSideMenu = ref('')
+const sideMenus = computed(
+  () => (roleMenus.hq ?? []).find((menu) => menu.label === 'ESG 대시보드')?.children ?? [],
+)
+const activeSideMenu = ref('친환경 나무 키우기 점수')
 
 // ─────────── 점수 룰 마스터 ───────────
 const SCORE_RULES = {
@@ -299,7 +301,7 @@ onMounted(reload)
 
 <template>
   <AppLayout
-    active-top-menu="ESG"
+    active-top-menu="ESG 대시보드"
     :top-menus="topMenus"
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"

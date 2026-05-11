@@ -1,277 +1,231 @@
-<script setup>
-import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+﻿<script setup>
+import { computed, onMounted, ref } from 'vue'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
-const router = useRouter()
-const auth = useAuthStore()
+import { getStoreInventories } from '@/api/store/inventory.js'
+import { getStoreOrderAnalytics } from '@/api/store/orders.js'
+
 const storeMenus = roleMenus.store
-const sideMenus = roleMenus.store.find((menu) => menu.label === '대시보드')?.children ?? []
-const activeSideMenu = ref('대시보드')
+const activeTopMenu = computed(() => '매장 대시보드')
 
-const kpiStats = [
-  { label: '오늘 매출', value: '4,821,500', unit: '원', change: '+12.3%', status: 'up' },
-  { label: '오늘 판매량', value: '138', unit: '건', change: '+8건', status: 'up' },
-  { label: '재고 품목 수', value: '312', unit: '품목', change: '-5', status: 'down' },
-  { label: '입고 예정', value: '4', unit: '건', change: '내일 2건 포함', status: 'neutral' },
-  { label: '발주 건수', value: '9', unit: '건', change: '이번 주 총계', status: 'neutral' },
-  { label: '처리 중 발주', value: '3', unit: '건', change: '승인대기 1건', status: 'neutral' },
-]
+const loading = ref(false)
+const inventoryError = ref(false)
+const analyticsError = ref(false)
 
-const chartHeights = [48, 63, 55, 72, 58, 85, 78]
+const inventories = ref([])
+const analyticsSummary = ref({
+  totalOrders: 0,
+  totalRequestedQuantity: 0,
+})
+const analyticsTopSkus = ref([])
+const analyticsCategoryBreakdown = ref([])
 
-const recentSales = [
-  { id: 'S-041', item: '오버사이즈 코튼 티셔츠 (화이트 / M)', qty: 2, price: 59800, status: '완료', time: '16:52:10' },
-  { id: 'S-040', item: '슬림 데님 팬츠 (인디고 / 30)', qty: 1, price: 89000, status: '완료', time: '16:44:33' },
-  { id: 'S-039', item: '린넨 블렌드 셔츠 (베이지 / L)', qty: 1, price: 72000, status: '완료', time: '16:31:05' },
-  { id: 'S-038', item: '울 혼방 니트 가디건 (네이비 / S)', qty: 1, price: 118000, status: '완료', time: '16:18:47' },
-  { id: 'S-037', item: '코튼 캔버스 토트백 (블랙)', qty: 3, price: 54000, status: '완료', time: '15:55:20' },
-]
+const topSkuPage = ref(0)
+const topSkuSize = ref(10)
+const riskPage = ref(0)
+const riskSize = ref(10)
+const pageSizeOptions = [10, 20, 50]
 
-const stockAlerts = [
-  { item: '슬림 데님 팬츠 — 28사이즈', stock: 2, threshold: 10, level: 'danger' },
-  { item: '오버사이즈 코튼 티셔츠 — XS', stock: 5, threshold: 15, level: 'warning' },
-  { item: '울 혼방 니트 가디건 — M', stock: 8, threshold: 20, level: 'warning' },
-]
+const safeInventories = computed(() => (Array.isArray(inventories.value) ? inventories.value : []))
+const totalItems = computed(() => safeInventories.value.length)
+const lowStockCount = computed(() => safeInventories.value.filter((row) => Number(row.availableStock ?? 0) > 0 && Number(row.availableStock ?? 0) <= Number(row.safetyStock ?? 0)).length)
+const outOfStockCount = computed(() => safeInventories.value.filter((row) => Number(row.availableStock ?? 0) <= 0).length)
+const riskItems = computed(() => safeInventories.value.filter((row) => Number(row.availableStock ?? 0) <= Number(row.safetyStock ?? 0)))
+const riskRatio = computed(() => {
+  if (!totalItems.value) return 0
+  return Math.round((riskItems.value.length / totalItems.value) * 1000) / 10
+})
 
-const orderStatuses = [
-  { id: 'PO-2024-091', item: '오버사이즈 코튼 티셔츠 (S/M/L 각 30장)', qty: 90, status: '승인완료', date: '2024-04-16' },
-  { id: 'PO-2024-090', item: '슬림 데님 팬츠 (28~34 혼합)', qty: 60, status: '입고대기', date: '2024-04-15' },
-  { id: 'PO-2024-089', item: '린넨 블렌드 셔츠 (화이트/베이지 각 20장)', qty: 40, status: '검수중', date: '2024-04-15' },
-]
+const topSkuTotalPages = computed(() => Math.ceil(analyticsTopSkus.value.length / topSkuSize.value) || 0)
+const riskTotalPages = computed(() => Math.ceil(riskItems.value.length / riskSize.value) || 0)
 
-const dateLabel = computed(() =>
-  new Intl.DateTimeFormat('ko-KR', {
-    year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(new Date()),
-)
+const pagedTopSkus = computed(() => {
+  const start = topSkuPage.value * topSkuSize.value
+  return analyticsTopSkus.value.slice(start, start + topSkuSize.value)
+})
 
+const pagedRiskItems = computed(() => {
+  const start = riskPage.value * riskSize.value
+  return riskItems.value.slice(start, start + riskSize.value)
+})
 
+const topSkuPageNumbers = computed(() => buildPageNumbers(topSkuPage.value, topSkuTotalPages.value))
+const riskPageNumbers = computed(() => buildPageNumbers(riskPage.value, riskTotalPages.value))
+
+const statusDistribution = computed(() => {
+  const normal = safeInventories.value.filter((row) => Number(row.availableStock ?? 0) > Number(row.safetyStock ?? 0)).length
+  const low = lowStockCount.value
+  const out = outOfStockCount.value
+  const sum = Math.max(normal + low + out, 1)
+  return [
+    { label: '정상', count: normal, ratio: Math.round((normal / sum) * 100) },
+    { label: '부족', count: low, ratio: Math.round((low / sum) * 100) },
+    { label: '품절', count: out, ratio: Math.round((out / sum) * 100) },
+  ]
+})
+
+function buildPageNumbers(page, totalPages) {
+  if (!totalPages) return []
+  const maxButtons = 5
+  const start = Math.max(0, Math.min(page - 2, totalPages - maxButtons))
+  const end = Math.min(totalPages, start + maxButtons)
+  return Array.from({ length: end - start }, (_, idx) => start + idx)
+}
+
+function statusClass(status) {
+  if (status === '품절') return 'bg-red-50 text-red-700'
+  if (status === '부족') return 'bg-amber-50 text-amber-700'
+  return 'bg-emerald-50 text-emerald-700'
+}
+
+function clampPages() {
+  if (topSkuTotalPages.value === 0) topSkuPage.value = 0
+  else if (topSkuPage.value >= topSkuTotalPages.value) topSkuPage.value = topSkuTotalPages.value - 1
+
+  if (riskTotalPages.value === 0) riskPage.value = 0
+  else if (riskPage.value >= riskTotalPages.value) riskPage.value = riskTotalPages.value - 1
+}
+
+function onTopSkuSizeChange() {
+  topSkuPage.value = 0
+}
+
+function onRiskSizeChange() {
+  riskPage.value = 0
+}
+
+async function fetchStats() {
+  loading.value = true
+  inventoryError.value = false
+  analyticsError.value = false
+
+  try {
+    const inventoryRes = await getStoreInventories()
+    inventories.value = Array.isArray(inventoryRes) ? inventoryRes : []
+  } catch {
+    inventories.value = []
+    inventoryError.value = true
+  }
+
+  try {
+    const analyticsRes = await getStoreOrderAnalytics()
+    analyticsSummary.value = {
+      totalOrders: Number(analyticsRes?.totalOrders ?? 0),
+      totalRequestedQuantity: Number(analyticsRes?.totalRequestedQuantity ?? 0),
+    }
+    analyticsTopSkus.value = Array.isArray(analyticsRes?.topSkus) ? analyticsRes.topSkus : []
+    analyticsCategoryBreakdown.value = Array.isArray(analyticsRes?.categoryBreakdown) ? analyticsRes.categoryBreakdown : []
+  } catch {
+    analyticsSummary.value = { totalOrders: 0, totalRequestedQuantity: 0 }
+    analyticsTopSkus.value = []
+    analyticsCategoryBreakdown.value = []
+    analyticsError.value = true
+  }
+
+  clampPages()
+  loading.value = false
+}
+
+onMounted(fetchStats)
 </script>
 
 <template>
   <AppLayout
-    active-top-menu="대시보드"
+    :active-top-menu="activeTopMenu"
     :top-menus="storeMenus"
-    :side-menus="sideMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
   >
-    <div class="flex flex-col gap-3">
-
-      <!-- 헤더 -->
-      <section class="flex flex-wrap items-center justify-between gap-3 border border-gray-300 bg-white px-3 py-2.5 shadow-sm">
-        <div class="flex items-center gap-3">
-          <h2 class="inline-flex items-center gap-2 text-[15px] font-semibold text-gray-900">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="14" width="7" height="7"/>
-            </svg>
-            대시보드
-          </h2>
-          <div class="flex gap-2">
-            <span class="border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] font-medium text-gray-500">기준: {{ dateLabel }}</span>
-            <span class="inline-flex items-center gap-1 border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              실시간
-            </span>
-          </div>
-        </div>
+    <div class="flex flex-col gap-4">
+      <section class="border border-gray-300 bg-white p-4 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Inventory Operations</p>
+        <h1 class="mt-1 text-lg font-black text-gray-900">재고 운영 통계</h1>
+        <p class="mt-1 text-xs font-bold text-gray-500">재고 상태와 발주 분석 데이터를 기반으로 운영 리스크를 확인합니다.</p>
       </section>
 
-      <!-- KPI 카드 -->
-      <section class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <article
-          v-for="stat in kpiStats"
-          :key="stat.label"
-          class="flex h-[80px] flex-col justify-between border border-gray-300 bg-white px-3 py-3 shadow-sm"
-        >
-          <p class="text-[11px] font-medium leading-tight text-gray-500">{{ stat.label }}</p>
-          <div class="flex items-end justify-between gap-1">
-            <div class="min-w-0 leading-none">
-              <span class="text-[20px] font-bold tracking-tight text-gray-950">{{ stat.value }}</span>
-              <span v-if="stat.unit" class="ml-0.5 text-[11px] text-gray-400">{{ stat.unit }}</span>
-            </div>
-            <span
-              class="shrink-0 text-[11px] font-bold"
-              :class="{
-                'text-emerald-600': stat.status === 'up',
-                'text-red-600': stat.status === 'down',
-                'text-gray-400': stat.status === 'neutral',
-              }"
-            >{{ stat.change }}</span>
-          </div>
-        </article>
+      <section class="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <article class="border border-gray-300 bg-white p-3 shadow-sm"><p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">전체 품목 수</p><p class="mt-2 text-2xl font-black text-gray-900">{{ totalItems.toLocaleString() }}</p></article>
+        <article class="border border-gray-300 bg-white p-3 shadow-sm"><p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">부족 SKU 수</p><p class="mt-2 text-2xl font-black text-gray-900">{{ lowStockCount.toLocaleString() }}</p></article>
+        <article class="border border-gray-300 bg-white p-3 shadow-sm"><p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">품절 SKU 수</p><p class="mt-2 text-2xl font-black text-gray-900">{{ outOfStockCount.toLocaleString() }}</p></article>
+        <article class="border border-gray-300 bg-white p-3 shadow-sm"><p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">안전재고 이하 비율</p><p class="mt-2 text-2xl font-black text-gray-900">{{ riskRatio }}%</p></article>
+        <article class="border border-gray-300 bg-white p-3 shadow-sm"><p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">누적 발주 건수</p><p class="mt-2 text-2xl font-black text-gray-900">{{ analyticsSummary.totalOrders.toLocaleString() }}</p></article>
+        <article class="border border-gray-300 bg-white p-3 shadow-sm"><p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">누적 발주 수량</p><p class="mt-2 text-2xl font-black text-gray-900">{{ analyticsSummary.totalRequestedQuantity.toLocaleString() }}</p></article>
       </section>
 
-      <!-- 차트 + 재고 알림 -->
-      <section class="grid gap-3 xl:grid-cols-[minmax(0,3fr)_minmax(280px,1fr)]">
-
-        <!-- 판매 트렌드 차트 -->
+      <section class="grid gap-3 xl:grid-cols-2">
         <article class="border border-gray-300 bg-white shadow-sm">
-          <div class="flex items-center justify-between border-b border-gray-200 px-3 py-2.5">
-            <h3 class="flex items-center gap-2 text-sm font-medium text-gray-800">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M3 20h18M7 16V8M12 16V4M17 16v-6"/>
-              </svg>
-              일별 판매 트렌드
-            </h3>
-            <div class="flex gap-3 text-[10px] font-medium text-gray-400">
-              <span class="flex items-center gap-1"><i class="inline-block h-2 w-2 bg-[#004D3C]" />판매량</span>
-              <span class="flex items-center gap-1"><i class="inline-block h-2 w-2 bg-gray-200" />매출</span>
+          <div class="border-b border-gray-200 px-4 py-3"><h2 class="text-sm font-black text-gray-900">재고 상태 분포</h2></div>
+          <div class="space-y-3 p-4">
+            <div v-for="row in statusDistribution" :key="row.label" class="space-y-1">
+              <div class="flex items-center justify-between text-xs"><span class="font-bold text-gray-700">{{ row.label }}</span><span class="font-black text-gray-900">{{ row.count }}개 ({{ row.ratio }}%)</span></div>
+              <div class="h-2 overflow-hidden bg-gray-100"><div class="h-full bg-[#0E7A60]" :style="{ width: `${row.ratio}%` }" /></div>
             </div>
-          </div>
-          <div class="px-3 py-3">
-            <div class="flex gap-2">
-              <div class="flex h-[200px] w-8 shrink-0 flex-col justify-between pb-4 pt-2 text-right text-[10px] font-medium text-gray-400">
-                <span>100</span>
-                <span>75</span>
-                <span>50</span>
-                <span>25</span>
-                <span>0</span>
-              </div>
-              <div
-                class="flex flex-1 items-end border-b border-l border-gray-200"
-                style="height: 200px; padding: 10px 6px 16px 4px;"
-              >
-                <div
-                  v-for="(height, index) in chartHeights"
-                  :key="index"
-                  class="flex h-full flex-1 flex-col items-center justify-end gap-2"
-                >
-                  <div class="flex h-full w-full items-end justify-center gap-1">
-                    <div class="w-4 rounded-sm bg-[#004D3C]" :style="{ height: `${height}%` }" />
-                    <div class="w-4 rounded-sm bg-gray-200" :style="{ height: `${height * 0.65}%` }" />
-                  </div>
-                  <span class="text-[11px] font-medium text-gray-400">{{ 21 + index }}일</span>
-                </div>
-              </div>
-            </div>
+            <p v-if="inventoryError" class="text-xs font-bold text-red-500">재고 데이터를 불러오지 못해 0값으로 표시했습니다.</p>
           </div>
         </article>
 
-        <!-- 재고 부족 알림 -->
-        <article class="flex flex-col border border-gray-300 bg-white shadow-sm">
-          <div class="border-b border-gray-200 px-3 py-2.5">
-            <h3 class="flex items-center gap-2 text-sm font-medium text-gray-800">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-500" aria-hidden="true">
-                <circle cx="12" cy="12" r="10"/><path d="M12 8v5"/><path d="M12 16h.01"/>
-              </svg>
-              재고 부족 알림
-            </h3>
+        <article class="border border-gray-300 bg-white shadow-sm">
+          <div class="border-b border-gray-200 px-4 py-3"><h2 class="text-sm font-black text-gray-900">카테고리별 발주 비중</h2></div>
+          <div class="space-y-2 p-4">
+            <div v-for="row in analyticsCategoryBreakdown" :key="row.label" class="flex items-center justify-between border border-gray-200 bg-gray-50 px-3 py-2"><span class="text-xs font-bold text-gray-700">{{ row.label }}</span><span class="text-xs font-black text-gray-900">{{ Number(row.requestedQuantity ?? 0).toLocaleString() }}개</span></div>
+            <p v-if="!analyticsCategoryBreakdown.length" class="py-6 text-center text-xs font-bold text-gray-400">발주 분석 데이터가 없습니다.</p>
+            <p v-if="analyticsError" class="text-xs font-bold text-red-500">발주 분석 데이터를 불러오지 못해 0값으로 표시했습니다.</p>
           </div>
-          <div class="flex-1 divide-y divide-gray-100">
-            <div
-              v-for="alert in stockAlerts"
-              :key="alert.item"
-              class="px-3 py-3"
-            >
-              <span class="block text-[13px] font-semibold text-gray-800">{{ alert.item }}</span>
-              <div class="mt-1.5 flex items-center gap-2">
-                <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-100">
-                  <div
-                    class="h-1.5 rounded-full transition-all"
-                    :class="alert.level === 'danger' ? 'bg-red-500' : 'bg-orange-400'"
-                    :style="{ width: `${Math.min((alert.stock / alert.threshold) * 100, 100)}%` }"
-                  />
-                </div>
-                <span
-                  class="shrink-0 text-[11px] font-bold"
-                  :class="alert.level === 'danger' ? 'text-red-600' : 'text-orange-500'"
-                >
-                  {{ alert.stock }} / {{ alert.threshold }}
-                </span>
-              </div>
-            </div>
-            <div v-if="stockAlerts.length === 0" class="flex h-20 items-center justify-center">
-              <p class="text-[11px] text-gray-400">부족 재고 없음</p>
-            </div>
-          </div>
-          <button type="button" class="border-t border-gray-200 py-2.5 text-[12px] font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-800" @click="$router.push('/store/inventory')">
-            재고 관리 바로가기
-          </button>
         </article>
       </section>
 
-      <!-- 최근 판매 내역 -->
-      <section class="border border-gray-300 bg-white shadow-sm">
-        <div class="flex items-center justify-between border-b border-gray-200 px-3 py-2.5">
-          <div class="flex items-center gap-2">
-            <h3 class="text-sm font-medium text-gray-800">최근 판매 내역</h3>
-            <span class="bg-black px-1.5 py-0.5 text-[9px] font-bold text-white">LIVE</span>
+      <section class="grid gap-3 xl:grid-cols-2">
+        <article class="border border-gray-300 bg-white shadow-sm">
+          <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+            <h2 class="text-sm font-black text-gray-900">발주 TOP SKU</h2>
+            <div class="flex items-center gap-2 text-xs font-bold text-gray-500">
+              <span>현재 {{ pagedTopSkus.length }}건 / 전체 {{ analyticsTopSkus.length }}건</span>
+              <select v-model.number="topSkuSize" class="h-8 border border-gray-300 px-2 text-xs font-bold text-gray-700" @change="onTopSkuSizeChange">
+                <option v-for="option in pageSizeOptions" :key="`top-size-${option}`" :value="option">{{ option }}개</option>
+              </select>
+            </div>
           </div>
-          <button type="button" class="text-xs font-semibold text-[#004D3C] hover:underline" @click="$router.push('/store/sales/register')">
-            POS 바로가기
-          </button>
-        </div>
-        <div class="overflow-auto">
-          <table class="w-full min-w-[640px] text-[13px]">
-            <thead class="bg-gray-50 text-[11px] uppercase text-gray-500">
-              <tr>
-                <th class="px-3 py-2.5 text-left font-bold">ID</th>
-                <th class="px-3 py-2.5 text-left font-bold">품목</th>
-                <th class="px-3 py-2.5 text-right font-bold">수량</th>
-                <th class="px-3 py-2.5 text-right font-bold">금액</th>
-                <th class="px-3 py-2.5 text-left font-bold">상태</th>
-                <th class="px-3 py-2.5 text-left font-bold">시각</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100 border-t border-gray-200">
-              <tr v-for="row in recentSales" :key="row.id" class="hover:bg-gray-50/50">
-                <td class="px-3 py-2.5 font-mono text-gray-400">{{ row.id }}</td>
-                <td class="px-3 py-2.5 font-semibold text-gray-800">{{ row.item }}</td>
-                <td class="px-3 py-2.5 text-right text-gray-700">{{ row.qty }}</td>
-                <td class="px-3 py-2.5 text-right font-bold text-gray-800">₩{{ row.price.toLocaleString() }}</td>
-                <td class="px-3 py-2.5">
-                  <span class="bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700">{{ row.status }}</span>
-                </td>
-                <td class="px-3 py-2.5 text-gray-400">{{ row.time }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+          <div class="overflow-x-auto">
+            <table class="w-full min-w-[620px] text-xs"><thead class="bg-gray-50 text-[10px] uppercase text-gray-500"><tr><th class="px-3 py-3 text-left font-black">SKU</th><th class="px-3 py-3 text-left font-black">상품명</th><th class="px-3 py-3 text-right font-black">발주 수량</th><th class="px-3 py-3 text-right font-black">발주 건수</th></tr></thead>
+              <tbody class="divide-y divide-gray-100">
+                <tr v-for="row in pagedTopSkus" :key="row.skuCode"><td class="px-3 py-3 font-mono font-bold text-gray-600">{{ row.skuCode }}</td><td class="px-3 py-3 font-bold text-gray-900">{{ row.productName }}</td><td class="px-3 py-3 text-right font-black text-gray-900">{{ Number(row.requestedQuantity ?? 0).toLocaleString() }}</td><td class="px-3 py-3 text-right font-black text-gray-700">{{ Number(row.orderCount ?? 0).toLocaleString() }}</td></tr>
+                <tr v-if="!pagedTopSkus.length"><td colspan="4" class="px-4 py-10 text-center text-gray-400">발주 TOP SKU 데이터가 없습니다.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="flex items-center justify-center gap-1 border-t border-gray-200 px-3 py-3">
+            <button class="h-8 px-2 text-xs font-bold border border-gray-300 disabled:opacity-40" :disabled="topSkuPage <= 0" @click="topSkuPage = Math.max(0, topSkuPage - 1)">이전</button>
+            <button v-for="num in topSkuPageNumbers" :key="`top-page-${num}`" class="h-8 min-w-8 px-2 text-xs font-bold border" :class="num === topSkuPage ? 'border-[#0E7A60] bg-[#0E7A60] text-white' : 'border-gray-300 text-gray-700'" @click="topSkuPage = num">{{ num + 1 }}</button>
+            <button class="h-8 px-2 text-xs font-bold border border-gray-300 disabled:opacity-40" :disabled="topSkuPage >= Math.max(0, topSkuTotalPages - 1) || topSkuTotalPages === 0" @click="topSkuPage = Math.min(topSkuTotalPages - 1, topSkuPage + 1)">다음</button>
+          </div>
+        </article>
+
+        <article class="border border-gray-300 bg-white shadow-sm">
+          <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+            <h2 class="text-sm font-black text-gray-900">재고 리스크 목록</h2>
+            <div class="flex items-center gap-2 text-xs font-bold text-gray-500">
+              <span>현재 {{ pagedRiskItems.length }}건 / 전체 {{ riskItems.length }}건</span>
+              <select v-model.number="riskSize" class="h-8 border border-gray-300 px-2 text-xs font-bold text-gray-700" @change="onRiskSizeChange">
+                <option v-for="option in pageSizeOptions" :key="`risk-size-${option}`" :value="option">{{ option }}개</option>
+              </select>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full min-w-[620px] text-xs"><thead class="bg-gray-50 text-[10px] uppercase text-gray-500"><tr><th class="px-3 py-3 text-left font-black">품목코드</th><th class="px-3 py-3 text-left font-black">품목명</th><th class="px-3 py-3 text-right font-black">가용/안전</th><th class="px-3 py-3 text-center font-black">상태</th></tr></thead>
+              <tbody class="divide-y divide-gray-100">
+                <tr v-for="row in pagedRiskItems" :key="row.itemCode"><td class="px-3 py-3 font-mono font-bold text-gray-600">{{ row.itemCode }}</td><td class="px-3 py-3 font-bold text-gray-900">{{ row.itemName }}</td><td class="px-3 py-3 text-right font-black text-gray-700">{{ Number(row.availableStock ?? 0) }} / {{ Number(row.safetyStock ?? 0) }}</td><td class="px-3 py-3 text-center"><span class="px-2 py-1 text-[11px] font-black" :class="statusClass(row.status)">{{ row.status }}</span></td></tr>
+                <tr v-if="!pagedRiskItems.length"><td colspan="4" class="px-4 py-10 text-center text-gray-400">안전재고 이하 SKU가 없습니다.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="flex items-center justify-center gap-1 border-t border-gray-200 px-3 py-3">
+            <button class="h-8 px-2 text-xs font-bold border border-gray-300 disabled:opacity-40" :disabled="riskPage <= 0" @click="riskPage = Math.max(0, riskPage - 1)">이전</button>
+            <button v-for="num in riskPageNumbers" :key="`risk-page-${num}`" class="h-8 min-w-8 px-2 text-xs font-bold border" :class="num === riskPage ? 'border-[#0E7A60] bg-[#0E7A60] text-white' : 'border-gray-300 text-gray-700'" @click="riskPage = num">{{ num + 1 }}</button>
+            <button class="h-8 px-2 text-xs font-bold border border-gray-300 disabled:opacity-40" :disabled="riskPage >= Math.max(0, riskTotalPages - 1) || riskTotalPages === 0" @click="riskPage = Math.min(riskTotalPages - 1, riskPage + 1)">다음</button>
+          </div>
+        </article>
       </section>
 
-      <!-- 발주 현황 -->
-      <section class="border border-gray-300 bg-white shadow-sm">
-        <div class="flex items-center justify-between border-b border-gray-200 px-3 py-2.5">
-          <h3 class="text-sm font-medium text-gray-800">발주 현황</h3>
-          <button type="button" class="text-xs font-semibold text-[#004D3C] hover:underline" @click="$router.push('/store/orders/request')">
-            발주 관리 바로가기
-          </button>
-        </div>
-        <div class="overflow-auto">
-          <table class="w-full min-w-[560px] text-[13px]">
-            <thead class="bg-gray-50 text-[11px] uppercase text-gray-500">
-              <tr>
-                <th class="px-3 py-2.5 text-left font-bold">발주번호</th>
-                <th class="px-3 py-2.5 text-left font-bold">품목</th>
-                <th class="px-3 py-2.5 text-right font-bold">수량</th>
-                <th class="px-3 py-2.5 text-left font-bold">상태</th>
-                <th class="px-3 py-2.5 text-left font-bold">발주일</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100 border-t border-gray-200">
-              <tr v-for="row in orderStatuses" :key="row.id" class="hover:bg-gray-50/50">
-                <td class="px-3 py-2.5 font-mono text-gray-400">{{ row.id }}</td>
-                <td class="px-3 py-2.5 font-semibold text-gray-800">{{ row.item }}</td>
-                <td class="px-3 py-2.5 text-right text-gray-700">{{ row.qty.toLocaleString() }}</td>
-                <td class="px-3 py-2.5">
-                  <span
-                    class="px-2 py-0.5 text-[11px] font-bold"
-                    :class="{
-                      'bg-emerald-100 text-emerald-700': row.status === '승인완료',
-                      'bg-blue-100 text-blue-700': row.status === '입고대기',
-                      'bg-orange-100 text-orange-700': row.status === '검수중',
-                    }"
-                  >{{ row.status }}</span>
-                </td>
-                <td class="px-3 py-2.5 text-gray-400">{{ row.date }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
+      <p v-if="loading" class="text-xs font-bold text-gray-500">데이터를 불러오는 중입니다.</p>
     </div>
   </AppLayout>
 </template>

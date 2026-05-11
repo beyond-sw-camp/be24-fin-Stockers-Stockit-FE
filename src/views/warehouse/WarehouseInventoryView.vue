@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
@@ -11,10 +11,7 @@ const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 const warehouseTopMenus = roleMenus.warehouse
-const warehouseSideMenus = roleMenus.warehouse.find((menu) => menu.label === '재고 관리')?.children ?? []
-
-const activeSideMenu = ref('창고 재고 조회')
-const activeTopMenu = computed(() => '재고 관리')
+const activeTopMenu = computed(() => '창고 재고 조회')
 
 const categoryMap = {
   상의: ['반팔', '긴팔', '셔츠', '니트', '후드티'],
@@ -121,8 +118,7 @@ onMounted(() => {
   <AppLayout
     :active-top-menu="activeTopMenu"
     :top-menus="warehouseTopMenus"
-    :side-menus="warehouseSideMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-200 bg-white p-4 shadow-sm">

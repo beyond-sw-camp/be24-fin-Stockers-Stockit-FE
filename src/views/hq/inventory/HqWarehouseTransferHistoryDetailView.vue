@@ -3,19 +3,17 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
 import { getWarehouseTransferDetail } from '@/api/hq/inventory.js'
 import { extractErrorMessage } from '@/api/axios.js'
 import { Archive, BadgeCheck, PackageCheck, Truck } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
-const auth = useAuthStore()
 const hqMenus = roleMenus.hq
-const inventoryMenus = roleMenus.hq.find((menu) => menu.label === '재고 관리')?.children ?? []
+const inventoryMenus = roleMenus.hq.find((menu) => menu.label === '물류 창고간 재고이동')?.children ?? []
 
-const activeTopMenu = computed(() => '재고 관리')
-const activeSideMenu = computed(() => '창고간 재고 이동 내역')
+const activeTopMenu = computed(() => '물류 창고간 재고이동')
+const activeSideMenu = computed(() => '재고 이동 내역')
 
 const record = ref(null)
 const loading = ref(false)

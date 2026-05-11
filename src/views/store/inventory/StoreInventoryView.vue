@@ -15,10 +15,7 @@ const isLoading = ref(false)
 const loadError = ref('')
 
 const storeMenus = roleMenus.store
-const sideMenus = roleMenus.store.find((menu) => menu.label === '재고 관리')?.children ?? []
-
-const activeTopMenu = ref('재고 관리')
-const activeSideMenu = ref('매장 재고 조회')
+const activeTopMenu = ref('매장 재고 조회')
 
 const CATEGORY_ORDER = ['상의', '바지', '치마', '아우터']
 
@@ -151,8 +148,7 @@ onMounted(() => {
   <AppLayout
     :active-top-menu="activeTopMenu"
     :top-menus="storeMenus"
-    :side-menus="sideMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-200 bg-white p-4 shadow-sm">
