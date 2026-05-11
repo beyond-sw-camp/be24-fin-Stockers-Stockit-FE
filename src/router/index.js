@@ -49,7 +49,6 @@ import HqStoreDetailView from '@/views/hq/infrastructure/HqStoreDetailView.vue'
 import HqWarehouseDetailView from '@/views/hq/infrastructure/HqWarehouseDetailView.vue'
 import HqStoreOrderBatchApproveView from '@/views/hq/store-order-batch/HqStoreOrderBatchApproveView.vue'
 import HqPurchaseOrderView from '@/views/hq/purchase-order/HqPurchaseOrderView.vue'
-import HqVendorManagementView from '@/views/hq/vendor/HqVendorManagementView.vue'
 import HqCategoryAddView from '@/views/hq/products/HqCategoryAddView.vue'
 import HqCircularStockCandidateView from '@/views/hq/circular-stock/HqCircularStockCandidateView.vue'
 import HqCircularStockInventoryView from '@/views/hq/circular-stock/HqCircularStockInventoryView.vue'
@@ -179,7 +178,6 @@ const router = createRouter({
       component: () => import('@/views/hq/purchase-order/HqPurchaseOrderCreateView.vue'),
       meta: { requiresAuth: true, role: 'hq' },
     },
-    { path: '/hq/vendors', name: 'hq-vendors', component: HqVendorManagementView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/circular-inventory/candidates', name: 'hq-circular-inventory-candidates', component: HqCircularStockCandidateView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/circular-inventory', name: 'hq-circular-inventory', component: HqCircularStockInventoryView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/circular-inventory/buyers', name: 'hq-circular-inventory-buyers', component: HqCircularStockBuyerManagementView, meta: { requiresAuth: true, role: 'hq' } },

@@ -21,12 +21,8 @@ export const roleMenus = {
     },
     {
       label: '물류 창고 발주',
-      path: '/hq/orders',
+      path: '/hq/purchase-orders',
       icon: 'truck',
-      children: [
-        { label: '공급처 발주', path: '/hq/purchase-orders' },
-        { label: '공급처 관리', path: '/hq/vendors' },
-      ],
     },
     {
       label: '순환 재고 관리',
