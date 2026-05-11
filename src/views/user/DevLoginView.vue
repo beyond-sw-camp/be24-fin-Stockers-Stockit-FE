@@ -88,35 +88,35 @@ async function handleSubmit() {
               <span class="ml-1.5 font-bold text-white"> 스마트 재고관리 시스템</span>
             </p>
           </div>
+        </div>
 
-          <!-- 권한별 간편 로그인 (개발용) -->
-          <div class="mt-8">
-            <p class="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/60">Quick Login</p>
-            <div class="grid grid-cols-3 gap-2">
-              <button
-                v-for="r in roleOptions"
-                :key="r.key"
-                type="button"
-                @click="selectRole(r.key)"
-                :class="[
-                  'flex flex-col items-start gap-1.5 border px-2.5 py-3 text-left transition',
-                  selectedRole === r.key
-                    ? 'border-white bg-white/20 text-white'
-                    : 'border-white/25 bg-white/5 text-white/85 hover:border-white/55 hover:bg-white/12',
-                ]"
-                :aria-pressed="selectedRole === r.key"
-              >
-                <component :is="r.icon" :size="16" class="text-white" />
-                <span class="text-[12px] font-black leading-tight">{{ r.label }}</span>
-                <span class="text-[10px] font-medium text-white/60">{{ r.desc }}</span>
-              </button>
-            </div>
-            <p class="mt-2 text-[10px] text-white/45">선택 후 우측 로그인 버튼을 눌러주세요.</p>
+        <!-- 권한별 간편 로그인 (개발용) — 하단 영역 -->
+        <div class="mt-8 border-t border-white/10 pt-5">
+          <p class="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-white/60">Quick Login</p>
+          <div class="grid grid-cols-3 gap-2">
+            <button
+              v-for="r in roleOptions"
+              :key="r.key"
+              type="button"
+              @click="selectRole(r.key)"
+              :class="[
+                'flex flex-col items-start gap-1.5 border px-2.5 py-3 text-left transition',
+                selectedRole === r.key
+                  ? 'border-white bg-white/20 text-white'
+                  : 'border-white/25 bg-white/5 text-white/85 hover:border-white/55 hover:bg-white/12',
+              ]"
+              :aria-pressed="selectedRole === r.key"
+            >
+              <component :is="r.icon" :size="16" class="text-white" />
+              <span class="text-[12px] font-black leading-tight">{{ r.label }}</span>
+              <span class="text-[10px] font-medium text-white/60">{{ r.desc }}</span>
+            </button>
           </div>
+          <p class="mt-2 text-[10px] text-white/45">선택 후 우측 로그인 버튼을 눌러주세요.</p>
         </div>
 
         <!-- 하단 -->
-        <div class="mt-8 flex items-center justify-between gap-3 border-t border-white/10 pt-5">
+        <div class="mt-5 flex items-center justify-between gap-3 border-t border-white/10 pt-5">
           <p class="text-[11px] text-white/30">© 2026 StockIT Corp. All rights reserved.</p>
           <div class="flex items-center gap-2">
             <div class="flex h-8 w-8 shrink-0 items-center justify-center border border-white/40 bg-white text-[16px] font-black text-[#004D3C]">
