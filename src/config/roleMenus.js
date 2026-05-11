@@ -106,7 +106,6 @@ export const roleMenus = {
       children: [
         { label: 'POS / 판매 등록', path: '/store/sales/register' },
         { label: '판매 내역', path: '/store/sales/history' },
-        { label: '판매 분석', path: '/store/sales/analysis' },
       ],
     },
     {
@@ -116,7 +115,6 @@ export const roleMenus = {
       children: [
         { label: '발주 요청', path: '/store/orders/request' },
         { label: '발주 내역', path: '/store/orders/history' },
-        { label: '발주 분석', path: '/store/orders/analysis' },
       ],
     },
     {

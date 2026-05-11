@@ -10,10 +10,8 @@ import MyPageView from '@/views/user/MyPageView.vue'
 import StoreDashboardView from '@/views/store/dashboard/StoreDashboardView.vue'
 import StorePosView from '@/views/store/sales/StorePosView.vue'
 import StoreSalesHistoryView from '@/views/store/sales/StoreSalesHistoryView.vue'
-import StoreSalesAnalysisView from '@/views/store/sales/StoreSalesAnalysisView.vue'
 import StoreOrderRequestView from '@/views/store/orders/StoreOrderRequestView.vue'
 import StoreOrderHistoryView from '@/views/store/orders/StoreOrderHistoryView.vue'
-import StoreOrderAnalysisView from '@/views/store/orders/StoreOrderAnalysisView.vue'
 import StoreOrderDetailView from '@/views/store/orders/StoreOrderDetailView.vue'
 import StoreInboundListView from '@/views/store/inbound/StoreInboundListView.vue'
 import StoreInboundDetailView from '@/views/store/inbound/StoreInboundDetailView.vue'
@@ -194,13 +192,11 @@ const router = createRouter({
     { path: '/store/pos', redirect: { name: 'store-sales-register' } },
     { path: '/store/sales/register', name: 'store-sales-register', component: StorePosView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/sales/history', name: 'store-sales-history', component: StoreSalesHistoryView, meta: { requiresAuth: true, role: 'store' } },
-    { path: '/store/sales/analysis', name: 'store-sales-analysis', component: StoreSalesAnalysisView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/orders', redirect: { name: 'store-order-request' } },
     { path: '/store/orders/request', name: 'store-order-request', component: StoreOrderRequestView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/orders/request/:orderNo/edit', name: 'store-order-edit', component: StoreOrderRequestView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/orders/history', name: 'store-order-history', component: StoreOrderHistoryView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/orders/history/:orderNo', name: 'store-order-detail', component: StoreOrderDetailView, meta: { requiresAuth: true, role: 'store' } },
-    { path: '/store/orders/analysis', name: 'store-order-analysis', component: StoreOrderAnalysisView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/inventory', name: 'store-inventory', component: StoreInventoryView, meta: { requiresAuth: true, role: 'store' } },
     {
       path: '/store/inventory/:itemCode/skus',
