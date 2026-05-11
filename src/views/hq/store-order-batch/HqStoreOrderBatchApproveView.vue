@@ -125,23 +125,28 @@ async function loadPendingStores() {
 
 function mapBatchErrorMessage(error) {
   const code = error?.response?.data?.code
-  if (code === 4609) return 'STORE 모드에는 storeCode가 필수입니다.'
-  if (code === 4610) return '유효하지 않은 배치 실행 범위입니다.'
-  if (error?.response?.status === 403) return '본사 관리자만 수동 배치를 실행할 수 있습니다.'
-  return extractErrorMessage(error, '배치 실행 중 오류가 발생했습니다.')
+  if (code === 4609) return 'STORE ????? storeCode? ?????.'
+  if (code === 4610) return '???? ?? ?? ?? ?????.'
+  if (code === 4611) return '?? ?? ???? ?? ?? ??? ??????.'
+  if (error?.response?.status === 403) return '?? ???? ?? ??? ??? ? ????.'
+  return extractErrorMessage(error, '?? ?? ? ??? ??????.')
 }
 
 async function runAllBatch() {
   feedbackMessage.value = ''
-  const ok = window.confirm('승인 대기 전체 발주를 승인 처리할까요?')
+  const ok = window.confirm('?? ?? ?? ??? ?? ??????')
   if (!ok) return
 
   runningAll.value = true
   try {
     const res = await runStoreOrderBatchApprove({ mode: 'ALL' })
     result.value = res
-    showFeedback('전체 승인 배치 실행이 완료되었습니다.', 'success')
-    pendingStores.value.forEach((store) => markStoreCompleted(store.storeCode))
+    if ((res?.failCount ?? 0) > 0) {
+      showFeedback(`??? ?? ???? ???????. ?? ${res.successCount ?? 0}?, ?? ${res.failCount ?? 0}?`, 'info')
+    } else {
+      showFeedback('?? ?? ?? ??? ???????.', 'success')
+      pendingStores.value.forEach((store) => markStoreCompleted(store.storeCode))
+    }
   } catch (e) {
     result.value = null
     showFeedback(mapBatchErrorMessage(e), 'error')
@@ -157,8 +162,12 @@ async function runStoreBatch(store) {
   try {
     const res = await runStoreOrderBatchApprove({ mode: 'STORE', storeCode: store.storeCode })
     result.value = res
-    showFeedback(`${store.storeName} 매장 수동 배치 실행이 완료되었습니다.`, 'success')
-    markStoreCompleted(store.storeCode)
+    if ((res?.failCount ?? 0) > 0) {
+      showFeedback(`${store.storeName} ?? ??? ?? ???? ???????. ?? ${res.successCount ?? 0}?, ?? ${res.failCount ?? 0}?`, 'info')
+    } else {
+      showFeedback(`${store.storeName} ?? ?? ?? ??? ???????.`, 'success')
+      markStoreCompleted(store.storeCode)
+    }
   } catch (e) {
     result.value = null
     showFeedback(mapBatchErrorMessage(e), 'error')
