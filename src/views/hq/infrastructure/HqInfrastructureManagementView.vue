@@ -3,22 +3,14 @@ import { computed, h, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
 import {
   createInfrastructure,
   getInfrastructures,
 } from '@/api/hq/infrastructure.js'
 
 const router = useRouter()
-const auth = useAuthStore()
 const hqMenus = roleMenus.hq
-
-
-const brandColor = '#004D3C'
-const brandColorLight = '#E6F2F0'
-
-const activeTopMenu = computed(() => '인프라 관리')
-const activeSideMenu = ref('인프라 통합 조회')
+const activeTopMenu = computed(() => '매장/창고 정보 관리')
 const viewType = ref('store')
 const storeRegionFilter = ref('전체 지역')
 const storeStatusFilter = ref('전체')
@@ -26,28 +18,6 @@ const storeSearchTerm = ref('')
 const warehouseRegionFilter = ref('전체 지역')
 const warehouseStatusFilter = ref('전체')
 const warehouseSearchTerm = ref('')
-
-const topMenus = [
-  '대시보드',
-  '재고 관리',
-  '발주 관리',
-  '제품 관리',
-  '인프라 관리',
-  '정산/통계',
-]
-
-const routeMap = {
-  대시보드: '/hq/dashboard',
-  '재고 관리': '/hq/inventory/company-wide',
-  '발주 관리': '/hq/orders',
-  '제품 관리': '/hq/products',
-  '인프라 관리': '/hq/infrastructure',
-  '정산/통계': '/hq/analytics',
-}
-
-const infraSideMenus = [
-  { label: '인프라 통합 조회', icon: 'store', id: 'SO-036' },
-]
 
 const storeData = ref([])
 const warehouseData = ref([])
@@ -93,13 +63,6 @@ const activeSearchTerm = computed({
     storeSearchTerm.value = value
   },
 })
-
-const handleTopMenuClick = (menu) => {
-  const target = routeMap[menu]
-  if (target) {
-    router.push(target)
-  }
-}
 
 const goToStoreDetail = (store) => {
   router.push({
@@ -296,8 +259,7 @@ const iconMap = {
   <AppLayout
     :active-top-menu="activeTopMenu"
     :top-menus="hqMenus"
-    :side-menus="infraSideMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
     show-system-card
   >
     <div class="infra-content">

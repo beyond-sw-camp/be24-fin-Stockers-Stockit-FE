@@ -46,13 +46,9 @@ export const roleMenus = {
       ],
     },
     {
-      label: '인프라 관리',
+      label: '매장/창고 정보 관리',
       path: '/hq/infrastructure',
       icon: 'store',
-      children: [
-        { label: '매장/창고 정보 관리', path: '/hq/infrastructure' },
-        { label: '매장/창고 매핑 관리', path: '/hq/infrastructure/mappings' },
-      ],
     },
     {
       label: '매장 발주 수동 승인',
