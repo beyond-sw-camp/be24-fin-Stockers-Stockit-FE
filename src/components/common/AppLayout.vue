@@ -1,6 +1,6 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
 import { useLogout } from '@/composables/useLogout.js'
 import EsgTreeWidget from '@/components/common/EsgTreeWidget.vue'
@@ -27,6 +27,7 @@ import {
 } from 'lucide-vue-next'
 
 const openTopMenusStorageKey = 'stockit:openTopMenus'
+const sidebarScrollTopStorageKey = 'stockit:sidebarScrollTop'
 
 const readStoredOpenTopMenus = () => {
   if (typeof window === 'undefined') return []
@@ -61,6 +62,7 @@ const props = defineProps({
 const emit = defineEmits(['update:activeSideMenu'])
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 const logout = useLogout()
 
@@ -90,12 +92,66 @@ const openTopMenus = sharedOpenTopMenus
 
 const treeMode = ref(false)
 const toggleTreeMode = () => { treeMode.value = !treeMode.value }
+const sidebarRef = ref(null)
+
+const getSidebarNavElement = () => sidebarRef.value?.querySelector('nav.overflow-y-auto') ?? null
+
+const saveSidebarScrollTop = (value) => {
+  if (typeof window === 'undefined') return
+  window.sessionStorage.setItem(sidebarScrollTopStorageKey, String(Math.max(0, value ?? 0)))
+}
+
+const readSidebarScrollTop = () => {
+  if (typeof window === 'undefined') return 0
+  const raw = window.sessionStorage.getItem(sidebarScrollTopStorageKey)
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+}
+
+const restoreSidebarScrollTop = async () => {
+  await nextTick()
+
+  requestAnimationFrame(() => {
+    const nav = getSidebarNavElement()
+    if (!nav) return
+    nav.scrollTop = readSidebarScrollTop()
+  })
+}
+
+const handleSidebarScroll = (event) => {
+  saveSidebarScrollTop(event?.target?.scrollTop ?? 0)
+}
+
+const runWithPreservedSidebarScroll = async (action) => {
+  const currentNav = getSidebarNavElement()
+  const scrollTop = currentNav?.scrollTop ?? 0
+  saveSidebarScrollTop(scrollTop)
+
+  await action()
+  await nextTick()
+
+  requestAnimationFrame(() => {
+    const nextNav = getSidebarNavElement()
+    if (nextNav) nextNav.scrollTop = scrollTop
+  })
+}
+
+onMounted(() => {
+  restoreSidebarScrollTop()
+})
+
+watch(
+  () => route.fullPath,
+  () => {
+    restoreSidebarScrollTop()
+  },
+)
 
 const hasMenuChildren = (menu) => Array.isArray(menu?.children) && menu.children.length > 0
 
-const handleTopMenuClick = (menu) => {
+const handleTopMenuClick = async (menu) => {
   if (menu.path) {
-    router.push(menu.path)
+    await runWithPreservedSidebarScroll(() => router.push(menu.path))
   }
 
   if (!hasMenuChildren(menu)) {
@@ -116,16 +172,16 @@ const keepParentMenuOpen = (parentMenu) => {
   saveOpenTopMenus([...openTopMenus.value, parentMenu.label])
 }
 
-const handleSideMenuClick = (item, parentMenu = null) => {
+const handleSideMenuClick = async (item, parentMenu = null) => {
   keepParentMenuOpen(parentMenu)
 
   if (item.path) {
-    router.push(item.path)
+    await runWithPreservedSidebarScroll(() => router.push(item.path))
     return
   }
 
   if (parentMenu && parentMenu.label !== props.activeTopMenu && parentMenu.path) {
-    router.push(parentMenu.path)
+    await runWithPreservedSidebarScroll(() => router.push(parentMenu.path))
     return
   }
 
@@ -222,7 +278,7 @@ const iconMap = {
     </header>
 
     <div class="flex min-h-[calc(100vh-48px)] max-[980px]:flex-col">
-      <aside class="sticky top-12 flex h-[calc(100vh-48px)] w-52 shrink-0 flex-col self-start border-r border-gray-300 bg-white max-[980px]:static max-[980px]:h-auto max-[980px]:w-full">
+      <aside ref="sidebarRef" class="sticky top-12 flex h-[calc(100vh-48px)] w-52 shrink-0 flex-col self-start border-r border-gray-300 bg-white max-[980px]:static max-[980px]:h-auto max-[980px]:w-full">
         <div class="border-b border-gray-100 bg-gray-50/50 p-4">
           <p class="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-gray-400">Navigation</p>
           <div class="flex items-center justify-between gap-2">
@@ -242,7 +298,11 @@ const iconMap = {
           </div>
         </div>
 
-        <nav v-if="!treeMode && hasTopMenus" class="min-h-0 flex-1 overflow-y-auto p-2">
+        <nav
+          v-if="!treeMode && hasTopMenus"
+          class="min-h-0 flex-1 overflow-y-auto p-2"
+          @scroll.passive="handleSidebarScroll"
+        >
           <div v-for="menu in topMenus" :key="menu.label" class="mt-0.5">
             <button
               type="button"
@@ -287,7 +347,11 @@ const iconMap = {
           </div>
         </nav>
 
-        <nav v-else-if="!treeMode" class="min-h-0 flex-1 overflow-y-auto p-2">
+        <nav
+          v-else-if="!treeMode"
+          class="min-h-0 flex-1 overflow-y-auto p-2"
+          @scroll.passive="handleSidebarScroll"
+        >
           <button
             v-for="item in sideMenus"
             :key="item.label"
