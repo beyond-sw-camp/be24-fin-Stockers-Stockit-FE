@@ -1,14 +1,8 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed } from 'vue'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
-const router = useRouter()
-const auth = useAuthStore()
 const storeMenus = roleMenus.store
-const sideMenus = roleMenus.store.find((menu) => menu.label === '대시보드')?.children ?? []
-const activeSideMenu = ref('대시보드')
 
 const kpiStats = [
   { label: '오늘 매출', value: '4,821,500', unit: '원', change: '+12.3%', status: 'up' },
@@ -54,8 +48,7 @@ const dateLabel = computed(() =>
   <AppLayout
     active-top-menu="대시보드"
     :top-menus="storeMenus"
-    :side-menus="sideMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
   >
     <div class="flex flex-col gap-3">
 

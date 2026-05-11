@@ -93,13 +93,11 @@ export const roleMenus = {
       label: '대시보드',
       path: '/store/dashboard',
       icon: 'layout',
-      children: [{ label: '대시보드', path: '/store/dashboard' }],
     },
     {
-      label: '재고 관리',
+      label: '매장 재고 조회',
       path: '/store/inventory',
       icon: 'warehouse',
-      children: [{ label: '매장 재고 조회', path: '/store/inventory' }],
     },
     {
       label: '판매 관리',
