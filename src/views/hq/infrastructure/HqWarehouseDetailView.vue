@@ -72,7 +72,7 @@ onMounted(() => {
     show-system-card
   >
     <div class="flex flex-col gap-4">
-      <section class="border border-gray-300 bg-white p-4 shadow-sm">
+      <section class="border border-gray-200 bg-white p-4 shadow-sm">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p class="text-[10px] font-black uppercase tracking-[0.16em] text-gray-400">Warehouse Detail</p>
@@ -84,7 +84,7 @@ onMounted(() => {
           </div>
           <button
             type="button"
-            class="h-9 border border-gray-300 bg-white px-4 text-xs font-black text-gray-700 hover:bg-gray-50"
+            class="h-9 border border-gray-200 bg-white px-4 text-xs font-black text-gray-700 hover:bg-gray-100"
             @click="goBack"
           >
             목록으로
@@ -94,12 +94,12 @@ onMounted(() => {
 
       <p v-if="loadError" class="border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600">{{ loadError }}</p>
 
-      <section v-if="isLoading" class="border border-gray-300 bg-white p-10 text-center text-sm font-bold text-gray-400 shadow-sm">
+      <section v-if="isLoading" class="border border-gray-200 bg-white p-10 text-center text-sm font-bold text-gray-400 shadow-sm">
         창고 정보를 불러오는 중입니다.
       </section>
 
       <section v-else-if="warehouse" class="grid gap-4 xl:grid-cols-[1.1fr_1fr]">
-        <article class="border border-gray-300 bg-white p-4 shadow-sm">
+        <article class="border border-gray-200 bg-white p-4 shadow-sm">
           <h2 class="text-xs font-black uppercase tracking-[0.1em] text-gray-500">기본 정보</h2>
           <div class="mt-3 grid gap-2 text-xs">
             <p class="flex items-center justify-between"><span class="font-bold text-gray-500">창고 코드</span><strong class="font-black text-gray-900">{{ warehouse.code }}</strong></p>
@@ -111,7 +111,7 @@ onMounted(() => {
           </div>
         </article>
 
-        <article class="border border-gray-300 bg-white p-4 shadow-sm">
+        <article class="border border-gray-200 bg-white p-4 shadow-sm">
           <h2 class="text-xs font-black uppercase tracking-[0.1em] text-gray-500">연결 매장</h2>
           <ul class="mt-3 space-y-2">
             <li
@@ -130,7 +130,7 @@ onMounted(() => {
           </ul>
         </article>
 
-        <article class="border border-gray-300 bg-white p-4 shadow-sm">
+        <article class="border border-gray-200 bg-white p-4 shadow-sm">
           <h2 class="text-xs font-black uppercase tracking-[0.1em] text-gray-500">최근 입출고 이력</h2>
           <div class="mt-3 border border-dashed border-gray-200 bg-gray-50 px-3 py-6 text-center text-xs font-bold text-gray-400">
             최근 입출고 이력 API 연동 후 표시됩니다.
@@ -138,7 +138,7 @@ onMounted(() => {
         </article>
       </section>
 
-      <section v-else class="border border-dashed border-gray-300 bg-white p-10 text-center text-sm font-bold text-gray-400 shadow-sm">
+      <section v-else class="border border-dashed border-gray-200 bg-white p-10 text-center text-sm font-bold text-gray-400 shadow-sm">
         존재하지 않는 창고입니다.
       </section>
     </div>

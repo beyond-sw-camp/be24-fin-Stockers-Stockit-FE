@@ -138,7 +138,7 @@ onMounted(() => {
     show-system-card
   >
     <div class="flex flex-col gap-4">
-      <section class="border border-gray-300 bg-white p-4 shadow-sm">
+      <section class="border border-gray-200 bg-white p-4 shadow-sm">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p class="text-[10px] font-black uppercase tracking-[0.16em] text-gray-400">Store Detail</p>
@@ -152,7 +152,7 @@ onMounted(() => {
           </div>
           <button
             type="button"
-            class="h-9 border border-gray-300 bg-white px-4 text-xs font-black text-gray-700 hover:bg-gray-50"
+            class="h-9 border border-gray-200 bg-white px-4 text-xs font-black text-gray-700 hover:bg-gray-100"
             @click="goBack"
           >
             목록으로
@@ -162,18 +162,18 @@ onMounted(() => {
 
       <p v-if="loadError" class="border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600">{{ loadError }}</p>
 
-      <section v-if="isLoading" class="border border-gray-300 bg-white p-10 text-center text-sm font-bold text-gray-400 shadow-sm">
+      <section v-if="isLoading" class="border border-gray-200 bg-white p-10 text-center text-sm font-bold text-gray-400 shadow-sm">
         매장 정보를 불러오는 중입니다.
       </section>
 
-      <section v-else-if="store" class="border border-gray-300 bg-white p-4 shadow-sm">
+      <section v-else-if="store" class="border border-gray-200 bg-white p-4 shadow-sm">
         <div class="flex items-center justify-between gap-2">
           <h2 class="text-xs font-black uppercase tracking-[0.1em] text-gray-500">기본 정보</h2>
           <div class="flex items-center gap-2">
             <button
               v-if="!isEditMode"
               type="button"
-              class="h-8 border border-gray-300 bg-white px-3 text-[11px] font-black text-gray-700 hover:bg-gray-50"
+              class="h-8 border border-gray-200 bg-white px-3 text-[11px] font-black text-gray-700 hover:bg-gray-100"
               @click="startEdit"
             >
               편집
@@ -181,7 +181,7 @@ onMounted(() => {
             <template v-else>
               <button
                 type="button"
-                class="h-8 border border-gray-300 bg-white px-3 text-[11px] font-black text-gray-700 hover:bg-gray-50"
+                class="h-8 border border-gray-200 bg-white px-3 text-[11px] font-black text-gray-700 hover:bg-gray-100"
                 :disabled="isSaving"
                 @click="cancelEdit"
               >
@@ -220,7 +220,7 @@ onMounted(() => {
               <input
                 v-model="editForm.managerName"
                 type="text"
-                class="h-8 border border-gray-300 bg-white px-2 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
+                class="h-8 border border-gray-200 bg-white px-2 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
               />
             </label>
             <label class="grid gap-1">
@@ -228,14 +228,14 @@ onMounted(() => {
               <input
                 v-model="editForm.contact"
                 type="text"
-                class="h-8 border border-gray-300 bg-white px-2 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
+                class="h-8 border border-gray-200 bg-white px-2 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
               />
             </label>
             <label class="grid gap-1">
               <span class="font-bold text-gray-500">상태</span>
               <select
                 v-model="editForm.status"
-                class="h-8 border border-gray-300 bg-white px-2 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
+                class="h-8 border border-gray-200 bg-white px-2 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
               >
                 <option v-for="option in statusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
               </select>
@@ -247,7 +247,7 @@ onMounted(() => {
         </div>
       </section>
 
-      <section v-else class="border border-dashed border-gray-300 bg-white p-10 text-center text-sm font-bold text-gray-400 shadow-sm">
+      <section v-else class="border border-dashed border-gray-200 bg-white p-10 text-center text-sm font-bold text-gray-400 shadow-sm">
         존재하지 않는 매장입니다.
       </section>
     </div>
