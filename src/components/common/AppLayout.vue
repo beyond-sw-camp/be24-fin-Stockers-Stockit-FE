@@ -93,7 +93,6 @@ const openTopMenus = sharedOpenTopMenus
 const treeMode = ref(false)
 const toggleTreeMode = () => { treeMode.value = !treeMode.value }
 const sidebarRef = ref(null)
-const setOpenTopMenus = (labels) => { saveOpenTopMenus(labels) }
 const setOpenTopMenuExclusive = (label) => { saveOpenTopMenus(label ? [label] : []) }
 
 const getSidebarNavElement = () => sidebarRef.value?.querySelector('nav.overflow-y-auto') ?? null
@@ -138,13 +137,34 @@ const runWithPreservedSidebarScroll = async (action) => {
   })
 }
 
+const isRouteMatch = (menuPath) => {
+  if (!menuPath) return false
+  if (menuPath.includes('?')) return route.fullPath === menuPath
+  if (route.path === menuPath) return true
+  return route.path.startsWith(`${menuPath}/`)
+}
+
+const syncOpenTopMenuWithRoute = () => {
+  const matchedParent = topMenus.value.find((menu) => {
+    if (hasMenuChildren(menu)) {
+      return getMenuChildren(menu).some((item) => isRouteMatch(item.path))
+    }
+    return isRouteMatch(menu.path)
+  })
+
+  if (!matchedParent || !hasMenuChildren(matchedParent)) return
+  setOpenTopMenuExclusive(matchedParent.label)
+}
+
 onMounted(() => {
+  syncOpenTopMenuWithRoute()
   restoreSidebarScrollTop()
 })
 
 watch(
   () => route.fullPath,
   () => {
+    syncOpenTopMenuWithRoute()
     restoreSidebarScrollTop()
   },
 )
@@ -152,13 +172,24 @@ watch(
 const hasMenuChildren = (menu) => Array.isArray(menu?.children) && menu.children.length > 0
 
 const handleTopMenuClick = async (menu) => {
-  if (!hasMenuChildren(menu)) return
+  if (!hasMenuChildren(menu)) {
+    if (menu.path) {
+      await runWithPreservedSidebarScroll(() => router.push(menu.path))
+    }
+    return
+  }
 
   const isOpen = openTopMenus.value.includes(menu.label)
   if (isOpen) {
-    setOpenTopMenus(openTopMenus.value.filter(label => label !== menu.label))
-  } else {
-    setOpenTopMenus([...openTopMenus.value, menu.label])
+    setOpenTopMenuExclusive(null)
+    return
+  }
+
+  setOpenTopMenuExclusive(menu.label)
+
+  const firstChild = getMenuChildren(menu)[0]
+  if (firstChild?.path) {
+    await runWithPreservedSidebarScroll(() => router.push(firstChild.path))
   }
 }
 
