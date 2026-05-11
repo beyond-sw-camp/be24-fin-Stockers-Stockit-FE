@@ -18,7 +18,7 @@ export const roleMenus = {
     {
       label: '물류 창고간 재고이동',
       path: '/hq/inventory/warehouse-comparison',
-      icon: 'warehouse',
+      icon: 'transfer',
       children: [
         { label: '재고 이동', path: '/hq/inventory/warehouse-comparison' },
         { label: '재고 이동 내역', path: '/hq/inventory/warehouse-transfer-history' },
@@ -27,7 +27,7 @@ export const roleMenus = {
     {
       label: '순환 재고 관리',
       path: '/hq/circular-inventory/candidates',
-      icon: 'refresh',
+      icon: 'recycle',
       children: [
         { label: '순환 재고 전환', path: '/hq/circular-inventory/candidates' },
         { label: '순환 재고 조회', path: '/hq/circular-inventory' },
@@ -81,7 +81,7 @@ export const roleMenus = {
     {
       label: '계정 관리',
       path: '/hq/accounts',
-      icon: 'settings',
+      icon: 'user',
       children: [
         { label: '회원가입 승인', path: '/hq/accounts/approvals' },
         { label: '계정 관리', path: '/hq/accounts' },

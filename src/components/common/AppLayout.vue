@@ -1,9 +1,29 @@
 <script setup>
-import { h, computed, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
 import { useLogout } from '@/composables/useLogout.js'
 import EsgTreeWidget from '@/components/common/EsgTreeWidget.vue'
+import {
+  Bell,
+  UserCircle2,
+  Settings,
+  LayoutDashboard,
+  Warehouse,
+  CircleAlert,
+  Truck,
+  BarChart3,
+  FileText,
+  Store,
+  CircleCheckBig,
+  History,
+  Leaf,
+  Sprout,
+  LogOut,
+  ArrowRightLeft,
+  Recycle,
+  Users,
+} from 'lucide-vue-next'
 
 const openTopMenusStorageKey = 'stockit:openTopMenus'
 
@@ -113,171 +133,31 @@ const handleSideMenuClick = (item, parentMenu = null) => {
 
 const getMenuChildren = (menu) => menu.children ?? []
 
-const IconBase = (paths) => ({
-  props: {
-    size: { type: Number, default: 16 },
-    strokeWidth: { type: Number, default: 2 },
-  },
-  render() {
-    return h(
-      'svg',
-      {
-        width: this.size,
-        height: this.size,
-        viewBox: '0 0 24 24',
-        fill: 'none',
-        stroke: 'currentColor',
-        'stroke-width': this.strokeWidth,
-        'stroke-linecap': 'round',
-        'stroke-linejoin': 'round',
-        'aria-hidden': 'true',
-      },
-      paths.map((path) => h(path.tag, path.attrs)),
-    )
-  },
-})
-
-const BellIcon = IconBase([
-  { tag: 'path', attrs: { d: 'M15 17H5a2 2 0 0 1-2-2c2 0 3-1 3-3V9a6 6 0 0 1 12 0v3c0 2 1 3 3 3a2 2 0 0 1-2 2h-4' } },
-  { tag: 'path', attrs: { d: 'M10 17a2 2 0 0 0 4 0' } },
-])
-
-const UserCircleIcon = IconBase([
-  { tag: 'circle', attrs: { cx: '12', cy: '12', r: '10' } },
-  { tag: 'circle', attrs: { cx: '12', cy: '10', r: '3' } },
-  { tag: 'path', attrs: { d: 'M7 20.66a8 8 0 0 1 10 0' } },
-])
-
-const SettingsIcon = IconBase([
-  { tag: 'circle', attrs: { cx: '12', cy: '12', r: '3' } },
-  { tag: 'path', attrs: { d: 'M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 1-3 0 1.7 1.7 0 0 0-1-.6 1.7 1.7 0 0 0-1.87.34l-.06.06A2 2 0 1 1 5.24 17l.06-.06A1.7 1.7 0 0 0 5.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 1 0-3 1.7 1.7 0 0 0 .6-1 1.7 1.7 0 0 0-.34-1.87L5.2 8.07A2 2 0 1 1 8.03 5.24l.06.06A1.7 1.7 0 0 0 10 5.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 1 3 0 1.7 1.7 0 0 0 1 .6 1.7 1.7 0 0 0 1.87-.34l.06-.06A2 2 0 1 1 19.76 8l-.06.06A1.7 1.7 0 0 0 19.4 10c0 .37.21.73.6 1a1.7 1.7 0 0 1 0 3 1.7 1.7 0 0 0-.6 1Z' } },
-])
-
-const SearchIcon = IconBase([
-  { tag: 'circle', attrs: { cx: '11', cy: '11', r: '7' } },
-  { tag: 'path', attrs: { d: 'm20 20-3.5-3.5' } },
-])
-
-const LayoutDashboardIcon = IconBase([
-  { tag: 'rect', attrs: { x: '3', y: '3', width: '7', height: '7' } },
-  { tag: 'rect', attrs: { x: '14', y: '3', width: '7', height: '5' } },
-  { tag: 'rect', attrs: { x: '14', y: '12', width: '7', height: '9' } },
-  { tag: 'rect', attrs: { x: '3', y: '14', width: '7', height: '7' } },
-])
-
-const WarehouseIcon = IconBase([
-  { tag: 'path', attrs: { d: 'M3 10.5 12 4l9 6.5' } },
-  { tag: 'path', attrs: { d: 'M5 9.5V20h14V9.5' } },
-  { tag: 'path', attrs: { d: 'M10 20v-5h4v5' } },
-])
-
-const AlertCircleIcon = IconBase([
-  { tag: 'circle', attrs: { cx: '12', cy: '12', r: '9' } },
-  { tag: 'path', attrs: { d: 'M12 8v5' } },
-  { tag: 'path', attrs: { d: 'M12 16h.01' } },
-])
-
-const TruckIcon = IconBase([
-  { tag: 'path', attrs: { d: 'M10 17H5a2 2 0 0 1-2-2V7h11v10Z' } },
-  { tag: 'path', attrs: { d: 'M14 17h-1V9h3l3 3v5h-1' } },
-  { tag: 'circle', attrs: { cx: '7.5', cy: '17.5', r: '1.5' } },
-  { tag: 'circle', attrs: { cx: '17.5', cy: '17.5', r: '1.5' } },
-])
-
-const BarChart3Icon = IconBase([
-  { tag: 'path', attrs: { d: 'M3 20h18' } },
-  { tag: 'path', attrs: { d: 'M7 16V8' } },
-  { tag: 'path', attrs: { d: 'M12 16V4' } },
-  { tag: 'path', attrs: { d: 'M17 16v-6' } },
-])
-
-const FileTextIcon = IconBase([
-  { tag: 'path', attrs: { d: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z' } },
-  { tag: 'path', attrs: { d: 'M14 3v5h5' } },
-  { tag: 'path', attrs: { d: 'M9 13h6' } },
-  { tag: 'path', attrs: { d: 'M9 17h6' } },
-])
-
-const StoreIcon = IconBase([
-  { tag: 'path', attrs: { d: 'M4 10h16' } },
-  { tag: 'path', attrs: { d: 'M5 10V6l2-2h10l2 2v4' } },
-  { tag: 'path', attrs: { d: 'M6 10v10h12V10' } },
-  { tag: 'path', attrs: { d: 'M10 20v-5h4v5' } },
-])
-
-const CheckCircle2Icon = IconBase([
-  { tag: 'circle', attrs: { cx: '12', cy: '12', r: '9' } },
-  { tag: 'path', attrs: { d: 'm9 12 2 2 4-4' } },
-])
-
-const HistoryIcon = IconBase([
-  { tag: 'path', attrs: { d: 'M3 12a9 9 0 1 0 3-6.7' } },
-  { tag: 'path', attrs: { d: 'M3 4v5h5' } },
-  { tag: 'path', attrs: { d: 'M12 7v5l3 2' } },
-])
-
-const LeafIcon = IconBase([
-  { tag: 'path', attrs: { d: 'M11 20A7 7 0 0 1 4 13c0-5 4-9 16-9 0 8-4 16-9 16Z' } },
-  { tag: 'path', attrs: { d: 'M2 22c5-2 9-6 12-12' } },
-])
-
-const SproutIcon = {
-  props: {
-    size: { type: Number, default: 16 },
-  },
-  render() {
-    return h(
-      'svg',
-      {
-        width: this.size,
-        height: this.size,
-        viewBox: '0 0 24 24',
-        xmlns: 'http://www.w3.org/2000/svg',
-        'aria-hidden': 'true',
-      },
-      [
-        h('path', {
-          d: 'M12 22V10',
-          stroke: 'currentColor',
-          'stroke-width': 2,
-          'stroke-linecap': 'round',
-          fill: 'none',
-        }),
-        h('path', {
-          d: 'M12 11C12 6 15 3 20 3C20 8 17 11 12 11Z',
-          fill: 'currentColor',
-        }),
-        h('path', {
-          d: 'M12 16C12 12 9 9 4 9C4 14 7 16 12 16Z',
-          fill: 'currentColor',
-        }),
-      ],
-    )
-  },
-}
-
 const iconMap = {
-  layout: LayoutDashboardIcon,
-  warehouse: WarehouseIcon,
-  alert: AlertCircleIcon,
-  truck: TruckIcon,
-  chart: BarChart3Icon,
-  file: FileTextIcon,
-  store: StoreIcon,
-  check: CheckCircle2Icon,
-  history: HistoryIcon,
-  settings: SettingsIcon,
-  tags: FileTextIcon,
-  package: WarehouseIcon,
-  badge: FileTextIcon,
-  briefcase: StoreIcon,
-  link2: CheckCircle2Icon,
-  refresh: HistoryIcon,
-  leaf: LeafIcon,
-  sprout: SproutIcon,
-  sales: BarChart3Icon,
-  target: AlertCircleIcon,
-  trend: BarChart3Icon,
+  layout: LayoutDashboard,
+  warehouse: Warehouse,
+  alert: CircleAlert,
+  truck: Truck,
+  chart: BarChart3,
+  file: FileText,
+  store: Store,
+  check: CircleCheckBig,
+  history: History,
+  settings: Settings,
+  tags: FileText,
+  package: Warehouse,
+  badge: FileText,
+  briefcase: Store,
+  link2: CircleCheckBig,
+  refresh: History,
+  leaf: Leaf,
+  sprout: Sprout,
+  sales: BarChart3,
+  target: CircleAlert,
+  trend: BarChart3,
+  transfer: ArrowRightLeft,
+  recycle: Recycle,
+  user: Users,
 }
 </script>
 
@@ -290,7 +170,7 @@ const iconMap = {
         <div
           class="mr-2 flex items-center gap-2 max-[980px]:mr-0"
         >
-          <LeafIcon :size="20" :stroke-width="2.5" class="text-white" />
+          <Leaf :size="20" :stroke-width="2.5" class="text-white" />
           <span class="text-sm font-black text-white">Stockit</span>
         </div>
       </div>
@@ -306,15 +186,11 @@ const iconMap = {
             title="ESG 대시보드 바로가기"
             @click="router.push('/hq/esg')"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path d="M12 22V10" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
-              <path d="M12 11C12 6 15 3 20 3C20 8 17 11 12 11Z" fill="currentColor"/>
-              <path d="M12 16C12 12 9 9 4 9C4 14 7 16 12 16Z" fill="currentColor"/>
-            </svg>
+            <Sprout :size="14" />
             <span>ESG 대시보드</span>
           </button>
           <button type="button" class="p-1.5 text-white/80 transition-colors hover:bg-white/10">
-            <BellIcon :size="16" />
+            <Bell :size="16" />
           </button>
           <button
             type="button"
@@ -322,7 +198,7 @@ const iconMap = {
             title="마이페이지"
             @click="router.push('/mypage')"
           >
-            <UserCircleIcon :size="22" :stroke-width="1.8" class="text-white" />
+            <UserCircle2 :size="22" :stroke-width="1.8" class="text-white" />
             <span class="flex flex-col items-start leading-tight">
               <span class="text-[11px] font-bold text-white/90">{{ userName }}</span>
               <span v-if="roleLabel" class="text-[9px] font-medium text-white/60">
@@ -336,7 +212,7 @@ const iconMap = {
             title="로그아웃"
             @click="logout"
           >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            <LogOut :size="15" />
           </button>
         </div>
       </div>
@@ -375,7 +251,7 @@ const iconMap = {
               "
               @click="handleTopMenuClick(menu)"
             >
-              <component :is="iconMap[menu.icon] ?? FileTextIcon" :size="14" />
+              <component :is="iconMap[menu.icon] ?? FileText" :size="14" />
               <span class="min-w-0 flex-1">{{ menu.label }}</span>
               <span
                 v-if="hasMenuChildren(menu)"
@@ -421,7 +297,7 @@ const iconMap = {
             "
             @click="handleSideMenuClick(item)"
           >
-            <component :is="iconMap[item.icon] ?? FileTextIcon" :size="14" />
+              <component :is="iconMap[item.icon] ?? FileText" :size="14" />
             <span>{{ item.label }}</span>
           </button>
         </nav>
