@@ -1,5 +1,5 @@
-<script setup>
-import { computed, ref } from 'vue'
+﻿<script setup>
+import { computed } from 'vue'
 import {
   AlertCircle,
   ArrowRight,
@@ -11,12 +11,8 @@ import {
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { dashboardSideMenus } from '@/views/hq/dashboard/dashboardMenus.js'
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
-
-const activeSideMenu = ref('재고 위험')
-const sideMenus = dashboardSideMenus
 
 const riskStats = [
   { label: '안전재고 미만 매장', value: '12', unit: '곳', tone: 'danger' },
@@ -45,7 +41,7 @@ const shortageRanking = [
   { rank: 4, target: '강남 서초점', issue: '위생용품 안전재고 하회', severity: '내일 오전' },
 ]
 
-const activeTopMenu = computed(() => '대시보드')
+const activeTopMenu = computed(() => '본사 대시보드')
 const dateLabel = computed(() =>
   new Intl.DateTimeFormat('ko-KR', {
     year: 'numeric',
@@ -61,8 +57,7 @@ const dateLabel = computed(() =>
   <AppLayout
     :active-top-menu="activeTopMenu"
     :top-menus="hqMenus"
-    :side-menus="sideMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
     show-system-card
   >
     <div class="flex flex-col gap-3">
@@ -197,3 +192,5 @@ const dateLabel = computed(() =>
     </div>
   </AppLayout>
 </template>
+
+

@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, ref } from 'vue'
 import {
   AlertCircle,
@@ -13,12 +13,9 @@ import {
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { dashboardSideMenus } from '@/views/hq/dashboard/dashboardMenus.js'
+
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
-
-const activeSideMenu = ref('알림 센터')
-const sideMenus = dashboardSideMenus
 
 const summaryStats = [
   { label: '미확인 알림', value: '14', note: '우선 확인 필요', tone: 'danger' },
@@ -59,7 +56,7 @@ const filteredAlerts = computed(() =>
     : alerts.filter((alert) => alert.category === activeFilter.value),
 )
 
-const activeTopMenu = computed(() => '대시보드')
+const activeTopMenu = computed(() => '본사 대시보드')
 const dateLabel = computed(() =>
   new Intl.DateTimeFormat('ko-KR', {
     year: 'numeric',
@@ -75,8 +72,7 @@ const dateLabel = computed(() =>
   <AppLayout
     :active-top-menu="activeTopMenu"
     :top-menus="hqMenus"
-    :side-menus="sideMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
     show-system-card
   >
     <div class="flex flex-col gap-3">

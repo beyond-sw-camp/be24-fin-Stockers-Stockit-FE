@@ -1,5 +1,5 @@
-<script setup>
-import { computed, ref } from 'vue'
+﻿<script setup>
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   ArrowRightLeft,
@@ -10,14 +10,10 @@ import {
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { dashboardSideMenus } from '@/views/hq/dashboard/dashboardMenus.js'
 
 const router = useRouter()
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
-
-const activeSideMenu = ref('입출고 흐름')
-const sideMenus = dashboardSideMenus
 
 const flowStats = [
   { label: '금일 입고 예정', value: '22', unit: '건' },
@@ -52,7 +48,7 @@ const liveLogs = [
   { id: 'FLOW-240420-04', type: '입고', location: '부산 중앙창고', item: '유리제 머그컵 350ml', qty: '+220', status: '지연', time: '14:41:05' },
 ]
 
-const activeTopMenu = computed(() => '대시보드')
+const activeTopMenu = computed(() => '본사 대시보드')
 const dateLabel = computed(() =>
   new Intl.DateTimeFormat('ko-KR', {
     year: 'numeric',
@@ -71,8 +67,7 @@ function goToAllFlowTransactions() {
   <AppLayout
     :active-top-menu="activeTopMenu"
     :top-menus="hqMenus"
-    :side-menus="sideMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
     show-system-card
   >
     <div class="flex flex-col gap-3">
@@ -216,3 +211,5 @@ function goToAllFlowTransactions() {
     </div>
   </AppLayout>
 </template>
+
+

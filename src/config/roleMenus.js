@@ -1,10 +1,9 @@
 export const roleMenus = {
   hq: [
     {
-      label: '대시보드',
+      label: '본사 대시보드',
       path: '/hq/dashboard',
       icon: 'layout',
-      children: [{ label: '운영 현황', path: '/hq/dashboard' }],
     },
     {
       label: '재고 관리',

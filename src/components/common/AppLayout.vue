@@ -70,7 +70,20 @@ const openTopMenus = sharedOpenTopMenus
 const treeMode = ref(false)
 const toggleTreeMode = () => { treeMode.value = !treeMode.value }
 
+const hasMenuChildren = (menu) => Array.isArray(menu?.children) && menu.children.length > 0
+
 const handleTopMenuClick = (menu) => {
+  if (menu.path) {
+    router.push(menu.path)
+  }
+
+  if (!hasMenuChildren(menu)) {
+    if (openTopMenus.value.includes(menu.label)) {
+      saveOpenTopMenus(openTopMenus.value.filter(label => label !== menu.label))
+    }
+    return
+  }
+
   const isOpen = openTopMenus.value.includes(menu.label)
   saveOpenTopMenus(isOpen
     ? openTopMenus.value.filter(label => label !== menu.label)
@@ -98,7 +111,7 @@ const handleSideMenuClick = (item, parentMenu = null) => {
   emit('update:activeSideMenu', item.label)
 }
 
-const getMenuChildren = (menu) => menu.children?.length ? menu.children : props.sideMenus
+const getMenuChildren = (menu) => menu.children ?? []
 
 const IconBase = (paths) => ({
   props: {
@@ -365,6 +378,7 @@ const iconMap = {
               <component :is="iconMap[menu.icon] ?? FileTextIcon" :size="14" />
               <span class="min-w-0 flex-1">{{ menu.label }}</span>
               <span
+                v-if="hasMenuChildren(menu)"
                 class="text-[10px] text-black/60 transition-transform"
                 :class="openTopMenus.includes(menu.label) ? 'rotate-90' : ''"
                 aria-hidden="true"
@@ -373,7 +387,7 @@ const iconMap = {
               </span>
             </button>
 
-            <div v-if="openTopMenus.includes(menu.label)" class="relative ml-5 mt-1 py-1 pl-5 pr-1">
+            <div v-if="hasMenuChildren(menu) && openTopMenus.includes(menu.label)" class="relative ml-5 mt-1 py-1 pl-5 pr-1">
               <span class="absolute bottom-3 left-2 top-3 w-px bg-[#D6EAEA]" aria-hidden="true"></span>
               <button
                 v-for="item in getMenuChildren(menu)"

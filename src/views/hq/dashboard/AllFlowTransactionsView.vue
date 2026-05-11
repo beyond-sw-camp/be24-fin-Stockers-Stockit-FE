@@ -1,17 +1,13 @@
-<script setup>
-import { computed, ref } from 'vue'
+﻿<script setup>
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowRightLeft, Clock3, ListOrdered } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { dashboardSideMenus } from '@/views/hq/dashboard/dashboardMenus.js'
 const router = useRouter()
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
-
-const activeSideMenu = ref('입출고 흐름')
-const sideMenus = dashboardSideMenus
 
 const flowTransactions = [
   { id: 'FLOW-240420-01', type: '입고', location: '용인 물류센터', item: '종이컵 6.5온스', qty: '+4,500', status: '검수 진행', time: '15:12:20' },
@@ -23,7 +19,7 @@ const flowTransactions = [
   { id: 'FLOW-240420-07', type: '출고', location: '강남 서초점', item: '손세정제 리필 500ml', qty: '-240', status: '출고 대기', time: '13:55:40' },
 ]
 
-const activeTopMenu = computed(() => '대시보드')
+const activeTopMenu = computed(() => '본사 대시보드')
 const dateLabel = computed(() =>
   new Intl.DateTimeFormat('ko-KR', {
     year: 'numeric',
@@ -39,8 +35,7 @@ const dateLabel = computed(() =>
   <AppLayout
     :active-top-menu="activeTopMenu"
     :top-menus="hqMenus"
-    :side-menus="sideMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
     show-system-card
   >
     <div class="flex flex-col gap-3">
@@ -119,3 +114,4 @@ const dateLabel = computed(() =>
     </div>
   </AppLayout>
 </template>
+
