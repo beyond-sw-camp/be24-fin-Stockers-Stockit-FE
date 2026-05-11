@@ -41,8 +41,6 @@ import HqWarehouseTransferHistoryDetailView from '@/views/hq/inventory/HqWarehou
 import HqCompanyWideInventorySkuDetailView from '@/views/hq/inventory/HqCompanyWideInventorySkuDetailView.vue'
 import HqProductManagementView from '@/views/hq/products/HqProductManagementView.vue'
 import HqInfrastructureManagementView from '@/views/hq/infrastructure/HqInfrastructureManagementView.vue'
-import HqStoreDetailView from '@/views/hq/infrastructure/HqStoreDetailView.vue'
-import HqWarehouseDetailView from '@/views/hq/infrastructure/HqWarehouseDetailView.vue'
 import HqStoreOrderBatchApproveView from '@/views/hq/store-order-batch/HqStoreOrderBatchApproveView.vue'
 import HqPurchaseOrderView from '@/views/hq/purchase-order/HqPurchaseOrderView.vue'
 import HqCategoryAddView from '@/views/hq/products/HqCategoryAddView.vue'
@@ -133,18 +131,6 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'hq' },
     },
     { path: '/hq/infrastructure', name: 'hq-infrastructure', component: HqInfrastructureManagementView, meta: { requiresAuth: true, role: 'hq' } },
-    {
-      path: '/hq/infrastructure/stores/:storeId',
-      name: 'hq-infrastructure-store-detail',
-      component: HqStoreDetailView,
-      meta: { requiresAuth: true, role: 'hq' },
-    },
-    {
-      path: '/hq/infrastructure/warehouses/:warehouseId',
-      name: 'hq-infrastructure-warehouse-detail',
-      component: HqWarehouseDetailView,
-      meta: { requiresAuth: true, role: 'hq' },
-    },
     {
       path: '/hq/batch/store-order-approve',
       name: 'hq-store-order-batch-approve',
