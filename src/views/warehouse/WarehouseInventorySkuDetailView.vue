@@ -1,21 +1,16 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
 import { getWarehouseInventorySkus } from '@/api/warehouse/inventory.js'
 import { extractErrorMessage } from '@/api/axios.js'
 
 const route = useRoute()
 const router = useRouter()
-const auth = useAuthStore()
 
 const warehouseTopMenus = roleMenus.warehouse
-const warehouseSideMenus = roleMenus.warehouse.find((menu) => menu.label === '재고 관리')?.children ?? []
-
-const activeSideMenu = ref('창고 재고 조회')
-const activeTopMenu = computed(() => '재고 관리')
+const activeTopMenu = computed(() => '창고 재고 조회')
 
 const itemCode = computed(() => String(route.params.itemCode ?? route.query.itemCode ?? ''))
 const itemName = computed(() => String(route.query.itemName ?? '선택 품목'))
@@ -106,8 +101,7 @@ watch(
   <AppLayout
     :active-top-menu="activeTopMenu"
     :top-menus="warehouseTopMenus"
-    :side-menus="warehouseSideMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-200 bg-white p-4 shadow-sm">

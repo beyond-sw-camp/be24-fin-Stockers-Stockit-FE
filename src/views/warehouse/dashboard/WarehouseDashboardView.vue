@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
@@ -21,9 +21,7 @@ const vendorStore = useVendorStore()
 const stockStore = useWarehouseStockStore()
 
 const topMenus = roleMenus.warehouse
-const sideMenus = roleMenus.warehouse.find((menu) => menu.label === '대시보드')?.children ?? []
-const activeTopMenu = computed(() => '대시보드')
-const activeSideMenu = ref('창고 대시보드')
+const activeTopMenu = computed(() => '창고 대시보드')
 
 
 function goTo(path) {
@@ -183,8 +181,7 @@ function formatDate(iso) {
   <AppLayout
     :active-top-menu="activeTopMenu"
     :top-menus="topMenus"
-    :side-menus="sideMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
   >
     <div class="flex flex-col gap-4">
       <!-- 헤더 -->

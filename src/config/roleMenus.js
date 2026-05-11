@@ -125,16 +125,14 @@ export const roleMenus = {
   ],
   warehouse: [
     {
-      label: '대시보드',
+      label: '창고 대시보드',
       path: '/warehouse/dashboard',
       icon: 'layout',
-      children: [{ label: '창고 대시보드', path: '/warehouse/dashboard' }],
     },
     {
-      label: '재고 관리',
+      label: '창고 재고 조회',
       path: '/warehouse/inventory',
       icon: 'warehouse',
-      children: [{ label: '창고 재고 조회', path: '/warehouse/inventory' }],
     },
     {
       label: '입/출고 관리',
@@ -151,7 +149,7 @@ export const roleMenus = {
 export const roleHomeMap = {
   hq: '/hq/dashboard',
   store: '/store/dashboard',
-  warehouse: '/warehouse/inventory',
+  warehouse: '/warehouse/dashboard',
 }
 
 export const roleDisplayName = {
