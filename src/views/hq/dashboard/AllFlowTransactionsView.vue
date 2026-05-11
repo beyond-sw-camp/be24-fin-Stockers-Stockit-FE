@@ -1,27 +1,22 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowRightLeft, Clock3, ListOrdered } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
+import { extractErrorMessage } from '@/api/axios.js'
+import { getWarehouseTransfers } from '@/api/hq/inventory.js'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
 import { dashboardSideMenus } from '@/views/hq/dashboard/dashboardMenus.js'
+import { flattenTransferLines, getDefaultDateRange } from '@/views/hq/dashboard/dashboardData.js'
 const router = useRouter()
-const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 
 const activeSideMenu = ref('입출고 흐름')
 const sideMenus = dashboardSideMenus
 
-const flowTransactions = [
-  { id: 'FLOW-240420-01', type: '입고', location: '용인 물류센터', item: '종이컵 6.5온스', qty: '+4,500', status: '검수 진행', time: '15:12:20' },
-  { id: 'FLOW-240420-02', type: '출고', location: '성수 직영점', item: '아메리카노 원두 1kg', qty: '-120', status: '출고 완료', time: '15:09:42' },
-  { id: 'FLOW-240420-03', type: '이동', location: '인천 제2센터 → 인천 제1센터', item: '무선 마우스 블랙', qty: '-60', status: '이동중', time: '14:58:11' },
-  { id: 'FLOW-240420-04', type: '입고', location: '부산 중앙창고', item: '유리제 머그컵 350ml', qty: '+220', status: '지연', time: '14:41:05' },
-  { id: 'FLOW-240420-05', type: '출고', location: '판교 테크노점', item: '종이컵 6.5온스', qty: '-800', status: '상차 진행', time: '14:30:00' },
-  { id: 'FLOW-240420-06', type: '입고', location: '인천 제1센터', item: '고속 충전기 25W', qty: '+500', status: '입고 대기', time: '14:15:22' },
-  { id: 'FLOW-240420-07', type: '출고', location: '강남 서초점', item: '손세정제 리필 500ml', qty: '-240', status: '출고 대기', time: '13:55:40' },
-]
+const flowTransactions = ref([])
+const loading = ref(false)
+const loadError = ref('')
 
 const activeTopMenu = computed(() => '대시보드')
 const dateLabel = computed(() =>
@@ -32,6 +27,24 @@ const dateLabel = computed(() =>
   }).format(new Date()),
 )
 
+const fetchFlowTransactions = async () => {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const { fromDate, toDate } = getDefaultDateRange(30)
+    const transfers = await getWarehouseTransfers({ fromDate, toDate })
+    flowTransactions.value = flattenTransferLines(Array.isArray(transfers) ? transfers : [])
+  } catch (error) {
+    loadError.value = extractErrorMessage(error, '입출고 트랜잭션을 불러오지 못했습니다.')
+    flowTransactions.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  fetchFlowTransactions()
+})
 
 </script>
 
@@ -78,6 +91,12 @@ const dateLabel = computed(() =>
           </div>
         </div>
       </section>
+      <p v-if="loadError" class="border border-red-100 bg-red-50 px-3 py-3 text-xs font-medium text-red-700">
+        {{ loadError }}
+      </p>
+      <p v-else-if="loading" class="border border-gray-300 bg-white px-3 py-3 text-xs font-medium text-gray-500">
+        입출고 트랜잭션을 불러오는 중입니다.
+      </p>
 
       <section class="border border-gray-300 bg-white shadow-sm">
         <div class="flex items-center justify-between border-b border-gray-200 px-3 py-2.5">
@@ -111,6 +130,11 @@ const dateLabel = computed(() =>
                 </td>
                 <td class="px-3 py-2.5 text-gray-700">{{ row.status }}</td>
                 <td class="px-3 py-2.5 text-gray-400">{{ row.time }}</td>
+              </tr>
+              <tr v-if="flowTransactions.length === 0">
+                <td colspan="7" class="px-3 py-10 text-center text-xs text-gray-400">
+                  입출고 트랜잭션 데이터가 없습니다.
+                </td>
               </tr>
             </tbody>
           </table>

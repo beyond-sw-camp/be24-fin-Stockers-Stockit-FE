@@ -19,6 +19,12 @@ const loadError = ref('')
 const isLoading = ref(false)
 const skuRows = ref([])
 const requestSeq = ref(0)
+const COLOR_LABEL_BY_CODE = {
+  BLK: '검정',
+  WHT: '흰색',
+  NVY: '네이비',
+  GRY: '그레이',
+}
 
 const itemCode = computed(() => String(route.params.itemCode ?? route.query.itemCode ?? ''))
 const itemName = computed(() => String(route.query.itemName ?? '선택 품목'))
@@ -80,7 +86,11 @@ async function loadSkuDetails() {
     const rows = await getCompanyWideInventorySkus(itemCode.value, payload)
     if (seq !== requestSeq.value) return
     skuRows.value = Array.isArray(rows)
-      ? rows.map(r => ({ ...r, updatedAt: r.updatedAt ? new Date(r.updatedAt).toLocaleString('ko-KR', { hour12: false }) : '-' }))
+      ? rows.map(r => ({
+          ...r,
+          colorLabel: COLOR_LABEL_BY_CODE[String(r.color ?? '').toUpperCase()] ?? r.color,
+          updatedAt: r.updatedAt ? new Date(r.updatedAt).toLocaleString('ko-KR', { hour12: false }) : '-',
+        }))
       : []
   } catch (e) {
     if (seq !== requestSeq.value) return
@@ -184,7 +194,7 @@ watch(
             <tbody class="divide-y divide-gray-100">
               <tr v-for="sku in skuRows" :key="sku.skuCode">
                 <td class="px-3 py-3 font-mono font-bold text-gray-600">{{ sku.skuCode }}</td>
-                <td class="px-3 py-3 font-bold text-gray-800">{{ sku.color }}</td>
+                <td class="px-3 py-3 font-bold text-gray-800">{{ sku.colorLabel }}</td>
                 <td class="px-3 py-3 font-black text-gray-900">{{ sku.size }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ sku.actualStock.toLocaleString() }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ sku.availableStock.toLocaleString() }}</td>

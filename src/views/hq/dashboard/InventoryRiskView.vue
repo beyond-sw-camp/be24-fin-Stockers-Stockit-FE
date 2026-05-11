@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import {
   AlertCircle,
   ArrowRight,
@@ -9,41 +9,21 @@ import {
   Warehouse,
 } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
+import { extractErrorMessage } from '@/api/axios.js'
+import { getCompanyWideInventories, getWarehouseTransferImbalancedSkus } from '@/api/hq/inventory.js'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
-import { dashboardSideMenus } from '@/views/hq/dashboard/dashboardMenus.js'
-const auth = useAuthStore()
+import { dashboardSideMenus } from '@/views/hq/dashboard/dashboardMenus.js'
 const hqMenus = roleMenus.hq
 
 const activeSideMenu = ref('재고 위험')
 const sideMenus = dashboardSideMenus
 
-const riskStats = [
-  { label: '안전재고 미만 매장', value: '12', unit: '곳', tone: 'danger' },
-  { label: '품절 임박 SKU', value: '27', unit: '개', tone: 'warning' },
-  { label: '창고 위험 품목', value: '9', unit: '개', tone: 'warning' },
-  { label: '즉시 보충 필요', value: '6', unit: '건', tone: 'danger' },
-]
-
-const riskStores = [
-  { name: '성수 직영점', sku: '아메리카노 원두 1kg', current: 8, safety: 30, gap: 22, eta: '오늘 18:00 전', level: 'high' },
-  { name: '판교 테크노점', sku: '종이컵 6.5온스', current: 120, safety: 300, gap: 180, eta: '내일 오전', level: 'high' },
-  { name: '강남 서초점', sku: '손세정제 리필 500ml', current: 24, safety: 50, gap: 26, eta: '오늘 21:00 전', level: 'medium' },
-  { name: '여의도 IFC점', sku: 'KF94 마스크 50매입', current: 17, safety: 40, gap: 23, eta: '내일 오전', level: 'medium' },
-]
-
-const riskWarehouses = [
-  { name: '인천 제2센터', sku: '무선 마우스 블랙', status: '품절', action: '대체 센터 이동 필요', level: 'high' },
-  { name: '용인 물류센터', sku: '생활가전 카테고리', status: '과적재', action: '재고 재배치 권장', level: 'medium' },
-  { name: '부산 중앙창고', sku: '유리제 머그컵 350ml', status: '입고 지연', action: '긴급 발주 검토', level: 'high' },
-]
-
-const shortageRanking = [
-  { rank: 1, target: '성수 직영점', issue: '원두 / 우유 / 컵 동시 부족', severity: '즉시 조치' },
-  { rank: 2, target: '판교 테크노점', issue: '소모품류 재고 급감', severity: '오늘 보충' },
-  { rank: 3, target: '인천 제2센터', issue: '전자제품 SKU 품절 증가', severity: '센터 이동' },
-  { rank: 4, target: '강남 서초점', issue: '위생용품 안전재고 하회', severity: '내일 오전' },
-]
+const riskStats = ref([])
+const riskStores = ref([])
+const riskWarehouses = ref([])
+const shortageRanking = ref([])
+const loading = ref(false)
+const loadError = ref('')
 
 const activeTopMenu = computed(() => '대시보드')
 const dateLabel = computed(() =>
@@ -54,6 +34,81 @@ const dateLabel = computed(() =>
   }).format(new Date()),
 )
 
+const toNum = (v) => Number(v || 0)
+const toStatus = (available, safety) => {
+  if (toNum(available) <= 0) return '품절'
+  if (toNum(available) <= toNum(safety)) return '부족'
+  return '안전'
+}
+
+const fetchRiskData = async () => {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const [companyWide, imbalancedSkus] = await Promise.all([
+      getCompanyWideInventories(),
+      getWarehouseTransferImbalancedSkus(),
+    ])
+    const items = Array.isArray(companyWide?.items) ? companyWide.items : []
+    const riskItems = items
+      .map((item) => {
+        const current = toNum(item.availableStock)
+        const safety = toNum(item.safetyStock)
+        const gap = Math.max(0, safety - current)
+        const status = toStatus(current, safety)
+        return {
+          name: '전사 집계',
+          sku: item.itemName,
+          current,
+          safety,
+          gap,
+          status,
+          level: status === '품절' ? 'high' : status === '부족' ? 'medium' : 'low',
+          eta: status === '품절' ? '즉시 보충' : status === '부족' ? '오늘 보충' : '모니터링',
+        }
+      })
+      .filter((row) => row.status !== '안전')
+      .sort((a, b) => b.gap - a.gap)
+
+    riskStores.value = riskItems.slice(0, 12)
+
+    const imbalanced = Array.isArray(imbalancedSkus) ? imbalancedSkus : []
+    riskWarehouses.value = imbalanced.slice(0, 8).map((row) => ({
+      name: row.itemName,
+      sku: row.skuCode,
+      status: toNum(row.shortageWarehouseCount) > 0 ? '부족' : '정상',
+      action: `부족 창고 ${toNum(row.shortageWarehouseCount)}곳 · 순부족 ${toNum(row.totalShortageQty)}EA`,
+      level: toNum(row.totalShortageQty) > 0 ? 'high' : 'medium',
+    }))
+
+    shortageRanking.value = riskItems.slice(0, 4).map((row, idx) => ({
+      rank: idx + 1,
+      target: row.sku,
+      issue: `현재 ${row.current} / 안전 ${row.safety}`,
+      severity: row.eta,
+    }))
+
+    const outOfStockCount = riskItems.filter((row) => row.status === '품절').length
+    riskStats.value = [
+      { label: '안전재고 미만 항목', value: `${riskItems.length}`, unit: '건', tone: 'danger' },
+      { label: '품절 임박 SKU', value: `${Math.max(0, riskItems.length - outOfStockCount)}`, unit: '개', tone: 'warning' },
+      { label: '창고 위험 품목', value: `${riskWarehouses.value.length}`, unit: '개', tone: 'warning' },
+      { label: '즉시 보충 필요', value: `${outOfStockCount}`, unit: '건', tone: 'danger' },
+    ]
+  } catch (error) {
+    loadError.value = extractErrorMessage(error, '재고 위험 데이터를 불러오지 못했습니다.')
+    riskStats.value = []
+    riskStores.value = []
+    riskWarehouses.value = []
+    shortageRanking.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  fetchRiskData()
+})
 
 </script>
 
@@ -82,6 +137,12 @@ const dateLabel = computed(() =>
         </div>
 
       </section>
+      <p v-if="loadError" class="border border-red-100 bg-red-50 px-3 py-3 text-xs font-medium text-red-700">
+        {{ loadError }}
+      </p>
+      <p v-else-if="loading" class="border border-gray-300 bg-white px-3 py-3 text-xs font-medium text-gray-500">
+        재고 위험 데이터를 불러오는 중입니다.
+      </p>
 
       <section class="grid grid-cols-2 gap-3 md:grid-cols-2 xl:grid-cols-4">
         <article
@@ -100,6 +161,12 @@ const dateLabel = computed(() =>
               :class="stat.tone === 'danger' ? 'text-red-600' : 'text-amber-600'"
             />
           </div>
+        </article>
+        <article
+          v-if="riskStats.length === 0"
+          class="col-span-2 border border-gray-300 bg-white px-3 py-6 text-center text-xs font-medium text-gray-400 xl:col-span-4"
+        >
+          표시할 위험 지표가 없습니다.
         </article>
       </section>
 
@@ -142,6 +209,11 @@ const dateLabel = computed(() =>
                     </span>
                   </td>
                 </tr>
+                <tr v-if="riskStores.length === 0">
+                  <td colspan="6" class="px-3 py-10 text-center text-xs text-gray-400">
+                    매장 재고 위험 데이터가 없습니다.
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -171,6 +243,9 @@ const dateLabel = computed(() =>
                 </span>
               </div>
             </div>
+            <div v-if="riskWarehouses.length === 0" class="px-3 py-10 text-center text-xs text-gray-400">
+              창고 위험 신호 데이터가 없습니다.
+            </div>
           </div>
         </article>
       </section>
@@ -191,6 +266,12 @@ const dateLabel = computed(() =>
             <p class="mt-2 text-[15px] font-semibold text-gray-900">{{ item.target }}</p>
             <p class="mt-2 text-[13px] text-gray-600">{{ item.issue }}</p>
             <p class="mt-3 text-[11px] font-semibold text-red-600">{{ item.severity }}</p>
+          </article>
+          <article
+            v-if="shortageRanking.length === 0"
+            class="border-b border-gray-100 px-3 py-10 text-center text-xs text-gray-400 md:col-span-2 xl:col-span-4"
+          >
+            위험 우선순위 데이터가 없습니다.
           </article>
         </div>
       </section>
