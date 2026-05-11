@@ -1,4 +1,4 @@
-
+﻿
 <script setup>
 import { computed, h, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -24,7 +24,6 @@ const { statusClass, statusLabel, inboundTypeClass, inboundTypeLabel, formatDate
 // ─── 레이아웃 ────────────────────────────────────────────────────────────────
 const activeSideMenu = ref('입고 관리')
 const topMenus = roleMenus.warehouse
-const sideMenus = roleMenus.warehouse.find((menu) => menu.label === '입/출고 관리')?.children ?? []
 
 
 
@@ -85,9 +84,9 @@ async function confirmInbound() {
   showConfirmInbound.value = false
   try {
     await inbound.confirmInbound(id)
-    triggerToast('입고가 확정되었습니다')
+    triggerToast('입고가 확정되었습니다.')
   } catch (e) {
-    triggerToast(e?.message ?? '입고 확정에 실패했습니다')
+    triggerToast(e?.message ?? '입고 확정에 실패했습니다.')
   }
 }
 
@@ -108,10 +107,9 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
 
 <template>
   <AppLayout
-    active-top-menu="입/출고 관리"
+    active-top-menu="입고 관리"
     :top-menus="topMenus"
-    :side-menus="sideMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
 
   >
     <div class="flex flex-col gap-4">
@@ -312,4 +310,4 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
     </Transition>
   </AppLayout>
 </template>
->>>>>>> 6c7016aa57c471f851db80fc2bac659572b1e605
+

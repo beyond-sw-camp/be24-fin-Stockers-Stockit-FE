@@ -135,13 +135,14 @@ export const roleMenus = {
       icon: 'warehouse',
     },
     {
-      label: '입/출고 관리',
+      label: '입고 관리',
       path: '/warehouse/inbound',
       icon: 'truck',
-      children: [
-        { label: '입고 관리', path: '/warehouse/inbound' },
-        { label: '출고 관리', path: '/warehouse/outbound' },
-      ],
+    },
+    {
+      label: '출고 관리',
+      path: '/warehouse/outbound',
+      icon: 'truck',
     },
   ],
 }
