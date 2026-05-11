@@ -23,8 +23,8 @@ import WarehouseDashboardView from '@/views/warehouse/dashboard/WarehouseDashboa
 import WarehouseInventoryView from '@/views/warehouse/WarehouseInventoryView.vue'
 import WarehouseInventorySkuDetailView from '@/views/warehouse/WarehouseInventorySkuDetailView.vue'
 import WarehouseInboundView from '@/views/warehouse/inbound/WarehouseInboundView.vue'
-import WarehouseOutboundView from '@/views/warehouse/WarehouseOutboundView.vue'
-import WarehouseOutboundDetailView from '@/views/warehouse/WarehouseOutboundDetailView.vue'
+import WarehouseOutboundView from '@/views/warehouse/outbound/WarehouseOutboundView.vue'
+import WarehouseOutboundDetailView from '@/views/warehouse/outbound/WarehouseOutboundDetailView.vue'
 
 import OperationStatusView from '@/views/hq/dashboard/OperationStatusView.vue'
 import InventoryRiskView from '@/views/hq/dashboard/InventoryRiskView.vue'
