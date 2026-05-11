@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, ref } from 'vue'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
@@ -6,7 +6,7 @@ import { getStoreInventories } from '@/api/store/inventory.js'
 import { getStoreOrderAnalytics } from '@/api/store/orders.js'
 
 const storeMenus = roleMenus.store
-const activeTopMenu = computed(() => '대시보드')
+const activeTopMenu = computed(() => '매장 대시보드')
 
 const loading = ref(false)
 const inventoryError = ref(false)

@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed } from 'vue'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
@@ -46,7 +46,7 @@ const dateLabel = computed(() =>
 
 <template>
   <AppLayout
-    active-top-menu="대시보드"
+    active-top-menu="매장 대시보드"
     :top-menus="storeMenus"
     :side-menus="[]"
   >

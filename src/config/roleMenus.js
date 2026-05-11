@@ -90,7 +90,7 @@
   ],
   store: [
     {
-      label: '대시보드',
+      label: '매장 대시보드',
       path: '/store/dashboard',
       icon: 'layout',
     },
