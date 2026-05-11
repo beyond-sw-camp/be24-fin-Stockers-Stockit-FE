@@ -129,8 +129,8 @@ async function handleSubmit() {
 
       <!-- 오른쪽 로그인 폼 -->
       <div class="flex flex-col justify-center p-8 md:p-10">
-        <p class="mb-5 text-[28px] font-black leading-[1] tracking-[-0.01em] text-[#1D4ED8] sm:text-[36px] md:text-[44px]">
-          무중단 배포 BLUE v1
+        <p class="mb-5 text-[28px] font-black leading-[1] tracking-[-0.01em] text-[#16A34A] sm:text-[36px] md:text-[44px]">
+          무중단 배포 GREEN v2
         </p>
 
         <div class="mb-8">
