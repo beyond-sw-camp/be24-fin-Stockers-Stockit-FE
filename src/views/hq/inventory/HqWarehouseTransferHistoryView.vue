@@ -39,14 +39,12 @@ const statusCodeByLabel = {
   '출고 준비중': 'READY_TO_SHIP',
   '배송중': 'IN_TRANSIT',
   '배송완료': 'ARRIVED',
-  '입고완료': 'RECEIVED',
 }
 
 const statusLabelByCode = {
   READY_TO_SHIP: '출고 준비중',
   IN_TRANSIT: '배송중',
   ARRIVED: '배송완료',
-  RECEIVED: '입고완료',
 }
 
 const uiStatus = (status) => statusLabelByCode[status] || status || '-'
@@ -55,7 +53,6 @@ const statusClass = (status) => ({
   '출고 준비중': 'bg-amber-50 text-amber-700',
   '배송중': 'bg-blue-50 text-blue-700',
   '배송완료': 'bg-emerald-50 text-emerald-700',
-  '입고완료': 'bg-[#E8F6F2] text-[#0B6D57]',
 })[status] ?? 'bg-gray-100 text-gray-600'
 
 const filteredRows = computed(() => {
@@ -150,7 +147,6 @@ onMounted(() => {
               <option value="출고 준비중">출고 준비중</option>
               <option value="배송중">배송중</option>
               <option value="배송완료">배송완료</option>
-              <option value="입고완료">입고완료</option>
             </select>
           </label>
 

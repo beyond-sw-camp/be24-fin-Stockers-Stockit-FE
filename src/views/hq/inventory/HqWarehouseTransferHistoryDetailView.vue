@@ -5,7 +5,7 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { getWarehouseTransferDetail } from '@/api/hq/inventory.js'
 import { extractErrorMessage } from '@/api/axios.js'
-import { Archive, BadgeCheck, PackageCheck, Truck } from 'lucide-vue-next'
+import { Archive, BadgeCheck, Truck } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -23,16 +23,14 @@ const statusLabelByCode = {
   READY_TO_SHIP: '출고 준비중',
   IN_TRANSIT: '배송중',
   ARRIVED: '배송완료',
-  RECEIVED: '입고완료',
 }
 
 const toUiStatus = (status) => statusLabelByCode[status] || status || '-'
-const transferSteps = ['READY_TO_SHIP', 'IN_TRANSIT', 'ARRIVED', 'RECEIVED']
+const transferSteps = ['READY_TO_SHIP', 'IN_TRANSIT', 'ARRIVED']
 const transferStepMeta = [
   { key: 'READY_TO_SHIP', label: '출고 준비', icon: Archive },
   { key: 'IN_TRANSIT', label: '배송 중', icon: Truck },
   { key: 'ARRIVED', label: '배송 완료', icon: BadgeCheck },
-  { key: 'RECEIVED', label: '입고 완료', icon: PackageCheck },
 ]
 
 const skuCount = computed(() => record.value?.lines?.length ?? 0)
@@ -58,9 +56,7 @@ const lineRows = computed(() => {
 const currentStepIndex = computed(() => {
   const current = record.value?.statusCode
   const idx = transferSteps.indexOf(current)
-  if (idx < 0) return -1
-  // BE 연동 전에는 RECEIVED를 활성화하지 않는다.
-  return Math.min(idx, transferSteps.indexOf('ARRIVED'))
+  return idx
 })
 
 const stepState = (stepKey) => {
@@ -73,9 +69,6 @@ const stepState = (stepKey) => {
 }
 
 const stepClass = (stepKey) => {
-  if (stepKey === 'RECEIVED' && currentStepIndex.value < transferSteps.indexOf('RECEIVED')) {
-    return 'bg-gray-100 text-gray-400 border-gray-200'
-  }
   const state = stepState(stepKey)
   if (state === 'done') return 'bg-emerald-500 text-white border-emerald-500 shadow-sm'
   if (state === 'current') return 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200'
@@ -83,7 +76,6 @@ const stepClass = (stepKey) => {
 }
 
 const stepLabelClass = (stepKey) => {
-  if (stepKey === 'RECEIVED' && currentStepIndex.value < transferSteps.indexOf('RECEIVED')) return 'text-gray-400'
   const state = stepState(stepKey)
   if (state === 'done') return 'text-emerald-700'
   if (state === 'current') return 'text-blue-700'
@@ -101,8 +93,7 @@ const statusConfig = computed(() => {
   const code = record.value?.statusCode
   if (code === 'READY_TO_SHIP') return { label: '출고 준비중', bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500', banner: { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-800', msg: '출고 준비 단계입니다. 재고 이동 실행 직후 상태입니다.' } }
   if (code === 'IN_TRANSIT') return { label: '배송중', bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500', banner: { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-800', msg: '배송중 단계입니다. 도착 창고의 재고 수치는 예상값입니다.' } }
-  if (code === 'ARRIVED') return { label: '배송완료', bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500', banner: { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-800', msg: '배송 완료 상태입니다. 입고 완료(RECEIVED) 연동은 후속 단계에서 제공됩니다.' } }
-  if (code === 'RECEIVED') return { label: '입고완료', bg: 'bg-[#E8F6F2]', text: 'text-[#0B6D57]', dot: 'bg-[#0B6D57]', banner: null }
+  if (code === 'ARRIVED') return { label: '배송완료', bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500', banner: { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-800', msg: '배송 완료 상태입니다.' } }
   return { label: record.value?.status ?? '-', bg: 'bg-gray-100', text: 'text-gray-700', dot: 'bg-gray-400', banner: null }
 })
 
@@ -238,7 +229,7 @@ onMounted(() => loadDetail())
                 </li>
               </ol>
             </div>
-            <p class="mt-2 text-[10px] font-bold text-gray-500">입고완료(RECEIVED)는 BE 입고 연동 전까지 표시 전용 단계입니다.</p>
+            <p class="mt-2 text-[10px] font-bold text-gray-500">재고 이동 상태는 출고 준비/배송중/배송완료/취소로 관리됩니다.</p>
 
             <div class="grid grid-cols-[1fr_auto_1fr] items-stretch gap-0 mt-3" style="margin-top: 0.67rem;">
               <!-- 출발 창고 -->
