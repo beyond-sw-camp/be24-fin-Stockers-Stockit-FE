@@ -6,13 +6,17 @@ export const roleMenus = {
       icon: 'layout',
     },
     {
-      label: '재고 관리',
+      label: '전사 재고 조회',
       path: '/hq/inventory/company-wide',
       icon: 'warehouse',
+    },
+    {
+      label: '물류 창고간 재고이동',
+      path: '/hq/inventory/warehouse-comparison',
+      icon: 'warehouse',
       children: [
-        { label: '전사 재고 조회', path: '/hq/inventory/company-wide' },
-        { label: '창고간 재고 이동', path: '/hq/inventory/warehouse-comparison' },
-        { label: '창고간 재고 이동 내역', path: '/hq/inventory/warehouse-transfer-history' },
+        { label: '재고 이동', path: '/hq/inventory/warehouse-comparison' },
+        { label: '재고 이동 내역', path: '/hq/inventory/warehouse-transfer-history' },
       ],
     },
     {

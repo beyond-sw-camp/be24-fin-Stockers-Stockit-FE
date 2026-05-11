@@ -3,19 +3,17 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
 import { useWarehouseTransferCartStore } from '@/stores/hq/warehouseTransferCart.js'
 import { getWarehouseTransferImbalancedSkus } from '@/api/hq/inventory.js'
 
 const router = useRouter()
 const route = useRoute()
-const auth = useAuthStore()
 const cartStore = useWarehouseTransferCartStore()
 const hqMenus = roleMenus.hq
-const inventoryMenus = roleMenus.hq.find(menu => menu.label === '재고 관리')?.children ?? []
+const inventoryMenus = roleMenus.hq.find(menu => menu.label === '물류 창고간 재고이동')?.children ?? []
 
-const activeTopMenu = computed(() => '재고 관리')
-const activeSideMenu = ref('창고간 재고 이동')
+const activeTopMenu = computed(() => '물류 창고간 재고이동')
+const activeSideMenu = ref('재고 이동')
 
 const searchTerm = ref(String(route.query.search || ''))
 const selectedCategory = ref(String(route.query.category || '전체'))
