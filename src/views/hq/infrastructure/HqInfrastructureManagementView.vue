@@ -18,12 +18,14 @@ const storeSearchTerm = ref('')
 const warehouseRegionFilter = ref('전체 지역')
 const warehouseStatusFilter = ref('전체')
 const warehouseSearchTerm = ref('')
+const storeRegionMaster = ref([])
+const warehouseRegionMaster = ref([])
 
 const storeData = ref([])
 const warehouseData = ref([])
 const infraError = ref('')
 
-const storeRegionOptions = computed(() => ['전체 지역', ...new Set(storeData.value.map((store) => store.region))])
+const storeRegionOptions = computed(() => ['전체 지역', ...storeRegionMaster.value])
 const storeStatusOptions = ['전체', '활성', '비활성']
 
 if (!storeRegionOptions.value.includes(storeRegionFilter.value)) {
@@ -36,7 +38,7 @@ if (!storeStatusOptions.includes(storeStatusFilter.value)) {
 
 const filteredStoreData = computed(() => storeData.value)
 
-const warehouseRegionOptions = computed(() => ['전체 지역', ...new Set(warehouseData.value.map((warehouse) => warehouse.region))])
+const warehouseRegionOptions = computed(() => ['전체 지역', ...warehouseRegionMaster.value])
 const warehouseStatusOptions = ['전체', '활성', '비활성', '점검중']
 
 if (!warehouseRegionOptions.value.includes(warehouseRegionFilter.value)) {
@@ -144,6 +146,15 @@ async function loadWarehouses() {
   }))
 }
 
+async function loadRegionMasters() {
+  const [stores, warehouses] = await Promise.all([
+    getInfrastructures({ type: 'STORE' }),
+    getInfrastructures({ type: 'WAREHOUSE' }),
+  ])
+  storeRegionMaster.value = Array.from(new Set((stores || []).map((row) => row.region).filter(Boolean)))
+  warehouseRegionMaster.value = Array.from(new Set((warehouses || []).map((row) => row.region).filter(Boolean)))
+}
+
 async function reloadActiveMenuData() {
   try {
     infraError.value = ''
@@ -177,7 +188,7 @@ async function quickCreateStore() {
       address: '서울시 강남구',
       status: 'ACTIVE',
     })
-    await loadStores()
+    await Promise.all([loadStores(), loadRegionMasters()])
   } catch (e) {
     infraError.value = e.message
   }
@@ -196,13 +207,14 @@ async function quickCreateWarehouse() {
       address: '서울시 강서구',
       status: 'ACTIVE',
     })
-    await loadWarehouses()
+    await Promise.all([loadWarehouses(), loadRegionMasters()])
   } catch (e) {
     infraError.value = e.message
   }
 }
 
 onMounted(() => {
+  loadRegionMasters()
   reloadActiveMenuData()
 })
 
