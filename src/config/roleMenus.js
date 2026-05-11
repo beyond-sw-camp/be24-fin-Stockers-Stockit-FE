@@ -122,14 +122,6 @@ export const roleMenus = {
       path: '/store/inbound/list',
       icon: 'check',
     },
-    {
-      label: '통계',
-      path: '/store/stats',
-      icon: 'chart',
-      children: [
-        { label: '재고 운영 통계', path: '/store/stats' },
-      ],
-    },
   ],
   warehouse: [
     {

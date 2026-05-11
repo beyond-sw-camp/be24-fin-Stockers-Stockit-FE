@@ -8,6 +8,7 @@ import SignupView from '@/views/user/SignupView.vue'
 import MyPageView from '@/views/user/MyPageView.vue'
 
 import StoreDashboardView from '@/views/store/dashboard/StoreDashboardView.vue'
+import StoreDashboardView2 from '@/views/store/dashboard/StoreDashboardView2.vue'
 import StorePosView from '@/views/store/sales/StorePosView.vue'
 import StoreSalesHistoryView from '@/views/store/sales/StoreSalesHistoryView.vue'
 import StoreOrderRequestView from '@/views/store/orders/StoreOrderRequestView.vue'
@@ -17,7 +18,6 @@ import StoreInboundListView from '@/views/store/inbound/StoreInboundListView.vue
 import StoreInboundDetailView from '@/views/store/inbound/StoreInboundDetailView.vue'
 import StoreInventoryView from '@/views/store/inventory/StoreInventoryView.vue'
 import StoreInventorySkuDetailView from '@/views/store/inventory/StoreInventorySkuDetailView.vue'
-import StoreStatsView from '@/views/store/stats/StoreStatsView.vue'
 
 import WarehouseDashboardView from '@/views/warehouse/dashboard/WarehouseDashboardView.vue'
 import WarehouseInventoryView from '@/views/warehouse/WarehouseInventoryView.vue'
@@ -188,6 +188,7 @@ const router = createRouter({
     { path: '/hq/esg/emissionquota', name: 'hq-esg-emissionquota', component: EsgQuotaView, meta: { requiresAuth: true, role: 'hq' } },
 
     { path: '/store/dashboard', name: 'store-dashboard', component: StoreDashboardView, meta: { requiresAuth: true, role: 'store' } },
+    { path: '/store/dashboard2', name: 'store-dashboard2', component: StoreDashboardView2, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/pos', redirect: { name: 'store-sales-register' } },
     { path: '/store/sales/register', name: 'store-sales-register', component: StorePosView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/sales/history', name: 'store-sales-history', component: StoreSalesHistoryView, meta: { requiresAuth: true, role: 'store' } },
@@ -208,7 +209,6 @@ const router = createRouter({
     { path: '/store/inbound/list/:id', name: 'store-inbound-detail', component: StoreInboundDetailView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/inbound/history', redirect: { name: 'store-inbound-list' } },
     { path: '/store/inbound/history/:id', redirect: (to) => ({ name: 'store-inbound-detail', params: { id: to.params.id } }) },
-    { path: '/store/stats', name: 'store-stats', component: StoreStatsView, meta: { requiresAuth: true, role: 'store' } },
 
     {
       path: '/warehouse/dashboard',
