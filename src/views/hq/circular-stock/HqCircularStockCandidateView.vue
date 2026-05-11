@@ -31,6 +31,12 @@ const convertNotice = ref('')
 const isConvertModalOpen = ref(false)
 const isConverting = ref(false)
 const conversionInputs = ref({})
+const COLOR_LABEL_BY_CODE = {
+  BLK: '검정',
+  WHT: '흰색',
+  NVY: '네이비',
+  GRY: '그레이',
+}
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
 const pageSize = ref(20)
@@ -94,6 +100,7 @@ const mapCandidateRow = (row) => {
     warehouseCode: String(row.warehouseCode ?? ''),
     warehouseName: String(row.warehouseName ?? ''),
     color: String(row.color ?? ''),
+    colorLabel: COLOR_LABEL_BY_CODE[String(row.color ?? '').toUpperCase()] ?? String(row.color ?? ''),
     size: String(row.size ?? ''),
     actualStock: Number(row.actualStock ?? 0),
     availableStock: Number(row.availableStock ?? 0),
@@ -695,7 +702,7 @@ onBeforeUnmount(() => {
                 <td class="px-3 py-3 font-bold text-gray-700">{{ row.category }}</td>
                 <td class="px-3 py-3 font-black text-gray-900">{{ row.itemName }}</td>
                 <td class="px-3 py-3 font-bold text-gray-700">{{ row.warehouseName }}</td>
-                <td class="px-3 py-3 text-center font-black text-gray-900">{{ row.color }}</td>
+                <td class="px-3 py-3 text-center font-black text-gray-900">{{ row.colorLabel }}</td>
                 <td class="px-3 py-3 text-center font-black text-gray-900">{{ row.size }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ row.availableStock.toLocaleString() }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ row.convertibleStock.toLocaleString() }}</td>
