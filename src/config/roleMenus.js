@@ -1,4 +1,4 @@
-export const roleMenus = {
+﻿export const roleMenus = {
   hq: [
     {
       label: '본사 대시보드',
@@ -137,12 +137,12 @@ export const roleMenus = {
     {
       label: '입고 관리',
       path: '/warehouse/inbound',
-      icon: 'truck',
+      icon: 'inbound',
     },
     {
       label: '출고 관리',
       path: '/warehouse/outbound',
-      icon: 'truck',
+      icon: 'outbound',
     },
   ],
 }

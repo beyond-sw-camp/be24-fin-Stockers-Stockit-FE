@@ -23,6 +23,8 @@ import {
   ArrowRightLeft,
   Recycle,
   Users,
+  ClipboardCheck,
+  ClipboardList,
 } from 'lucide-vue-next'
 
 const openTopMenusStorageKey = 'stockit:openTopMenus'
@@ -158,6 +160,8 @@ const iconMap = {
   transfer: ArrowRightLeft,
   recycle: Recycle,
   user: Users,
+  inbound: ClipboardList,
+  outbound: ClipboardCheck,
 }
 </script>
 

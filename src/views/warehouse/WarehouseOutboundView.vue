@@ -14,15 +14,15 @@ const topMenus = roleMenus.warehouse
 const STATUS_TABS = [
   { key: 'ALL', label: '전체' },
   { key: 'READY_TO_SHIP', label: '출고 준비중' },
-  { key: 'IN_TRANSIT', label: '배송 중' },
+  { key: 'IN_TRANSIT', label: '배송중' },
   { key: 'ARRIVED', label: '배송 완료' },
 ]
 
 const TYPE_OPTIONS = [
-  { value: 'ALL', label: '?꾩껜 ?좏삎' },
-  { value: 'STORE_OUTBOUND', label: '留ㅼ옣 異쒓퀬' },
-  { value: 'WH_TRANSFER', label: '李쎄퀬媛??대룞' },
-  { value: 'CIRCULAR_SALE', label: '?쒗솚?ш퀬 ?먮ℓ' },
+  { value: 'ALL', label: '전체 유형' },
+  { value: 'STORE_OUTBOUND', label: '매장 출고' },
+  { value: 'WH_TRANSFER', label: '창고간 이동' },
+  { value: 'CIRCULAR_SALE', label: '순환재고 판매' },
 ]
 
 const PERIOD_TABS = [
@@ -51,11 +51,13 @@ function normalizeOutboundType(sourceType) {
 }
 
 function outboundTypeLabel(sourceType) {
-  return {
-    STORE_OUTBOUND: '留ㅼ옣 異쒓퀬',
-    WH_TRANSFER: '李쎄퀬媛??대룞',
-    CIRCULAR_SALE: '?쒗솚?ш퀬 ?먮ℓ',
-  }[normalizeOutboundType(sourceType)] ?? sourceType
+  return (
+    {
+      STORE_OUTBOUND: '매장 출고',
+      WH_TRANSFER: '창고간 이동',
+      CIRCULAR_SALE: '순환재고 판매',
+    }[normalizeOutboundType(sourceType)] ?? sourceType
+  )
 }
 
 function outboundTypeClass(sourceType) {
@@ -70,7 +72,9 @@ function outboundTypeClass(sourceType) {
 
 const visibleRows = computed(() => {
   if (activeTypeTab.value === 'ALL') return outboundRows.value
-  return outboundRows.value.filter((row) => normalizeOutboundType(row.sourceType) === activeTypeTab.value)
+  return outboundRows.value.filter(
+    (row) => normalizeOutboundType(row.sourceType) === activeTypeTab.value,
+  )
 })
 
 const statusCounts = computed(() => ({
@@ -120,7 +124,7 @@ function statusLabel(status) {
   return (
     {
       READY_TO_SHIP: '출고 준비중',
-      IN_TRANSIT: '배송 중',
+      IN_TRANSIT: '배송중',
       ARRIVED: '배송 완료',
     }[status] ?? status
   )
@@ -148,7 +152,7 @@ async function fetchOutboundList() {
     })
     outboundRows.value = Array.isArray(result) ? result : []
   } catch (error) {
-    errorMessage.value = extractErrorMessage(error, '異쒓퀬 紐⑸줉 議고쉶 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.')
+    errorMessage.value = extractErrorMessage(error, '출고 목록 조회 중 오류가 발생했습니다.')
   } finally {
     loading.value = false
   }
@@ -173,7 +177,9 @@ onMounted(() => {
       <section class="border border-slate-200 bg-gradient-to-r from-slate-50 via-white to-emerald-50/40 p-5 shadow-sm">
         <p class="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-500">Warehouse Outbound</p>
         <h1 class="mt-1 text-xl font-black text-slate-900">출고 리스트</h1>
-        <p class="mt-1 text-sm font-semibold text-slate-600">李쎄퀬 異쒓퀬 紐⑸줉??議고쉶?섍퀬 ?곹깭 ?꾩씠瑜?愿由ы빀?덈떎.</p>
+        <p class="mt-1 text-sm font-semibold text-slate-600">
+          창고 출고 목록을 조회하고 상태 전이를 관리합니다.
+        </p>
       </section>
 
       <section class="border border-slate-200 bg-white px-4 py-3 shadow-sm">
@@ -260,18 +266,20 @@ onMounted(() => {
           <table class="w-full table-fixed border-collapse text-xs">
             <thead class="bg-slate-100/90 text-[10px] uppercase tracking-[0.12em] text-slate-500">
               <tr>
-                <th class="w-[16%] px-4 py-3 text-left font-black">異쒓퀬踰덊샇</th>
-                <th class="w-[14%] px-4 py-3 text-left font-black">?먯쿇諛쒖＜踰덊샇</th>
-                <th class="w-[12%] px-4 py-3 text-left font-black">異쒓퀬?좏삎</th>
-                <th class="w-[16%] px-4 py-3 text-left font-black">紐⑹쟻吏</th>
-                <th class="w-[12%] px-4 py-3 text-right font-black">珥??섎웾</th>
-                <th class="w-[10%] px-4 py-3 text-center font-black">?곹깭</th>
-                <th class="w-[20%] px-4 py-3 text-left font-black">?붿껌?쇱떆</th>
+                <th class="w-[16%] px-4 py-3 text-left font-black">출고번호</th>
+                <th class="w-[14%] px-4 py-3 text-left font-black">원천발주번호</th>
+                <th class="w-[12%] px-4 py-3 text-left font-black">출고유형</th>
+                <th class="w-[16%] px-4 py-3 text-left font-black">목적지</th>
+                <th class="w-[12%] px-4 py-3 text-right font-black">총 수량</th>
+                <th class="w-[10%] px-4 py-3 text-center font-black">상태</th>
+                <th class="w-[20%] px-4 py-3 text-left font-black">요청일시</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
               <tr v-if="loading">
-                <td colspan="7" class="px-4 py-14 text-center text-sm font-semibold text-slate-400">議고쉶 以묒엯?덈떎.</td>
+                <td colspan="7" class="px-4 py-14 text-center text-sm font-semibold text-slate-400">
+                  조회 중입니다.
+                </td>
               </tr>
               <tr
                 v-for="row in visibleRows"
@@ -283,22 +291,32 @@ onMounted(() => {
                 <td class="whitespace-nowrap px-4 py-3 font-bold text-slate-500">{{ row.outboundNo }}</td>
                 <td class="px-4 py-3 font-black text-slate-900">{{ row.sourceRefNo }}</td>
                 <td class="px-4 py-3">
-                  <span class="inline-flex rounded-md border px-2.5 py-1 text-[10px] font-black" :class="outboundTypeClass(row.sourceType)">
+                  <span
+                    class="inline-flex rounded-md border px-2.5 py-1 text-[10px] font-black"
+                    :class="outboundTypeClass(row.sourceType)"
+                  >
                     {{ outboundTypeLabel(row.sourceType) }}
                   </span>
                 </td>
                 <td class="px-4 py-3 font-bold text-slate-700">{{ destinationLabel(row) }}</td>
-                <td class="px-4 py-3 text-right font-black text-slate-700">{{ row.totalRequestedQuantity ?? 0 }}</td>
+                <td class="px-4 py-3 text-right font-black text-slate-700">
+                  {{ row.totalRequestedQuantity ?? 0 }}
+                </td>
                 <td class="px-4 py-3 text-center">
-                  <span class="inline-flex rounded-md px-2.5 py-1 text-[10px] font-black" :class="statusClass(row.status)">
+                  <span
+                    class="inline-flex rounded-md px-2.5 py-1 text-[10px] font-black"
+                    :class="statusClass(row.status)"
+                  >
                     {{ statusLabel(row.status) }}
                   </span>
                 </td>
-                <td class="whitespace-nowrap px-4 py-3 font-bold text-slate-500">{{ formatDateTime(row.requestedAt) }}</td>
+                <td class="whitespace-nowrap px-4 py-3 font-bold text-slate-500">
+                  {{ formatDateTime(row.requestedAt) }}
+                </td>
               </tr>
               <tr v-if="!loading && visibleRows.length === 0">
                 <td colspan="7" class="px-4 py-14 text-center text-sm font-semibold text-slate-400">
-                  議곌굔??留욌뒗 異쒓퀬 由ъ뒪?멸? ?놁뒿?덈떎.
+                  조건에 맞는 출고 리스트가 없습니다.
                 </td>
               </tr>
             </tbody>
@@ -308,4 +326,3 @@ onMounted(() => {
     </div>
   </AppLayout>
 </template>
-
