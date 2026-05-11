@@ -93,6 +93,8 @@ const openTopMenus = sharedOpenTopMenus
 const treeMode = ref(false)
 const toggleTreeMode = () => { treeMode.value = !treeMode.value }
 const sidebarRef = ref(null)
+const setOpenTopMenus = (labels) => { saveOpenTopMenus(labels) }
+const setOpenTopMenuExclusive = (label) => { saveOpenTopMenus(label ? [label] : []) }
 
 const getSidebarNavElement = () => sidebarRef.value?.querySelector('nav.overflow-y-auto') ?? null
 
@@ -150,26 +152,21 @@ watch(
 const hasMenuChildren = (menu) => Array.isArray(menu?.children) && menu.children.length > 0
 
 const handleTopMenuClick = async (menu) => {
-  if (menu.path) {
-    await runWithPreservedSidebarScroll(() => router.push(menu.path))
-  }
-
-  if (!hasMenuChildren(menu)) {
-    if (openTopMenus.value.includes(menu.label)) {
-      saveOpenTopMenus(openTopMenus.value.filter(label => label !== menu.label))
-    }
-    return
-  }
+  if (!hasMenuChildren(menu)) return
 
   const isOpen = openTopMenus.value.includes(menu.label)
-  saveOpenTopMenus(isOpen
-    ? openTopMenus.value.filter(label => label !== menu.label)
-    : [...openTopMenus.value, menu.label])
+  if (isOpen) {
+    setOpenTopMenus(openTopMenus.value.filter(label => label !== menu.label))
+  } else {
+    setOpenTopMenus([...openTopMenus.value, menu.label])
+  }
 }
 
 const keepParentMenuOpen = (parentMenu) => {
-  if (!parentMenu || openTopMenus.value.includes(parentMenu.label)) return
-  saveOpenTopMenus([...openTopMenus.value, parentMenu.label])
+  if (!parentMenu) return
+  if (openTopMenus.value.includes(parentMenu.label) && openTopMenus.value.length === 1) return
+  // 하위 메뉴 선택 시에는 해당 부모만 열고 나머지는 닫음
+  setOpenTopMenuExclusive(parentMenu.label)
 }
 
 const handleSideMenuClick = async (item, parentMenu = null) => {
