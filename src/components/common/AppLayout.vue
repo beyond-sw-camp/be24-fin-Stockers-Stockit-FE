@@ -55,7 +55,7 @@ const props = defineProps({
   activeTopMenu: { type: String, default: '' },
   topMenus: { type: Array, default: () => [] },
   sideMenus: { type: Array, required: true },
-  activeSideMenu: { type: String, required: true },
+  activeSideMenu: { type: String, default: '' },
   showSystemCard: { type: Boolean, default: false },
 })
 

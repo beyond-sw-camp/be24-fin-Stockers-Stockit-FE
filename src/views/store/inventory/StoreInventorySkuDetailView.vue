@@ -8,10 +8,12 @@ import { extractErrorMessage } from '@/api/axios.js'
 
 const route = useRoute()
 const router = useRouter()
+
 const skuData = ref([])
 const isLoading = ref(false)
 const loadError = ref('')
 const requestSeq = ref(0)
+
 const COLOR_LABEL_BY_CODE = {
   BLK: '검정',
   WHT: '흰색',
@@ -21,6 +23,7 @@ const COLOR_LABEL_BY_CODE = {
 
 const storeTopMenus = roleMenus.store
 const activeTopMenu = computed(() => '매장 재고 조회')
+const activeSideMenu = ref('')
 
 const itemCode = computed(() => String(route.params.itemCode ?? route.query.itemCode ?? ''))
 const itemName = computed(() => String(route.query.itemName ?? '선택 품목'))
@@ -36,7 +39,10 @@ const skuRows = computed(() =>
       safetyStock: Number(sku.safetyStock ?? 0),
       colorLabel: COLOR_LABEL_BY_CODE[String(sku.color ?? '').toUpperCase()] ?? sku.color,
     }))
-    .sort((a, b) => String(a.color ?? '').localeCompare(String(b.color ?? ''), 'ko') || String(a.size ?? '').localeCompare(String(b.size ?? ''), 'ko')),
+    .sort((a, b) => (
+      String(a.color ?? '').localeCompare(String(b.color ?? ''), 'ko')
+      || String(a.size ?? '').localeCompare(String(b.size ?? ''), 'ko')
+    )),
 )
 
 const statusClass = (status) => ({
@@ -66,14 +72,13 @@ function goBackToInventory() {
   })
 }
 
-
-
 async function loadSkuRows() {
   const seq = ++requestSeq.value
   if (!itemCode.value) {
     skuData.value = []
     return
   }
+
   isLoading.value = true
   loadError.value = ''
   try {
@@ -100,7 +105,6 @@ watch(
     loadSkuRows()
   },
 )
-
 </script>
 
 <template>
@@ -108,6 +112,7 @@ watch(
     :active-top-menu="activeTopMenu"
     :top-menus="storeTopMenus"
     :side-menus="[]"
+    :active-side-menu="activeSideMenu"
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-200 bg-white p-4 shadow-sm">
