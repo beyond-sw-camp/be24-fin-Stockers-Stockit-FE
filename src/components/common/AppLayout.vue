@@ -300,7 +300,7 @@ const iconMap = {
 
         <nav
           v-if="!treeMode && hasTopMenus"
-          class="min-h-0 flex-1 overflow-y-auto p-2"
+          class="sidebar-scroll min-h-0 flex-1 overflow-y-auto p-2"
           @scroll.passive="handleSidebarScroll"
         >
           <div v-for="menu in topMenus" :key="menu.label" class="mt-0.5">
@@ -349,7 +349,7 @@ const iconMap = {
 
         <nav
           v-else-if="!treeMode"
-          class="min-h-0 flex-1 overflow-y-auto p-2"
+          class="sidebar-scroll min-h-0 flex-1 overflow-y-auto p-2"
           @scroll.passive="handleSidebarScroll"
         >
           <button
@@ -378,3 +378,27 @@ const iconMap = {
     </div>
   </div>
 </template>
+
+<style scoped>
+.sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+</style>
