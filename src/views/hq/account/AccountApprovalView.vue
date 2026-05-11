@@ -1,6 +1,5 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import {
   ClipboardList,
   Users,
@@ -14,9 +13,7 @@ import {
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { accountApi } from '@/api/hq/account.js'
-
-const router = useRouter()
+import { accountApi } from '@/api/hq/account.js'
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 
@@ -26,10 +23,6 @@ const sideMenus = [
 ]
 const activeTopMenu = computed(() => '계정 관리')
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 // ── BE에서 받아온 전체 회원 목록 (PENDING / APPROVED / REJECTED)
 const requests = ref([])
@@ -168,7 +161,6 @@ async function confirmReject() {
     :top-menus="hqMenus"
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-3">
 

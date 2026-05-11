@@ -1,12 +1,9 @@
 ﻿<script setup>
 import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useSalesStore } from '@/stores/store/storeSales.js'
-
-const router = useRouter()
+import { useSalesStore } from '@/stores/store/storeSales.js'
 const auth = useAuthStore()
 const sales = useSalesStore()
 
@@ -34,10 +31,7 @@ const topProducts = computed(() => {
   return [...map.values()].sort((a, b) => b.quantity - a.quantity).slice(0, 5)
 })
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
+
 </script>
 
 <template>
@@ -46,7 +40,6 @@ function handleLogout() {
     :top-menus="storeMenus"
     :side-menus="salesMenus"
     v-model:active-side-menu="activeSubMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-300 bg-white p-4 shadow-sm">

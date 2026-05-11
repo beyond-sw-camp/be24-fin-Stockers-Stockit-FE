@@ -169,10 +169,6 @@ const alerts = [
   },
 ]
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
 
 const goTo = (path) => router.push(path)
 
@@ -205,7 +201,6 @@ const alertTypeBadgeClass = (type) =>
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
     show-system-card
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-200 bg-white p-4 shadow-sm">

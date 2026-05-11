@@ -1,6 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref, watch } from 'vue'
 import {
   LayoutDashboard,
   TrendingUp,
@@ -9,19 +8,23 @@ import {
   AlertCircle,
   ChevronRight,
   BarChart3,
-  Clock,
   Calendar,
   ArrowRight,
   Download,
   FileText,
   FileSpreadsheet,
+  Filter,
+  Recycle,
+  Handshake,
+  Leaf,
 } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import LineChart from '@/components/common/charts/LineChart.vue'
+import BarChart from '@/components/common/charts/BarChart.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { dashboardAnalyticsApi } from '@/api/hq/analytics.js'
 
-const router = useRouter()
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 const sideMenus = roleMenus.hq.find((menu) => menu.label === '정산/통계')?.children ?? []
@@ -29,34 +32,162 @@ const sideMenus = roleMenus.hq.find((menu) => menu.label === '정산/통계')?.c
 const activeTopMenu = computed(() => '정산/통계')
 const activeSideMenu = ref('통합 KPI 대시보드')
 
-function handleLogout() {
-  auth.logout()
-  router.push('/dev-login')
-}
-
 const dateLabel = computed(() =>
   new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
 )
 
-// 횡단 KPI (5개) — 핵심 숫자만 강조
-const kpiStats = [
-  { label: '금일 매출',     value: '128.4', unit: 'M원', sub: '↗ +8.2%',         icon: TrendingUp,   valueCls: 'text-emerald-700', iconBg: 'bg-emerald-50', iconCls: 'text-emerald-600', subCls: 'text-emerald-600' },
-  { label: '평균 회전율',    value: '4.2',   unit: 'x',   sub: '⚠ 목표 4.5x 미달', icon: Repeat,       valueCls: 'text-violet-700', iconBg: 'bg-violet-50', iconCls: 'text-violet-600', subCls: 'text-amber-600' },
-  { label: '이번 달 발주',   value: '42.8',  unit: 'M원', sub: '승인 대기 18건',   icon: Truck,        valueCls: 'text-amber-700',  iconBg: 'bg-amber-50',  iconCls: 'text-amber-600',  subCls: 'text-gray-500' },
-  { label: '활성 거래처',    value: '14',    unit: '곳',  sub: 'A 6 · B 5 · C 3',  icon: Calendar,     valueCls: 'text-blue-700',   iconBg: 'bg-blue-50',   iconCls: 'text-blue-600',   subCls: 'text-gray-500' },
-  { label: '🚨 위험 알림',   value: '12',    unit: '건',  sub: '악성재고 ₩22.4M',  icon: AlertCircle,  valueCls: 'text-red-700',    iconBg: 'bg-red-50',    iconCls: 'text-red-600',    subCls: 'text-red-600' },
-]
+// ─── 필터 ─────────────────────────────────────────────────────────────
+const periodUnit = ref('연간')
+const periodOptions = ['월간', '연간']
+const PERIOD_MAP = { '월간': 'MONTH', '연간': 'YEAR' }
 
-// 일자별 매출 추이 (12일)
-const salesTrend = [76, 82, 88, 84, 92, 98, 104, 101, 110, 118, 124, 128]
-const salesTrendLabels = ['04/17', '04/18', '04/19', '04/20', '04/21', '04/22', '04/23', '04/24', '04/25', '04/26', '04/27', '04/28']
+const now = new Date()
+const selectedYear = ref(now.getFullYear())
+const selectedMonth = ref(now.getMonth() + 1)
+
+// 최근 5년 옵션
+const yearOptions = computed(() => {
+  const out = []
+  for (let i = 0; i < 5; i++) out.push(now.getFullYear() - i)
+  return out
+})
+const monthOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+
+// ─── BE 연동 ──────────────────────────────────────────────────────────
+const statsData = ref(null)
+const loading = ref(false)
+const loadError = ref('')
+
+function pad2(n) { return String(n).padStart(2, '0') }
+function fmt(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` }
+
+function resolveDateRange() {
+  if (periodUnit.value === '월간') {
+    // 선택한 연도/월 의 1일 ~ 말일
+    const fromDate = new Date(selectedYear.value, selectedMonth.value - 1, 1)
+    const toDate = new Date(selectedYear.value, selectedMonth.value, 0) // 다음달 0일 = 이번달 말일
+    return { from: fmt(fromDate), to: fmt(toDate) }
+  }
+  // 연간 — 선택한 연도의 1월 1일 ~ 12월 31일
+  const fromDate = new Date(selectedYear.value, 0, 1)
+  const toDate = new Date(selectedYear.value, 11, 31)
+  return { from: fmt(fromDate), to: fmt(toDate) }
+}
+
+async function fetchDashboard() {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const { from, to } = resolveDateRange()
+    statsData.value = await dashboardAnalyticsApi.get({
+      period: PERIOD_MAP[periodUnit.value] ?? 'YEAR',
+      from, to,
+    })
+  } catch (e) {
+    console.error('[DashboardView] fetch failed', e)
+    loadError.value = '통합 KPI 대시보드를 불러오지 못했습니다.'
+    statsData.value = null
+  } finally {
+    loading.value = false
+  }
+}
+
+watch([periodUnit, selectedYear, selectedMonth], fetchDashboard)
+onMounted(fetchDashboard)
+
+const kpi = computed(() => statsData.value?.kpi ?? {})
+
+// ─── 금액 표기 — 풀 콤마 원 단위 ──────────────────────────────────────
+function formatKoreanMoney(won) {
+  if (won == null || isNaN(won)) return '₩0'
+  return `₩${Number(won).toLocaleString('ko-KR')}`
+}
+// Turnover lockedValue 는 BE 가 백만원 단위로 응답
+function formatMillionWon(million) {
+  if (million == null || isNaN(million)) return '₩0'
+  return formatKoreanMoney(Math.round(Number(million) * 1_000_000))
+}
+function formatTrendPct(pct) {
+  if (pct == null || isNaN(pct)) return '—'
+  const n = Number(pct)
+  if (n > 0) return `↗ +${n.toFixed(1)}%`
+  if (n < 0) return `↘ ${n.toFixed(1)}%`
+  return '→ 0.0%'
+}
+function trendCls(pct) {
+  if (pct == null || isNaN(pct)) return 'text-gray-500'
+  const n = Number(pct)
+  if (n > 0) return 'text-emerald-600'
+  if (n < 0) return 'text-red-600'
+  return 'text-gray-500'
+}
+
+// ─── KPI 5카드 (BE 응답 기반, 3축 균형) ───────────────────────────────
+const periodLabel = computed(() => {
+  if (periodUnit.value === '월간') return `${selectedYear.value}년 ${selectedMonth.value}월`
+  return `${selectedYear.value}년`
+})
+
+const kpiStats = computed(() => {
+  const k = kpi.value
+  return [
+    {
+      label: `${periodLabel.value} 매출`,
+      value: formatKoreanMoney(k.totalRevenue ?? 0),
+      unit: '',
+      sub: formatTrendPct(k.totalRevenueTrendPct),
+      icon: TrendingUp,
+      valueCls: 'text-emerald-700', iconBg: 'bg-emerald-50', iconCls: 'text-emerald-600',
+      subCls: trendCls(k.totalRevenueTrendPct),
+    },
+    {
+      label: '악성재고 묶인 자금',
+      value: formatMillionWon(k.lockedValue ?? 0),
+      unit: '',
+      sub: '1년 이상 안 팔린 SKU',
+      icon: AlertCircle,
+      valueCls: 'text-rose-700', iconBg: 'bg-rose-50', iconCls: 'text-rose-600',
+      subCls: 'text-rose-600',
+    },
+    {
+      label: '악성 재고',
+      value: Number(k.dangerSkuCount ?? 0).toLocaleString(),
+      unit: '건',
+      sub: `전체 ${Number(k.totalSkuCount ?? 0).toLocaleString()} 중`,
+      icon: Repeat,
+      valueCls: 'text-amber-700', iconBg: 'bg-amber-50', iconCls: 'text-amber-600',
+      subCls: 'text-amber-600',
+    },
+    {
+      label: '순환재고 거래처',
+      value: Number(k.activeVendorCount ?? 0).toLocaleString(),
+      unit: '곳',
+      sub: `소재 ${k.activeMaterialCount ?? 0}종`,
+      icon: Handshake,
+      valueCls: 'text-blue-700', iconBg: 'bg-blue-50', iconCls: 'text-blue-600',
+      subCls: 'text-gray-500',
+    },
+    {
+      label: '순환재고 매출',
+      value: formatKoreanMoney(k.circularSalesAmount ?? 0),
+      unit: '',
+      sub: '친환경 매출 기여',
+      icon: Recycle,
+      valueCls: 'text-violet-700', iconBg: 'bg-violet-50', iconCls: 'text-violet-600',
+      subCls: 'text-violet-600',
+    },
+  ]
+})
+
+// ─── 일자별 매출 추이 (BE trendCurrent) ───────────────────────────────
+const trendCurrent = computed(() => statsData.value?.trendCurrent ?? [])
 
 const salesTrendChartData = computed(() => ({
-  labels: salesTrendLabels,
+  labels: trendCurrent.value.map((p) => p.label),
   datasets: [
     {
-      label: '일 매출',
-      data: salesTrend,
+      label: '매출',
+      data: trendCurrent.value.map((p) => Number(p.revenue ?? 0)),
       borderColor: '#059669',
       backgroundColor: 'rgba(16, 185, 129, 0.12)',
       borderWidth: 2,
@@ -86,18 +217,77 @@ const salesTrendChartOptions = {
       displayColors: false,
       callbacks: {
         title: (items) => items[0].label,
-        label: (ctx) => `₩${ctx.parsed.y}M`,
+        label: (ctx) => formatKoreanMoney(ctx.parsed.y),
       },
     },
   },
   scales: {
     x: { grid: { display: false }, ticks: { font: { size: 10 } } },
-    y: { grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, callback: (v) => v + 'M' } },
+    y: { grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, callback: (v) => formatKoreanMoney(v) } },
   },
   interaction: { mode: 'index', intersect: false },
 }
 
-// 이상치 알림 (3건)
+const trendStats = computed(() => {
+  const values = trendCurrent.value.map((p) => Number(p.revenue ?? 0))
+  if (!values.length) return { min: 0, max: 0 }
+  return { min: Math.min(...values), max: Math.max(...values) }
+})
+
+// ─── 월별 매출 집계 (연간 모드용) — trendCurrent 일별 → 12개월 합계 ──
+const monthlyTrend = computed(() => {
+  const out = Array.from({ length: 12 }, (_, i) => ({ month: i + 1, revenue: 0 }))
+  for (const point of trendCurrent.value) {
+    const m = parseInt(String(point.label ?? '').split(/[\/\-]/)[0], 10)
+    if (m >= 1 && m <= 12) {
+      out[m - 1].revenue += Number(point.revenue ?? 0)
+    }
+  }
+  return out
+})
+
+const monthlyChartData = computed(() => ({
+  labels: monthlyTrend.value.map((m) => `${m.month}월`),
+  datasets: [{
+    label: '월 매출',
+    data: monthlyTrend.value.map((m) => m.revenue),
+    backgroundColor: '#059669',
+    borderRadius: 4,
+  }],
+}))
+
+const monthlyChartOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: 'rgba(17, 24, 39, 0.95)',
+      titleColor: '#6ee7b7',
+      titleFont: { size: 11, weight: 'bold' },
+      bodyColor: '#fff',
+      padding: 10,
+      cornerRadius: 6,
+      displayColors: false,
+      callbacks: { label: (ctx) => formatKoreanMoney(ctx.parsed.y) },
+    },
+  },
+  scales: {
+    x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+    y: { grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, callback: (v) => formatKoreanMoney(v) } },
+  },
+}
+
+const monthlyStats = computed(() => {
+  const values = monthlyTrend.value.map((m) => m.revenue)
+  if (!values.length) return { min: 0, max: 0, peakMonth: '-' }
+  const max = Math.max(...values)
+  const min = Math.min(...values.filter((v) => v > 0).concat(max === 0 ? [0] : []))
+  const peakIdx = values.indexOf(max)
+  return { min, max, peakMonth: peakIdx >= 0 ? `${peakIdx + 1}월` : '-' }
+})
+
+// ─── 이상치 알림 (BE 미연동 — UI mock 유지) ──────────────────────────
 const alerts = [
   { type: '매출 급감', target: '부산 센텀점', detail: '주간 매출 -12.4%, 프로모션 종료 영향', severity: 'high' },
   { type: '회전율 저하', target: '인천 제2센터', detail: '아우터 평균 보유일 19일', severity: 'medium' },
@@ -110,47 +300,21 @@ const severityCls = {
   low: 'border-gray-300 bg-gray-50/50',
 }
 
-// CEN-045 소재 TOP3
-const topMaterials = [
-  { name: '면 (Cotton)', share: 19.5, units: 4500, sales: 65 },
-  { name: '데님 (Denim)', share: 15.6, units: 2500, sales: 52 },
-  { name: '셔츠 (Shirts)', share: 12.6, units: 2800, sales: 42 },
-]
-const totalMaterialSales = 333 // M원
-
-// CEN-046 24h sparkline
-const hourlySpark = [1.2, 0.6, 0.3, 0.2, 0.2, 0.4, 1.1, 2.4, 4.8, 6.2, 7.4, 8.6, 11.2, 9.8, 8.4, 7.6, 7.2, 8.4, 10.6, 12.4, 11.8, 8.2, 5.4, 2.8]
-const maxHourly = Math.max(...hourlySpark)
-const peakHour = hourlySpark.indexOf(maxHourly)
-const totalDailySales = hourlySpark.reduce((a, b) => a + b, 0)
-
-// CEN-047 회전율 요약
-const turnoverSummary = {
-  avg: 4.2,
-  target: 4.5,
-  best: { name: '강남점', value: 6.5 },
-  worst: { name: '부산 센텀점', value: 2.1, days: 14.3 },
-  storeCount: 8,
-}
-
-// CEN-048 계절별 요약
-const seasonsSummary = [
-  { season: '봄', sales: 384, share: 22.6, color: 'bg-emerald-500', textCls: 'text-emerald-700' },
-  { season: '여름', sales: 472, share: 27.8, color: 'bg-amber-500', textCls: 'text-amber-700' },
-  { season: '가을', sales: 412, share: 24.3, color: 'bg-orange-500', textCls: 'text-orange-700' },
-  { season: '겨울', sales: 430, share: 25.3, color: 'bg-blue-500', textCls: 'text-blue-700' },
-]
-const maxSeason = Math.max(...seasonsSummary.map((s) => s.sales))
-const totalAnnualSales = seasonsSummary.reduce((s, x) => s + x.sales, 0)
-
-// CEN-049 발주 주기 요약
-const orderCycleSummary = {
-  avgCycle: 21,
-  managedItems: 15,
-  totalOrders: 173,
-  shortest: { name: '반팔 티셔츠', cycle: 7 },
-  longest: { name: '패딩', cycle: 42 },
-}
+// ─── 카드 2 — 재고 건강도 3단계 (BE healthy / caution+warning / danger) ──
+const inventoryHealth3 = computed(() => {
+  const k = kpi.value
+  const healthy = Number(k.healthyCount ?? 0)
+  const cautionMerged = Number(k.cautionCount ?? 0) + Number(k.warningCount ?? 0)
+  const danger = Number(k.dangerSkuCount ?? 0)
+  const total = healthy + cautionMerged + danger || 1
+  const pct = (n) => Number(((n / total) * 100).toFixed(1))
+  return [
+    { label: '정상', count: healthy,        pct: pct(healthy),        color: 'bg-emerald-500', textCls: 'text-emerald-700' },
+    { label: '주의', count: cautionMerged,  pct: pct(cautionMerged),  color: 'bg-amber-500',   textCls: 'text-amber-700' },
+    { label: '위험', count: danger,         pct: pct(danger),         color: 'bg-red-500',     textCls: 'text-red-700' },
+  ]
+})
+const dangerPct = computed(() => inventoryHealth3.value.find((s) => s.label === '위험')?.pct ?? 0)
 </script>
 
 <template>
@@ -159,7 +323,6 @@ const orderCycleSummary = {
     :top-menus="hqMenus"
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
-    @logout="handleLogout"
   >
     <div class="flex flex-col gap-3">
 
@@ -173,7 +336,37 @@ const orderCycleSummary = {
             기준: {{ dateLabel }}
           </span>
         </div>
-        <span class="text-[11px] text-gray-500">4개 통계의 핵심 지표 + 즉시 액션을 한 화면에서 모니터링</span>
+        <div class="flex flex-col items-end gap-0.5 text-[11px] text-gray-500">
+          <span>4개 통계의 핵심 지표를 한 화면에서 모니터링</span>
+          <span v-if="loading" class="font-bold text-emerald-600">데이터 불러오는 중…</span>
+          <span v-else-if="loadError" class="font-bold text-red-600">{{ loadError }}</span>
+        </div>
+      </section>
+
+      <!-- 필터 바 -->
+      <section class="flex flex-wrap items-center gap-3 border border-gray-300 bg-white p-3 shadow-sm">
+        <div class="flex items-center gap-1.5 border-r border-gray-200 pr-3 text-[11px] font-bold text-gray-500">
+          <Filter :size="13" />
+          필터
+        </div>
+        <label class="flex items-center gap-2 text-[11px] font-bold text-gray-500">
+          기간
+          <select v-model="periodUnit" class="border border-gray-300 bg-gray-50 px-3 py-1.5 text-xs font-bold text-gray-700 outline-none focus:border-[#004D3C] focus:bg-white">
+            <option v-for="p in periodOptions" :key="p" :value="p">{{ p }}</option>
+          </select>
+        </label>
+        <label v-if="periodUnit === '월간' || periodUnit === '연간'" class="flex items-center gap-2 text-[11px] font-bold text-gray-500">
+          연도
+          <select v-model.number="selectedYear" class="border border-gray-300 bg-gray-50 px-3 py-1.5 text-xs font-bold text-gray-700 outline-none focus:border-[#004D3C] focus:bg-white">
+            <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}년</option>
+          </select>
+        </label>
+        <label v-if="periodUnit === '월간'" class="flex items-center gap-2 text-[11px] font-bold text-gray-500">
+          월
+          <select v-model.number="selectedMonth" class="border border-gray-300 bg-gray-50 px-3 py-1.5 text-xs font-bold text-gray-700 outline-none focus:border-[#004D3C] focus:bg-white">
+            <option v-for="m in monthOptions" :key="m" :value="m">{{ m }}월</option>
+          </select>
+        </label>
       </section>
 
       <!-- 횡단 KPI 5개 -->
@@ -204,13 +397,34 @@ const orderCycleSummary = {
         <article class="border border-gray-300 bg-white shadow-sm xl:col-span-2">
           <div class="flex items-center justify-between border-b border-gray-200 px-3 py-2.5">
             <div>
-              <h3 class="text-sm font-medium text-gray-800">일자별 매출 추이</h3>
-              <p class="mt-0.5 text-[10px] text-gray-400">최근 12일 (단위: 백만원)</p>
+              <h3 class="text-sm font-medium text-gray-800">매출 추이</h3>
+              <p class="mt-0.5 text-[10px] text-gray-400">
+                {{ periodLabel }}<template v-if="periodUnit === '연간'"> · 월별 집계</template>
+              </p>
             </div>
-            <span class="text-[10px] text-gray-500">최저 {{ Math.min(...salesTrend) }}M ↔ 최고 {{ Math.max(...salesTrend) }}M</span>
+            <span v-if="periodUnit === '연간' && monthlyTrend.length" class="text-[10px] text-gray-500">
+              최고 {{ monthlyStats.peakMonth }} {{ formatKoreanMoney(monthlyStats.max) }}
+            </span>
+            <span v-else-if="periodUnit === '월간' && trendCurrent.length" class="text-[10px] text-gray-500">
+              최저 {{ formatKoreanMoney(trendStats.min) }} ↔ 최고 {{ formatKoreanMoney(trendStats.max) }}
+            </span>
           </div>
           <div class="px-3 py-3">
-            <LineChart :data="salesTrendChartData" :options="salesTrendChartOptions" :height="180" />
+            <!-- 연간: 월별 막대 차트 -->
+            <BarChart
+              v-if="periodUnit === '연간'"
+              :data="monthlyChartData"
+              :options="monthlyChartOptions"
+              :height="180"
+            />
+            <!-- 월간: 일별 라인 차트 -->
+            <LineChart
+              v-else-if="periodUnit === '월간' && trendCurrent.length"
+              :data="salesTrendChartData"
+              :options="salesTrendChartOptions"
+              :height="180"
+            />
+            <p v-else class="py-10 text-center text-[11px] text-gray-400">데이터가 없습니다.</p>
           </div>
         </article>
 
@@ -263,15 +477,18 @@ const orderCycleSummary = {
             </div>
             <div>
               <p class="text-[10px] font-bold uppercase text-gray-400">🏆 매출 1위 품목</p>
-              <p class="mt-1 text-2xl font-black text-emerald-700">패딩</p>
-              <p class="mt-1 text-[11px] text-gray-500">₩68M · 850개 판매</p>
+              <p class="mt-1 truncate text-base font-black text-emerald-700" :title="kpi.topProductName">{{ kpi.topProductName || '-' }}</p>
+              <p class="mt-1 text-[11px] text-gray-500">
+                {{ formatKoreanMoney(kpi.topProductSales ?? 0) }}
+                · {{ Number(kpi.topProductUnits ?? 0).toLocaleString() }}개 판매
+              </p>
             </div>
             <p class="border-l-2 border-emerald-500 bg-emerald-50/50 px-2 py-1 text-[10px] font-bold text-emerald-700">
-              아우터 카테고리 · 전체 매출 비중 14%
+              베스트 카테고리: {{ kpi.bestCategoryName || '-' }} · 비중 {{ kpi.bestCategorySharePct != null ? Number(kpi.bestCategorySharePct).toFixed(1) : '—' }}%
             </p>
           </router-link>
 
-          <!-- 2. 재고 회전율 통계 — 회전율 + 악성재고 위험 강조 -->
+          <!-- 2. 재고 회전율 통계 — 재고 건강도 3단계 분포 -->
           <router-link
             to="/hq/analytics/turnover"
             class="group flex flex-col gap-3 bg-white p-4 transition-colors hover:bg-violet-50/30"
@@ -286,19 +503,32 @@ const orderCycleSummary = {
               <ArrowRight :size="14" class="text-gray-300 transition-colors group-hover:text-violet-600" />
             </div>
             <div>
-              <p class="text-[10px] font-bold uppercase text-gray-400">평균 회전율 · 보유일</p>
-              <p class="mt-1 flex items-baseline gap-2">
-                <span class="text-2xl font-black text-violet-700">{{ turnoverSummary.avg }}x</span>
-                <span class="text-[11px] font-bold text-gray-500">87일 보유</span>
-              </p>
-              <p class="mt-1 text-[11px] text-gray-500">목표 4.5x ⚠ 미달</p>
+              <p class="text-[10px] font-bold uppercase text-gray-400">📊 재고 건강도</p>
+              <div class="mt-2 flex h-2 w-full overflow-hidden">
+                <div
+                  v-for="seg in inventoryHealth3"
+                  :key="seg.label"
+                  :class="seg.color"
+                  :style="{ width: seg.pct + '%' }"
+                  :title="`${seg.label} ${seg.count.toLocaleString()}건 (${seg.pct}%)`"
+                ></div>
+              </div>
+              <ul class="mt-2 space-y-0.5 text-[11px]">
+                <li v-for="seg in inventoryHealth3" :key="seg.label" class="flex items-center justify-between">
+                  <span class="flex items-center gap-1.5">
+                    <span class="inline-block h-2 w-2" :class="seg.color"></span>
+                    <span :class="seg.textCls" class="font-bold">{{ seg.label }}</span>
+                  </span>
+                  <span class="font-mono text-gray-500">{{ seg.count.toLocaleString() }}건 ({{ seg.pct }}%)</span>
+                </li>
+              </ul>
             </div>
             <p class="border-l-2 border-red-500 bg-red-50/50 px-2 py-1 text-[10px] font-bold text-red-700">
-              🚨 악성 재고 12건 · ₩22.4M 묶임
+              🚨 위험 재고 비중 {{ dangerPct }}% — 회전 점검 필요
             </p>
           </router-link>
 
-          <!-- 3. 발주량 통계 — 발주 주기 강조 -->
+          <!-- 3. 발주량 통계 — 발주 주기 가장 빠른/느린 품목 -->
           <router-link
             to="/hq/analytics/order-stats"
             class="group flex flex-col gap-3 bg-white p-4 transition-colors hover:bg-orange-50/30"
@@ -313,19 +543,30 @@ const orderCycleSummary = {
               <ArrowRight :size="14" class="text-gray-300 transition-colors group-hover:text-orange-600" />
             </div>
             <div>
-              <p class="text-[10px] font-bold uppercase text-gray-400">평균 발주 주기</p>
-              <p class="mt-1 flex items-baseline gap-2">
-                <span class="text-2xl font-black text-orange-700">{{ orderCycleSummary.avgCycle }}</span>
-                <span class="text-[11px] font-bold text-gray-500">일 / 회</span>
-              </p>
-              <p class="mt-1 text-[11px] text-gray-500">최근 6개월 {{ orderCycleSummary.totalOrders }}건 누적</p>
+              <p class="text-[10px] font-bold uppercase text-gray-400">⏱ 발주 주기</p>
+              <ul class="mt-1 space-y-1 text-[11px]">
+                <li class="flex items-center justify-between border-b border-dashed border-gray-100 py-0.5">
+                  <span class="flex items-center gap-1.5">
+                    <span class="bg-emerald-100 px-1.5 py-0.5 text-[9px] font-black text-emerald-700">최단</span>
+                    <span class="font-bold text-gray-700">{{ kpi.shortestOrderItem || '-' }}</span>
+                  </span>
+                  <span class="font-mono font-black text-emerald-700">{{ kpi.shortestOrderCycle ?? 0 }}일</span>
+                </li>
+                <li class="flex items-center justify-between py-0.5">
+                  <span class="flex items-center gap-1.5">
+                    <span class="bg-red-100 px-1.5 py-0.5 text-[9px] font-black text-red-700">최장</span>
+                    <span class="font-bold text-gray-700">{{ kpi.longestOrderItem || '-' }}</span>
+                  </span>
+                  <span class="font-mono font-black text-red-700">{{ kpi.longestOrderCycle ?? 0 }}일</span>
+                </li>
+              </ul>
             </div>
             <p class="border-l-2 border-amber-500 bg-amber-50/50 px-2 py-1 text-[10px] font-bold text-amber-700">
-              📋 승인 대기 18건 · 즉시 처리 권장
+              주기 격차 {{ (kpi.longestOrderCycle ?? 0) - (kpi.shortestOrderCycle ?? 0) }}일 — 발주 균형 검토
             </p>
           </router-link>
 
-          <!-- 4. 순환재고 거래처 통계 — 거래처 등급 + TOP 강조 -->
+          <!-- 4. 순환재고 거래처 통계 — TOP 거래처 -->
           <router-link
             to="/hq/analytics/vendors"
             class="group flex flex-col gap-3 bg-white p-4 transition-colors hover:bg-blue-50/30"
@@ -333,7 +574,7 @@ const orderCycleSummary = {
             <div class="flex items-start justify-between">
               <div class="flex items-center gap-2">
                 <div class="flex h-8 w-8 items-center justify-center bg-blue-50">
-                  <Calendar :size="14" class="text-blue-600" />
+                  <Handshake :size="14" class="text-blue-600" />
                 </div>
                 <p class="text-[12px] font-bold text-gray-800">순환재고 거래처 통계</p>
               </div>
@@ -341,42 +582,40 @@ const orderCycleSummary = {
             </div>
             <div>
               <p class="text-[10px] font-bold uppercase text-gray-400">⭐ TOP 거래처</p>
-              <p class="mt-1 text-2xl font-black text-blue-700">(주)봄섬유</p>
-              <p class="mt-1 text-[11px] text-gray-500">Cotton (면) · ₩280M / 의존도 18%</p>
+              <p class="mt-1 truncate text-base font-black text-blue-700" :title="kpi.topVendorName">{{ (kpi.topVendorName ?? '').trim() || '-' }}</p>
+              <p class="mt-1 text-[11px] text-gray-500">{{ formatKoreanMoney(kpi.topVendorAmount ?? 0) }}</p>
             </div>
-            <div class="flex items-center gap-1.5 text-[10px]">
-              <span class="bg-emerald-100 px-2 py-0.5 font-black text-emerald-700">A 6</span>
-              <span class="bg-blue-100 px-2 py-0.5 font-black text-blue-700">B 5</span>
-              <span class="bg-red-100 px-2 py-0.5 font-black text-red-700">C 3</span>
-            </div>
+            <p class="border-l-2 border-blue-500 bg-blue-50/50 px-2 py-1 text-[10px] font-bold text-blue-700">
+              활성 거래처 {{ Number(kpi.activeVendorCount ?? 0).toLocaleString() }}곳 · 소재 {{ kpi.activeMaterialCount ?? 0 }}종
+            </p>
           </router-link>
 
-          <!-- 5. 즉시 액션 보드 -->
-          <div class="flex flex-col gap-3 bg-white p-4">
+          <!-- 5. TOP 소재 (Vendor 점프) -->
+          <router-link
+            to="/hq/analytics/vendors"
+            class="group flex flex-col gap-3 bg-white p-4 transition-colors hover:bg-violet-50/30"
+          >
             <div class="flex items-start justify-between">
               <div class="flex items-center gap-2">
-                <div class="flex h-8 w-8 items-center justify-center bg-rose-50">
-                  <AlertCircle :size="14" class="text-rose-600" />
+                <div class="flex h-8 w-8 items-center justify-center bg-violet-50">
+                  <Recycle :size="14" class="text-violet-600" />
                 </div>
-                <p class="text-[12px] font-bold text-gray-800">🎯 즉시 액션</p>
+                <p class="text-[12px] font-bold text-gray-800">🌿 TOP 소재</p>
               </div>
-              <span class="text-[10px] font-black text-red-600">3건</span>
+              <ArrowRight :size="14" class="text-gray-300 transition-colors group-hover:text-violet-600" />
             </div>
-            <ul class="space-y-1.5 text-[11px]">
-              <li class="flex items-start gap-2 border-l-2 border-red-500 bg-red-50/50 px-2 py-1">
-                <span class="font-bold text-red-700">🚨</span>
-                <span class="text-gray-700">패딩 245일 보유 — 순환재고 전환</span>
-              </li>
-              <li class="flex items-start gap-2 border-l-2 border-amber-500 bg-amber-50/50 px-2 py-1">
-                <span class="font-bold text-amber-700">⚠️</span>
-                <span class="text-gray-700">가나섬유 단가 +5% — 협상 필요</span>
-              </li>
-              <li class="flex items-start gap-2 border-l-2 border-blue-500 bg-blue-50/50 px-2 py-1">
-                <span class="font-bold text-blue-700">📋</span>
-                <span class="text-gray-700">발주 결재 대기 18건 — 승인</span>
-              </li>
-            </ul>
-          </div>
+            <div>
+              <p class="text-[10px] font-bold uppercase text-gray-400">기간 내 최다 거래 소재</p>
+              <p class="mt-1 truncate text-2xl font-black text-violet-700">{{ kpi.topMaterialName || '-' }}</p>
+              <p class="mt-1 text-[11px] text-gray-500">
+                {{ formatKoreanMoney(kpi.topMaterialAmount ?? 0) }}
+                · {{ Number(kpi.topMaterialWeight ?? 0).toLocaleString() }} kg
+              </p>
+            </div>
+            <p class="border-l-2 border-emerald-500 bg-emerald-50/50 px-2 py-1 text-[10px] font-bold text-emerald-700">
+              <Leaf :size="9" class="mr-0.5 inline" /> {{ kpi.topMaterialType || '-' }}
+            </p>
+          </router-link>
 
           <!-- 6. 리포트 센터 -->
           <div class="flex flex-col gap-3 bg-white p-4">
