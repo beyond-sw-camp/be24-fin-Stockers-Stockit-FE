@@ -51,12 +51,9 @@ export const roleMenus = {
       icon: 'store',
     },
     {
-      label: '매장 발주 수동 승인',
+      label: '매장 발주 배치 처리',
       path: '/hq/batch/store-order-approve',
       icon: 'check',
-      children: [
-        { label: '매장 발주 수동 배치 처리', path: '/hq/batch/store-order-approve' },
-      ],
     },
     {
       label: '정산/통계',
