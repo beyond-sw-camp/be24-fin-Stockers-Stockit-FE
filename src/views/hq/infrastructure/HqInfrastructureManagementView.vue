@@ -322,38 +322,47 @@ void quickCreateWarehouse
           <span class="text-[10px] font-bold text-gray-400">Total: {{ filteredStoreData.length }} Locations</span>
         </div>
 
-        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <article
-            v-for="store in filteredStoreData"
-            :key="store.id"
-            class="cursor-pointer border border-gray-200 bg-white p-3 transition hover:border-[#004D3C]/30 hover:bg-[#EBF5F5]/40"
-            @click="goToStoreDetail(store)"
-          >
-            <div class="mb-2 flex items-start justify-between gap-2">
-              <div>
-                <p class="text-[10px] font-bold text-gray-400">{{ store.id }}</p>
-                <h4 class="mt-1 text-sm font-black text-gray-900">{{ store.name }}</h4>
-              </div>
-              <span class="inline-flex h-6 items-center px-2 text-[10px] font-black" :class="statusBadgeClass(store.status)">{{ store.status }}</span>
-            </div>
-
-            <div class="mb-2 flex items-center gap-1">
-              <span class="inline-flex items-center bg-gray-100 px-2 py-1 text-[10px] font-bold text-gray-600">{{ store.region }}</span>
-            </div>
-
-            <p class="mb-2 line-clamp-2 text-[11px] font-bold text-gray-500">{{ store.address }}</p>
-
-            <div class="grid gap-1 text-[11px]">
-              <p class="flex items-center justify-between"><span class="font-bold text-gray-500">운영유형</span><strong class="font-black text-gray-800">{{ store.type }}</strong></p>
-              <p class="flex items-center justify-between"><span class="font-bold text-gray-500">담당자</span><strong class="font-black text-gray-800">{{ store.manager }}</strong></p>
-              <p class="flex items-center justify-between"><span class="font-bold text-gray-500">연락처</span><strong class="font-black text-gray-800">{{ store.contact }}</strong></p>
-              <p class="flex items-center justify-between"><span class="font-bold text-gray-500">담당 창고</span><strong class="font-black text-[#0f766e]">{{ store.warehouse }}</strong></p>
-            </div>
-          </article>
-
-          <div v-if="filteredStoreData.length === 0" class="col-span-full border border-dashed border-gray-200 bg-gray-50 px-3 py-8 text-center text-xs font-bold text-gray-400">
-            조건에 맞는 매장 정보가 없습니다.
-          </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-[1120px] w-full border-collapse text-left text-xs">
+            <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
+              <tr>
+                <th class="px-3 py-2.5 font-black">매장 코드</th>
+                <th class="px-3 py-2.5 font-black">매장명</th>
+                <th class="px-3 py-2.5 font-black">지역</th>
+                <th class="px-3 py-2.5 font-black">운영유형</th>
+                <th class="px-3 py-2.5 font-black">담당자</th>
+                <th class="px-3 py-2.5 font-black">연락처</th>
+                <th class="px-3 py-2.5 font-black">담당 창고</th>
+                <th class="px-3 py-2.5 font-black">주소</th>
+                <th class="px-3 py-2.5 text-center font-black">상태</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr
+                v-for="store in filteredStoreData"
+                :key="store.id"
+                class="cursor-pointer transition hover:bg-[#EBF5F5]/60"
+                @click="goToStoreDetail(store)"
+              >
+                <td class="px-3 py-2.5 font-mono font-bold text-gray-600">{{ store.id }}</td>
+                <td class="px-3 py-2.5 font-black text-gray-900">{{ store.name }}</td>
+                <td class="px-3 py-2.5 font-bold text-gray-700">{{ store.region }}</td>
+                <td class="px-3 py-2.5 font-bold text-gray-700">{{ store.type }}</td>
+                <td class="px-3 py-2.5 font-bold text-gray-700">{{ store.manager }}</td>
+                <td class="px-3 py-2.5 font-bold text-gray-700">{{ store.contact }}</td>
+                <td class="px-3 py-2.5 font-black text-[#0f766e]">{{ store.warehouse }}</td>
+                <td class="max-w-[280px] truncate px-3 py-2.5 font-bold text-gray-600">{{ store.address }}</td>
+                <td class="px-3 py-2.5 text-center">
+                  <span class="inline-flex h-6 items-center px-2 text-[10px] font-black" :class="statusBadgeClass(store.status)">{{ store.status }}</span>
+                </td>
+              </tr>
+              <tr v-if="filteredStoreData.length === 0">
+                <td colspan="9" class="px-3 py-8 text-center text-xs font-bold text-gray-400">
+                  조건에 맞는 매장 정보가 없습니다.
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
         <div class="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3">
@@ -375,33 +384,45 @@ void quickCreateWarehouse
           <span class="text-[10px] font-bold text-gray-400">Total: {{ filteredWarehouseData.length }} Warehouses</span>
         </div>
 
-        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <article
-            v-for="warehouse in filteredWarehouseData"
-            :key="warehouse.id"
-            class="cursor-pointer border border-gray-200 bg-white p-3 transition hover:border-[#004D3C]/30 hover:bg-[#EBF5F5]/40"
-            @click="goToWarehouseDetail(warehouse)"
-          >
-            <div class="mb-2 flex items-start justify-between gap-2">
-              <div>
-                <p class="text-[10px] font-bold text-gray-400">{{ warehouse.id }}</p>
-                <h4 class="mt-1 text-sm font-black text-gray-900">{{ warehouse.name }}</h4>
-              </div>
-              <span class="inline-flex h-6 items-center px-2 text-[10px] font-black" :class="statusBadgeClass(warehouse.status)">{{ warehouse.status }}</span>
-            </div>
-
-            <p class="mb-2 line-clamp-2 text-[11px] font-bold text-gray-500">{{ warehouse.address }}</p>
-
-            <div class="grid gap-1 text-[11px]">
-              <p class="flex items-center justify-between"><span class="font-bold text-gray-500">담당 책임자</span><strong class="font-black text-gray-800">{{ warehouse.manager }}</strong></p>
-              <p class="flex items-center justify-between"><span class="font-bold text-gray-500">연락처</span><strong class="font-black text-gray-800">{{ warehouse.contact }}</strong></p>
-              <p class="flex items-center justify-between"><span class="font-bold text-gray-500">현재 재고 수량</span><strong class="font-black text-[#0f766e]">{{ warehouse.stockQty.toLocaleString() }} EA</strong></p>
-            </div>
-          </article>
-
-          <div v-if="filteredWarehouseData.length === 0" class="col-span-full border border-dashed border-gray-200 bg-gray-50 px-3 py-8 text-center text-xs font-bold text-gray-400">
-            조건에 맞는 창고 정보가 없습니다.
-          </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-[1080px] w-full border-collapse text-left text-xs">
+            <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
+              <tr>
+                <th class="px-3 py-2.5 font-black">창고 코드</th>
+                <th class="px-3 py-2.5 font-black">창고명</th>
+                <th class="px-3 py-2.5 font-black">지역</th>
+                <th class="px-3 py-2.5 font-black">담당 책임자</th>
+                <th class="px-3 py-2.5 font-black">연락처</th>
+                <th class="px-3 py-2.5 text-right font-black">현재 재고 수량</th>
+                <th class="px-3 py-2.5 font-black">주소</th>
+                <th class="px-3 py-2.5 text-center font-black">상태</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr
+                v-for="warehouse in filteredWarehouseData"
+                :key="warehouse.id"
+                class="cursor-pointer transition hover:bg-[#EBF5F5]/60"
+                @click="goToWarehouseDetail(warehouse)"
+              >
+                <td class="px-3 py-2.5 font-mono font-bold text-gray-600">{{ warehouse.id }}</td>
+                <td class="px-3 py-2.5 font-black text-gray-900">{{ warehouse.name }}</td>
+                <td class="px-3 py-2.5 font-bold text-gray-700">{{ warehouse.region }}</td>
+                <td class="px-3 py-2.5 font-bold text-gray-700">{{ warehouse.manager }}</td>
+                <td class="px-3 py-2.5 font-bold text-gray-700">{{ warehouse.contact }}</td>
+                <td class="px-3 py-2.5 text-right font-black text-[#0f766e]">{{ warehouse.stockQty.toLocaleString() }} EA</td>
+                <td class="max-w-[320px] truncate px-3 py-2.5 font-bold text-gray-600">{{ warehouse.address }}</td>
+                <td class="px-3 py-2.5 text-center">
+                  <span class="inline-flex h-6 items-center px-2 text-[10px] font-black" :class="statusBadgeClass(warehouse.status)">{{ warehouse.status }}</span>
+                </td>
+              </tr>
+              <tr v-if="filteredWarehouseData.length === 0">
+                <td colspan="8" class="px-3 py-8 text-center text-xs font-bold text-gray-400">
+                  조건에 맞는 창고 정보가 없습니다.
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
         <div class="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3">
