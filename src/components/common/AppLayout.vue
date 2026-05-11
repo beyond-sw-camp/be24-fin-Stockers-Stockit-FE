@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
@@ -94,6 +94,10 @@ const treeMode = ref(false)
 const toggleTreeMode = () => { treeMode.value = !treeMode.value }
 const sidebarRef = ref(null)
 const setOpenTopMenuExclusive = (label) => { saveOpenTopMenus(label ? [label] : []) }
+const SUBMENU_ENTER_MS = 360
+const SUBMENU_LEAVE_MS = 320
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+const skipSubmenuAnimation = ref(false)
 
 const getSidebarNavElement = () => sidebarRef.value?.querySelector('nav.overflow-y-auto') ?? null
 
@@ -173,6 +177,7 @@ const hasMenuChildren = (menu) => Array.isArray(menu?.children) && menu.children
 
 const handleTopMenuClick = async (menu) => {
   if (!hasMenuChildren(menu)) {
+    setOpenTopMenuExclusive(null)
     if (menu.path) {
       await runWithPreservedSidebarScroll(() => router.push(menu.path))
     }
@@ -185,11 +190,23 @@ const handleTopMenuClick = async (menu) => {
     return
   }
 
-  setOpenTopMenuExclusive(menu.label)
-
+  const hasAnotherOpenMenu = openTopMenus.value.length > 0 && !openTopMenus.value.includes(menu.label)
+  if (hasAnotherOpenMenu) {
+    skipSubmenuAnimation.value = true
+    setOpenTopMenuExclusive(menu.label)
+    await nextTick()
+    skipSubmenuAnimation.value = false
+  } else {
+    setOpenTopMenuExclusive(menu.label)
+  }
   const firstChild = getMenuChildren(menu)[0]
   if (firstChild?.path) {
-    await runWithPreservedSidebarScroll(() => router.push(firstChild.path))
+    await new Promise((resolve) => {
+      requestAnimationFrame(async () => {
+        await runWithPreservedSidebarScroll(() => router.push(firstChild.path))
+        resolve()
+      })
+    })
   }
 }
 
@@ -217,6 +234,80 @@ const handleSideMenuClick = async (item, parentMenu = null) => {
 }
 
 const getMenuChildren = (menu) => menu.children ?? []
+
+const onSubmenuBeforeEnter = (el) => {
+  el.style.height = '0px'
+  el.style.overflow = 'hidden'
+}
+
+const onSubmenuEnter = (el, done) => {
+  if (skipSubmenuAnimation.value) {
+    el.style.height = 'auto'
+    el.style.overflow = ''
+    el.style.transition = ''
+    done()
+    return
+  }
+  el.style.transition = 'none'
+  el.style.height = '0px'
+  el.style.overflow = 'hidden'
+
+  requestAnimationFrame(() => {
+    // lock start frame to avoid abrupt jump on expand
+    void el.offsetHeight
+
+    requestAnimationFrame(() => {
+      const targetHeight = `${el.scrollHeight}px`
+      el.style.transition = `height ${SUBMENU_ENTER_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`
+      el.style.height = targetHeight
+
+      const onEnd = (event) => {
+        if (event.propertyName !== 'height') return
+        el.removeEventListener('transitionend', onEnd)
+        done()
+      }
+      el.addEventListener('transitionend', onEnd)
+    })
+  })
+}
+
+const onSubmenuAfterEnter = (el) => {
+  el.style.height = 'auto'
+  el.style.overflow = ''
+  el.style.transition = ''
+}
+
+const onSubmenuBeforeLeave = (el) => {
+  el.style.height = `${el.scrollHeight}px`
+  el.style.overflow = 'hidden'
+}
+
+const onSubmenuLeave = (el, done) => {
+  if (skipSubmenuAnimation.value) {
+    el.style.height = '0px'
+    el.style.overflow = ''
+    el.style.transition = ''
+    done()
+    return
+  }
+  requestAnimationFrame(() => {
+    el.style.transition = `height ${SUBMENU_LEAVE_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`
+    el.style.height = '0px'
+
+    const onEnd = (event) => {
+      if (event.propertyName !== 'height') return
+      el.removeEventListener('transitionend', onEnd)
+      done()
+    }
+    el.addEventListener('transitionend', onEnd)
+  })
+}
+
+const onSubmenuAfterLeave = (el) => {
+  el.style.height = ''
+  el.style.overflow = ''
+  el.style.transition = ''
+}
 
 const iconMap = {
   layout: LayoutDashboard,
@@ -354,24 +445,37 @@ const iconMap = {
               </span>
             </button>
 
-            <div v-if="hasMenuChildren(menu) && openTopMenus.includes(menu.label)" class="relative ml-5 mt-1 py-1 pl-5 pr-1">
-              <span class="absolute bottom-3 left-2 top-3 w-px bg-[#D6EAEA]" aria-hidden="true"></span>
-              <button
-                v-for="item in getMenuChildren(menu)"
-                :key="item.label"
-                type="button"
-                class="relative mt-0.5 flex w-full items-center rounded-md px-3 py-2 text-left text-[11px] transition-colors"
-                :class="
-                  activeTopMenu === menu.label && activeSideMenu === item.label
-                    ? 'bg-[#EBF5F5] font-semibold text-black'
-                    : 'text-black hover:bg-[#EBF5F5]'
-                "
-                @click="handleSideMenuClick(item, menu)"
+            <Transition
+              :css="false"
+              @before-enter="onSubmenuBeforeEnter"
+              @enter="onSubmenuEnter"
+              @after-enter="onSubmenuAfterEnter"
+              @before-leave="onSubmenuBeforeLeave"
+              @leave="onSubmenuLeave"
+              @after-leave="onSubmenuAfterLeave"
+            >
+              <div
+                v-if="hasMenuChildren(menu) && openTopMenus.includes(menu.label)"
+                class="relative ml-5 mt-1 py-1 pl-5 pr-1"
               >
-                <span class="absolute -left-3 top-1/2 h-px w-3 bg-[#D6EAEA]" aria-hidden="true"></span>
-                <span>{{ item.label }}</span>
-              </button>
-            </div>
+                <span class="absolute bottom-3 left-2 top-3 w-px bg-[#D6EAEA]" aria-hidden="true"></span>
+                <button
+                  v-for="item in getMenuChildren(menu)"
+                  :key="item.label"
+                  type="button"
+                  class="relative mt-0.5 flex w-full items-center rounded-md px-3 py-2 text-left text-[11px] transition-colors"
+                  :class="
+                    activeTopMenu === menu.label && activeSideMenu === item.label
+                      ? 'bg-[#EBF5F5] font-semibold text-black'
+                      : 'text-black hover:bg-[#EBF5F5]'
+                  "
+                  @click="handleSideMenuClick(item, menu)"
+                >
+                  <span class="absolute -left-3 top-1/2 h-px w-3 bg-[#D6EAEA]" aria-hidden="true"></span>
+                  <span>{{ item.label }}</span>
+                </button>
+              </div>
+            </Transition>
           </div>
         </nav>
 
