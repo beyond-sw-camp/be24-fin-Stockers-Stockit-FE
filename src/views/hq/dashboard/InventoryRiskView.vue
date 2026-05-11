@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import {
   AlertCircle,
   ArrowRight,
@@ -9,6 +9,8 @@ import {
   Warehouse,
 } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
+import { extractErrorMessage } from '@/api/axios.js'
+import { getCompanyWideInventories, getWarehouseTransferImbalancedSkus } from '@/api/hq/inventory.js'
 import { roleMenus } from '@/config/roleMenus.js'
 import { dashboardSideMenus } from '@/views/hq/dashboard/dashboardMenus.js'
 const hqMenus = roleMenus.hq
@@ -16,13 +18,12 @@ const hqMenus = roleMenus.hq
 const activeSideMenu = ref('재고 위험')
 const sideMenus = dashboardSideMenus
 
-const riskStats = []
-
-const riskStores = []
-
-const riskWarehouses = []
-
-const shortageRanking = []
+const riskStats = ref([])
+const riskStores = ref([])
+const riskWarehouses = ref([])
+const shortageRanking = ref([])
+const loading = ref(false)
+const loadError = ref('')
 
 const activeTopMenu = computed(() => '대시보드')
 const dateLabel = computed(() =>
@@ -33,6 +34,81 @@ const dateLabel = computed(() =>
   }).format(new Date()),
 )
 
+const toNum = (v) => Number(v || 0)
+const toStatus = (available, safety) => {
+  if (toNum(available) <= 0) return '품절'
+  if (toNum(available) <= toNum(safety)) return '부족'
+  return '안전'
+}
+
+const fetchRiskData = async () => {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const [companyWide, imbalancedSkus] = await Promise.all([
+      getCompanyWideInventories(),
+      getWarehouseTransferImbalancedSkus(),
+    ])
+    const items = Array.isArray(companyWide?.items) ? companyWide.items : []
+    const riskItems = items
+      .map((item) => {
+        const current = toNum(item.availableStock)
+        const safety = toNum(item.safetyStock)
+        const gap = Math.max(0, safety - current)
+        const status = toStatus(current, safety)
+        return {
+          name: '전사 집계',
+          sku: item.itemName,
+          current,
+          safety,
+          gap,
+          status,
+          level: status === '품절' ? 'high' : status === '부족' ? 'medium' : 'low',
+          eta: status === '품절' ? '즉시 보충' : status === '부족' ? '오늘 보충' : '모니터링',
+        }
+      })
+      .filter((row) => row.status !== '안전')
+      .sort((a, b) => b.gap - a.gap)
+
+    riskStores.value = riskItems.slice(0, 12)
+
+    const imbalanced = Array.isArray(imbalancedSkus) ? imbalancedSkus : []
+    riskWarehouses.value = imbalanced.slice(0, 8).map((row) => ({
+      name: row.itemName,
+      sku: row.skuCode,
+      status: toNum(row.shortageWarehouseCount) > 0 ? '부족' : '정상',
+      action: `부족 창고 ${toNum(row.shortageWarehouseCount)}곳 · 순부족 ${toNum(row.totalShortageQty)}EA`,
+      level: toNum(row.totalShortageQty) > 0 ? 'high' : 'medium',
+    }))
+
+    shortageRanking.value = riskItems.slice(0, 4).map((row, idx) => ({
+      rank: idx + 1,
+      target: row.sku,
+      issue: `현재 ${row.current} / 안전 ${row.safety}`,
+      severity: row.eta,
+    }))
+
+    const outOfStockCount = riskItems.filter((row) => row.status === '품절').length
+    riskStats.value = [
+      { label: '안전재고 미만 항목', value: `${riskItems.length}`, unit: '건', tone: 'danger' },
+      { label: '품절 임박 SKU', value: `${Math.max(0, riskItems.length - outOfStockCount)}`, unit: '개', tone: 'warning' },
+      { label: '창고 위험 품목', value: `${riskWarehouses.value.length}`, unit: '개', tone: 'warning' },
+      { label: '즉시 보충 필요', value: `${outOfStockCount}`, unit: '건', tone: 'danger' },
+    ]
+  } catch (error) {
+    loadError.value = extractErrorMessage(error, '재고 위험 데이터를 불러오지 못했습니다.')
+    riskStats.value = []
+    riskStores.value = []
+    riskWarehouses.value = []
+    shortageRanking.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  fetchRiskData()
+})
 
 </script>
 
@@ -61,6 +137,12 @@ const dateLabel = computed(() =>
         </div>
 
       </section>
+      <p v-if="loadError" class="border border-red-100 bg-red-50 px-3 py-3 text-xs font-medium text-red-700">
+        {{ loadError }}
+      </p>
+      <p v-else-if="loading" class="border border-gray-300 bg-white px-3 py-3 text-xs font-medium text-gray-500">
+        재고 위험 데이터를 불러오는 중입니다.
+      </p>
 
       <section class="grid grid-cols-2 gap-3 md:grid-cols-2 xl:grid-cols-4">
         <article

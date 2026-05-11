@@ -1,17 +1,23 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Clock3, ListOrdered } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
+import { extractErrorMessage } from '@/api/axios.js'
+import { getWarehouseTransfers } from '@/api/hq/inventory.js'
+import { purchaseOrderApi } from '@/api/hq/purchaseOrder.js'
 import { roleMenus } from '@/config/roleMenus.js'
 import { dashboardSideMenus } from '@/views/hq/dashboard/dashboardMenus.js'
+import { buildPurchaseRows, flattenTransferLines, getDefaultDateRange } from '@/views/hq/dashboard/dashboardData.js'
 const router = useRouter()
 const hqMenus = roleMenus.hq
 
 const activeSideMenu = ref('운영 현황')
 const sideMenus = dashboardSideMenus
 
-const transactions = []
+const transactions = ref([])
+const loading = ref(false)
+const loadError = ref('')
 
 const activeTopMenu = computed(() => '대시보드')
 const dateLabel = computed(() =>
@@ -22,6 +28,33 @@ const dateLabel = computed(() =>
   }).format(new Date()),
 )
 
+const fetchTransactions = async () => {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const { fromDate, toDate } = getDefaultDateRange(30)
+    const [transfers, purchaseOrders] = await Promise.all([
+      getWarehouseTransfers({ fromDate, toDate }),
+      purchaseOrderApi.list({ from: fromDate, to: toDate }),
+    ])
+    const transferRows = flattenTransferLines(Array.isArray(transfers) ? transfers : [])
+    const purchaseRows = buildPurchaseRows(Array.isArray(purchaseOrders) ? purchaseOrders : []).map((row) => ({
+      ...row,
+      createdAt: row.createdAt || '',
+    }))
+    transactions.value = [...transferRows, ...purchaseRows]
+      .sort((a, b) => String(b.createdAt || b.requestedAt || '').localeCompare(String(a.createdAt || a.requestedAt || '')))
+  } catch (error) {
+    loadError.value = extractErrorMessage(error, '트랜잭션 데이터를 불러오지 못했습니다.')
+    transactions.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  fetchTransactions()
+})
 
 </script>
 
@@ -68,6 +101,12 @@ const dateLabel = computed(() =>
           </div>
         </div>
       </section>
+      <p v-if="loadError" class="border border-red-100 bg-red-50 px-3 py-3 text-xs font-medium text-red-700">
+        {{ loadError }}
+      </p>
+      <p v-else-if="loading" class="border border-gray-300 bg-white px-3 py-3 text-xs font-medium text-gray-500">
+        트랜잭션 데이터를 불러오는 중입니다.
+      </p>
 
       <section class="border border-gray-300 bg-white shadow-sm">
         <div class="flex items-center justify-between border-b border-gray-200 px-3 py-2.5">

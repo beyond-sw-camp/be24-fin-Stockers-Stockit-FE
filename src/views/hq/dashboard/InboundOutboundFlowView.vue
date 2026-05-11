@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   ArrowRightLeft,
@@ -8,8 +8,12 @@ import {
   Truck,
 } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
+import { extractErrorMessage } from '@/api/axios.js'
+import { getWarehouseTransfers } from '@/api/hq/inventory.js'
+import { purchaseOrderApi } from '@/api/hq/purchaseOrder.js'
 import { roleMenus } from '@/config/roleMenus.js'
 import { dashboardSideMenus } from '@/views/hq/dashboard/dashboardMenus.js'
+import { buildPurchaseRows, flattenTransferLines, getDefaultDateRange, toUiTransferStatus } from '@/views/hq/dashboard/dashboardData.js'
 
 const router = useRouter()
 const hqMenus = roleMenus.hq
@@ -17,15 +21,13 @@ const hqMenus = roleMenus.hq
 const activeSideMenu = ref('입출고 흐름')
 const sideMenus = dashboardSideMenus
 
-const flowStats = []
-
-const inboundQueues = []
-
-const outboundQueues = []
-
-const centerFlows = []
-
-const liveLogs = []
+const flowStats = ref([])
+const inboundQueues = ref([])
+const outboundQueues = ref([])
+const centerFlows = ref([])
+const liveLogs = ref([])
+const loading = ref(false)
+const loadError = ref('')
 
 const activeTopMenu = computed(() => '대시보드')
 const dateLabel = computed(() =>
@@ -40,6 +42,94 @@ const dateLabel = computed(() =>
 function goToAllFlowTransactions() {
   router.push('/hq/dashboard/flow/all')
 }
+
+const fetchFlowData = async () => {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const { fromDate, toDate } = getDefaultDateRange(30)
+    const [transfers, purchaseOrders] = await Promise.all([
+      getWarehouseTransfers({ fromDate, toDate }),
+      purchaseOrderApi.list({ from: fromDate, to: toDate }),
+    ])
+    const transferRows = Array.isArray(transfers) ? transfers : []
+    const purchaseRows = Array.isArray(purchaseOrders) ? purchaseOrders : []
+
+    const pendingInboundCount = purchaseRows.filter((row) => ['APPROVED', 'SHIPPING'].includes(String(row.status))).length
+    const inProgressTransferCount = transferRows.filter((row) => String(row.status) === 'IN_PROGRESS').length
+    const completedTransferCount = transferRows.filter((row) => String(row.status) === 'COMPLETED').length
+
+    flowStats.value = [
+      { label: '금일 입고 예정', value: `${pendingInboundCount}`, unit: '건' },
+      { label: '금일 출고 예정', value: `${inProgressTransferCount}`, unit: '건' },
+      { label: '이동 지시 진행중', value: `${inProgressTransferCount}`, unit: '건' },
+      { label: '완료 처리 건수', value: `${completedTransferCount}`, unit: '건' },
+    ]
+
+    inboundQueues.value = purchaseRows.slice(0, 8).map((row) => ({
+      center: row.warehouseName || '-',
+      item: (row.productNames || [])[0] || '-',
+      qty: `${Number(row.itemCount || 0).toLocaleString()} SKU`,
+      eta: row.createdAt ? new Date(row.createdAt).toISOString().slice(11, 16) : '-',
+      state: row.status === 'SHIPPING' ? '검수 진행' : row.status === 'APPROVED' ? '입고 대기' : '대기',
+    }))
+
+    outboundQueues.value = transferRows.slice(0, 8).map((row) => ({
+      target: row.toWarehouseName || '-',
+      item: `${Number(row.skuCount || 0).toLocaleString()} SKU`,
+      qty: `${Number(row.totalQty || 0).toLocaleString()} EA`,
+      depart: row.requestedAt ? new Date(row.requestedAt).toISOString().slice(11, 16) : '-',
+      state: toUiTransferStatus(row.status),
+    }))
+
+    const centerMap = new Map()
+    transferRows.forEach((row) => {
+      const fromKey = row.fromWarehouseName || '-'
+      const toKey = row.toWarehouseName || '-'
+      const from = centerMap.get(fromKey) || { center: fromKey, inbound: 0, outbound: 0, transfer: 0, status: '정상' }
+      const to = centerMap.get(toKey) || { center: toKey, inbound: 0, outbound: 0, transfer: 0, status: '정상' }
+      from.outbound += 1
+      from.transfer += Number(row.skuCount || 0)
+      to.inbound += 1
+      to.transfer += Number(row.skuCount || 0)
+      centerMap.set(fromKey, from)
+      centerMap.set(toKey, to)
+    })
+    centerFlows.value = Array.from(centerMap.values())
+      .map((row) => ({
+        ...row,
+        status: row.outbound > row.inbound * 2 ? '주의' : row.transfer > 10 ? '혼잡' : '정상',
+      }))
+      .slice(0, 8)
+
+    const transferLogs = flattenTransferLines(transferRows)
+    const purchaseLogs = buildPurchaseRows(purchaseRows).map((row, idx) => ({
+      id: `${row.id}-${idx + 1}`,
+      type: '입고',
+      location: row.location,
+      item: row.item,
+      qty: row.qty,
+      status: row.status,
+      time: row.time,
+    }))
+    liveLogs.value = [...transferLogs, ...purchaseLogs]
+      .sort((a, b) => String(b.time).localeCompare(String(a.time)))
+      .slice(0, 12)
+  } catch (error) {
+    loadError.value = extractErrorMessage(error, '입출고 흐름 데이터를 불러오지 못했습니다.')
+    flowStats.value = []
+    inboundQueues.value = []
+    outboundQueues.value = []
+    centerFlows.value = []
+    liveLogs.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  fetchFlowData()
+})
 </script>
 
 <template>
@@ -65,6 +155,12 @@ function goToAllFlowTransactions() {
         </div>
 
       </section>
+      <p v-if="loadError" class="border border-red-100 bg-red-50 px-3 py-3 text-xs font-medium text-red-700">
+        {{ loadError }}
+      </p>
+      <p v-else-if="loading" class="border border-gray-300 bg-white px-3 py-3 text-xs font-medium text-gray-500">
+        입출고 흐름 데이터를 불러오는 중입니다.
+      </p>
 
       <section class="grid grid-cols-2 gap-3 md:grid-cols-2 xl:grid-cols-4">
         <article
@@ -191,7 +287,7 @@ function goToAllFlowTransactions() {
             </thead>
             <tbody class="divide-y divide-gray-100 border-t border-gray-200">
               <tr v-for="row in liveLogs" :key="row.id" class="hover:bg-gray-50/50">
-                <td class="px-3 py-2.5 font-mono text-gray-400">{{ row.id.split('-')[2] }}</td>
+                <td class="px-3 py-2.5 font-mono text-gray-400">{{ row.id }}</td>
                 <td class="px-3 py-2.5 text-xs font-bold text-gray-700">{{ row.type }}</td>
                 <td class="px-3 py-2.5 font-semibold text-gray-800">{{ row.location }}</td>
                 <td class="px-3 py-2.5 text-gray-600">{{ row.item }}</td>

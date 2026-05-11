@@ -1,17 +1,22 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowRightLeft, Clock3, ListOrdered } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
+import { extractErrorMessage } from '@/api/axios.js'
+import { getWarehouseTransfers } from '@/api/hq/inventory.js'
 import { roleMenus } from '@/config/roleMenus.js'
 import { dashboardSideMenus } from '@/views/hq/dashboard/dashboardMenus.js'
+import { flattenTransferLines, getDefaultDateRange } from '@/views/hq/dashboard/dashboardData.js'
 const router = useRouter()
 const hqMenus = roleMenus.hq
 
 const activeSideMenu = ref('입출고 흐름')
 const sideMenus = dashboardSideMenus
 
-const flowTransactions = []
+const flowTransactions = ref([])
+const loading = ref(false)
+const loadError = ref('')
 
 const activeTopMenu = computed(() => '대시보드')
 const dateLabel = computed(() =>
@@ -22,6 +27,24 @@ const dateLabel = computed(() =>
   }).format(new Date()),
 )
 
+const fetchFlowTransactions = async () => {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const { fromDate, toDate } = getDefaultDateRange(30)
+    const transfers = await getWarehouseTransfers({ fromDate, toDate })
+    flowTransactions.value = flattenTransferLines(Array.isArray(transfers) ? transfers : [])
+  } catch (error) {
+    loadError.value = extractErrorMessage(error, '입출고 트랜잭션을 불러오지 못했습니다.')
+    flowTransactions.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  fetchFlowTransactions()
+})
 
 </script>
 
@@ -68,6 +91,12 @@ const dateLabel = computed(() =>
           </div>
         </div>
       </section>
+      <p v-if="loadError" class="border border-red-100 bg-red-50 px-3 py-3 text-xs font-medium text-red-700">
+        {{ loadError }}
+      </p>
+      <p v-else-if="loading" class="border border-gray-300 bg-white px-3 py-3 text-xs font-medium text-gray-500">
+        입출고 트랜잭션을 불러오는 중입니다.
+      </p>
 
       <section class="border border-gray-300 bg-white shadow-sm">
         <div class="flex items-center justify-between border-b border-gray-200 px-3 py-2.5">
