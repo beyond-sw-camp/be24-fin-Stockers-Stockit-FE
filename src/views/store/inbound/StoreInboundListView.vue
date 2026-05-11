@@ -10,10 +10,7 @@ import { formatDate, formatDateTime } from '@/features/store/common/ui.js'
 const router = useRouter()
 
 const storeMenus = roleMenus.store
-const inboundMenuGroup = roleMenus.store.find((menu) => menu.path === '/store/inbound/list')
-const inboundMenus = inboundMenuGroup?.children ?? []
-const activeTopMenu = computed(() => inboundMenuGroup?.label ?? '입고 관리')
-const activeSideMenu = ref(inboundMenus[0]?.label ?? '')
+const activeTopMenu = computed(() => '입고 관리')
 
 const STATUS_TABS = [
   { key: 'ALL', label: '전체' },
@@ -163,8 +160,7 @@ onMounted(() => {
   <AppLayout
     :active-top-menu="activeTopMenu"
     :top-menus="storeMenus"
-    :side-menus="inboundMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
   >
     <div class="flex flex-col gap-3">
       <section class="border border-gray-300 bg-white p-4 shadow-sm">

@@ -121,10 +121,6 @@ export const roleMenus = {
       label: '입고 관리',
       path: '/store/inbound/list',
       icon: 'check',
-      children: [
-        { label: '입고 리스트', path: '/store/inbound/list' },
-        { label: '입고 분석', path: '/store/inbound/analysis' },
-      ],
     },
     {
       label: '통계',
