@@ -6,7 +6,7 @@ import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { usePurchaseOrderStore } from '@/stores/purchaseOrder.js'
 import { usePurchaseOrderCartStore } from '@/stores/hq/purchaseOrderCart.js'
-import { ArrowLeftIcon, ShoppingCartIcon } from '@/components/hq/purchase-order/icons.js'
+import { ArrowLeftIcon } from '@/components/hq/purchase-order/icons.js'
 import PurchaseOrderBulkQtyModal from '@/components/hq/purchase-order/PurchaseOrderBulkQtyModal.vue'
 import PurchaseOrderCart from '@/components/hq/purchase-order/PurchaseOrderCart.vue'
 import PurchaseOrderCatalog from '@/components/hq/purchase-order/PurchaseOrderCatalog.vue'
@@ -37,7 +37,7 @@ const activeTopMenu = computed(() => '물류 창고 발주')
 const selectedWarehouseCode = ref('')
 const keyword = ref('')
 const vendorFilter = ref('all')
-const sortBy = ref('default')
+const sortBy = ref('vendorAsc')
 const cart = ref([])
 
 // 재고 시뮬레이션 / facet 필터 / 카탈로그 헬퍼는 PurchaseOrderCatalog child 가 자체 보유.
@@ -64,21 +64,6 @@ const rowQuantities = ref({})
 const collapsed = ref({})
 // 부족만 보기 토글 (마스터 단위 — 그룹 헤더의 가용재고 < 안전재고 × 1.5 인 그룹만)
 const shortageOnly = ref(false)
-
-// 발주 요청서 패널 접힘 상태 — localStorage 로 사용자 선호 기억.
-// 카탈로그 폭 확보를 위한 ERP 스타일 collapse 토글 (접힘 시 우측 가는 trigger bar).
-const CART_COLLAPSED_KEY = 'stockit:po-cart-collapsed'
-const cartCollapsed = ref(localStorage.getItem(CART_COLLAPSED_KEY) === 'true')
-watch(cartCollapsed, (v) => {
-  try {
-    localStorage.setItem(CART_COLLAPSED_KEY, v ? 'true' : 'false')
-  } catch {
-    // quota / private mode — 영속화만 실패, 동작은 그대로
-  }
-})
-function toggleCartCollapsed() {
-  cartCollapsed.value = !cartCollapsed.value
-}
 
 // ─── Power 모드 ─────────────────────────────────────────────────────────────
 // 다중 선택: skuCode set — Floating bar 와 카탈로그가 v-model 로 공유.
@@ -591,7 +576,6 @@ watch(vendorFilter, () => {
         />
 
         <PurchaseOrderCart
-          v-if="!cartCollapsed"
           :cart="cart"
           :current-cart-vendor-name="currentCartVendorName"
           :grouped-by-vendor="groupedByVendor"
@@ -606,32 +590,7 @@ watch(vendorFilter, () => {
           @scroll-to-catalog-sku="scrollToCatalogSku"
           @open-clear-cart-confirm="openClearCartConfirm"
           @open-submit-confirm="openSubmitConfirm"
-          @toggle-collapse="toggleCartCollapsed"
         />
-
-        <!-- 접힘 상태 trigger bar — 클릭 시 카트 펼치기. 카탈로그가 풀 폭 사용 -->
-        <button
-          v-else
-          type="button"
-          class="group flex w-full shrink-0 items-center justify-between gap-2 border border-gray-300 bg-white px-3 py-2 text-[11px] font-black text-[#004D3C] shadow-sm hover:bg-[#E6F2F0] xl:w-12 xl:flex-col xl:justify-start xl:px-2 xl:py-3"
-          title="발주 요청서 펼치기"
-          aria-label="발주 요청서 펼치기"
-          @click="toggleCartCollapsed"
-        >
-          <span class="inline-flex items-center gap-1 xl:flex-col xl:gap-2">
-            <span class="text-base xl:rotate-180">‹</span>
-            <ShoppingCartIcon :size="14" />
-          </span>
-          <span
-            v-if="cart.length > 0"
-            class="inline-flex items-center bg-[#004D3C] px-1.5 py-0.5 text-[10px] font-black text-white xl:[writing-mode:vertical-rl]"
-          >
-            {{ cart.length }}건
-          </span>
-          <span class="hidden text-[10px] font-bold text-gray-500 xl:inline xl:[writing-mode:vertical-rl]">
-            발주 요청서
-          </span>
-        </button>
       </section>
     </div>
 

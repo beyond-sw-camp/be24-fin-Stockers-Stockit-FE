@@ -18,9 +18,9 @@ export function usePurchaseOrderStockSim(selectedWarehouseCode) {
     return stockStore.getSkuSuggestedQuantity(rowStock(skuCode))
   }
 
-  function stockLevelClass(level) {
-    if (level === 'critical') return 'text-red-600'
-    if (level === 'warning') return 'text-amber-600'
+  // 재고 숫자 색상은 항상 중립 회색 — 부족/주의/품절 상태는 별도 "상태" 컬럼 칩이 담당.
+  // level 인자는 호환을 위해 받지만 사용 안 함.
+  function stockLevelClass(_level) {
     return 'text-gray-700'
   }
 

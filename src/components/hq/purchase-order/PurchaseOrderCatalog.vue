@@ -3,7 +3,7 @@ import { computed, ref, toRef } from 'vue'
 import { usePurchaseOrderStore } from '@/stores/purchaseOrder.js'
 import { useFacets } from '@/composables/hq/purchaseOrder/useFacets.js'
 import { usePurchaseOrderStockSim } from '@/composables/hq/purchaseOrder/useStockSim.js'
-import { PlusIcon, SearchIcon } from '@/components/hq/purchase-order/icons.js'
+import { SearchIcon } from '@/components/hq/purchase-order/icons.js'
 
 // 새 발주 카탈로그 — ERP 테이블 스타일.
 // 한 행 = 1 SKU. 공급처/제품/옵션이 컬럼으로 평면화 → 그룹 헤더 제거.
@@ -119,14 +119,8 @@ const filteredRows = computed(() => {
       )
       break
     case 'vendorAsc':
-      skus = [...skus].sort(
-        (a, b) =>
-          a.vendorName.localeCompare(b.vendorName, 'ko') ||
-          a.productName.localeCompare(b.productName, 'ko'),
-      )
-      break
     default:
-      // 기본 정렬 — 공급처 → 제품명 → 옵션
+      // 공급처명 가나다 → 제품명 가나다 → 옵션 순. 기본 정렬.
       skus = [...skus].sort(
         (a, b) =>
           a.vendorName.localeCompare(b.vendorName, 'ko') ||
@@ -229,13 +223,13 @@ void emit
       <select
         v-model="sortBy"
         class="border border-gray-300 bg-white px-3 py-1.5 text-xs outline-none focus:border-[#004D3C]"
+        title="정렬 기준"
       >
-        <option value="default">정렬: 공급처 → 제품</option>
-        <option value="vendorAsc">공급처명</option>
-        <option value="nameAsc">제품명</option>
+        <option value="vendorAsc">공급처명 ↑</option>
+        <option value="nameAsc">제품명 ↑</option>
         <option value="priceAsc">단가 ↑</option>
         <option value="priceDesc">단가 ↓</option>
-        <option value="shortage">부족 SKU 우선</option>
+        <option value="shortage">재고 부족 우선</option>
       </select>
       <button
         type="button"
@@ -327,13 +321,10 @@ void emit
               />
             </th>
             <th class="w-28 px-2 py-2 text-left font-black">공급처</th>
-            <th class="w-24 px-2 py-2 text-left font-black">제품코드</th>
-            <th class="px-2 py-2 text-left font-black">제품명</th>
-            <th class="w-20 px-2 py-2 text-left font-black">옵션</th>
-            <th class="w-32 px-2 py-2 text-left font-black">SKU</th>
-            <th class="w-20 px-2 py-2 text-right font-black">단가</th>
+            <th class="px-2 py-2 text-left font-black">제품</th>
+            <th class="w-24 px-2 py-2 text-right font-black">단가</th>
             <th
-              class="w-12 px-2 py-2 text-right font-black"
+              class="w-14 px-2 py-2 text-right font-black"
               title="가용재고 (실재고 + 입고예정 - 출고예정)"
             >
               재고
@@ -344,9 +335,9 @@ void emit
             >
               권장
             </th>
-            <th class="w-14 px-1 py-2 text-center font-black">상태</th>
+            <th class="w-16 px-1 py-2 text-center font-black">상태</th>
             <th class="w-16 px-1 py-2 text-center font-black">수량</th>
-            <th class="w-12 px-2 py-2 text-center font-black"></th>
+            <th class="w-16 px-1 py-2 text-center font-black">담기</th>
           </tr>
         </thead>
         <tbody :class="!selectedWarehouseCode ? 'pointer-events-none opacity-50' : ''">
@@ -368,22 +359,18 @@ void emit
             <td class="truncate px-2 py-2 align-middle" :title="row.vendorName">
               <span class="text-[11px] font-black text-gray-700">{{ row.vendorName }}</span>
             </td>
-            <td
-              class="truncate px-2 py-2 align-middle font-mono text-[10px] text-gray-500"
-              :title="row.productCode"
-            >
-              {{ row.productCode }}
-            </td>
-            <td class="px-2 py-2 align-middle" :title="row.productName">
-              <span class="block whitespace-normal break-words text-xs font-black leading-tight text-gray-800">
-                {{ row.productName }}
-              </span>
-            </td>
-            <td class="px-2 py-2 align-middle">
-              <span class="text-[11px] font-bold text-[#004D3C]">{{ row.displayOption }}</span>
-            </td>
-            <td class="px-2 py-2 align-middle font-mono text-[10px] text-gray-500">
-              {{ row.skuCode }}
+            <td class="px-2 py-2 align-middle" :title="`${row.productName} · ${row.skuCode}`">
+              <div class="flex flex-col gap-0.5">
+                <div class="flex flex-wrap items-baseline gap-x-2">
+                  <span class="whitespace-normal break-words text-xs font-black leading-tight text-gray-800">
+                    {{ row.productName }}
+                  </span>
+                  <span v-if="row.displayOption" class="text-[11px] font-bold text-[#004D3C]">
+                    {{ row.displayOption }}
+                  </span>
+                </div>
+                <span class="font-mono text-[10px] text-gray-400">{{ row.skuCode }}</span>
+              </div>
             </td>
             <td class="px-2 py-2 text-right align-middle font-bold text-[#004D3C]">
               ₩{{ row.unitPrice.toLocaleString() }}
@@ -405,8 +392,8 @@ void emit
                 <button
                   v-if="rowSuggested(row.skuCode) > 0"
                   type="button"
-                  class="border border-red-300 bg-red-50 px-2 py-0.5 text-[10px] font-black text-red-700 hover:bg-red-100"
-                  :title="`권장 발주 ${rowSuggested(row.skuCode)}개를 수량 입력란에 채웁니다`"
+                  class="text-xs font-black text-[#004D3C] hover:underline"
+                  :title="`클릭 시 수량 입력란에 ${rowSuggested(row.skuCode)} 채움`"
                   @click="applySuggestedToSku(row)"
                 >
                   {{ rowSuggested(row.skuCode) }}
@@ -442,41 +429,40 @@ void emit
                 @keydown.enter.exact="$emit('add-sku-to-cart', row)"
               />
             </td>
-            <td class="px-2 py-2 text-center align-middle">
-              <div class="inline-flex items-center gap-1">
-                <button
-                  type="button"
-                  class="inline-flex items-center justify-center border border-[#004D3C] bg-white p-1 text-[#004D3C] hover:bg-[#E6F2F0] disabled:cursor-not-allowed disabled:opacity-40"
-                  :disabled="!(Number(rowQuantities[row.skuCode]) > 0)"
-                  title="장바구니 담기 (Enter)"
-                  @click="$emit('add-sku-to-cart', row)"
-                >
-                  <PlusIcon :size="12" />
-                </button>
-                <button
-                  v-if="isInCart(row.skuCode)"
-                  type="button"
-                  class="text-[10px] font-bold text-[#004D3C] hover:underline"
-                  title="장바구니에서 보기"
-                  @click="$emit('scroll-to-cart-sku', row.skuCode)"
-                >
-                  ●
-                </button>
-              </div>
+            <td class="px-1 py-2 text-center align-middle">
+              <button
+                v-if="isInCart(row.skuCode)"
+                type="button"
+                class="inline-flex items-center justify-center border border-[#004D3C] bg-[#E6F2F0] px-2 py-0.5 text-[10px] font-black text-[#004D3C] hover:bg-[#D6EAE6]"
+                title="장바구니에서 보기"
+                @click="$emit('scroll-to-cart-sku', row.skuCode)"
+              >
+                ✓ 담김
+              </button>
+              <button
+                v-else
+                type="button"
+                class="inline-flex items-center justify-center border border-[#004D3C] bg-white px-2 py-0.5 text-[10px] font-black text-[#004D3C] hover:bg-[#E6F2F0] disabled:cursor-not-allowed disabled:opacity-40"
+                :disabled="!(Number(rowQuantities[row.skuCode]) > 0)"
+                title="장바구니 담기 (Enter)"
+                @click="$emit('add-sku-to-cart', row)"
+              >
+                담기
+              </button>
             </td>
           </tr>
           <tr v-if="!catalogLoading && catalogSkuRows.length === 0">
-            <td colspan="12" class="px-3 py-8 text-center text-xs text-gray-400">
+            <td colspan="9" class="px-3 py-8 text-center text-xs text-gray-400">
               노출 가능한 계약 제품이 없습니다.
             </td>
           </tr>
           <tr v-else-if="!catalogLoading && filteredRows.length === 0">
-            <td colspan="12" class="px-3 py-8 text-center text-xs text-gray-400">
+            <td colspan="9" class="px-3 py-8 text-center text-xs text-gray-400">
               검색 결과가 없습니다.
             </td>
           </tr>
           <tr v-if="catalogLoading">
-            <td colspan="12" class="px-3 py-8 text-center text-xs text-gray-400">
+            <td colspan="9" class="px-3 py-8 text-center text-xs text-gray-400">
               카탈로그를 불러오는 중...
             </td>
           </tr>
