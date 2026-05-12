@@ -326,11 +326,11 @@ void emit
                 @change="toggleAllVisible"
               />
             </th>
-            <th class="w-32 px-2 py-2 text-left font-black">공급처</th>
-            <th class="w-28 px-2 py-2 text-left font-black">제품코드</th>
+            <th class="w-28 px-2 py-2 text-left font-black">공급처</th>
+            <th class="w-24 px-2 py-2 text-left font-black">제품코드</th>
             <th class="px-2 py-2 text-left font-black">제품명</th>
-            <th class="w-24 px-2 py-2 text-left font-black">옵션</th>
-            <th class="w-24 px-2 py-2 text-left font-black">SKU</th>
+            <th class="w-20 px-2 py-2 text-left font-black">옵션</th>
+            <th class="w-32 px-2 py-2 text-left font-black">SKU</th>
             <th class="w-20 px-2 py-2 text-right font-black">단가</th>
             <th
               class="w-12 px-2 py-2 text-right font-black"
@@ -365,14 +365,19 @@ void emit
                 @change="toggleSkuSelected(row.skuCode)"
               />
             </td>
-            <td class="truncate px-2 py-2 align-middle">
+            <td class="truncate px-2 py-2 align-middle" :title="row.vendorName">
               <span class="text-[11px] font-black text-gray-700">{{ row.vendorName }}</span>
             </td>
-            <td class="px-2 py-2 align-middle font-mono text-[10px] text-gray-500">
+            <td
+              class="truncate px-2 py-2 align-middle font-mono text-[10px] text-gray-500"
+              :title="row.productCode"
+            >
               {{ row.productCode }}
             </td>
-            <td class="truncate px-2 py-2 align-middle">
-              <span class="text-xs font-black text-gray-800">{{ row.productName }}</span>
+            <td class="px-2 py-2 align-middle" :title="row.productName">
+              <span class="block whitespace-normal break-words text-xs font-black leading-tight text-gray-800">
+                {{ row.productName }}
+              </span>
             </td>
             <td class="px-2 py-2 align-middle">
               <span class="text-[11px] font-bold text-[#004D3C]">{{ row.displayOption }}</span>
