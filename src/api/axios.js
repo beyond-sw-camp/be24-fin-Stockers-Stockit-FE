@@ -84,9 +84,11 @@ apiClient.interceptors.response.use(
       return Promise.reject(error)
     }
 
-    // 이미 재시도한 요청이 또 401 이면 더 이상 시도하지 않음
+    // 이미 재시도한 요청이 또 401 이면 더 이상 시도하지 않음.
+    // 이 케이스는 권한(403 대체 401)·비즈니스 규칙·엔드포인트별 인증정책 불일치 등으로도 발생할 수 있어
+    // 여기서 전역 로그아웃을 강제하면 "로그인 직후 즉시 로그아웃"처럼 보이는 부작용이 생긴다.
+    // 실제 세션 만료 여부는 refresh 실패 여부로 판단한다.
     if (originalRequest._retry) {
-      forceLogout()
       return Promise.reject(error)
     }
 

@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, ref } from 'vue'
 import {
   AlertCircle,
@@ -12,13 +12,17 @@ import {
 } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { dashboardSideMenus } from '@/views/hq/dashboard/dashboardMenus.js'
+import { useAuthStore } from '@/stores/auth.js'
+
+const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 
-const activeSideMenu = ref('알림 센터')
-const sideMenus = dashboardSideMenus
-
-const summaryStats = []
+const summaryStats = [
+  { label: '미확인 알림', value: '14', note: '우선 확인 필요', tone: 'danger' },
+  { label: '오늘 발생', value: '26', note: '방금 포함', tone: 'neutral' },
+  { label: '긴급 알림', value: '4', note: '즉시 대응 필요', tone: 'danger' },
+  { label: '처리 완료', value: '12', note: '오늘 기준', tone: 'done' },
+]
 
 const filterTabs = [
   { label: '전체', value: 'all' },
@@ -30,7 +34,14 @@ const filterTabs = [
 
 const activeFilter = ref('all')
 
-const alerts = []
+const alerts = [
+  { category: 'inventory', type: '재고', title: '성수 직영점 원두 품절 임박', detail: '안전재고 30EA 대비 현재고 8EA', meta: '성수 직영점 · 아메리카노 원두 1kg', time: '10분 전', status: '긴급', unread: true },
+  { category: 'inbound', type: '입고', title: '부산 중앙창고 입고 지연', detail: '유리제 머그컵 350ml 납기 지연', meta: '부산 중앙창고 · 거래처 하림', time: '24분 전', status: '확인 필요', unread: true },
+  { category: 'settlement', type: '정산', title: '판교점 POS 재고 불일치', detail: '실재고와 시스템 수량 차이 발생', meta: '판교 테크노점 · 마감 정산', time: '1시간 전', status: '조치 중', unread: true },
+  { category: 'shipping', type: '배송', title: '인천 제2센터 출고 마감 임박', detail: '미처리 출고 3건 남음', meta: '인천 제2센터 · 출고 마감 30분 전', time: '1시간 전', status: '확인 필요', unread: false },
+  { category: 'inventory', type: '재고', title: '강남 서초점 안전재고 하회', detail: '손세정제 리필 500ml 보충 필요', meta: '강남 서초점 · 부족분 26EA', time: '2시간 전', status: '조치 중', unread: false },
+  { category: 'shipping', type: '배송', title: '용인 물류센터 상차 완료', detail: '성수 직영점 출고 건 2건 처리 완료', meta: '용인 물류센터 · 차량 12A', time: '2시간 전', status: '완료', unread: false },
+]
 
 const categoryIconMap = {
   inventory: Package,
@@ -45,7 +56,7 @@ const filteredAlerts = computed(() =>
     : alerts.filter((alert) => alert.category === activeFilter.value),
 )
 
-const activeTopMenu = computed(() => '대시보드')
+const activeTopMenu = computed(() => '본사 대시보드')
 const dateLabel = computed(() =>
   new Intl.DateTimeFormat('ko-KR', {
     year: 'numeric',
@@ -61,8 +72,7 @@ const dateLabel = computed(() =>
   <AppLayout
     :active-top-menu="activeTopMenu"
     :top-menus="hqMenus"
-    :side-menus="sideMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
     show-system-card
   >
     <div class="flex flex-col gap-3">
@@ -111,9 +121,6 @@ const dateLabel = computed(() =>
                 <AlertCircle v-else :size="12" :class="stat.tone === 'danger' ? 'text-red-600' : 'text-amber-600'" />
                 <span class="text-[11px] font-medium text-gray-500">{{ stat.label }}</span>
                 <span class="text-[12px] font-semibold text-gray-900">{{ stat.value }}</span>
-              </div>
-              <div v-if="summaryStats.length === 0" class="text-xs text-gray-400">
-                표시할 요약 알림이 없습니다.
               </div>
             </div>
           </div>

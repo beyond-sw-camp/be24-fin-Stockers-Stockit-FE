@@ -38,8 +38,10 @@ const MONTH_LABELS = ['1월','2월','3월','4월','5월','6월','7월','8월','9
 
 // ─────────── AppLayout props ───────────
 const topMenus = computed(() => roleMenus.hq ?? [])
-const sideMenus = ref([])
-const activeSideMenu = ref('')
+const sideMenus = computed(
+  () => (roleMenus.hq ?? []).find((menu) => menu.label === 'ESG 대시보드')?.children ?? [],
+)
+const activeSideMenu = ref('탄소중립 관리')
 
 // 할당량 편집 상태
 const editingQuota = ref(false)
@@ -154,7 +156,7 @@ onMounted(loadAll)
 
 <template>
   <AppLayout
-    active-top-menu="ESG"
+    active-top-menu="ESG 대시보드"
     :top-menus="topMenus"
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"

@@ -18,14 +18,7 @@ const { statusClass, statusLabel, historyDotClass, historyTextClass, formatDate 
 
 // ─── 레이아웃 설정 ───────────────────────────────────────────────────────────
 const hqMenus = roleMenus.hq
-const activeTopMenu = computed(() => '주문/발주 관리')
-
-const sideMenus = [
-  { label: '매장 주문', icon: 'file', path: '/hq/orders' },
-  { label: '공급처 발주', icon: 'truck', path: '/hq/purchase-orders' },
-  { label: '공급처 관리', icon: 'briefcase', path: '/hq/vendors' },
-]
-const activeSideMenu = ref('공급처 발주')
+const activeTopMenu = computed(() => '물류 창고 발주')
 
 
 // ─── 상태 탭 ────────────────────────────────────────────────────────────────
@@ -154,8 +147,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
   <AppLayout
     :active-top-menu="activeTopMenu"
     :top-menus="hqMenus"
-    :side-menus="sideMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
   >
     <div class="flex flex-col gap-4">
       <!-- 총 발주 요약 (공급처/기간 컨텍스트 반영) -->

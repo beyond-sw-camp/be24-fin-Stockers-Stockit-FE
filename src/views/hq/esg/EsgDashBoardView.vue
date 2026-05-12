@@ -31,9 +31,9 @@ const router = useRouter()
 const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 
-const activeTopMenu = computed(() => 'ESG 현황판')
-const activeSideMenu = ref('ESG 현황판')
-const esgSideMenus = [{ label: 'ESG 현황판', icon: 'chart', path: '/hq/esg' }]
+const activeTopMenu = computed(() => 'ESG 대시보드')
+const activeSideMenu = ref('친환경 발자국 현황판')
+const esgSideMenus = (hqMenus.find((menu) => menu.label === 'ESG 대시보드')?.children ?? [])
 
 const esgStore = useEsgStore()
 const { totalPoints, kauPrice, kauPriceUpdatedAt, kauPriceLoading } = storeToRefs(esgStore)

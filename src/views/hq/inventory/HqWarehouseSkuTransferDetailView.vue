@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
+import WarehouseTransferCartDrawer from '@/components/hq/WarehouseTransferCartDrawer.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useWarehouseTransferCartStore } from '@/stores/hq/warehouseTransferCart.js'
@@ -13,16 +14,10 @@ const router = useRouter()
 const auth = useAuthStore()
 const cartStore = useWarehouseTransferCartStore()
 const hqMenus = roleMenus.hq
-const inventoryMenus = roleMenus.hq.find(menu => menu.label === '재고 관리')?.children ?? []
+const inventoryMenus = roleMenus.hq.find(menu => menu.label === '물류 창고간 재고이동')?.children ?? []
 
-const activeTopMenu = computed(() => '재고 관리')
-const activeSideMenu = ref('창고간 재고 이동')
-const COLOR_LABEL_BY_CODE = {
-  BLK: '검정',
-  WHT: '흰색',
-  NVY: '네이비',
-  GRY: '그레이',
-}
+const activeTopMenu = computed(() => '물류 창고간 재고이동')
+const activeSideMenu = ref('재고 이동')
 
 const selectedWarehouseCodes = ref([])
 const transferQty = ref('')
@@ -49,7 +44,6 @@ const selectedSku = computed(() => {
     itemName: String(route.query.itemName || ''),
     category: String(route.query.category || route.query.filterCategory || ''),
     color: String(route.query.color || ''),
-    colorLabel: COLOR_LABEL_BY_CODE[String(route.query.color || '').toUpperCase()] ?? String(route.query.color || ''),
     size: String(route.query.size || ''),
   }
 })
@@ -341,10 +335,6 @@ const moveBack = () => {
           <span class="bg-gray-100 px-2 py-1">{{ selectedSku.itemName || '-' }}</span>
           <span class="bg-gray-100 px-2 py-1">{{ selectedSku.category || '-' }}</span>
           <span class="bg-gray-100 px-2 py-1">{{ selectedSku.color || '-' }}/{{ selectedSku.size || '-' }}</span>
-          <span class="bg-gray-100 px-2 py-1">{{ selectedSku.itemCode }}</span>
-          <span class="bg-gray-100 px-2 py-1">{{ selectedSku.itemName }}</span>
-          <span class="bg-gray-100 px-2 py-1">{{ selectedSku.category }}</span>
-          <span class="bg-gray-100 px-2 py-1">{{ selectedSku.colorLabel }}/{{ selectedSku.size }}</span>
         </div>
       </section>
 
@@ -355,11 +345,12 @@ const moveBack = () => {
         </div>
 
         <div class="overflow-x-auto">
-          <table class="min-w-[980px] w-full border-collapse text-left text-xs">
+          <table class="min-w-[1120px] w-full border-collapse text-left text-xs">
             <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
               <tr>
                 <th class="w-16 px-3 py-3 text-center font-black">선택</th>
                 <th class="px-3 py-3 font-black">창고 코드</th>
+                <th class="px-3 py-3 font-black">품목명</th>
                 <th class="px-3 py-3 font-black">창고명</th>
                 <th class="px-3 py-3 font-black">위치</th>
                 <th class="px-3 py-3 text-right font-black">
@@ -407,6 +398,7 @@ const moveBack = () => {
                   />
                 </td>
                 <td class="px-3 py-3 font-mono font-bold text-gray-500">{{ row.warehouseCode }}</td>
+                <td class="px-3 py-3 font-bold text-gray-700 whitespace-nowrap max-w-[220px] truncate">{{ selectedSku?.itemName || '-' }}</td>
                 <td class="px-3 py-3 font-black text-gray-900">{{ row.warehouseName }}</td>
                 <td class="px-3 py-3 font-bold text-gray-600">{{ row.location }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ row.onHandStock.toLocaleString() }}</td>
@@ -419,12 +411,12 @@ const moveBack = () => {
                 <td class="px-3 py-3 font-bold text-gray-500">{{ row.updatedAt }}</td>
               </tr>
               <tr v-if="warehouseLoading">
-                <td colspan="10" class="px-4 py-8 text-center text-xs font-bold text-gray-400">
+                <td colspan="11" class="px-4 py-8 text-center text-xs font-bold text-gray-400">
                   창고별 재고를 불러오는 중입니다.
                 </td>
               </tr>
               <tr v-else-if="sortedWarehouseRows.length === 0">
-                <td colspan="10" class="px-4 py-8 text-center text-xs font-bold text-gray-400">
+                <td colspan="11" class="px-4 py-8 text-center text-xs font-bold text-gray-400">
                   표시할 창고 재고 데이터가 없습니다.
                 </td>
               </tr>
@@ -577,79 +569,16 @@ const moveBack = () => {
         </section>
       </div>
 
-      <div v-if="cartDrawerOpen" class="fixed inset-0 z-50">
-        <div class="absolute inset-0 bg-black/35" @click="closeCartDrawer" />
-        <section class="absolute right-0 top-0 h-full w-full max-w-[520px] overflow-y-auto border-l border-gray-200 bg-white shadow-2xl">
-          <div class="sticky top-0 z-10 border-b border-gray-100 bg-white px-5 py-4">
-            <div class="flex items-center justify-between gap-3">
-              <div>
-                <h2 class="text-base font-black text-gray-900">재고 이동 장바구니</h2>
-                <p class="mt-1 text-[11px] font-bold text-gray-500">총 {{ cartLineCount }}건</p>
-              </div>
-              <button type="button" class="h-8 border border-gray-300 px-3 text-xs font-black text-gray-700 hover:bg-gray-100" @click="closeCartDrawer">닫기</button>
-            </div>
-          </div>
-
-          <div class="space-y-4 p-5 pb-28">
-            <div v-if="cartLineCount === 0" class="border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center text-xs font-bold text-gray-400">
-              장바구니가 비어 있습니다.
-            </div>
-
-            <article v-for="group in cartGroups" :key="group.routeKey" class="border border-gray-200 bg-white">
-              <header class="border-b border-gray-100 bg-gray-50 px-4 py-3">
-                <p class="text-xs font-black text-gray-900">{{ group.fromWarehouseName }} → {{ group.toWarehouseName }}</p>
-                <p class="mt-1 text-[11px] font-bold text-gray-500">{{ group.lines.length }}건 · 총 {{ group.totalQty.toLocaleString() }}개</p>
-              </header>
-
-              <div class="divide-y divide-gray-100">
-                <div v-for="line in group.lines" :key="line.lineId" class="space-y-2 px-4 py-3">
-                  <p class="text-[11px] font-black text-gray-800">{{ line.itemName }}</p>
-                  <p class="font-mono text-[11px] font-bold text-gray-500">{{ line.skuCode }}</p>
-                  <div class="flex items-center gap-2">
-                    <input
-                      :value="line.qty"
-                      type="number"
-                      min="1"
-                      class="h-8 w-24 border border-gray-300 px-2 text-xs font-black text-gray-900 outline-none focus:border-[#004D3C]"
-                      @change="updateCartLineQty(line.lineId, $event)"
-                    />
-                    <span class="text-[11px] font-bold text-gray-500">개</span>
-                    <button
-                      type="button"
-                      class="ml-auto h-8 border border-red-200 px-3 text-[11px] font-black text-red-600 hover:bg-red-50"
-                      @click="cartStore.removeLine(line.lineId)"
-                    >
-                      삭제
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </article>
-          </div>
-
-          <div class="fixed bottom-0 right-0 w-full max-w-[520px] border-t border-gray-200 bg-white px-5 py-3">
-            <div class="flex gap-2">
-              <button
-                type="button"
-                class="h-10 flex-1 border border-gray-300 px-4 text-xs font-black text-gray-700 hover:bg-gray-100"
-                :disabled="!cartLineCount"
-                @click="cartStore.clearAll()"
-              >
-                전체 비우기
-              </button>
-              <button
-                type="button"
-                class="h-10 flex-1 px-4 text-xs font-black transition"
-                :class="cartLineCount ? 'bg-[#004D3C] text-white hover:bg-[#00382c]' : 'cursor-not-allowed bg-gray-100 text-gray-400'"
-                :disabled="!cartLineCount"
-                @click="executeCartTransfers"
-              >
-                재고 이동 실행
-              </button>
-            </div>
-          </div>
-        </section>
-      </div>
+      <WarehouseTransferCartDrawer
+        :open="cartDrawerOpen"
+        :cart-groups="cartGroups"
+        :cart-line-count="cartLineCount"
+        @close="closeCartDrawer"
+        @clear-all="cartStore.clearAll()"
+        @execute="executeCartTransfers"
+        @remove-line="cartStore.removeLine($event)"
+        @update-line-qty="updateCartLineQty"
+      />
     </div>
 
     <section v-else class="border border-gray-200 bg-white p-10 text-center shadow-sm">

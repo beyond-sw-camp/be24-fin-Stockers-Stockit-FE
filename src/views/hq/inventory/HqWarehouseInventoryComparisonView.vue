@@ -2,9 +2,12 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
+import WarehouseTransferCartDrawer from '@/components/hq/WarehouseTransferCartDrawer.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useWarehouseTransferCartStore } from '@/stores/hq/warehouseTransferCart.js'
+import { executeWarehouseTransfers } from '@/api/hq/inventory.js'
+import { extractErrorMessage } from '@/api/axios.js'
 import { getWarehouseTransferImbalancedSkus } from '@/api/hq/inventory.js'
 
 const router = useRouter()
@@ -12,22 +15,20 @@ const route = useRoute()
 const auth = useAuthStore()
 const cartStore = useWarehouseTransferCartStore()
 const hqMenus = roleMenus.hq
-const inventoryMenus = roleMenus.hq.find(menu => menu.label === '재고 관리')?.children ?? []
+const inventoryMenus = roleMenus.hq.find(menu => menu.label === '물류 창고간 재고이동')?.children ?? []
 
-const activeTopMenu = computed(() => '재고 관리')
-const activeSideMenu = ref('창고간 재고 이동')
-const COLOR_LABEL_BY_CODE = {
-  BLK: '검정',
-  WHT: '흰색',
-  NVY: '네이비',
-  GRY: '그레이',
-}
+const activeTopMenu = computed(() => '물류 창고간 재고이동')
+const activeSideMenu = ref('재고 이동')
 
 const searchTerm = ref(String(route.query.search || ''))
 const selectedCategory = ref(String(route.query.category || '전체'))
 const selectedWarehouseGroup = ref(String(route.query.warehouseGroup || '전체'))
 const skuRows = ref([])
 const loading = ref(false)
+const cartDrawerOpen = ref(false)
+const toastMessage = ref('')
+const toastShowHistoryAction = ref(false)
+let toastTimer = null
 
 const categoryOptions = computed(() => ['전체', ...new Set(skuRows.value.map(sku => sku.category).filter(Boolean))])
 const warehouseGroupOptions = ['전체', '수도권', '충청권', '영남권']
@@ -55,6 +56,7 @@ const filteredSkuRows = computed(() => {
       return a.skuCode.localeCompare(b.skuCode)
     })
 })
+const ctaSkuCode = computed(() => cartStore.lines[0]?.skuCode || filteredSkuRows.value[0]?.skuCode || '')
 
 const loadImbalancedSkus = async () => {
   loading.value = true
@@ -62,7 +64,6 @@ const loadImbalancedSkus = async () => {
     const items = await getWarehouseTransferImbalancedSkus()
     skuRows.value = (items ?? []).map((item) => ({
       ...item,
-      colorLabel: COLOR_LABEL_BY_CODE[String(item.color ?? '').toUpperCase()] ?? item.color,
       warehouseGroups: inferWarehouseGroups(item.itemCode),
     }))
   } catch (error) {
@@ -94,12 +95,89 @@ const moveToSkuDetail = (sku) => {
   })
 }
 
+const moveToSkuDetailFromCta = () => {
+  const skuCode = ctaSkuCode.value
+  if (!skuCode) return
+  const target = filteredSkuRows.value.find((row) => row.skuCode === skuCode)
+  moveToSkuDetail(target || { skuCode })
+}
+
 const resetFilters = () => {
   searchTerm.value = ''
   selectedCategory.value = '전체'
   selectedWarehouseGroup.value = '전체'
 }
 
+const openCartDrawer = () => {
+  cartDrawerOpen.value = true
+}
+
+const closeCartDrawer = () => {
+  cartDrawerOpen.value = false
+}
+
+const updateCartLineQty = (lineId, event) => {
+  const nextQty = Number(event.target.value)
+  if (!Number.isFinite(nextQty) || nextQty < 1) {
+    event.target.value = '1'
+    cartStore.updateLineQty(lineId, 1)
+    return
+  }
+  cartStore.updateLineQty(lineId, Math.trunc(nextQty))
+}
+
+const showToast = (message, showHistoryAction = false) => {
+  toastMessage.value = message
+  toastShowHistoryAction.value = showHistoryAction
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => {
+    toastMessage.value = ''
+    toastShowHistoryAction.value = false
+  }, 3000)
+}
+
+const moveHistory = () => {
+  router.push({ name: 'hq-inventory-warehouse-transfer-history' })
+}
+
+const executeCartTransfers = async () => {
+  if (!cartStore.lineCount) return
+  try {
+    const beforeCount = cartStore.lineCount
+    const payload = {
+      requestedBy: auth.user?.name || '본사 관리자',
+      lines: cartStore.lines.map((line) => ({
+        lineId: line.lineId,
+        skuCode: line.skuCode,
+        fromWarehouseCode: line.fromWarehouseCode,
+        toWarehouseCode: line.toWarehouseCode,
+        qty: Number(line.qty),
+        reason: line.reason,
+        memo: line.memo,
+      })),
+    }
+
+    const result = await executeWarehouseTransfers(payload)
+    const lineResults = Array.isArray(result?.lineResults) ? result.lineResults : []
+    const failed = Array.isArray(result?.failedTransfers) ? result.failedTransfers : []
+    const successLineIds = lineResults.filter((row) => row.success).map((row) => row.lineId).filter(Boolean)
+    if (successLineIds.length) {
+      successLineIds.forEach((lineId) => cartStore.removeLine(lineId))
+    }
+
+    const successCount = Number(result?.successCount || successLineIds.length || 0)
+    const failureCount = Number(result?.failureCount || Math.max(0, beforeCount - successCount))
+    if (failureCount === 0) {
+      showToast(`장바구니 실행 완료: ${successCount}건 처리됨`, true)
+      closeCartDrawer()
+    } else {
+      showToast(`부분 완료: 성공 ${successCount}건 / 실패 ${failureCount}건`)
+    }
+    void failed
+  } catch (error) {
+    showToast(extractErrorMessage(error, '재고 이동 실행에 실패했습니다.'))
+  }
+}
 
 </script>
 
@@ -119,7 +197,7 @@ const resetFilters = () => {
             <button
               type="button"
               class="h-8 border border-gray-300 px-3 text-[11px] font-black text-gray-700 transition hover:bg-gray-100"
-              @click="router.push({ name: 'hq-inventory-warehouse-transfer-history' })"
+              @click="openCartDrawer"
             >
               장바구니 {{ cartStore.lineCount }}건
             </button>
@@ -192,7 +270,7 @@ const resetFilters = () => {
                 <td class="px-3 py-3 font-mono font-bold text-gray-700">{{ row.skuCode }}</td>
                 <td class="px-3 py-3 font-mono font-bold text-gray-500">{{ row.itemCode }}</td>
                 <td class="px-3 py-3 font-black text-gray-900">{{ row.itemName }}</td>
-                <td class="px-3 py-3 font-bold text-gray-600">{{ row.colorLabel }}</td>
+                <td class="px-3 py-3 font-bold text-gray-600">{{ row.color }}</td>
                 <td class="px-3 py-3 font-bold text-gray-600">{{ row.size }}</td>
                 <td class="px-3 py-3 font-bold text-gray-600">{{ row.category }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ row.totalOnHand.toLocaleString() }}</td>
@@ -215,6 +293,57 @@ const resetFilters = () => {
           </table>
         </div>
       </section>
+
+      <div class="fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 bg-white/95 backdrop-blur">
+        <div class="flex flex-wrap items-center gap-2 px-4 py-3">
+          <div class="min-w-0 flex-1">
+            <p class="text-[11px] font-black text-gray-500">재고 이동 장바구니</p>
+            <p class="text-xs font-bold text-gray-600">
+              현재 {{ cartStore.lineCount }}건이 담겨 있습니다. 이동 정보 입력은 SKU 상세 페이지에서 진행하세요.
+            </p>
+          </div>
+          <button
+            type="button"
+            class="flex h-10 shrink-0 items-center gap-1.5 border border-gray-300 px-4 text-xs font-black text-gray-700 transition hover:bg-gray-100"
+            @click="openCartDrawer"
+          >
+            장바구니 열기 ({{ cartStore.lineCount }})
+          </button>
+          <button
+            type="button"
+            class="h-10 shrink-0 border border-gray-300 bg-gray-100 px-4 text-xs font-black text-gray-400 cursor-not-allowed"
+            disabled
+          >
+            SKU 상세에서 입력
+          </button>
+        </div>
+      </div>
+
+      <WarehouseTransferCartDrawer
+        :open="cartDrawerOpen"
+        :cart-groups="cartStore.groupedByRoute"
+        :cart-line-count="cartStore.lineCount"
+        @close="closeCartDrawer"
+        @clear-all="cartStore.clearAll()"
+        @execute="executeCartTransfers"
+        @remove-line="cartStore.removeLine($event)"
+        @update-line-qty="updateCartLineQty"
+      />
+
+      <div
+        v-if="toastMessage"
+        class="fixed bottom-20 right-5 z-50 border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-black text-emerald-700 shadow-sm"
+      >
+        <p>{{ toastMessage }}</p>
+        <button
+          v-if="toastShowHistoryAction"
+          type="button"
+          class="mt-1 text-[11px] font-black text-emerald-800 underline"
+          @click="moveHistory"
+        >
+          이동내역 보기
+        </button>
+      </div>
     </div>
   </AppLayout>
 </template>

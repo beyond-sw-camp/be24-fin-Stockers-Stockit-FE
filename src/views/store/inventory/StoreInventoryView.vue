@@ -15,10 +15,7 @@ const isLoading = ref(false)
 const loadError = ref('')
 
 const storeMenus = roleMenus.store
-const sideMenus = roleMenus.store.find((menu) => menu.label === '재고 관리')?.children ?? []
-
-const activeTopMenu = ref('재고 관리')
-const activeSideMenu = ref('매장 재고 조회')
+const activeTopMenu = ref('매장 재고 조회')
 
 const CATEGORY_ORDER = ['상의', '바지', '치마', '아우터']
 
@@ -40,7 +37,7 @@ function compareMainCategory(a, b) {
 
 const inventoryRows = computed(() =>
   inventoryData.value
-    .map(item => ({
+    .map((item) => ({
       ...item,
       actualStock: Number(item.actualStock ?? 0),
       availableStock: Number(item.availableStock ?? 0),
@@ -126,8 +123,6 @@ function moveToSkuDetail(item) {
   })
 }
 
-
-
 async function loadInventories() {
   isLoading.value = true
   loadError.value = ''
@@ -144,15 +139,14 @@ async function loadInventories() {
 onMounted(() => {
   loadInventories()
 })
-
 </script>
 
 <template>
   <AppLayout
     :active-top-menu="activeTopMenu"
     :top-menus="storeMenus"
-    :side-menus="sideMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
+    :active-side-menu="activeSideMenu"
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-200 bg-white p-4 shadow-sm">
@@ -268,11 +262,11 @@ onMounted(() => {
                   </td>
                   <td class="px-3 py-3 font-bold text-gray-500">{{ formatDateTime(item.updatedAt) }}</td>
                 </tr>
-              <tr v-if="filteredInventory.length === 0">
-                <td colspan="8" class="px-3 py-14 text-center text-sm font-bold text-gray-400">
-                  {{ isLoading ? '매장 재고를 불러오는 중입니다.' : '조건에 맞는 매장 재고가 없습니다.' }}
-                </td>
-              </tr>
+                <tr v-if="filteredInventory.length === 0">
+                  <td colspan="8" class="px-3 py-14 text-center text-sm font-bold text-gray-400">
+                    {{ isLoading ? '매장 재고를 불러오는 중입니다.' : '조건에 맞는 매장 재고가 없습니다.' }}
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>

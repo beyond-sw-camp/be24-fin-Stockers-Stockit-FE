@@ -1,41 +1,39 @@
-export const roleMenus = {
+﻿export const roleMenus = {
   hq: [
     {
-      label: '대시보드',
+      label: '본사 대시보드',
       path: '/hq/dashboard',
       icon: 'layout',
-      children: [{ label: '운영 현황', path: '/hq/dashboard' }],
     },
     {
-      label: '재고 관리',
+      label: '전사 재고 조회',
       path: '/hq/inventory/company-wide',
       icon: 'warehouse',
-      children: [
-        { label: '전사 재고 조회', path: '/hq/inventory/company-wide' },
-        { label: '창고간 재고 이동', path: '/hq/inventory/warehouse-comparison' },
-        { label: '창고간 재고 이동 내역', path: '/hq/inventory/warehouse-transfer-history' },
-      ],
     },
     {
       label: '물류 창고 발주',
-      path: '/hq/orders',
+      path: '/hq/purchase-orders',
       icon: 'truck',
+    },
+    {
+      label: '물류 창고간 재고이동',
+      path: '/hq/inventory/warehouse-comparison',
+      icon: 'transfer',
       children: [
-        { label: '공급처 발주', path: '/hq/purchase-orders' },
-        { label: '공급처 관리', path: '/hq/vendors' },
+        { label: '재고 이동', path: '/hq/inventory/warehouse-comparison' },
+        { label: '재고 이동 내역', path: '/hq/inventory/warehouse-transfer-history' },
       ],
     },
     {
       label: '순환 재고 관리',
       path: '/hq/circular-inventory/candidates',
-      icon: 'refresh',
+      icon: 'recycle',
       children: [
-        { label: '순환 재고 후보 조회', path: '/hq/circular-inventory/candidates' },
+        { label: '순환 재고 전환', path: '/hq/circular-inventory/candidates' },
         { label: '순환 재고 조회', path: '/hq/circular-inventory' },
         { label: '순환 재고 거래처 관리', path: '/hq/circular-inventory/buyers' },
         { label: '순환 재고 판매 등록', path: '/hq/circular-inventory/sales/register' },
         { label: '순환 재고 판매 내역', path: '/hq/circular-inventory/sales/history' },
-        { label: '순환 재고 판매 분석', path: '/hq/circular-inventory/sales/analysis' },
       ],
     },
     {
@@ -48,20 +46,24 @@ export const roleMenus = {
       ],
     },
     {
-      label: '인프라 관리',
+      label: '매장/창고 정보 관리',
       path: '/hq/infrastructure',
       icon: 'store',
-      children: [
-        { label: '매장/창고 정보 관리', path: '/hq/infrastructure' },
-        { label: '매장/창고 매핑 관리', path: '/hq/infrastructure/mappings' },
-      ],
     },
     {
-      label: '매장 발주 수동 승인',
+      label: '매장 발주 배치 처리',
       path: '/hq/batch/store-order-approve',
       icon: 'check',
+    },
+    {
+      label: 'ESG 대시보드',
+      path: '/hq/esg',
+      icon: 'sprout',
       children: [
-        { label: '매장 발주 수동 배치 처리', path: '/hq/batch/store-order-approve' },
+        { label: '친환경 발자국 현황판', path: '/hq/esg' },
+        { label: '친환경 나무 키우기 점수', path: '/hq/esg/tree-score' },
+        { label: '탄소중립 관리', path: '/hq/esg/emissionquota' },
+        { label: '배출권 시장 가치', path: '/hq/esg/carbon-price' },
       ],
     },
     {
@@ -79,36 +81,23 @@ export const roleMenus = {
     {
       label: '계정 관리',
       path: '/hq/accounts',
-      icon: 'settings',
+      icon: 'user',
       children: [
         { label: '회원가입 승인', path: '/hq/accounts/approvals' },
         { label: '계정 관리', path: '/hq/accounts' },
       ],
     },
-    {
-      label: 'ESG 대시보드',
-      path: '/hq/esg',
-      icon: 'sprout',
-      children: [
-        { label: '친환경 발자국 현황판', path: '/hq/esg' },
-        { label: '친환경 나무 키우기 점수', path: '/hq/esg/tree-score' },
-        { label: '탄소중립 관리', path: '/hq/esg/emissionquota' },
-        { label: '배출권 시장 가치', path: '/hq/esg/carbon-price' },
-      ],
-    },
   ],
   store: [
     {
-      label: '대시보드',
+      label: '매장 대시보드',
       path: '/store/dashboard',
       icon: 'layout',
-      children: [{ label: '대시보드', path: '/store/dashboard' }],
     },
     {
-      label: '재고 관리',
+      label: '매장 재고 조회',
       path: '/store/inventory',
       icon: 'warehouse',
-      children: [{ label: '매장 재고 조회', path: '/store/inventory' }],
     },
     {
       label: '판매 관리',
@@ -117,7 +106,6 @@ export const roleMenus = {
       children: [
         { label: 'POS / 판매 등록', path: '/store/sales/register' },
         { label: '판매 내역', path: '/store/sales/history' },
-        { label: '판매 분석', path: '/store/sales/analysis' },
       ],
     },
     {
@@ -127,48 +115,34 @@ export const roleMenus = {
       children: [
         { label: '발주 요청', path: '/store/orders/request' },
         { label: '발주 내역', path: '/store/orders/history' },
-        { label: '발주 분석', path: '/store/orders/analysis' },
       ],
     },
     {
       label: '입고 관리',
       path: '/store/inbound/list',
       icon: 'check',
-      children: [
-        { label: '입고 리스트', path: '/store/inbound/list' },
-        { label: '입고 분석', path: '/store/inbound/analysis' },
-      ],
-    },
-    {
-      label: '통계',
-      path: '/store/stats',
-      icon: 'chart',
-      children: [
-        { label: '재고 운영 통계', path: '/store/stats' },
-      ],
     },
   ],
   warehouse: [
     {
-      label: '대시보드',
+      label: '창고 대시보드',
       path: '/warehouse/dashboard',
       icon: 'layout',
-      children: [{ label: '창고 대시보드', path: '/warehouse/dashboard' }],
     },
     {
-      label: '재고 관리',
+      label: '창고 재고 조회',
       path: '/warehouse/inventory',
       icon: 'warehouse',
-      children: [{ label: '창고 재고 조회', path: '/warehouse/inventory' }],
     },
     {
-      label: '입/출고 관리',
+      label: '입고 관리',
       path: '/warehouse/inbound',
-      icon: 'truck',
-      children: [
-        { label: '입고 관리', path: '/warehouse/inbound' },
-        { label: '출고 관리', path: '/warehouse/outbound' },
-      ],
+      icon: 'inbound',
+    },
+    {
+      label: '출고 관리',
+      path: '/warehouse/outbound',
+      icon: 'outbound',
     },
   ],
 }
@@ -176,7 +150,7 @@ export const roleMenus = {
 export const roleHomeMap = {
   hq: '/hq/dashboard',
   store: '/store/dashboard',
-  warehouse: '/warehouse/inventory',
+  warehouse: '/warehouse/dashboard',
 }
 
 export const roleDisplayName = {

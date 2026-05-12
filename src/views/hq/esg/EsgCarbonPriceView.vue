@@ -24,8 +24,10 @@ const auth = useAuthStore()
 
 // ─────────── AppLayout props ───────────
 const topMenus = computed(() => roleMenus.hq ?? [])
-const sideMenus = ref([])
-const activeSideMenu = ref('')
+const sideMenus = computed(
+  () => (roleMenus.hq ?? []).find((menu) => menu.label === 'ESG 대시보드')?.children ?? [],
+)
+const activeSideMenu = ref('배출권 시장 가치')
 
 // ─────────── 기간 필터 ───────────
 const PERIOD_OPTIONS = [
@@ -230,7 +232,7 @@ const chartOptions = {
 
 <template>
   <AppLayout
-    active-top-menu="ESG"
+    active-top-menu="ESG 대시보드"
     :top-menus="topMenus"
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"

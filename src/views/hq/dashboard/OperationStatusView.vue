@@ -19,10 +19,8 @@ import { getDefaultDateRange, toUiPurchaseStatus } from '@/views/hq/dashboard/da
 
 const router = useRouter()
 const hqMenus = roleMenus.hq
-const sideMenus = roleMenus.hq.find((menu) => menu.label === '대시보드')?.children ?? []
 
-const activeTopMenu = computed(() => '대시보드')
-const activeSideMenu = ref('운영 현황')
+const activeTopMenu = computed(() => '본사 대시보드')
 
 const dateLabel = computed(() =>
   new Intl.DateTimeFormat('ko-KR', {
@@ -203,8 +201,7 @@ onMounted(() => {
   <AppLayout
     :active-top-menu="activeTopMenu"
     :top-menus="hqMenus"
-    :side-menus="sideMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
     show-system-card
   >
     <div class="flex flex-col gap-4">

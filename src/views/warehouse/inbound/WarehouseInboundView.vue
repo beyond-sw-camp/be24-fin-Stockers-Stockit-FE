@@ -1,7 +1,5 @@
-
-<script setup>
-import { computed, h, onMounted, onUnmounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+﻿<script setup>
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import AppLayout from '@/components/common/AppLayout.vue'
 import WarehouseInboundConfirmModal from '@/components/warehouse/inbound/WarehouseInboundConfirmModal.vue'
 import WarehouseInboundDetailPanel from '@/components/warehouse/inbound/WarehouseInboundDetailPanel.vue'
@@ -9,12 +7,9 @@ import { SearchIcon } from '@/components/warehouse/inbound/icons.js'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useToast } from '@/composables/useToast.js'
 import { useWarehouseStatusFormat } from '@/composables/warehouse/useWarehouseStatusFormat.js'
-import { useAuthStore } from '@/stores/auth.js'
 import { useWarehouseInboundStore } from '@/stores/warehouse/warehouseInbound.js'
 import { useWarehouseStockStore } from '@/stores/warehouse/warehouseStock.js'
 
-const router = useRouter()
-const auth = useAuthStore()
 const inbound = useWarehouseInboundStore()
 const stockStore = useWarehouseStockStore()
 const { toast, triggerToast } = useToast()
@@ -24,9 +19,6 @@ const { statusClass, statusLabel, inboundTypeClass, inboundTypeLabel, formatDate
 // ─── 레이아웃 ────────────────────────────────────────────────────────────────
 const activeSideMenu = ref('입고 관리')
 const topMenus = roleMenus.warehouse
-const sideMenus = roleMenus.warehouse.find((menu) => menu.label === '입/출고 관리')?.children ?? []
-
-
 
 // ─── 상태 탭 ────────────────────────────────────────────────────────────────
 // 5탭 — [전체] + 거래처 책임 4단계 (READY_TO_SHIP 부터 노출). [입고 확정] 은 ARRIVED 일 때만.
@@ -57,9 +49,7 @@ const inboundPreview = computed(() => {
   return stockStore.getInboundPreview(order.warehouseId, order.items ?? [])
 })
 
-const previewHasShortage = computed(() =>
-  inboundPreview.value.some((row) => row.shortageAfter),
-)
+const previewHasShortage = computed(() => inboundPreview.value.some((row) => row.shortageAfter))
 
 // 우측 상세 품목 표 — 행마다 현재 실재고/안전재고 표시용 캐시
 const itemStocks = computed(() => {
@@ -108,10 +98,9 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
 
 <template>
   <AppLayout
-    active-top-menu="입/출고 관리"
+    active-top-menu="입고 관리"
     :top-menus="topMenus"
-    :side-menus="sideMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
 
   >
     <div class="flex flex-col gap-4">
@@ -312,4 +301,3 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
     </Transition>
   </AppLayout>
 </template>
->>>>>>> 6c7016aa57c471f851db80fc2bac659572b1e605
