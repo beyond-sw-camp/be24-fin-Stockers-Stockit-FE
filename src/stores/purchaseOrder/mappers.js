@@ -137,3 +137,18 @@ export function toBeUpdateReq({ warehouseCode, items }) {
     })),
   }
 }
+
+// 멀티 공급처 batch 생성 — vendorCode 없음 (BE 가 vendorProductCode 로 vendor 자동 매핑).
+// items 는 vendor 혼재 가능, BE 가 그룹핑.
+export function toBeBatchCreateReq({ warehouseCode, memberId, memberName, items }) {
+  return {
+    warehouseCode: warehouseCode ?? '',
+    memberId: memberId ?? '',
+    memberName: memberName ?? '',
+    items: items.map((item) => ({
+      vendorProductCode: item.productId,
+      skuCode: item.skuCode,
+      quantity: item.quantity,
+    })),
+  }
+}

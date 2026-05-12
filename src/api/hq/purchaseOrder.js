@@ -44,6 +44,15 @@ export const purchaseOrderApi = {
   create: (req) => apiClient.post(BASE, req).then(unwrap),
 
   /**
+   * 멀티 공급처 장바구니 → 공급처별 자동 분할 발주 N건 생성 (atomic).
+   * BE 가 vendorProductCode → Vendor 자동 매핑으로 vendor 그룹핑 → 단일 트랜잭션 안에 PO N건 생성.
+   * 1건이라도 실패하면 N건 모두 롤백, FE 카트는 보존.
+   * @param {{warehouseCode, memberId?, memberName?, items: [{vendorProductCode, skuCode, quantity}]}} req
+   * @returns {Promise<{orders: object[], vendorCount: number, itemCount: number, totalAmount: number}>}
+   */
+  createBatch: (req) => apiClient.post(`${BASE}/batch`, req).then(unwrap),
+
+  /**
    * 수정 (CEN-037, PENDING 만)
    * @param {string} code
    * @param {{warehouseId?, warehouseName?, items: [{vendorProductCode, quantity}]}} req
