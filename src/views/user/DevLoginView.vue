@@ -16,9 +16,9 @@ const selectedRole = ref('')   // 'HQ' | 'STORE' | 'WAREHOUSE'
 
 // 권한별 간편 로그인 계정 — BE AdminBootstrapRunner 가 생성하는 계정 (.env ADMIN_BOOTSTRAP_PASSWORD)
 const quickAccounts = {
-  HQ:        { code: 'HQ-A0001', password: 'Stockit!2026', label: '본사 관리자', icon: Building2, desc: '본사 통합 운영' },
-  STORE:     { code: 'ST-A0001', password: 'Stockit!2026', label: '매장 관리자', icon: Store,     desc: '매장 재고/주문' },
-  WAREHOUSE: { code: 'WH-A0001', password: 'Stockit!2026', label: '창고 관리자', icon: Warehouse, desc: '입출고/물류' },
+  HQ:        { code: 'hq0001', password: 'Stockit!2026', label: '본사 관리자', icon: Building2, desc: '본사 통합 운영' },
+  STORE:     { code: 'st0001', password: 'Stockit!2026', label: '매장 관리자', icon: Store,     desc: '매장 재고/주문' },
+  WAREHOUSE: { code: 'wh0001', password: 'Stockit!2026', label: '창고 관리자', icon: Warehouse, desc: '입출고/물류' },
 }
 
 const roleOptions = computed(() => Object.entries(quickAccounts).map(([key, v]) => ({ key, ...v })))
@@ -129,10 +129,6 @@ async function handleSubmit() {
 
       <!-- 오른쪽 로그인 폼 -->
       <div class="flex flex-col justify-center p-8 md:p-10">
-        <p class="mb-5 text-[28px] font-black leading-[1] tracking-[-0.01em] text-[#16A34A] sm:text-[36px] md:text-[44px]">
-          무중단 배포 GREEN v2
-        </p>
-
         <div class="mb-8">
           <div class="mb-4 inline-flex items-center gap-1.5 border border-[#cfe2dc] bg-[#eef7f4] px-2.5 py-1.5 text-[11px] font-black text-[#004D3C]">
             <ShieldCheck :size="14" />
