@@ -22,7 +22,6 @@ defineEmits([
   'scroll-to-catalog-sku',
   'open-clear-cart-confirm',
   'open-submit-confirm',
-  'toggle-collapse',
 ])
 </script>
 
@@ -36,24 +35,13 @@ defineEmits([
         <ShoppingCartIcon :size="14" />
         발주 요청서
       </h3>
-      <div class="inline-flex items-center gap-2">
-        <span class="text-[10px] font-bold opacity-80">
-          <template v-if="isEditMode">{{ cart.length }}건</template>
-          <template v-else-if="groupedByVendor.length > 0">
-            {{ groupedByVendor.length }}곳 · {{ cart.length }}건
-          </template>
-          <template v-else>{{ cart.length }}건</template>
-        </span>
-        <button
-          type="button"
-          class="ml-1 inline-flex h-5 w-5 items-center justify-center border border-white/30 text-[10px] font-black leading-none hover:bg-white/10"
-          title="발주 요청서 접기"
-          aria-label="발주 요청서 접기"
-          @click="$emit('toggle-collapse')"
-        >
-          ›
-        </button>
-      </div>
+      <span class="text-[10px] font-bold opacity-80">
+        <template v-if="isEditMode">{{ cart.length }}건</template>
+        <template v-else-if="groupedByVendor.length > 0">
+          {{ groupedByVendor.length }}곳 · {{ cart.length }}건
+        </template>
+        <template v-else>{{ cart.length }}건</template>
+      </span>
     </div>
 
     <!-- 공급처 표시 — edit 모드 단일 vendor / 신규 모드 그룹 카드 N장 -->
