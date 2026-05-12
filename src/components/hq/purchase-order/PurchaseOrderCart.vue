@@ -1,11 +1,13 @@
 <script setup>
 // 우측 발주서(장바구니). cart 상태 자체는 부모가 보유 — 자식은 표시 + 액션 emit 만.
-// 한 발주서 = 한 공급처 정책의 시점 헤더, 수량 +/- input, 라인별 소계, 총액, 비우기/요청 푸터까지.
+// 신규 모드: 헤더에 공급처 그룹 카드 N장 ("발주 N건 자동 생성"), 본문은 평면 SKU 리스트.
+// edit 모드: 단일 vendor 라벨, 본문 평면 SKU 리스트 (기존 흐름 회귀 보호).
 import { ShoppingCartIcon, TrashIcon } from '@/components/hq/purchase-order/icons.js'
 
 defineProps({
   cart: { type: Array, required: true },
   currentCartVendorName: { type: String, default: '' },
+  groupedByVendor: { type: Array, default: () => [] },
   cartTotal: { type: Number, required: true },
   canSubmit: { type: Boolean, required: true },
   isEditMode: { type: Boolean, default: false },
@@ -33,15 +35,41 @@ defineEmits([
         <ShoppingCartIcon :size="14" />
         발주 요청서
       </h3>
-      <span class="text-[10px] font-bold opacity-80">{{ cart.length }}건</span>
+      <span class="text-[10px] font-bold opacity-80">
+        <template v-if="isEditMode">{{ cart.length }}건</template>
+        <template v-else-if="groupedByVendor.length > 0">
+          {{ groupedByVendor.length }}곳 · {{ cart.length }}건
+        </template>
+        <template v-else>{{ cart.length }}건</template>
+      </span>
     </div>
 
-    <!-- 공급처 표시 -->
+    <!-- 공급처 표시 — edit 모드 단일 vendor / 신규 모드 그룹 카드 N장 -->
     <div
-      v-if="currentCartVendorName"
+      v-if="isEditMode && currentCartVendorName"
       class="border-b border-gray-200 bg-[#E6F2F0] px-4 py-2 text-[10px] font-black uppercase tracking-wider text-[#004D3C]"
     >
       {{ currentCartVendorName }}
+    </div>
+    <div
+      v-else-if="!isEditMode && groupedByVendor.length > 0"
+      class="space-y-1 border-b border-gray-200 bg-[#E6F2F0] px-3 py-2"
+    >
+      <p class="text-[9px] font-bold uppercase tracking-wider text-[#004D3C]/70">
+        공급처 {{ groupedByVendor.length }}곳 → 발주 {{ groupedByVendor.length }}건 자동 생성
+      </p>
+      <ul class="space-y-0.5">
+        <li
+          v-for="g in groupedByVendor"
+          :key="g.vendorId"
+          class="flex items-center justify-between gap-2 text-[10px] text-[#004D3C]"
+        >
+          <span class="truncate font-black">{{ g.vendorName }}</span>
+          <span class="shrink-0 font-bold">
+            {{ g.itemCount }}건 · ₩{{ g.subtotal.toLocaleString() }}
+          </span>
+        </li>
+      </ul>
     </div>
 
     <!-- 본문 -->
@@ -54,9 +82,11 @@ defineEmits([
           v-for="(item, idx) in cart"
           :key="(item.skuCode || item.productCode) + '-' + idx"
           class="border bg-white p-2 transition-colors"
-          :class="highlightedSkuCode === item.skuCode
-            ? 'border-[#004D3C] ring-2 ring-[#004D3C]/30'
-            : 'border-gray-200'"
+          :class="
+            highlightedSkuCode === item.skuCode
+              ? 'border-[#004D3C] ring-2 ring-[#004D3C]/30'
+              : 'border-gray-200'
+          "
           :data-cart-sku-code="item.skuCode"
         >
           <div class="flex items-start justify-between gap-2">
@@ -123,9 +153,7 @@ defineEmits([
     <div class="space-y-2 border-t border-gray-200 bg-gray-50 p-3">
       <div class="flex items-center justify-between">
         <span class="text-[11px] font-bold uppercase text-gray-500">총액</span>
-        <span class="text-sm font-black text-[#004D3C]">
-          ₩{{ cartTotal.toLocaleString() }}
-        </span>
+        <span class="text-sm font-black text-[#004D3C]"> ₩{{ cartTotal.toLocaleString() }} </span>
       </div>
       <div class="grid grid-cols-2 gap-2">
         <button

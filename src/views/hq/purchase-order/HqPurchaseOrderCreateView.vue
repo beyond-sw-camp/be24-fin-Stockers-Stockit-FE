@@ -5,6 +5,7 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { usePurchaseOrderStore } from '@/stores/purchaseOrder.js'
+import { usePurchaseOrderCartStore } from '@/stores/hq/purchaseOrderCart.js'
 import { ArrowLeftIcon } from '@/components/hq/purchase-order/icons.js'
 import PurchaseOrderBulkQtyModal from '@/components/hq/purchase-order/PurchaseOrderBulkQtyModal.vue'
 import PurchaseOrderCart from '@/components/hq/purchase-order/PurchaseOrderCart.vue'
@@ -19,6 +20,7 @@ const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 const poStore = usePurchaseOrderStore()
+const cartStore = usePurchaseOrderCartStore()
 
 const { toast, triggerToast } = useToast()
 // 카탈로그 child 의 expose 메소드(focusSearch/scrollToSku) 호출용 ref.
@@ -30,7 +32,6 @@ const editingOrderId = computed(() => route.params.id ?? null)
 // ─── 레이아웃 ────────────────────────────────────────────────────────────────
 const hqMenus = roleMenus.hq
 const activeTopMenu = computed(() => '물류 창고 발주')
-
 
 // ─── state ───────────────────────────────────────────────────────────────────
 const selectedWarehouseCode = ref('')
@@ -52,9 +53,6 @@ const { loadDraft, saveDraft, clearDraftStorage } = usePurchaseOrderDraft({
 // 창고 변경 confirm
 const showWarehouseChangeConfirm = ref(false)
 const pendingWarehouseId = ref(null)
-// 공급처 전환 confirm (한 발주서 = 한 공급처 정책)
-const showVendorSwitchConfirm = ref(false)
-const pendingNewVendorProduct = ref(null)
 // 장바구니 비우기 confirm
 const showClearCartConfirm = ref(false)
 // 발주 요청 최종 확인
@@ -105,13 +103,8 @@ function clearSelection() {
   selectedSkus.value = new Set()
 }
 
-function selectAllVisible() {
-  const set = new Set()
-  for (const r of filteredRows.value) {
-    if (r.type === 'sku') set.add(r.skuCode)
-  }
-  selectedSkus.value = set
-}
+// 전체 선택 — catalog 컴포넌트 자체에 헤더 체크박스 있음 (ERP 테이블 스타일).
+// 부모의 Ctrl+A 단축키는 더 이상 사용 안 함 (catalog 내부에서 처리).
 
 // Bulk 수량 모달 트리거 (Floating bar 에서 호출).
 function openBulkQtyModal() {
@@ -133,22 +126,11 @@ function handleBulkApply(qty) {
     triggerToast('먼저 입고 창고를 선택해주세요.')
     return
   }
-  // 선택된 SKU 들의 vendorCode 가 cart 공급처와 다른 게 섞여 있으면 거절 (한 공급처 룰)
   const selectedRows = []
   for (const r of poStore.catalogSkuRows) {
     if (r.type === 'sku' && selectedSkus.value.has(r.skuCode)) selectedRows.push(r)
   }
   if (selectedRows.length === 0) return
-  const firstVendor = selectedRows[0].vendorCode
-  const sameVendor = selectedRows.every((r) => r.vendorCode === firstVendor)
-  if (!sameVendor) {
-    triggerToast('서로 다른 공급처 SKU 가 섞여 있습니다.')
-    return
-  }
-  if (currentCartVendorId.value && firstVendor !== currentCartVendorId.value) {
-    triggerToast('장바구니의 공급처와 다릅니다. 장바구니를 비우고 다시 시도하세요.')
-    return
-  }
   for (const row of selectedRows) {
     pushSku(row, qty)
     rowQuantities.value[row.skuCode] = 0
@@ -162,8 +144,9 @@ function handleBulkApply(qty) {
 // 키보드 단축
 function handleKeydown(e) {
   const target = e.target
-  const inEditable = target instanceof HTMLElement
-    && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+  const inEditable =
+    target instanceof HTMLElement &&
+    (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
 
   if (e.key === 'Escape') {
     if (showBulkQtyModal.value) {
@@ -185,12 +168,7 @@ function handleKeydown(e) {
     return
   }
 
-  if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
-    if (!inEditable) {
-      selectAllVisible()
-      e.preventDefault()
-    }
-  }
+  // Ctrl+A 전체 선택은 catalog 컴포넌트 헤더 체크박스로 대체.
 }
 
 onMounted(() => {
@@ -215,20 +193,38 @@ const cartTotal = computed(() =>
 
 const canSubmit = computed(() => !!selectedWarehouseCode.value && cart.value.length > 0)
 
-const currentCartVendorId = computed(() =>
-  cart.value.length > 0 ? cart.value[0].vendorId : null,
-)
-
+// edit 모드 — 단일 vendor 잠금. cart 첫 item 의 vendor 가 잠긴 vendor.
 const currentCartVendorName = computed(() =>
   cart.value.length > 0 ? cart.value[0].vendorName : '',
 )
+
+// 신규 모드 — vendor 그룹핑 (멀티 공급처 허용). vendorName ASC 정렬.
+const groupedByVendor = computed(() => {
+  const map = new Map()
+  for (const it of cart.value) {
+    if (!map.has(it.vendorId)) {
+      map.set(it.vendorId, {
+        vendorId: it.vendorId,
+        vendorName: it.vendorName ?? '',
+        items: [],
+        itemCount: 0,
+        subtotal: 0,
+      })
+    }
+    const g = map.get(it.vendorId)
+    g.items.push(it)
+    g.itemCount += 1
+    g.subtotal += (Number(it.unitPrice) || 0) * (Number(it.quantity) || 0)
+  }
+  return Array.from(map.values()).sort((a, b) =>
+    String(a.vendorName).localeCompare(String(b.vendorName), 'ko'),
+  )
+})
 
 const pendingWarehouseName = computed(() => {
   if (!pendingWarehouseId.value) return ''
   return poStore.warehouses.find((w) => w.code === pendingWarehouseId.value)?.name ?? ''
 })
-
-const pendingNewVendorName = computed(() => pendingNewVendorProduct.value?.vendorName ?? '')
 
 const selectedWarehouseName = computed(
   () => poStore.warehouses.find((w) => w.code === selectedWarehouseCode.value)?.name ?? '',
@@ -238,7 +234,8 @@ const selectedWarehouseName = computed(
 
 // ─── 장바구니 액션 ───────────────────────────────────────────────────────────
 // SKU 행 [+] 클릭 → 행 안 수량 input 값을 cart 로 push. 동일 SKU 가 cart 에 있으면 합산.
-// 한 발주서 = 한 공급처 정책 — cart 에 다른 공급처가 있으면 공급처 전환 confirm.
+// 신규 모드는 여러 공급처 혼재 허용 (BE batch API 가 vendor 별로 자동 분할).
+// edit 모드는 단일 vendor 잠금이지만 vendorFilter 가 그 vendor 만 노출하므로 카탈로그 단계에서 차단됨.
 function addSkuToCart(row) {
   if (!selectedWarehouseCode.value) {
     triggerToast('먼저 입고 창고를 선택해주세요.')
@@ -247,11 +244,6 @@ function addSkuToCart(row) {
   const qty = Number(rowQuantities.value[row.skuCode]) || 0
   if (qty <= 0) {
     triggerToast('수량을 입력하세요.')
-    return
-  }
-  if (currentCartVendorId.value && row.vendorCode !== currentCartVendorId.value) {
-    pendingNewVendorProduct.value = row
-    showVendorSwitchConfirm.value = true
     return
   }
   pushSku(row, qty)
@@ -280,20 +272,16 @@ function pushSku(row, qty) {
   }
 }
 
-// Shift+Enter — 그룹 안 모든 수량 입력된 SKU 일괄 담기
-function addGroupToCart(masterKey) {
+// 그룹 단위 일괄 담기 제거 — ERP 테이블 평면화로 의미 없음.
+// 멀티 SKU 일괄은 catalog 의 체크박스 + Floating bar Bulk 모달로 대체.
+// (아래 함수는 router 호환만 위해 stub 유지 — 향후 제거 후보)
+function addGroupToCart() {
   if (!selectedWarehouseCode.value) {
     triggerToast('먼저 입고 창고를 선택해주세요.')
     return
   }
-  const skus = catalogSkuRows.value.filter((r) => r.type === 'sku' && r.masterKey === masterKey)
+  const skus = []
   if (skus.length === 0) return
-  // 한 공급처 룰
-  const vendorCode = skus[0].vendorCode
-  if (currentCartVendorId.value && vendorCode !== currentCartVendorId.value) {
-    triggerToast('장바구니의 공급처와 다릅니다.')
-    return
-  }
   let added = 0
   for (const row of skus) {
     const qty = Number(rowQuantities.value[row.skuCode]) || 0
@@ -308,24 +296,6 @@ function addGroupToCart(masterKey) {
   }
   saveDraft()
   triggerToast(`${added}개 SKU 를 담았습니다.`)
-}
-
-function confirmVendorSwitch() {
-  const row = pendingNewVendorProduct.value
-  cart.value = []
-  if (row) {
-    const qty = Number(rowQuantities.value[row.skuCode]) || 0
-    if (qty > 0) pushSku(row, qty)
-    rowQuantities.value[row.skuCode] = 0
-  }
-  pendingNewVendorProduct.value = null
-  showVendorSwitchConfirm.value = false
-  saveDraft()
-}
-
-function cancelVendorSwitch() {
-  pendingNewVendorProduct.value = null
-  showVendorSwitchConfirm.value = false
 }
 
 function updateQty(idx, qty) {
@@ -403,13 +373,6 @@ const warehouseSelectRef = ref(null)
 // ─── 발주 요청 ────────────────────────────────────────────────────────────────
 function openSubmitConfirm() {
   if (!canSubmit.value) return
-  // 방어: 한 공급처 정책 (이론상 발생 X 안전망)
-  const firstVendorId = cart.value[0].vendorId
-  const allSameVendor = cart.value.every((i) => i.vendorId === firstVendorId)
-  if (!allSameVendor) {
-    triggerToast('한 발주서에는 한 공급처 품목만 담을 수 있습니다.')
-    return
-  }
   showSubmitConfirm.value = true
 }
 
@@ -419,28 +382,28 @@ function cancelSubmitOrder() {
 
 async function confirmSubmitOrder() {
   showSubmitConfirm.value = false
-  const items = cart.value.map((i) => ({
-    productId: i.productId,
-    productCode: i.productCode,
-    productName: i.productName,
-    skuCode: i.skuCode,
-    color: i.color,
-    size: i.size,
-    displayOption: i.displayOption,
-    unitPrice: i.unitPrice,
-    quantity: i.quantity,
-    subtotal: i.unitPrice * i.quantity,
-  }))
 
   try {
     if (isEditMode.value) {
-      // 가드 재검증 — 다른 곳에서 상태 바뀌었을 수 있음
+      // edit 모드 — 단일 vendor PATCH 흐름 그대로 (회귀 보호)
       const order = poStore.purchaseOrders.find((o) => o.id === editingOrderId.value)
       if (!order || order.status !== 'REQUESTED') {
         triggerToast('상태가 변경되어 수정할 수 없습니다')
         setTimeout(() => router.replace({ name: 'hq-purchase-orders' }), 900)
         return
       }
+      const items = cart.value.map((i) => ({
+        productId: i.productId,
+        productCode: i.productCode,
+        productName: i.productName,
+        skuCode: i.skuCode,
+        color: i.color,
+        size: i.size,
+        displayOption: i.displayOption,
+        unitPrice: i.unitPrice,
+        quantity: i.quantity,
+        subtotal: i.unitPrice * i.quantity,
+      }))
       await poStore.updateOrder(editingOrderId.value, {
         warehouseCode: selectedWarehouseCode.value,
         items,
@@ -448,24 +411,28 @@ async function confirmSubmitOrder() {
       poStore.selectOrder(editingOrderId.value)
       triggerToast('발주가 수정되었습니다')
     } else {
-      const newOrder = await poStore.createOrder({
+      // 신규 모드 — 멀티 공급처 batch. vendor 별로 PO N건 atomic 생성.
+      cartStore.setItems(cart.value)
+      const res = await cartStore.createBatch({
         warehouseCode: selectedWarehouseCode.value,
-        vendorId: cart.value[0].vendorId,
-        vendorName: cart.value[0].vendorName,
-        items,
         memberId: auth.user?.memberId ?? 'MB-003',
         memberName: auth.user?.name ?? '이선엽',
       })
       cart.value = []
+      cartStore.clearAll()
       clearDraftStorage()
-      poStore.selectOrder(newOrder.id)
-      triggerToast('발주가 요청되었습니다')
+      const firstCode = res?.orders?.[0]?.code
+      if (firstCode) poStore.selectOrder?.(firstCode)
+      const orderCount = res?.orders?.length ?? 0
+      const vendorCount = res?.vendorCount ?? orderCount
+      triggerToast(`공급처 ${vendorCount}곳 / 발주 ${orderCount}건이 요청되었습니다`)
     }
 
     setTimeout(() => {
       router.push({ name: 'hq-purchase-orders' })
     }, 900)
   } catch (e) {
+    // atomic 시멘틱 — 카트 보존, 토스트만
     triggerToast(e?.message ?? '발주 처리에 실패했습니다')
   }
 }
@@ -507,12 +474,14 @@ function effectiveVendorCode() {
 }
 
 function reloadCatalog() {
-  poStore.fetchCatalog({
-    vendorCode: effectiveVendorCode(),
-    warehouseCode: selectedWarehouseCode.value,
-  }).catch((err) => {
-    console.error('[HqPurchaseOrderCreateView] fetchCatalog 실패', err)
-  })
+  poStore
+    .fetchCatalog({
+      vendorCode: effectiveVendorCode(),
+      warehouseCode: selectedWarehouseCode.value,
+    })
+    .catch((err) => {
+      console.error('[HqPurchaseOrderCreateView] fetchCatalog 실패', err)
+    })
 }
 
 onMounted(() => {
@@ -609,6 +578,7 @@ watch(vendorFilter, () => {
         <PurchaseOrderCart
           :cart="cart"
           :current-cart-vendor-name="currentCartVendorName"
+          :grouped-by-vendor="groupedByVendor"
           :cart-total="cartTotal"
           :can-submit="canSubmit"
           :is-edit-mode="isEditMode"
@@ -634,25 +604,8 @@ watch(vendorFilter, () => {
     >
       <p>
         장바구니 <strong>{{ cart.length }}건</strong>이 초기화됩니다. 입고 창고를
-        <strong>{{ pendingWarehouseName }}</strong>으로 변경할까요?
-      </p>
-    </PurchaseOrderConfirmModal>
-
-    <PurchaseOrderConfirmModal
-      :open="showVendorSwitchConfirm"
-      variant="amber"
-      title="공급처 변경"
-      confirm-label="새로 시작"
-      @cancel="cancelVendorSwitch"
-      @confirm="confirmVendorSwitch"
-    >
-      <p>
-        장바구니의 <strong>{{ currentCartVendorName }}</strong> 품목
-        <strong>{{ cart.length }}건</strong>이 초기화됩니다.
-        <strong>{{ pendingNewVendorName }}</strong> 공급처로 새로 시작할까요?
-      </p>
-      <p class="mt-2 text-[11px] text-gray-500">
-        한 발주서에는 한 공급처 품목만 담을 수 있습니다.
+        <strong>{{ pendingWarehouseName }}</strong
+        >으로 변경할까요?
       </p>
     </PurchaseOrderConfirmModal>
 
@@ -674,6 +627,7 @@ watch(vendorFilter, () => {
       :is-edit-mode="isEditMode"
       :warehouse-name="selectedWarehouseName"
       :vendor-name="currentCartVendorName"
+      :grouped-by-vendor="groupedByVendor"
       :item-count="cart.length"
       :total-amount="cartTotal"
       @cancel="cancelSubmitOrder"
