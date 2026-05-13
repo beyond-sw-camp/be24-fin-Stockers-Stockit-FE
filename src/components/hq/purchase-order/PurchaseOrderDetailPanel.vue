@@ -164,27 +164,20 @@ const { statusClass, statusLabel, historyDotClass, historyTextClass, formatDate 
           </button>
         </div>
         <p class="pt-1 text-center text-[11px] leading-relaxed text-gray-500">
-          30분 후 시스템이 자동으로 공급처 승인을 처리합니다.<br />
-          그 전에 [수정] 또는 [취소] 가능합니다.
+          [수정] 또는 [취소] 가능합니다.
         </p>
       </template>
 
       <template v-else-if="order.status === 'APPROVED'">
-        <p class="text-center text-xs leading-relaxed text-gray-500">
-          승인 완료 · 30분 후 시스템이 자동으로 배송 준비 처리합니다.
-        </p>
+        <p class="text-center text-xs leading-relaxed text-gray-500">승인 완료</p>
       </template>
 
       <template v-else-if="order.status === 'READY_TO_SHIP'">
-        <p class="text-center text-xs leading-relaxed text-gray-500">
-          배송 준비 중 · 30분 후 시스템이 자동으로 배송 시작 처리합니다.
-        </p>
+        <p class="text-center text-xs leading-relaxed text-gray-500">배송 준비 중</p>
       </template>
 
       <template v-else-if="order.status === 'IN_TRANSIT'">
-        <p class="text-center text-xs leading-relaxed text-gray-500">
-          배송 중 · 30분 후 시스템이 자동으로 배송 완료 처리합니다.
-        </p>
+        <p class="text-center text-xs leading-relaxed text-gray-500">배송 중</p>
       </template>
 
       <template v-else-if="order.status === 'ARRIVED'">
