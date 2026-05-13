@@ -118,7 +118,11 @@ function moveStep(step) {
   }
   saleStep.value = step
   // ADR-021 — Step 2 진입 시 AI 추천 1회 자동 호출 (사용자 결정 2026-04-30).
-  if (step === 2) {
+  if (
+    step === 2
+    && circularStockStore.recommendations.length === 0
+    && !circularStockStore.isRecommendationLoading
+  ) {
     circularStockStore.fetchRecommendations()
   }
 }
@@ -300,7 +304,7 @@ onBeforeUnmount(() => {
               class="h-9 border border-gray-300 bg-white px-4 text-xs font-black text-gray-700 transition hover:bg-gray-50"
               @click="goToSkuList"
             >
-              SKU 목록 보기
+              SKU 목록으로 돌아가기
             </button>
             
           </div>
@@ -356,19 +360,22 @@ onBeforeUnmount(() => {
                 </button>
             </div>
 
-            <p class="mt-3 text-[11px] font-bold text-gray-500">
+            <div class="h-1" />
+            <p class="text-[11px] font-bold text-gray-500">
               <template v-if="saleStep === 1"><span class="block text-right">한 건의 판매에서 같은 소재 구분의 SKU만 선택할 수 있습니다.</span></template>
               <template v-else-if="saleStep === 2"><span class="block text-right">AI가 추천한 거래처 중 선택하거나, 수동 검색으로 직접 찾을 수 있습니다.</span></template>
               <template v-else><span class="block text-right">판매 kg 기준 입력이며, 차감 벌 수량은 항상 올림 처리됩니다.</span></template>
             </p>
+            <div class="h-1" />
 
-            <div v-if="saleStep === 1" class="mt-4">
+            <div v-if="saleStep === 1" class="mt-0">
               <div class="mb-3 flex items-center justify-between gap-3">
                 <div>
                   <p class="text-sm font-black text-gray-900">선택 SKU</p>
                 </div>
                 <button type="button" class="text-[11px] font-black text-gray-500 hover:text-gray-900" @click="clearDraftPanel">전체 비우기</button>
               </div>
+              <div class="h-2" />
               <div class="overflow-x-auto border border-gray-200">
                 <table class="w-full border-collapse text-left text-xs">
                   <thead class="sticky top-0 bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
@@ -406,12 +413,12 @@ onBeforeUnmount(() => {
                   </tbody>
                 </table>
               </div>
-              <div class="mt-4 border-t border-gray-100 pt-2 flex justify-end">
+              <div class="mt-6 border-t border-gray-100 pt-3 flex justify-end">
                 <button type="button" class="h-9 border border-[#004D3C] bg-[#004D3C] px-4 text-xs font-black text-white disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400" :disabled="!canMoveStep2" @click="moveStep(2)">다음</button>
               </div>
             </div>
 
-            <div v-else-if="saleStep === 2" class="mt-4">
+            <div v-else-if="saleStep === 2" class="mt-0">
               <section ref="buyerDropdownRef" class="rounded-md border border-gray-200 bg-white p-4">
                 <!-- 모드 토글 — AI 추천 (default) / 수동 검색 -->
                 <div class="grid max-w-md grid-cols-2 gap-1 rounded-md border border-gray-200 bg-gray-50 p-1">
@@ -565,7 +572,7 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <div v-else class="mt-4 grid w-full gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(16rem,18rem)]">
+            <div v-else class="mt-0 grid w-full gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(16rem,18rem)]">
               <div class="min-w-0">
                 <div class="mb-3 flex items-center justify-between gap-3">
                   <div>
