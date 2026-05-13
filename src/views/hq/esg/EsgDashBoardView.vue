@@ -1,21 +1,20 @@
 <script setup>
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import {
   Leaf,
-  Recycle,
   ShieldCheck,
   TrendingDown,
   TrendingUp,
-  Award,
-  ChevronDown,
   Scale,
   Coins,
   CheckCircle2,
   RefreshCw,
-  Heart,
   Wallet,
+  X,
+  Save,
+  Edit3,
 } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import DoughnutChart from '@/components/common/charts/DoughnutChart.vue'
@@ -32,7 +31,7 @@ const auth = useAuthStore()
 const hqMenus = roleMenus.hq
 
 const activeTopMenu = computed(() => 'ESG 대시보드')
-const activeSideMenu = ref('친환경 발자국 현황판')
+const activeSideMenu = ref('탄소배출권 관리')
 const esgSideMenus = (hqMenus.find((menu) => menu.label === 'ESG 대시보드')?.children ?? [])
 
 const esgStore = useEsgStore()
@@ -138,8 +137,66 @@ const formatBasDtShort = (yyyymmdd) => {
 onMounted(loadCarbonPrice)
 
 // 배출 한도 vs 실적 데이터 — emissionQuota 스토어와 연동
-// (별도 페이지 /hq/esg/emissionquota 에서 입력한 활동량이 자동 반영됨)
+// 대시보드 진입 시 BE 에서 저장된 할당량/월별 실적을 불러와 새로고침/재로그인 후에도 동일하게 유지
 const quotaStore = useEmissionQuotaStore()
+onMounted(async () => {
+  try {
+    await quotaStore.fetchQuota()
+  } catch (err) {
+    console.error('[EsgDashBoardView] quota fetch failed:', err)
+  }
+})
+const {
+  fiscalYear,
+  yearlyAllocation,
+  warnThresholdPct,
+  monthlyEmissions,
+} = storeToRefs(quotaStore)
+
+const MONTH_LABELS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월']
+
+// 정부 할당량 입력 모달
+const showQuotaModal = ref(false)
+const quotaDraft = reactive({
+  yearlyAllocation: 0,
+  warnThresholdPct: 75,
+  monthly: ['', '', '', '', '', '', '', '', '', '', '', ''],
+})
+
+function openQuotaModal() {
+  quotaDraft.yearlyAllocation = yearlyAllocation.value
+  quotaDraft.warnThresholdPct = warnThresholdPct.value
+  quotaDraft.monthly = (monthlyEmissions.value ?? []).map(v => v == null ? '' : String(v))
+  while (quotaDraft.monthly.length < 12) quotaDraft.monthly.push('')
+  showQuotaModal.value = true
+}
+function closeQuotaModal() {
+  showQuotaModal.value = false
+}
+function quarterSum(q) {
+  const start = (q - 1) * 3
+  let sum = 0
+  for (let i = 0; i < 3; i++) {
+    const v = Number(quotaDraft.monthly[start + i])
+    if (!isNaN(v)) sum += v
+  }
+  return sum
+}
+async function saveQuotaModal() {
+  try {
+    const monthly = quotaDraft.monthly.map(v =>
+      v === '' || v === null || isNaN(Number(v)) ? null : Number(v),
+    )
+    await quotaStore.saveQuota({
+      allocation: Number(quotaDraft.yearlyAllocation) || 0,
+      warnPct:    Number(warnThresholdPct.value) || 75,
+      monthly,
+    })
+    showQuotaModal.value = false
+  } catch (err) {
+    alert('저장에 실패했습니다. 잠시 후 다시 시도해 주세요.')
+  }
+}
 
 const emissionCompliance = computed(() => ({
   allocation:     quotaStore.yearlyAllocation,
@@ -381,118 +438,8 @@ onMounted(() => {
 
 const kpiMetrics = [
   { label: '탄소 배출 절감', value: '2,847', unit: 'kg CO₂', sub: '전월 대비 +12%', icon: TrendingDown, valueCls: 'text-emerald-700', iconBg: 'bg-emerald-50', iconCls: 'text-emerald-600' },
-  { label: '소재 재활용 전환율', value: '68.4', unit: '%', sub: '목표치 70% 근접', icon: Recycle, valueCls: 'text-green-700', iconBg: 'bg-green-50', iconCls: 'text-green-600' },
-  { label: '폐기물 감소량', value: '1,240', unit: 'kg', sub: '불법폐기 0건', icon: ShieldCheck, valueCls: 'text-teal-700', iconBg: 'bg-teal-50', iconCls: 'text-teal-600' },
-  { label: '폐기 손실 수익전환', value: '4,820,000', unit: '원', sub: '순환 회수 완료', icon: Award, valueCls: 'text-amber-700', iconBg: 'bg-amber-50', iconCls: 'text-amber-600' },
+  { label: '순환재고 판매량', value: '1,240', unit: 'kg', sub: '불법폐기 0건', icon: ShieldCheck, valueCls: 'text-teal-700', iconBg: 'bg-teal-50', iconCls: 'text-teal-600' },
 ]
-
-// 나무 키우기 점수 카테고리 (5종)
-//  1. 순환재고 판매 실행      — 판매 1건당 기본 100점 (10kg 이상)
-//  2. 탄소 감축 기여           — 무게 × 소재 계수 × 0.5 (판매 + 기부 모두 합산)
-//  3. 순환 거래 확산           — 신규 거래처 첫 거래 +150
-//  4. 지역 상생                — 사회적기업/지역 소규모 파트너 거래 +150 (월 3건 한도)
-//  5. 기부 활동 실행           — 기부 1건당 기본 80점 (10kg 이상)
-//  ※ 카테고리 합계: 400 + 1,436 + 150 + 150 + 320 = 2,456 pt
-const scoreCategories = [
-  {
-    id: 'saleExecution',
-    label: '순환재고 판매 실행',
-    points: 400,
-    pct: 16.3,
-    icon: RefreshCw,
-    badge: '기본 점수',
-    barCls: 'bg-emerald-500',
-    badgeCls: 'bg-emerald-100 text-emerald-700',
-    iconCls: 'text-emerald-600',
-    desc: '순환재고 판매 1건이 최종 완료되면 적립되는 기본 점수',
-    formula: '판매 1건당 100점 (최소 10kg 이상 유효)',
-    rows: [
-      { label: '04.27', target: '폴리에스터 500kg 판매 (D사)', detail: '기본 100점', points: 100 },
-      { label: '04.20', target: '혼방 300kg 판매 (마을협동조합)', detail: '기본 100점', points: 100 },
-      { label: '04.15', target: '면 250kg 판매 (B사)', detail: '기본 100점', points: 100 },
-      { label: '04.10', target: '면 100kg 판매 (A사)', detail: '기본 100점', points: 100 },
-    ],
-  },
-  {
-    id: 'carbonReduction',
-    label: '탄소 감축 기여',
-    points: 1436,
-    pct: 58.5,
-    icon: Leaf,
-    badge: 'GHG Avoided',
-    barCls: 'bg-teal-500',
-    badgeCls: 'bg-teal-100 text-teal-700',
-    iconCls: 'text-teal-600',
-    desc: '소각되지 않고 판매·기부된 무게에 대한 실제 탄소 감축 환산 (판매 + 기부 합산)',
-    formula: '무게(kg) × 소재 계수 × 0.5 (면 1.8 / 폴리 2.3 / 나일론 2.1 / 울 2.5 / 혼방 비율 분해)',
-    rows: [
-      { label: '04.27', target: '폴리에스터 500kg 판매', detail: '500 × 2.3 × 0.5', points: 575 },
-      { label: '04.20', target: '혼방 300kg 판매 (면50:폴리50)', detail: '300 × 2.0 × 0.5', points: 300 },
-      { label: '04.15', target: '면 250kg 판매', detail: '250 × 1.8 × 0.5', points: 225 },
-      { label: '04.10', target: '면 100kg 판매', detail: '100 × 1.8 × 0.5', points: 90 },
-      { label: '04.28', target: '면 95kg 기부 (재해구호)', detail: '95 × 1.8 × 0.5', points: 86 },
-      { label: '04.22', target: '면 80kg 기부 (취약계층)', detail: '80 × 1.8 × 0.5', points: 72 },
-      { label: '04.14', target: '폴리 50kg 기부 (개도국)', detail: '50 × 2.3 × 0.5', points: 58 },
-      { label: '04.05', target: '혼방 30kg 기부 (교육기관)', detail: '30 × 2.0 × 0.5', points: 30 },
-    ],
-  },
-  {
-    id: 'newBuyer',
-    label: '순환 거래 확산',
-    points: 150,
-    pct: 6.1,
-    icon: Recycle,
-    badge: 'ESG-S 신규 채널',
-    barCls: 'bg-blue-500',
-    badgeCls: 'bg-blue-100 text-blue-700',
-    iconCls: 'text-blue-600',
-    desc: '신규 순환 거래처와의 첫 거래 — 소각 대체 채널 확장 기여',
-    formula: '신규 buyerId 첫 거래 1건당 +150점 (과거 순환 판매 이력 0건 판별)',
-    rows: [
-      { label: '04.27', target: '신규 거래처 D사 첫 거래 (폴리 500kg)', detail: '신규 채널 발굴 가점', points: 150 },
-    ],
-  },
-  {
-    id: 'localPartner',
-    label: '지역 상생',
-    points: 150,
-    pct: 6.1,
-    icon: ShieldCheck,
-    badge: 'ESG-S 사회적 가치',
-    barCls: 'bg-amber-500',
-    badgeCls: 'bg-amber-100 text-amber-700',
-    iconCls: 'text-amber-600',
-    desc: '지역 소규모 파트너 / 사회적 기업과 거래 — 지역 경제·사회적 가치 기여',
-    formula: '거래 1건당 +150점 (거래처당 월 3건 한도, 어뷰징 방지)',
-    rows: [
-      { label: '04.20', target: '마을협동조합 (사회적 기업) — 혼방 300kg', detail: '지역 상생 가점', points: 150 },
-    ],
-  },
-  {
-    id: 'donationExecution',
-    label: '기부 활동 실행',
-    points: 320,
-    pct: 13.0,
-    icon: Heart,
-    badge: '사회적 가치',
-    barCls: 'bg-pink-500',
-    badgeCls: 'bg-pink-100 text-pink-700',
-    iconCls: 'text-pink-600',
-    desc: '기부 1건이 최종 완료되면 적립되는 기본 점수',
-    formula: '기부 1건당 80점 (최소 10kg 이상 유효)',
-    rows: [
-      { label: '04.28', target: '재해 구호 (면 95kg)', detail: '기본 80점', points: 80 },
-      { label: '04.22', target: '취약 계층 지원 (면 80kg)', detail: '기본 80점', points: 80 },
-      { label: '04.14', target: '개도국 의류 지원 (폴리 50kg)', detail: '기본 80점', points: 80 },
-      { label: '04.05', target: '교육 기관 지원 (혼방 30kg)', detail: '기본 80점', points: 80 },
-    ],
-  },
-]
-
-const expandedId = ref(null)
-function toggleExpand(id) {
-  expandedId.value = expandedId.value === id ? null : id
-}
 
 // ─────────── 거래 가능 탄소 배출권 (자산 포트폴리오 스타일) ───────────
 //   잔여 한도 × KAU25 시세 = 보유 자산 가치
@@ -662,7 +609,7 @@ const dateLabel = computed(() =>
         <div class="flex flex-wrap items-center gap-3">
           <h2 class="inline-flex items-center gap-2 text-[15px] font-semibold text-gray-900">
             <Leaf :size="18" class="text-emerald-600" />
-            ESG 친환경 발자국 현황판
+            탄소배출권 관리
           </h2>
           <span class="border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] font-medium text-gray-500">
             기준: {{ dateLabel }}
@@ -679,12 +626,12 @@ const dateLabel = computed(() =>
         </div>
       </section>
 
-      <!-- KPI 카드 4개 -->
-      <section class="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <!-- KPI 카드 (2개) -->
+      <section class="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <article
           v-for="m in kpiMetrics"
           :key="m.label"
-          class="flex h-[90px] flex-col justify-between border border-gray-300 bg-white px-3 py-3 shadow-sm"
+          class="flex h-[90px] flex-col justify-between border border-gray-300 bg-white px-4 py-3 shadow-sm"
         >
           <div class="flex items-center justify-between">
             <p class="text-[11px] font-medium text-gray-500">{{ m.label }}</p>
@@ -715,10 +662,11 @@ const dateLabel = computed(() =>
             </h3>
             <button
               type="button"
-              class="text-[11px] font-medium text-blue-700 transition hover:underline"
-              @click="router.push('/hq/esg/emissionquota')"
+              class="inline-flex items-center gap-1 border border-blue-300 bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-700 transition hover:bg-blue-100"
+              @click="openQuotaModal"
             >
-              자세히 보기 →
+              <Edit3 :size="12" />
+              할당량 입력
             </button>
           </div>
 
@@ -741,7 +689,7 @@ const dateLabel = computed(() =>
               </div>
             </div>
 
-            <!-- 4개 메트릭: 정부 할당량 / YTD 실효 / 잔여 한도 / 회피 배출량 -->
+            <!-- 4개 메트릭: 정부 할당량 / 사용한 탄소 배출량 / 잔여 한도 / 절감한 탄소 배출량 -->
             <div class="grid grid-cols-4 gap-2">
               <div class="border border-gray-200 bg-gray-50 px-2 py-2">
                 <p class="text-[10px] text-gray-500">정부 할당량</p>
@@ -751,7 +699,7 @@ const dateLabel = computed(() =>
                 </div>
               </div>
               <div class="border border-gray-200 bg-gray-50 px-2 py-2">
-                <p class="text-[10px] text-gray-500">YTD 실효 배출</p>
+                <p class="text-[10px] text-gray-500">사용한 탄소 배출량</p>
                 <div class="mt-0.5 flex items-baseline gap-0.5">
                   <span class="text-[14px] font-bold text-blue-700">{{ emissionCompliance.ytdNet.toLocaleString() }}</span>
                   <span class="text-[9px] text-gray-400">tCO₂</span>
@@ -765,9 +713,9 @@ const dateLabel = computed(() =>
                 </div>
               </div>
               <div class="border border-emerald-200 bg-emerald-50 px-2 py-2">
-                <p class="text-[10px] text-emerald-700">회피 배출량</p>
+                <p class="text-[10px] text-emerald-700">절감한 탄소 배출량</p>
                 <div class="mt-0.5 flex items-baseline gap-0.5">
-                  <span class="text-[14px] font-bold text-emerald-700">−{{ emissionCompliance.ytdAvoided.toLocaleString() }}</span>
+                  <span class="text-[14px] font-bold text-emerald-700">{{ emissionCompliance.ytdAvoided.toLocaleString() }}</span>
                   <span class="text-[9px] text-emerald-600">tCO₂</span>
                 </div>
               </div>
@@ -814,7 +762,7 @@ const dateLabel = computed(() =>
             </div>
           </div>
 
-          <div class="flex flex-1 flex-col gap-3 px-3 pt-3 pb-3">
+          <div class="flex flex-1 flex-col gap-6 px-4 pt-4 pb-4">
             <!-- 폴백 알림 -->
             <div
               v-if="carbonLatest?.fallback"
@@ -824,59 +772,23 @@ const dateLabel = computed(() =>
             </div>
 
             <!-- 메인: 탄소배출권 현재 시세 (KAU25 가장 최근 종가) -->
-            <div class="border border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 px-3 py-3">
-              <p class="text-[10px] font-medium text-amber-700">탄소배출권 현재 시세</p>
-              <div class="mt-1 flex items-baseline gap-1">
-                <span class="text-[22px] font-black text-amber-700">
+            <div class="border border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 px-4 py-5">
+              <p class="text-[11px] font-medium text-amber-700">탄소배출권 현재 시세</p>
+              <div class="mt-2 flex items-baseline gap-1.5">
+                <span class="text-[26px] font-black text-amber-700">
                   ₩{{ (carbonLatest?.pricePerTon ?? 0).toLocaleString('ko-KR') }}
                 </span>
-                <span class="text-[11px] text-amber-700/80">/ tCO₂</span>
+                <span class="text-[12px] text-amber-700/80">/ tCO₂</span>
               </div>
-              <p class="mt-1 text-[10px] text-amber-700/70">
+              <p class="mt-2 text-[10px] text-amber-700/70">
                 KRX 한국거래소 배출권 시장 KAU25 가장 최근 종가
               </p>
             </div>
 
-            <!-- 3개 메트릭: 전일대비 / 7일 최고 / 7일 최저 -->
-            <div class="grid grid-cols-3 gap-2">
-              <div class="border border-gray-200 bg-gray-50 px-2 py-2">
-                <p class="text-[10px] text-gray-500">전일 대비</p>
-                <div
-                  class="mt-0.5"
-                  :class="carbonIsUp ? 'text-red-600' : carbonIsDown ? 'text-blue-600' : 'text-gray-700'"
-                >
-                  <span class="text-[12px] font-bold">{{ formatPct(carbonLatest?.fltRt) }}</span>
-                </div>
-              </div>
-              <div class="border border-gray-200 bg-gray-50 px-2 py-2">
-                <p class="text-[10px] text-gray-500">7일 최고가</p>
-                <div class="mt-0.5">
-                  <span class="text-[12px] font-bold text-red-600">
-                    ₩{{ carbonHigh7d.toLocaleString('ko-KR') }}
-                  </span>
-                </div>
-              </div>
-              <div class="border border-gray-200 bg-gray-50 px-2 py-2">
-                <p class="text-[10px] text-gray-500">7일 최저가</p>
-                <div class="mt-0.5">
-                  <span class="text-[12px] font-bold text-blue-600">
-                    ₩{{ carbonLow7d.toLocaleString('ko-KR') }}
-                  </span>
-                </div>
-              </div>
-            </div>
-
             <!-- 7일 시세 추이 (라인 차트) — 기존 "월별 환산 가치 추이" 자리 -->
-            <div class="mt-auto">
-              <div class="mb-1.5 flex items-center justify-between">
-                <p class="text-[10px] font-medium text-gray-500">최근 7거래일 시세 추이 (KAU25)</p>
-                <button
-                  type="button"
-                  class="text-[9px] font-medium text-amber-700 transition hover:underline"
-                  @click="router.push('/hq/esg/carbon-price')"
-                >
-                  자세히 보기 →
-                </button>
+            <div class="flex flex-col gap-3">
+              <div class="flex items-center justify-between">
+                <p class="text-[11px] font-medium text-gray-500">최근 7거래일 시세 추이 (KAU25)</p>
               </div>
               <LineChart
                 v-if="carbonTrend.length"
@@ -891,119 +803,14 @@ const dateLabel = computed(() =>
               >
                 {{ carbonError || '시세 불러오는 중...' }}
               </div>
-              <!-- 휴장일 안내 -->
-              <p class="mt-2 border-l-2 border-amber-300 bg-amber-50/50 px-2.5 py-2 text-[11.5px] leading-relaxed text-amber-900/80">
-                <span class="mr-0.5 font-bold">ⓘ</span>
-                한국거래소 배출권 시장은 <strong>평일 오전 10:00~12:00</strong>만 운영됩니다.
-                <strong>주말·공휴일</strong>은 휴장이라 시세가 형성되지 않아 그래프와 표에서 제외됩니다.
-              </p>
             </div>
-          </div>
-        </article>
-      </section>
 
-      <!-- 친환경 나무 키우기 점수 상세 -->
-      <section class="grid gap-3">
-
-        <!-- 친환경 나무 키우기 점수 상세 -->
-        <article class="border border-gray-300 bg-white shadow-sm">
-          <div class="flex items-center justify-between border-b border-gray-200 px-3 py-2.5">
-            <div>
-              <h3 class="text-sm font-medium text-gray-800">친환경 나무 키우기 점수</h3>
-              <p class="mt-0.5 text-[10px] text-gray-400">각 항목을 클릭하면 세부 내역과 산출 공식을 확인할 수 있습니다</p>
-            </div>
-            <button
-              type="button"
-              class="text-[11px] font-medium text-emerald-700 transition hover:underline"
-              @click="router.push('/hq/esg/tree-score')"
-            >
-              자세히 보기 →
-            </button>
-          </div>
-
-          <div class="divide-y divide-gray-100">
-            <div v-for="cat in scoreCategories" :key="cat.id">
-              <button
-                type="button"
-                class="flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-gray-50"
-                @click="toggleExpand(cat.id)"
-              >
-                <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100">
-                  <component :is="cat.icon" :size="15" :class="cat.iconCls" />
-                </div>
-                <div class="min-w-0 flex-1">
-                  <div class="flex items-center gap-2">
-                    <span class="text-[13px] font-semibold text-gray-800">{{ cat.label }}</span>
-                    <span
-                      v-if="cat.badge"
-                      class="rounded-full px-1.5 py-0.5 text-[9px] font-bold"
-                      :class="cat.badgeCls"
-                    >
-                      {{ cat.badge }}
-                    </span>
-                  </div>
-                  <p class="mt-0.5 text-[11px] text-gray-400">{{ cat.desc }}</p>
-                  <div class="mt-1.5 flex items-center gap-2">
-                    <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-100">
-                      <div class="h-1.5 rounded-full" :class="cat.barCls" :style="{ width: cat.pct + '%' }" />
-                    </div>
-                    <span class="shrink-0 text-[10px] text-gray-400">{{ cat.pct }}%</span>
-                  </div>
-                </div>
-                <div class="shrink-0 text-right">
-                  <span class="text-[16px] font-bold text-gray-900">{{ cat.points.toLocaleString() }}</span>
-                  <span class="ml-0.5 text-[10px] text-gray-400">pt</span>
-                </div>
-                <ChevronDown
-                  :size="14"
-                  class="shrink-0 text-gray-400 transition-transform duration-200"
-                  :class="expandedId === cat.id ? 'rotate-180' : ''"
-                />
-              </button>
-
-              <!-- 펼침 상세 -->
-              <div v-if="expandedId === cat.id" class="border-t border-gray-100 bg-gray-50 px-3 py-3">
-                <p class="mb-2.5 text-[10px] text-gray-500">
-                  산출 공식:
-                  <span class="font-medium text-gray-700">{{ cat.formula }}</span>
-                </p>
-                <table class="w-full">
-                  <thead>
-                    <tr class="text-[10px] uppercase text-gray-400">
-                      <th class="pb-1.5 text-left font-medium">항목</th>
-                      <th class="pb-1.5 text-center font-medium">상세</th>
-                      <th class="pb-1.5 text-center font-medium">대상</th>
-                      <th class="pb-1.5 text-right font-medium">점수</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-gray-100">
-                    <tr v-for="row in cat.rows" :key="row.label" class="text-[12px]">
-                      <td class="py-1.5 font-medium text-gray-700">{{ row.label }}</td>
-                      <td class="py-1.5 text-center text-gray-400">{{ row.detail }}</td>
-                      <td class="py-1.5 text-center text-gray-500">{{ row.target || '-' }}</td>
-                      <td class="py-1.5 text-right font-bold text-emerald-700">+{{ row.points.toLocaleString() }}</td>
-                    </tr>
-                    <tr class="border-t border-gray-200 text-[12px]">
-                      <td colspan="3" class="py-1.5 text-right font-semibold text-gray-600">소계</td>
-                      <td class="py-1.5 text-right text-[13px] font-bold text-gray-900">
-                        {{ cat.points.toLocaleString() }} pt
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          <!-- 총점 -->
-          <div class="border-t border-gray-300 bg-gray-50 px-3 py-2.5">
-            <div class="flex items-center justify-between">
-              <span class="text-[12px] font-semibold text-gray-600">총 ESG 점수</span>
-              <div class="flex items-baseline gap-1">
-                <span class="text-[22px] font-black text-emerald-700">{{ totalPoints.toLocaleString() }}</span>
-                <span class="text-[11px] text-gray-400">pt</span>
-              </div>
-            </div>
+            <!-- 휴장일 안내 (하단으로 이동, 카드 전체 높이를 채우기 위해 mt-auto) -->
+            <p class="mt-auto border-l-2 border-amber-300 bg-amber-50/50 px-3 py-3 text-[11.5px] leading-relaxed text-amber-900/80">
+              <span class="mr-0.5 font-bold">ⓘ</span>
+              한국거래소 배출권 시장은 <strong>평일 오전 10:00~12:00</strong>만 운영됩니다.
+              <strong>주말·공휴일</strong>은 휴장이라 시세가 형성되지 않아 그래프와 표에서 제외됩니다.
+            </p>
           </div>
         </article>
       </section>
@@ -1107,5 +914,105 @@ const dateLabel = computed(() =>
       </section>
 
     </div>
+
+    <!-- 정부 할당량 관리 모달 -->
+    <Teleport to="body">
+      <div
+        v-if="showQuotaModal"
+        class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4"
+        @click.self="closeQuotaModal"
+      >
+        <div class="flex max-h-[90vh] w-full max-w-2xl flex-col border border-gray-300 bg-white shadow-2xl">
+          <!-- 헤더 -->
+          <div class="flex items-center justify-between border-b border-gray-200 bg-gradient-to-r from-blue-50 to-emerald-50 px-5 py-3">
+            <h3 class="inline-flex items-center gap-2 text-[15px] font-bold text-gray-900">
+              <Scale :size="18" class="text-blue-600" />
+              {{ fiscalYear }} 정부 할당량 관리
+            </h3>
+            <button
+              type="button"
+              class="flex h-7 w-7 items-center justify-center text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+              @click="closeQuotaModal"
+            >
+              <X :size="16" />
+            </button>
+          </div>
+
+          <!-- 본문 -->
+          <div class="flex-1 overflow-y-auto px-5 py-4">
+            <!-- 연간 할당량 -->
+            <div class="mb-4">
+              <label class="flex flex-col gap-1">
+                <span class="text-[11px] font-semibold text-gray-700">연간 할당량 (tCO₂)</span>
+                <input
+                  v-model.number="quotaDraft.yearlyAllocation"
+                  type="number"
+                  min="0"
+                  class="border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
+                  placeholder="예: 1000"
+                />
+              </label>
+            </div>
+
+            <!-- 월별 입력 (분기별 4행) -->
+            <div class="mb-6">
+              <p class="mb-1.5 text-[11px] font-semibold text-gray-700">월별 실적 (tCO₂)</p>
+              <div class="flex flex-col gap-1.5">
+                <div
+                  v-for="q in 4"
+                  :key="q"
+                  class="grid grid-cols-4 gap-2"
+                >
+                  <label
+                    v-for="m in 3"
+                    :key="m"
+                    class="flex flex-col gap-0.5 border border-gray-200 bg-gray-50 px-2 py-1.5"
+                  >
+                    <span class="text-[10px] font-medium text-gray-500">{{ MONTH_LABELS[(q - 1) * 3 + (m - 1)] }}</span>
+                    <input
+                      v-model="quotaDraft.monthly[(q - 1) * 3 + (m - 1)]"
+                      type="number"
+                      min="0"
+                      class="w-full border-0 bg-transparent p-0 text-[12px] font-semibold text-gray-900 focus:outline-none focus:ring-0"
+                      placeholder="-"
+                    />
+                  </label>
+                  <div class="flex flex-col gap-0.5 border border-blue-200 bg-blue-50 px-2 py-1.5">
+                    <span class="text-[10px] font-semibold text-blue-700">Q{{ q }}</span>
+                    <span class="text-[12px] font-bold text-blue-700">
+                      {{ quarterSum(q).toLocaleString() }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 안내 -->
+            <p class="text-[11px] text-gray-500">
+              매월 활동량 입력 시 tCO₂로 자동 환산됩니다. YTD는 누적, 분기 차트는 3개월씩 합산.
+            </p>
+          </div>
+
+          <!-- 푸터 -->
+          <div class="flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3">
+            <button
+              type="button"
+              class="border border-gray-300 bg-white px-3 py-1.5 text-[12px] font-semibold text-gray-700 transition hover:bg-gray-100"
+              @click="closeQuotaModal"
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              class="inline-flex items-center gap-1 border border-blue-600 bg-blue-600 px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-blue-700"
+              @click="saveQuotaModal"
+            >
+              <Save :size="13" />
+              저장
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </AppLayout>
 </template>
