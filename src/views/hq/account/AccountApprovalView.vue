@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   ClipboardList,
   Users,
@@ -13,8 +14,9 @@ import {
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { accountApi } from '@/api/hq/account.js'
+import { accountApi } from '@/api/hq/account.js'
 const auth = useAuthStore()
+const router = useRouter()
 const hqMenus = roleMenus.hq
 
 const activeSideMenu = ref('회원가입 승인')
@@ -163,6 +165,31 @@ async function confirmReject() {
     v-model:active-side-menu="activeSideMenu"
   >
     <div class="flex flex-col gap-3">
+
+      <!-- 탭 네비게이션 -->
+      <section class="border border-gray-300 bg-white shadow-sm">
+        <div class="flex">
+          <button
+            type="button"
+            class="inline-flex flex-1 items-center justify-center gap-2 border-b-2 border-transparent px-4 py-3 text-[13px] font-semibold text-gray-500 transition hover:text-gray-700"
+            @click="router.push('/hq/accounts')"
+          >
+            <Users :size="14" />
+            계정 목록
+          </button>
+          <button
+            type="button"
+            class="inline-flex flex-1 items-center justify-center gap-2 border-b-2 px-4 py-3 text-[13px] font-semibold transition border-[#004D3C] text-[#004D3C]"
+          >
+            <ClipboardList :size="14" />
+            회원가입 승인
+            <span
+              v-if="pendingCount > 0"
+              class="ml-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-bold text-white"
+            >{{ pendingCount }}</span>
+          </button>
+        </div>
+      </section>
 
       <!-- 페이지 헤더 -->
       <section class="flex flex-wrap items-center justify-between gap-3 border border-gray-300 bg-white px-3 py-2.5 shadow-sm">

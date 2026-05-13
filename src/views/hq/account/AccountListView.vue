@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   Users,
   Search,
@@ -11,13 +12,15 @@ import {
   Building2,
   Store,
   Warehouse,
+  ClipboardList,
 } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { accountApi } from '@/api/hq/account.js'
-import { extractErrorMessage } from '@/api/axios.js'
+import { extractErrorMessage } from '@/api/axios.js'
 const auth = useAuthStore()
+const router = useRouter()
 const hqMenus = roleMenus.hq
 
 const activeSideMenu = ref('계정 관리')
@@ -70,20 +73,21 @@ const formatDateTime = (iso) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-// ── BE 회원 목록 (활성 + 탈퇴만 표시 — 승인 대기/거절은 회원가입 승인 페이지에서 처리)
+// ── BE 회원 목록 (활성 + 탈퇴만 표시 — 승인 대기/거절은 회원가입 승인 탭에서 처리)
 const VISIBLE_STATUSES = ['APPROVED', 'WITHDRAWN']
 
-const members = ref([])
+const allAccounts = ref([]) // 전체 상태 (PENDING 포함) — 탭 뱃지용
 const loading = ref(false)
 const loadError = ref('')
+
+const members = computed(() => allAccounts.value.filter((m) => VISIBLE_STATUSES.includes(m.status)))
+const pendingCount = computed(() => allAccounts.value.filter((m) => m.status === 'PENDING').length)
 
 async function loadAccounts() {
   loading.value = true
   loadError.value = ''
   try {
-    const list = await accountApi.listAll()
-    // PENDING / REJECTED 제외
-    members.value = list.filter(m => VISIBLE_STATUSES.includes(m.status))
+    allAccounts.value = await accountApi.listAll()
   } catch (err) {
     loadError.value = extractErrorMessage(err, '계정 목록을 불러오지 못했습니다.')
   } finally {
@@ -192,6 +196,31 @@ async function confirmWithdraw() {
     v-model:active-side-menu="activeSideMenu"
   >
     <div class="flex flex-col gap-3">
+
+      <!-- 탭 네비게이션 -->
+      <section class="border border-gray-300 bg-white shadow-sm">
+        <div class="flex">
+          <button
+            type="button"
+            class="inline-flex flex-1 items-center justify-center gap-2 border-b-2 px-4 py-3 text-[13px] font-semibold transition border-[#004D3C] text-[#004D3C]"
+          >
+            <Users :size="14" />
+            계정 목록
+          </button>
+          <button
+            type="button"
+            class="inline-flex flex-1 items-center justify-center gap-2 border-b-2 border-transparent px-4 py-3 text-[13px] font-semibold text-gray-500 transition hover:text-gray-700"
+            @click="router.push('/hq/accounts/approvals')"
+          >
+            <ClipboardList :size="14" />
+            회원가입 승인
+            <span
+              v-if="pendingCount > 0"
+              class="ml-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-bold text-white"
+            >{{ pendingCount }}</span>
+          </button>
+        </div>
+      </section>
 
       <!-- 페이지 헤더 -->
       <section class="flex flex-wrap items-center justify-between gap-3 border border-gray-300 bg-white px-3 py-2.5 shadow-sm">
