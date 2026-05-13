@@ -19,10 +19,31 @@ const inventoryMenus = roleMenus.hq.find(menu => menu.label === '물류 창고�
 
 const activeTopMenu = computed(() => '물류 창고간 재고이동')
 const activeSideMenu = ref('재고 이동')
+const COLOR_LABEL_BY_CODE = {
+  BLK: '검정',
+  WHT: '흰색',
+  NVY: '네이비',
+  GRY: '그레이',
+}
 
 const searchTerm = ref(String(route.query.search || ''))
-const selectedCategory = ref(String(route.query.category || '전체'))
-const selectedWarehouseGroup = ref(String(route.query.warehouseGroup || '전체'))
+const parseCategoryLabel = (categoryLabel) => {
+  const [parentCategory = '', childCategory = ''] = String(categoryLabel ?? '')
+    .split('>')
+    .map((part) => part.trim())
+  return { parentCategory, childCategory }
+}
+
+const initialCategory = String(route.query.category || '')
+const initialParsedCategory = parseCategoryLabel(initialCategory)
+const selectedParentCategory = ref(
+  String(route.query.parentCategory || route.query.filterParentCategory || initialParsedCategory.parentCategory || ''),
+)
+const selectedChildCategory = ref(
+  String(route.query.childCategory || route.query.filterChildCategory || initialParsedCategory.childCategory || ''),
+)
+const selectedColor = ref(String(route.query.filterColor || ''))
+const selectedSize = ref(String(route.query.filterSize || ''))
 const skuRows = ref([])
 const loading = ref(false)
 const cartDrawerOpen = ref(false)
@@ -30,18 +51,36 @@ const toastMessage = ref('')
 const toastShowHistoryAction = ref(false)
 let toastTimer = null
 
-const categoryOptions = computed(() => ['전체', ...new Set(skuRows.value.map(sku => sku.category).filter(Boolean))])
-const warehouseGroupOptions = ['전체', '수도권', '충청권', '영남권']
-
-const inferWarehouseGroups = () => ['수도권', '충청권', '영남권']
-
+const parentCategoryOptions = computed(() =>
+  [...new Set(skuRows.value.map((sku) => sku.parentCategory).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'ko')),
+)
+const childCategoryOptions = computed(() => {
+  if (!selectedParentCategory.value) return []
+  return [...new Set(
+    skuRows.value
+      .filter((sku) => sku.parentCategory === selectedParentCategory.value)
+      .map((sku) => sku.childCategory)
+      .filter(Boolean),
+  )].sort((a, b) => a.localeCompare(b, 'ko'))
+})
+const colorOptions = computed(() =>
+  [...new Set(skuRows.value.map((sku) => sku.colorLabel).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'ko')),
+)
+const sizeOptions = computed(() =>
+  [...new Set(skuRows.value.map((sku) => sku.size).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'ko')),
+)
 const filteredSkuRows = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase()
 
   return [...skuRows.value]
     .filter((row) => {
-      if (selectedCategory.value !== '전체' && row.category !== selectedCategory.value) return false
-      if (selectedWarehouseGroup.value !== '전체' && !row.warehouseGroups.includes(selectedWarehouseGroup.value)) return false
+      if (selectedParentCategory.value && row.parentCategory !== selectedParentCategory.value) return false
+      if (selectedChildCategory.value && row.childCategory !== selectedChildCategory.value) return false
+      if (selectedColor.value && row.colorLabel !== selectedColor.value) return false
+      if (selectedSize.value && row.size !== selectedSize.value) return false
       if (!keyword) return true
 
       return [row.skuCode, row.itemCode, row.itemName].join(' ').toLowerCase().includes(keyword)
@@ -64,7 +103,8 @@ const loadImbalancedSkus = async () => {
     const items = await getWarehouseTransferImbalancedSkus()
     skuRows.value = (items ?? []).map((item) => ({
       ...item,
-      warehouseGroups: inferWarehouseGroups(item.itemCode),
+      ...parseCategoryLabel(item.category),
+      colorLabel: COLOR_LABEL_BY_CODE[String(item.color ?? '').toUpperCase()] ?? String(item.color ?? ''),
     }))
   } catch (error) {
     skuRows.value = []
@@ -89,8 +129,10 @@ const moveToSkuDetail = (sku) => {
       color: sku.color || undefined,
       size: sku.size || undefined,
       search: searchTerm.value || undefined,
-      filterCategory: selectedCategory.value !== '전체' ? selectedCategory.value : undefined,
-      warehouseGroup: selectedWarehouseGroup.value !== '전체' ? selectedWarehouseGroup.value : undefined,
+      filterParentCategory: selectedParentCategory.value || undefined,
+      filterChildCategory: selectedChildCategory.value || undefined,
+      filterColor: selectedColor.value || undefined,
+      filterSize: selectedSize.value || undefined,
     },
   })
 }
@@ -104,8 +146,14 @@ const moveToSkuDetailFromCta = () => {
 
 const resetFilters = () => {
   searchTerm.value = ''
-  selectedCategory.value = '전체'
-  selectedWarehouseGroup.value = '전체'
+  selectedParentCategory.value = ''
+  selectedChildCategory.value = ''
+  selectedColor.value = ''
+  selectedSize.value = ''
+}
+
+const handleParentCategoryChange = () => {
+  selectedChildCategory.value = ''
 }
 
 const openCartDrawer = () => {
@@ -205,7 +253,7 @@ const executeCartTransfers = async () => {
           <p class="mt-1 text-xs font-bold text-gray-500">부족 창고가 많은 SKU를 우선 확인하고 상세에서 장바구니를 구성해 이동을 실행합니다.</p>
         </div>
 
-        <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-[1.2fr_0.9fr_0.9fr_auto]">
+        <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-[1.2fr_0.8fr_0.8fr_0.7fr_0.7fr_auto]">
           <label class="flex flex-col gap-1">
             <span class="text-[11px] font-bold text-gray-500">검색</span>
             <input
@@ -217,16 +265,42 @@ const executeCartTransfers = async () => {
           </label>
 
           <label class="flex flex-col gap-1">
-            <span class="text-[11px] font-bold text-gray-500">카테고리</span>
-            <select v-model="selectedCategory" class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
-              <option v-for="category in categoryOptions" :key="category" :value="category">{{ category }}</option>
+            <span class="text-[11px] font-bold text-gray-500">카테고리 1단계</span>
+            <select
+              v-model="selectedParentCategory"
+              class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
+              @change="handleParentCategoryChange"
+            >
+              <option value="">전체</option>
+              <option v-for="category in parentCategoryOptions" :key="category" :value="category">{{ category }}</option>
             </select>
           </label>
 
           <label class="flex flex-col gap-1">
-            <span class="text-[11px] font-bold text-gray-500">창고군</span>
-            <select v-model="selectedWarehouseGroup" class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
-              <option v-for="group in warehouseGroupOptions" :key="group" :value="group">{{ group }}</option>
+            <span class="text-[11px] font-bold text-gray-500">카테고리 2단계</span>
+            <select
+              v-model="selectedChildCategory"
+              class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C] disabled:bg-gray-50 disabled:text-gray-400"
+              :disabled="!selectedParentCategory"
+            >
+              <option value="">전체</option>
+              <option v-for="category in childCategoryOptions" :key="category" :value="category">{{ category }}</option>
+            </select>
+          </label>
+
+          <label class="flex flex-col gap-1">
+            <span class="text-[11px] font-bold text-gray-500">색상</span>
+            <select v-model="selectedColor" class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
+              <option value="">전체</option>
+              <option v-for="color in colorOptions" :key="color" :value="color">{{ color }}</option>
+            </select>
+          </label>
+
+          <label class="flex flex-col gap-1">
+            <span class="text-[11px] font-bold text-gray-500">사이즈</span>
+            <select v-model="selectedSize" class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
+              <option value="">전체</option>
+              <option v-for="size in sizeOptions" :key="size" :value="size">{{ size }}</option>
             </select>
           </label>
 
@@ -270,7 +344,7 @@ const executeCartTransfers = async () => {
                 <td class="px-3 py-3 font-mono font-bold text-gray-700">{{ row.skuCode }}</td>
                 <td class="px-3 py-3 font-mono font-bold text-gray-500">{{ row.itemCode }}</td>
                 <td class="px-3 py-3 font-black text-gray-900">{{ row.itemName }}</td>
-                <td class="px-3 py-3 font-bold text-gray-600">{{ row.color }}</td>
+                <td class="px-3 py-3 font-bold text-gray-600">{{ row.colorLabel }}</td>
                 <td class="px-3 py-3 font-bold text-gray-600">{{ row.size }}</td>
                 <td class="px-3 py-3 font-bold text-gray-600">{{ row.category }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ row.totalOnHand.toLocaleString() }}</td>

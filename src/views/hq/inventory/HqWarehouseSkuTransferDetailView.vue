@@ -19,7 +19,8 @@ const inventoryMenus = roleMenus.hq.find(menu => menu.label === '물류 창고�
 const activeTopMenu = computed(() => '물류 창고간 재고이동')
 const activeSideMenu = ref('재고 이동')
 
-const selectedWarehouseCodes = ref([])
+const selectedFromWarehouseCode = ref('')
+const selectedToWarehouseCode = ref('')
 const transferQty = ref('')
 const transferReason = ref('재고 불균형 해소')
 const transferNote = ref('')
@@ -51,7 +52,8 @@ const warehouseRows = ref([])
 
 watch(selectedSku, (sku) => {
   loadWarehouseRows(sku?.skuCode)
-  selectedWarehouseCodes.value = []
+  selectedFromWarehouseCode.value = ''
+  selectedToWarehouseCode.value = ''
   transferQty.value = ''
   transferReason.value = '재고 불균형 해소'
   transferNote.value = ''
@@ -113,30 +115,32 @@ const sortedWarehouseRows = computed(() => {
   })
 })
 
-const selectedWarehouses = computed(() => warehouseRows.value.filter(row => selectedWarehouseCodes.value.includes(row.warehouseCode)))
-const canTransfer = computed(() => selectedWarehouses.value.length === 2)
+const canTransfer = computed(() => Boolean(selectedFromWarehouseCode.value && selectedToWarehouseCode.value))
 const cartGroups = computed(() => cartStore.groupedByRoute)
 const cartLineCount = computed(() => cartStore.lineCount)
 
 const fromWarehouse = computed(() => {
-  if (!canTransfer.value) return null
-  return [...selectedWarehouses.value].sort((a, b) => b.availableStock - a.availableStock)[0]
+  if (!selectedFromWarehouseCode.value) return null
+  return warehouseRows.value.find((row) => row.warehouseCode === selectedFromWarehouseCode.value) || null
 })
 
 const toWarehouse = computed(() => {
-  if (!canTransfer.value) return null
-  return [...selectedWarehouses.value].sort((a, b) => a.availableStock - b.availableStock)[0]
+  if (!selectedToWarehouseCode.value) return null
+  return warehouseRows.value.find((row) => row.warehouseCode === selectedToWarehouseCode.value) || null
 })
 
 const maxTransferQty = computed(() => fromWarehouse.value?.availableStock ?? 0)
 
 const transferValidationMessage = computed(() => {
-  if (!canTransfer.value) return '이동할 창고 2개를 선택해주세요.'
+  if (!selectedFromWarehouseCode.value && !selectedToWarehouseCode.value) return '출발지와 도착지를 선택하세요.'
+  if (selectedFromWarehouseCode.value && !selectedToWarehouseCode.value) return '도착지를 선택하세요.'
+  if (!selectedFromWarehouseCode.value && selectedToWarehouseCode.value) return '출발지를 선택하세요.'
+  if (!fromWarehouse.value || !toWarehouse.value) return '선택한 창고 정보를 다시 확인해주세요.'
+  if (fromWarehouse.value.warehouseCode === toWarehouse.value.warehouseCode) return '동일 창고 간 이동은 불가능합니다.'
 
   const qty = Number(transferQty.value)
   if (!Number.isFinite(qty) || qty <= 0) return '이동 수량은 1 이상이어야 합니다.'
   if (qty > maxTransferQty.value) return `이동 가능 수량(${maxTransferQty.value}개) 이내로 입력해주세요.`
-  if (fromWarehouse.value?.warehouseCode === toWarehouse.value?.warehouseCode) return '동일 창고 간 이동은 불가능합니다.'
 
   return ''
 })
@@ -174,14 +178,21 @@ const sortIndicator = (key) => {
   return sortDirection.value === 'desc' ? '▼' : '▲'
 }
 
-const toggleWarehouseSelection = (warehouseCode) => {
-  if (selectedWarehouseCodes.value.includes(warehouseCode)) {
-    selectedWarehouseCodes.value = selectedWarehouseCodes.value.filter(code => code !== warehouseCode)
-    return
-  }
+const selectFromWarehouse = (warehouseCode) => {
+  if (selectedToWarehouseCode.value === warehouseCode) return
+  selectedFromWarehouseCode.value = selectedFromWarehouseCode.value === warehouseCode ? '' : warehouseCode
+}
 
-  if (selectedWarehouseCodes.value.length >= 2) return
-  selectedWarehouseCodes.value = [...selectedWarehouseCodes.value, warehouseCode]
+const selectToWarehouse = (warehouseCode) => {
+  if (selectedFromWarehouseCode.value === warehouseCode) return
+  selectedToWarehouseCode.value = selectedToWarehouseCode.value === warehouseCode ? '' : warehouseCode
+}
+
+const swapInSheetDirection = () => {
+  if (!selectedFromWarehouseCode.value || !selectedToWarehouseCode.value) return
+  const currentFrom = selectedFromWarehouseCode.value
+  selectedFromWarehouseCode.value = selectedToWarehouseCode.value
+  selectedToWarehouseCode.value = currentFrom
 }
 
 const openSheet = () => {
@@ -206,7 +217,8 @@ const closeFailedModal = () => {
 }
 
 const resetTransferForm = () => {
-  selectedWarehouseCodes.value = []
+  selectedFromWarehouseCode.value = ''
+  selectedToWarehouseCode.value = ''
   transferQty.value = ''
   transferReason.value = '재고 불균형 해소'
   transferNote.value = ''
@@ -341,17 +353,18 @@ const moveBack = () => {
       <section class="border border-gray-200 bg-white shadow-sm">
         <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
           <h2 class="text-sm font-black text-gray-900">창고별 재고 분포</h2>
-          <p class="text-[11px] font-black text-gray-500">{{ selectedWarehouseCodes.length }}/2개 선택</p>
+          <p class="text-[11px] font-black text-gray-500">
+            출발 {{ selectedFromWarehouseCode ? '선택됨' : '미선택' }} · 도착 {{ selectedToWarehouseCode ? '선택됨' : '미선택' }}
+          </p>
         </div>
 
         <div class="overflow-x-auto">
-          <table class="min-w-[1120px] w-full border-collapse text-left text-xs">
+          <table class="min-w-[1280px] w-full border-collapse text-left text-xs">
             <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
               <tr>
-                <th class="w-16 px-3 py-3 text-center font-black">선택</th>
                 <th class="px-3 py-3 font-black">창고 코드</th>
                 <th class="px-3 py-3 font-black">품목명</th>
-                <th class="px-3 py-3 font-black">창고명</th>
+                <th class="w-[260px] min-w-[260px] px-3 py-3 font-black">창고명</th>
                 <th class="px-3 py-3 font-black">위치</th>
                 <th class="px-3 py-3 text-right font-black">
                   <button type="button" class="inline-flex items-center gap-1 hover:text-gray-700" @click="toggleSort('onHandStock')">
@@ -378,28 +391,25 @@ const moveBack = () => {
                     <span class="text-[10px]">{{ sortIndicator('status') }}</span>
                   </button>
                 </th>
-                <th class="px-3 py-3 font-black">최종 업데이트</th>
+                <th class="w-[220px] px-3 py-3 text-center font-black">이동</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
               <tr
                 v-for="row in sortedWarehouseRows"
                 :key="row.warehouseCode"
-                class="cursor-pointer transition"
-                :class="selectedWarehouseCodes.includes(row.warehouseCode) ? 'bg-[#EBF5F5] font-bold' : 'hover:bg-[#EBF5F5]/60'"
-                @click="toggleWarehouseSelection(row.warehouseCode)"
+                class="transition hover:bg-[#EBF5F5]/60"
+                :class="(selectedFromWarehouseCode === row.warehouseCode || selectedToWarehouseCode === row.warehouseCode) ? 'bg-[#EBF5F5] font-bold' : ''"
               >
-                <td class="px-3 py-3 text-center">
-                  <input
-                    type="checkbox"
-                    class="h-3.5 w-3.5 accent-[#004D3C]"
-                    :checked="selectedWarehouseCodes.includes(row.warehouseCode)"
-                    @click.stop="toggleWarehouseSelection(row.warehouseCode)"
-                  />
-                </td>
                 <td class="px-3 py-3 font-mono font-bold text-gray-500">{{ row.warehouseCode }}</td>
                 <td class="px-3 py-3 font-bold text-gray-700 whitespace-nowrap max-w-[220px] truncate">{{ selectedSku?.itemName || '-' }}</td>
-                <td class="px-3 py-3 font-black text-gray-900">{{ row.warehouseName }}</td>
+                <td class="w-[260px] min-w-[260px] px-3 py-3 font-black text-gray-900">
+                  <div class="flex min-w-0 items-center gap-1">
+                    <span class="min-w-0 truncate whitespace-nowrap">{{ row.warehouseName }}</span>
+                    <span v-if="selectedFromWarehouseCode === row.warehouseCode" class="shrink-0 inline-flex items-center bg-blue-50 px-1.5 py-0.5 text-[10px] font-black text-blue-700">출발</span>
+                    <span v-if="selectedToWarehouseCode === row.warehouseCode" class="shrink-0 inline-flex items-center bg-emerald-50 px-1.5 py-0.5 text-[10px] font-black text-emerald-700">도착</span>
+                  </div>
+                </td>
                 <td class="px-3 py-3 font-bold text-gray-600">{{ row.location }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ row.onHandStock.toLocaleString() }}</td>
                 <td class="px-3 py-3 text-right font-bold text-gray-500">{{ row.reservedStock.toLocaleString() }}</td>
@@ -408,15 +418,36 @@ const moveBack = () => {
                 <td class="px-3 py-3 text-center">
                   <span class="inline-flex min-w-12 justify-center px-2 py-1 text-[11px] font-black" :class="statusClass(row.status)">{{ row.status }}</span>
                 </td>
-                <td class="px-3 py-3 font-bold text-gray-500">{{ row.updatedAt }}</td>
+                <td class="px-3 py-3 text-center">
+                  <div class="inline-flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      class="h-7 px-2.5 text-[11px] font-black transition"
+                      :class="selectedFromWarehouseCode === row.warehouseCode ? 'border border-blue-300 bg-blue-100 text-blue-800' : 'border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'"
+                      :disabled="selectedToWarehouseCode === row.warehouseCode"
+                      @click="selectFromWarehouse(row.warehouseCode)"
+                    >
+                      출발
+                    </button>
+                    <button
+                      type="button"
+                      class="h-7 px-2.5 text-[11px] font-black transition"
+                      :class="selectedToWarehouseCode === row.warehouseCode ? 'border border-emerald-300 bg-emerald-100 text-emerald-800' : 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'"
+                      :disabled="selectedFromWarehouseCode === row.warehouseCode"
+                      @click="selectToWarehouse(row.warehouseCode)"
+                    >
+                      도착
+                    </button>
+                  </div>
+                </td>
               </tr>
               <tr v-if="warehouseLoading">
-                <td colspan="11" class="px-4 py-8 text-center text-xs font-bold text-gray-400">
+                <td colspan="10" class="px-4 py-8 text-center text-xs font-bold text-gray-400">
                   창고별 재고를 불러오는 중입니다.
                 </td>
               </tr>
               <tr v-else-if="sortedWarehouseRows.length === 0">
-                <td colspan="11" class="px-4 py-8 text-center text-xs font-bold text-gray-400">
+                <td colspan="10" class="px-4 py-8 text-center text-xs font-bold text-gray-400">
                   표시할 창고 재고 데이터가 없습니다.
                 </td>
               </tr>
@@ -429,11 +460,14 @@ const moveBack = () => {
         <div class="flex items-center gap-3 px-4 py-3">
           <div class="min-w-0 flex-1">
             <p class="text-[11px] font-black text-gray-500">선택 창고</p>
-            <p v-if="selectedWarehouseCodes.length === 0" class="text-xs font-bold text-gray-400">
+            <p v-if="!selectedFromWarehouseCode && !selectedToWarehouseCode" class="text-xs font-bold text-gray-400">
               창고를 2개 선택해주세요.
             </p>
-            <p v-else-if="selectedWarehouseCodes.length === 1" class="text-xs font-bold text-gray-400">
-              {{ selectedWarehouses[0].warehouseName }} 선택됨 · 1개 더 선택해주세요.
+            <p v-else-if="selectedFromWarehouseCode && !selectedToWarehouseCode" class="text-xs font-bold text-gray-400">
+              {{ fromWarehouse?.warehouseName || '-' }} 선택됨 · 1개 더 선택해주세요.
+            </p>
+            <p v-else-if="!selectedFromWarehouseCode && selectedToWarehouseCode" class="text-xs font-bold text-gray-400">
+              {{ toWarehouse?.warehouseName || '-' }} 선택됨 · 1개 더 선택해주세요.
             </p>
             <p v-else class="truncate text-xs font-bold text-gray-800">
               {{ fromWarehouse.warehouseName }}
@@ -478,12 +512,26 @@ const moveBack = () => {
 
             <div class="grid w-full gap-6 lg:grid-cols-2 lg:items-start">
               <div class="space-y-4 border border-gray-200 bg-gray-50 p-4">
-                <div class="grid gap-3 text-xs sm:grid-cols-2">
+                <div class="grid gap-3 text-xs sm:grid-cols-[1fr_auto_1fr] sm:items-center">
                   <div class="border border-gray-200 bg-white p-3">
                     <p class="text-[11px] font-black text-gray-500">출발 창고</p>
                     <p class="mt-1 text-sm font-black text-gray-900">{{ fromWarehouse?.warehouseName || '-' }}</p>
                     <p class="mt-2 text-base font-black text-gray-800">가용 {{ fromWarehouse?.availableStock?.toLocaleString?.() ?? 0 }}개</p>
                   </div>
+                  <button
+                    type="button"
+                    class="h-9 w-9 inline-flex items-center justify-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#004D3C]/30"
+                    :class="canTransfer ? 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-100' : 'cursor-not-allowed border border-gray-200 bg-gray-100 text-gray-400'"
+                    :disabled="!canTransfer"
+                    aria-label="출발/도착 바꾸기"
+                    title="출발/도착 바꾸기"
+                    @click="swapInSheetDirection"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M8 7h10m0 0-3-3m3 3-3 3" />
+                      <path d="M16 17H6m0 0 3-3m-3 3 3 3" />
+                    </svg>
+                  </button>
                   <div class="border border-gray-200 bg-white p-3">
                     <p class="text-[11px] font-black text-gray-500">도착 창고</p>
                     <p class="mt-1 text-sm font-black text-gray-900">{{ toWarehouse?.warehouseName || '-' }}</p>
@@ -543,7 +591,12 @@ const moveBack = () => {
                 <div class="border border-gray-200 bg-gray-50 p-4">
                   <p class="mb-2 text-[11px] font-black text-gray-500">이동 요약</p>
                   <p class="text-[11px] font-bold text-gray-700">SKU: {{ selectedSku.skuCode }}</p>
-                  <p class="mt-1 text-[11px] font-bold text-gray-700">선택 창고: {{ selectedWarehouseCodes.length }}/2</p>
+                  <p class="mt-1 text-[11px] font-bold text-gray-700">
+                    경로:
+                    {{ fromWarehouse?.warehouseName || '-' }}
+                    →
+                    {{ toWarehouse?.warehouseName || '-' }}
+                  </p>
                   <p class="mt-1 text-[11px] font-bold text-gray-700">최대 이동 가능: {{ maxTransferQty.toLocaleString() }}개</p>
                 </div>
 
