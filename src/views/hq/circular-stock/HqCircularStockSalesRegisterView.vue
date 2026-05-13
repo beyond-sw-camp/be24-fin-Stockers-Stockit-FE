@@ -34,6 +34,7 @@ let toastTimer = null
 // ADR-021 AI 거래처 추천 — Step 2 좌측 영역 모드 토글. 'ai' | 'manual'.
 const buyerPanelMode = ref('ai')
 const expandedRecommendationCode = ref('')
+const lastRecommendationKey = ref('')
 
 const saleStep = computed({
   get: () => Number(unref(circularStockStore.saleStep) || 1),
@@ -68,6 +69,12 @@ const finalReviewSummary = computed(() => ({
 }))
 const submitDisabledReason = computed(() => (canSubmit.value ? '' : submitValidation.value.message))
 const topRecommendations = computed(() => circularStockStore.recommendations.slice(0, 5))
+const recommendationKey = computed(() => (
+  draftItems.value
+    .map(item => `${item.draftId}:${item.skuCode}:${Number(item.requestedWeightKg || 0)}`)
+    .sort()
+    .join('|')
+))
 
 function formatMaterials(materials) {
   return materials.map(material => `${material.name} ${material.ratio}%`).join(', ')
@@ -118,12 +125,15 @@ function moveStep(step) {
   }
   saleStep.value = step
   // ADR-021 — Step 2 진입 시 AI 추천 1회 자동 호출 (사용자 결정 2026-04-30).
-  if (
-    step === 2
-    && circularStockStore.recommendations.length === 0
-    && !circularStockStore.isRecommendationLoading
-  ) {
-    circularStockStore.fetchRecommendations()
+  if (step === 2 && !circularStockStore.isRecommendationLoading) {
+    const shouldRefetch = (
+      circularStockStore.recommendations.length === 0
+      || recommendationKey.value !== lastRecommendationKey.value
+    )
+    if (shouldRefetch) {
+      lastRecommendationKey.value = recommendationKey.value
+      circularStockStore.fetchRecommendations()
+    }
   }
 }
 
@@ -139,7 +149,7 @@ function toggleRecommendationDetail(code) {
 }
 
 function goToSkuList() {
-  router.push({ name: 'hq-circular-inventory-sales-register' })
+  router.push({ name: 'hq-circular-inventory-sales-register', query: { fromWorkflow: '1' } })
 }
 
 function addItemToDraft(row) {
@@ -270,6 +280,7 @@ watch(toastMessage, (message) => {
 onMounted(() => {
   document.addEventListener('mousedown', handleDocumentClick)
   loadCircularInventoryRows()
+  circularStockStore.markWorkflowStarted()
   isDrawerOpen.value = true
 })
 

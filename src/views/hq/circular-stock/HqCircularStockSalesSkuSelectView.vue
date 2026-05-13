@@ -1,12 +1,13 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useCircularStockStore } from '@/stores/hq/circularStock/circularStock.js'
 
 const router = useRouter()
+const route = useRoute()
 const circularStockStore = useCircularStockStore()
 
 const hqMenus = roleMenus.hq
@@ -30,6 +31,10 @@ const lockedMaterialType = computed(() => {
 })
 const browseSummaryText = computed(() => `담긴 SKU ${draftItems.value.length.toLocaleString()}건`)
 const drawerSummary = computed(() => circularStockStore.draftSummary)
+const showReturnToWorkflowButton = computed(() => (
+  draftItems.value.length > 0
+  && Boolean(circularStockStore.hasStartedWorkflow)
+))
 
 function formatMaterials(materials) {
   return (materials || []).map((material) => `${material.name} ${material.ratio}%`).join(', ')
@@ -58,6 +63,10 @@ function addItemToDraft(row) {
 }
 
 function moveToWorkflow() {
+  router.push({ name: 'hq-circular-inventory-sales-register-workflow' })
+}
+
+function returnToWorkflowPage() {
   router.push({ name: 'hq-circular-inventory-sales-register-workflow' })
 }
 
@@ -132,11 +141,12 @@ onBeforeUnmount(() => {
           </div>
 
           <button
+            v-if="showReturnToWorkflowButton"
             type="button"
-            class="h-9 border border-[#004D3C] bg-[#004D3C] px-4 text-xs font-black text-white hover:bg-[#00382c]"
-            @click="openSkuModal"
+            class="h-9 border border-gray-300 bg-white px-4 text-xs font-black text-gray-700 hover:bg-gray-50"
+            @click="returnToWorkflowPage"
           >
-            선택 SKU 보기
+            판매 등록으로 돌아가기
           </button>
         </div>
       </section>
@@ -197,8 +207,9 @@ onBeforeUnmount(() => {
         class="fixed bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-4 border border-gray-200 bg-white px-4 py-2 shadow-lg"
       >
         <span class="text-xs font-black text-gray-700"
-          >선택 SKU {{ drawerSummary.totalItems }}건</span
+          >선택된 SKU {{ drawerSummary.totalItems }}건</span
         >
+        
         <button
           type="button"
           class="h-8 border border-[#004D3C] bg-[#004D3C] px-3 text-xs font-black text-white hover:bg-[#00382c]"

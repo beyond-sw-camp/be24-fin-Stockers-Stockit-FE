@@ -455,6 +455,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
   const draftMemo = ref('')
   const draftItems = ref([])
   const saleStep = ref(1)
+  const hasStartedWorkflow = ref(false)
   const lockedMaterialType = ref('')
   const liveCircularInventoryRows = ref([])
   const inventoryPage = ref(0)
@@ -821,6 +822,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
       lockedMaterialType.value = ''
       draftBuyerId.value = ''
       saleStep.value = 1
+      hasStartedWorkflow.value = false
       recommendations.value = []
       recommendationError.value = null
     }
@@ -832,8 +834,13 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     draftItems.value = []
     lockedMaterialType.value = ''
     saleStep.value = 1
+    hasStartedWorkflow.value = false
     recommendations.value = []
     recommendationError.value = null
+  }
+
+  function markWorkflowStarted() {
+    hasStartedWorkflow.value = true
   }
 
   /**
@@ -1053,6 +1060,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     draftMemo,
     draftItems,
     saleStep,
+    hasStartedWorkflow,
     lockedMaterialType,
     selectedBuyer,
     matchedBuyerCandidates,
@@ -1073,6 +1081,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     selectBuyer,
     setDraftMemo,
     setSaleStep,
+    markWorkflowStarted,
     addSaleDraftItem,
     updateSaleDraftItem,
     removeSaleDraftItem,
