@@ -212,6 +212,8 @@ const skuByHealth = computed(() => {
 
 // ─── 신호등 모달 ──────────────────────────────────────────────────────
 const segmentModalOpen = ref(false)
+const locationDetailExpanded = ref(false)  // 매장·창고 상세 테이블 접힘 (기본 접힘)
+const turnoverCompareExpanded = ref(false) // 매장·창고별 회전율 비교 막대 접힘 (기본 접힘)
 const segmentModalKey = ref(null)
 
 const segmentModalData = computed(() => {
@@ -504,11 +506,20 @@ const statusCls = {
 
       <section class="grid gap-3 xl:grid-cols-3">
         <article class="border border-gray-300 bg-white shadow-sm xl:col-span-2">
-          <div class="border-b border-gray-200 px-3 py-2.5">
-            <h3 class="text-sm font-medium text-gray-800">매장·창고별 회전율 비교</h3>
-            <p class="mt-0.5 text-[10px] text-gray-400">단위: 회 (회전율 = 기간 내 판매량 / 평균 재고)</p>
+          <div class="flex items-center justify-between border-b border-gray-200 px-3 py-2.5">
+            <div>
+              <h3 class="text-sm font-medium text-gray-800">매장·창고별 회전율 비교</h3>
+              <p class="mt-0.5 text-[10px] text-gray-400">단위: 회 (회전율 = 기간 내 판매량 / 평균 재고)</p>
+            </div>
+            <button
+              type="button"
+              class="inline-flex items-center gap-1 border border-gray-300 bg-white px-2 py-1 text-[10px] font-black text-gray-600 transition-colors hover:bg-gray-50"
+              @click="turnoverCompareExpanded = !turnoverCompareExpanded"
+            >
+              {{ turnoverCompareExpanded ? '▲ 접기' : '▼ 상세 보기 (' + filteredData.length + ')' }}
+            </button>
           </div>
-          <div class="px-3 py-3">
+          <div v-if="turnoverCompareExpanded" class="px-3 py-3">
             <div class="space-y-2">
               <div
                 v-for="d in filteredData"
@@ -550,10 +561,17 @@ const statusCls = {
         </article>
 
         <article class="border border-gray-300 bg-white shadow-sm">
-          <div class="border-b border-gray-200 px-3 py-2.5">
+          <div class="flex items-center justify-between border-b border-gray-200 px-3 py-2.5">
             <h3 class="text-sm font-medium text-gray-800">매장·창고 상세</h3>
+            <button
+              type="button"
+              class="inline-flex items-center gap-1 border border-gray-300 bg-white px-2 py-1 text-[10px] font-black text-gray-600 transition-colors hover:bg-gray-50"
+              @click="locationDetailExpanded = !locationDetailExpanded"
+            >
+              {{ locationDetailExpanded ? '▲ 접기' : '▼ 상세 보기 (' + filteredData.length + ')' }}
+            </button>
           </div>
-          <div class="overflow-auto">
+          <div v-if="locationDetailExpanded" class="overflow-auto">
             <table class="w-full text-[12px]">
               <thead class="bg-gray-50 text-[10px] uppercase text-gray-500">
                 <tr>
