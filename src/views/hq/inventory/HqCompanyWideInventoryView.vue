@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
+import PaginationNav from '@/components/common/PaginationNav.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { getCompanyWideInventories } from '@/api/hq/inventory.js'
 
@@ -33,6 +34,14 @@ const categoryMap = {
 const locationTypeOptions = ['매장', '창고']
 const locationOptionsRaw = ref([])
 const inventoryData = ref([])
+
+// 페이징 상태
+const currentPage = ref(0)
+const pageSize = ref(20)
+const totalElements = ref(0)
+const totalPages = ref(0)
+const hasNext = ref(false)
+const hasPrevious = ref(false)
 
 const childCategoryOptions = computed(() =>
   selectedParentCategory.value ? categoryMap[selectedParentCategory.value] : [],
@@ -138,6 +147,8 @@ async function fetchCompanyWideInventory() {
       parentCategory: selectedParentCategory.value || undefined,
       childCategory: selectedChildCategory.value || undefined,
       keyword: searchTerm.value || undefined,
+      page: currentPage.value,
+      size: pageSize.value,
     }
     if (selectedLocations.value.length > 0) payload.locationIds = locationIds
 
@@ -163,11 +174,29 @@ async function fetchCompanyWideInventory() {
       status: item.status,
       updatedAt: item.updatedAt ? new Date(item.updatedAt).toLocaleString('ko-KR', { hour12: false }) : '-',
     }))
+
+    totalElements.value = Number(res?.totalElements ?? 0)
+    totalPages.value = Number(res?.totalPages ?? 0)
+    hasNext.value = Boolean(res?.hasNext)
+    hasPrevious.value = Boolean(res?.hasPrevious)
   } catch (e) {
     loadError.value = e.message || '전사 재고 조회에 실패했습니다.'
     inventoryData.value = []
+    totalElements.value = 0
+    totalPages.value = 0
+    hasNext.value = false
+    hasPrevious.value = false
   } finally {
     isLoading.value = false
+  }
+}
+
+// 필터 변경 시 page=0 으로 리셋 후 fetch (page 가 이미 0 이면 직접 fetch — page watch 가 안 트리거되므로)
+function resetPageOrFetch() {
+  if (currentPage.value === 0) {
+    fetchCompanyWideInventory()
+  } else {
+    currentPage.value = 0
   }
 }
 
@@ -200,8 +229,17 @@ const handleDocumentClick = (event) => {
   }
 }
 
-watch([locationType, selectedParentCategory, selectedChildCategory, selectedStatus, searchTerm, selectedLocations], () => {
+// selectedStatus 는 BE InventoryStatus enum 과 매핑 안 되는 UI 라벨(정상/부족/품절) 이라 클라 필터로만 적용 — watch 제외
+watch([locationType, selectedParentCategory, selectedChildCategory, searchTerm, selectedLocations], () => {
+  resetPageOrFetch()
+})
+
+watch(currentPage, () => {
   fetchCompanyWideInventory()
+})
+
+watch(pageSize, () => {
+  resetPageOrFetch()
 })
 
 onMounted(() => {
@@ -236,7 +274,7 @@ const statusClass = (status) => ({
             <h1 class="mt-1 text-lg font-black text-gray-900">전사 재고 조회</h1>
           </div>
           <div class="text-right text-[11px] font-bold text-gray-500">
-            <p>조회 결과 {{ filteredInventory.length.toLocaleString() }}건</p>
+            <p>조회 결과 {{ totalElements.toLocaleString() }}건</p>
             <p class="mt-1 text-gray-400">{{ locationSummary }}</p>
           </div>
         </div>
@@ -436,6 +474,16 @@ const statusClass = (status) => ({
             </tbody>
           </table>
         </div>
+        <PaginationNav
+          :page="currentPage"
+          :size="pageSize"
+          :total-pages="totalPages"
+          :total-elements="totalElements"
+          :has-previous="hasPrevious"
+          :has-next="hasNext"
+          @update:page="currentPage = $event"
+          @update:size="pageSize = $event"
+        />
       </section>
     </div>
   </AppLayout>

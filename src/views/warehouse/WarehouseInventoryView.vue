@@ -1,7 +1,8 @@
 ﻿<script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
+import PaginationNav from '@/components/common/PaginationNav.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { getWarehouseInventories } from '@/api/warehouse/inventory.js'
@@ -29,20 +30,17 @@ const selectedChildCategory = ref(typeof route.query.child === 'string' ? route.
 const selectedStatus = ref(typeof route.query.status === 'string' ? route.query.status : '')
 const searchTerm = ref(typeof route.query.search === 'string' ? route.query.search : '')
 
+// 페이징 상태
+const currentPage = ref(0)
+const pageSize = ref(20)
+const totalElements = ref(0)
+const totalPages = ref(0)
+const hasNext = ref(false)
+const hasPrevious = ref(false)
+
 const childCategoryOptions = computed(() =>
   selectedParentCategory.value ? categoryMap[selectedParentCategory.value] : [],
 )
-
-const filteredInventory = computed(() => {
-  const keyword = searchTerm.value.trim().toLowerCase()
-  return inventoryData.value.filter((item) => {
-    const matchesParent = !selectedParentCategory.value || item.parentCategory === selectedParentCategory.value
-    const matchesChild = !selectedChildCategory.value || item.childCategory === selectedChildCategory.value
-    const matchesStatus = !selectedStatus.value || item.status === selectedStatus.value
-    const matchesKeyword = !keyword || [item.itemCode, item.itemName].join(' ').toLowerCase().includes(keyword)
-    return matchesParent && matchesChild && matchesStatus && matchesKeyword
-  })
-})
 
 const statusClass = (status) => ({
   정상: 'bg-[#EBF5F5] text-black',
@@ -65,6 +63,8 @@ function resetFilters() {
   selectedChildCategory.value = ''
   selectedStatus.value = ''
   searchTerm.value = ''
+  // watch 가 page=0 리셋 + fetch 트리거 — 단 모든 값이 이미 비어 있으면 watch 안 트리거 → 수동 호출
+  if (currentPage.value === 0) loadInventories()
 }
 
 function moveToSkuDetail(item) {
@@ -91,22 +91,58 @@ async function loadInventories() {
   isLoading.value = true
   loadError.value = ''
   try {
-    const rows = await getWarehouseInventories()
-    inventoryData.value = Array.isArray(rows)
-      ? rows.map(row => ({
-        ...row,
-        actualStock: Number(row.actualStock ?? 0),
-        availableStock: Number(row.availableStock ?? 0),
-        safetyStock: Number(row.safetyStock ?? 0),
-      }))
-      : []
+    const params = {
+      parentCategory: selectedParentCategory.value || undefined,
+      childCategory: selectedChildCategory.value || undefined,
+      status: selectedStatus.value || undefined,
+      keyword: searchTerm.value || undefined,
+      page: currentPage.value,
+      size: pageSize.value,
+    }
+    const res = await getWarehouseInventories(params)
+    const items = Array.isArray(res?.items) ? res.items : []
+    inventoryData.value = items.map(row => ({
+      ...row,
+      actualStock: Number(row.actualStock ?? 0),
+      availableStock: Number(row.availableStock ?? 0),
+      safetyStock: Number(row.safetyStock ?? 0),
+    }))
+    totalElements.value = Number(res?.totalElements ?? 0)
+    totalPages.value = Number(res?.totalPages ?? 0)
+    hasNext.value = Boolean(res?.hasNext)
+    hasPrevious.value = Boolean(res?.hasPrevious)
   } catch (e) {
     inventoryData.value = []
+    totalElements.value = 0
+    totalPages.value = 0
+    hasNext.value = false
+    hasPrevious.value = false
     loadError.value = extractErrorMessage(e, '창고 재고를 불러오지 못했습니다.')
   } finally {
     isLoading.value = false
   }
 }
+
+// 필터 변경 시 page=0 으로 리셋 후 fetch (page 가 이미 0 이면 직접 fetch — page watch 가 안 트리거되므로)
+function resetPageOrFetch() {
+  if (currentPage.value === 0) {
+    loadInventories()
+  } else {
+    currentPage.value = 0
+  }
+}
+
+watch([selectedParentCategory, selectedChildCategory, selectedStatus, searchTerm], () => {
+  resetPageOrFetch()
+})
+
+watch(currentPage, () => {
+  loadInventories()
+})
+
+watch(pageSize, () => {
+  resetPageOrFetch()
+})
 
 onMounted(() => {
   loadInventories()
@@ -129,7 +165,7 @@ onMounted(() => {
           </div>
           <div class="text-right text-[11px] font-bold text-gray-500">
             <p>{{ auth.user?.locationCode ?? 'WAREHOUSE' }} · {{ auth.user?.locationName ?? '창고' }}</p>
-            <p class="mt-1 text-gray-400">기준일 {{ today }} · 조회 {{ filteredInventory.length }}건</p>
+            <p class="mt-1 text-gray-400">기준일 {{ today }} · 조회 {{ totalElements.toLocaleString() }}건</p>
           </div>
         </div>
         <p v-if="loadError" class="mb-3 text-xs font-bold text-red-600">{{ loadError }}</p>
@@ -216,7 +252,7 @@ onMounted(() => {
               </thead>
               <tbody class="divide-y divide-gray-100">
                 <tr
-                  v-for="item in filteredInventory"
+                  v-for="item in inventoryData"
                   :key="item.itemCode"
                   class="cursor-pointer hover:bg-[#EBF5F5]/60"
                   @click="moveToSkuDetail(item)"
@@ -234,7 +270,7 @@ onMounted(() => {
                   </td>
                   <td class="px-3 py-3 font-bold text-gray-500">{{ item.updatedAt ? new Date(item.updatedAt).toLocaleString('ko-KR', { hour12: false }) : '-' }}</td>
                 </tr>
-                <tr v-if="filteredInventory.length === 0">
+                <tr v-if="inventoryData.length === 0">
                   <td colspan="8" class="px-3 py-14 text-center text-sm font-bold text-gray-400">
                     {{ isLoading ? '창고 재고를 불러오는 중입니다.' : '조건에 맞는 창고 재고가 없습니다.' }}
                   </td>
@@ -242,6 +278,16 @@ onMounted(() => {
               </tbody>
             </table>
           </div>
+          <PaginationNav
+            :page="currentPage"
+            :size="pageSize"
+            :total-pages="totalPages"
+            :total-elements="totalElements"
+            :has-previous="hasPrevious"
+            :has-next="hasNext"
+            @update:page="currentPage = $event"
+            @update:size="pageSize = $event"
+          />
         </div>
       </section>
     </div>
