@@ -3,7 +3,6 @@ import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
-import AiBuyerRecommendationPanel from '@/components/hq/circular-stock/AiBuyerRecommendationPanel.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
@@ -34,6 +33,7 @@ let toastTimer = null
 
 // ADR-021 AI 거래처 추천 — Step 2 좌측 영역 모드 토글. 'ai' | 'manual'.
 const buyerPanelMode = ref('ai')
+const expandedRecommendationCode = ref('')
 
 const saleStep = computed({
   get: () => Number(unref(circularStockStore.saleStep) || 1),
@@ -67,6 +67,7 @@ const finalReviewSummary = computed(() => ({
   totalActualWeightKg: draftItems.value.reduce((sum, item) => sum + (Number(item.actualWeightKg) || 0), 0),
 }))
 const submitDisabledReason = computed(() => (canSubmit.value ? '' : submitValidation.value.message))
+const topRecommendations = computed(() => circularStockStore.recommendations.slice(0, 5))
 
 function formatMaterials(materials) {
   return materials.map(material => `${material.name} ${material.ratio}%`).join(', ')
@@ -127,6 +128,14 @@ function onRecommendationSelect(code) {
   if (!rec) return
   circularStockStore.selectBuyer(code)
   buyerSearchTerm.value = rec.companyName
+}
+
+function toggleRecommendationDetail(code) {
+  expandedRecommendationCode.value = expandedRecommendationCode.value === code ? '' : code
+}
+
+function goToSkuList() {
+  router.push({ name: 'hq-circular-inventory-sales-register' })
 }
 
 function addItemToDraft(row) {
@@ -257,9 +266,7 @@ watch(toastMessage, (message) => {
 onMounted(() => {
   document.addEventListener('mousedown', handleDocumentClick)
   loadCircularInventoryRows()
-  if (draftItems.value.length > 0) {
-    isDrawerOpen.value = true
-  }
+  isDrawerOpen.value = true
 })
 
 onBeforeUnmount(() => {
@@ -287,93 +294,46 @@ onBeforeUnmount(() => {
             <p v-if="inventoryLoadError" class="mt-2 text-xs font-bold text-red-600">{{ inventoryLoadError }}</p>
           </div>
 
-          <button
-            type="button"
-            class="h-9 border border-[#D6EAEA] bg-[#EBF5F5] px-4 text-xs font-black text-[#004D3C] transition hover:bg-[#dff0f0]"
-            @click="openDrawer"
-          >
-            판매 패널 열기
-          </button>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              class="h-9 border border-gray-300 bg-white px-4 text-xs font-black text-gray-700 transition hover:bg-gray-50"
+              @click="goToSkuList"
+            >
+              SKU 목록 보기
+            </button>
+            
+          </div>
         </div>
       </section>
 
-      <CircularStockInventoryBrowseSection
-        title="판매 대상 순환 재고 리스트"
-        :description="isInventoryLoading ? '순환 재고를 불러오는 중입니다.' : '순환 재고 조회 화면과 동일한 기준으로 SKU를 탐색하고, Step 1에 담을 항목을 선택합니다.'"
-        :summary-text="browseSummaryText"
-        :show-circular-sale-price-column="true"
-        :inventory-rows="circularStockStore.inventoryRows"
-        action-column-label="추가"
-        action-column-position="end"
-        :selected-row-ids="draftRowIds"
-        :highlighted-row-ids="draftRowIds"
-      >
-        <template #row-action="{ row }">
-          <div class="flex flex-col items-center gap-1">
-          <button
-            type="button"
-            class="group inline-flex h-8 items-center justify-center gap-1.5 rounded-full border px-3 text-[11px] font-bold transition-all duration-200 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:opacity-100 active:scale-95"
-            :class="isItemAdded(row.id)
-              ? 'border-indigo-200/60 bg-indigo-50 text-indigo-600 hover:border-indigo-300 hover:bg-indigo-100 hover:text-indigo-700'
-              : 'border-[#97BFB4]/30 bg-[#97BFB4]/10 text-[#5A7F75] hover:border-[#97BFB4]/50 hover:bg-[#97BFB4]/20 hover:text-[#4A6860]'"
-            :disabled="isRowSelectionDisabled(row)"
-            :title="isRowSelectionDisabled(row)
-              ? `현재 요청서는 ${lockedMaterialType}만 선택 가능합니다.`
-              : ''"
-            @click.stop="addItemToDraft(row)"
-          >
-            <span
-              class="flex h-4 w-4 items-center justify-center rounded-full text-[10px] shadow-sm transition-colors"
-              :class="isItemAdded(row.id)
-                ? 'bg-white text-indigo-300 group-hover:bg-indigo-600 group-hover:text-white'
-                : 'bg-white text-[#97BFB4] group-hover:bg-[#004D3C] group-hover:text-white'"
-            >
-              {{ isItemAdded(row.id) ? '✓' : '+' }}
-            </span>
-            <span>{{ isItemAdded(row.id) ? '수정' : '선택' }}</span>
-          </button>
-            <span
-              v-if="isRowSelectionDisabled(row)"
-              class="text-[10px] font-black text-gray-400"
-            >
-              선택 불가
-            </span>
-          </div>
-        </template>
-      </CircularStockInventoryBrowseSection>
+      
 
-      <div
-        v-if="shouldRenderDrawer"
-        class="fixed bottom-0 right-0 z-20 w-full border-t border-gray-200 bg-white/95 shadow-[0_-8px_24px_rgba(15,23,42,0.12)] backdrop-blur"
-      >
-        <div class="flex w-full flex-col gap-4 px-4 py-3">
-          <button
-            type="button"
-            class="flex w-full items-center justify-between gap-3 rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-left"
-            @click="toggleDrawer"
-          >
-            <div class="flex flex-wrap items-center gap-3">
-              <span class="text-sm font-black text-gray-900">판매 등록 패널</span>
-              <span class="text-[11px] font-bold text-gray-500">
-                소재 구분 {{ lockedMaterialType || '-' }} · 담긴 SKU {{ drawerSummary.totalItems }}건
-              </span>
+      <div class="w-full">
+        <div class="w-full">
+          <div class="flex w-full flex-col overflow-hidden border border-gray-200 bg-white">
+            <div class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3">
+              <div class="flex flex-wrap items-center gap-3">
+                <span class="text-sm font-black text-gray-900">판매 등록</span>
+                <span class="text-[11px] font-bold text-gray-500">
+                  소재 구분 {{ lockedMaterialType || '-' }} · 담긴 SKU {{ drawerSummary.totalItems }}건
+                </span>
+              </div>
+              <div class="flex items-center gap-3">
+                <span class="text-sm font-black text-gray-900">{{ formatCurrency(drawerSummary.totalActualAmount) }}</span>
+                
+              </div>
             </div>
-            <div class="flex items-center gap-3">
-              <span class="text-sm font-black text-gray-900">{{ formatCurrency(drawerSummary.totalActualAmount) }}</span>
-              <span class="text-xs font-black text-gray-500">{{ isDrawerOpen ? '닫기 ▲' : '열기 ▼' }}</span>
-            </div>
-          </button>
 
-          <div v-if="isDrawerOpen" class="rounded-md border border-gray-200 bg-white p-4 max-h-[72vh] overflow-y-auto">
-            <div class="rounded-md border border-gray-200 bg-[#FAFCFB] p-3">
-              <div class="grid gap-2 md:grid-cols-3">
+            <div class="flex-1 overflow-y-auto p-4">
+            <div class="grid gap-2 md:grid-cols-3">
                 <button type="button" class="group overflow-hidden rounded-md border text-left transition" :class="saleStep >= 1 ? 'border-[#B7D8D1] bg-[#F3FAF8]' : 'border-gray-200 bg-white'" @click="moveStep(1)">
                   <div class="h-1.5 bg-[#E6ECE9]">
                     <div class="h-full bg-gradient-to-r from-[#2F9E87] to-[#0F5C4D] transition-all duration-500 ease-out" :style="{ width: saleStep >= 1 ? '100%' : '0%' }" />
                   </div>
                   <div class="flex items-center gap-2 px-3 py-2">
                   <span class="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-black transition" :class="saleStep >= 1 ? 'bg-[#0F5C4D] text-white' : 'bg-gray-200 text-gray-500'">1</span>
-                  <span class="text-xs font-black" :class="saleStep === 1 ? 'text-[#0F5C4D]' : 'text-gray-600'">SKU 선택</span>
+                  <span class="text-xs font-black" :class="saleStep === 1 ? 'text-[#0F5C4D]' : 'text-gray-600'">선택한 SKU 확인</span>
                   </div>
                 </button>
                 <button type="button" class="group overflow-hidden rounded-md border text-left transition" :class="saleStep >= 2 ? 'border-[#B7D8D1] bg-[#F3FAF8]' : 'border-gray-200 bg-white'" @click="moveStep(2)">
@@ -394,24 +354,22 @@ onBeforeUnmount(() => {
                   <span class="text-xs font-black" :class="saleStep === 3 ? 'text-[#0F5C4D]' : 'text-gray-600'">판매 조건 확정</span>
                   </div>
                 </button>
-              </div>
             </div>
 
             <p class="mt-3 text-[11px] font-bold text-gray-500">
-              <template v-if="saleStep === 1">요청서에서 같은 소재 구분 SKU만 선택할 수 있습니다.</template>
-              <template v-else-if="saleStep === 2">AI가 추천한 거래처 중 선택하거나, 수동 검색으로 직접 찾을 수 있습니다.</template>
-              <template v-else>판매 kg 기준 입력이며, 차감 벌 수량은 항상 올림 처리됩니다.</template>
+              <template v-if="saleStep === 1"><span class="block text-right">한 건의 판매에서 같은 소재 구분의 SKU만 선택할 수 있습니다.</span></template>
+              <template v-else-if="saleStep === 2"><span class="block text-right">AI가 추천한 거래처 중 선택하거나, 수동 검색으로 직접 찾을 수 있습니다.</span></template>
+              <template v-else><span class="block text-right">판매 kg 기준 입력이며, 차감 벌 수량은 항상 올림 처리됩니다.</span></template>
             </p>
 
             <div v-if="saleStep === 1" class="mt-4">
               <div class="mb-3 flex items-center justify-between gap-3">
                 <div>
                   <p class="text-sm font-black text-gray-900">선택 SKU</p>
-                  <p class="mt-1 text-[11px] font-bold text-gray-400">소재 구분 고정: {{ lockedMaterialType || '-' }}</p>
                 </div>
                 <button type="button" class="text-[11px] font-black text-gray-500 hover:text-gray-900" @click="clearDraftPanel">전체 비우기</button>
               </div>
-              <div class="max-h-56 overflow-y-auto border border-gray-200">
+              <div class="overflow-x-auto border border-gray-200">
                 <table class="w-full border-collapse text-left text-xs">
                   <thead class="sticky top-0 bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
                     <tr>
@@ -479,21 +437,55 @@ onBeforeUnmount(() => {
                 </div>
 
                 <!-- AI 추천 모드 -->
-                <div v-if="buyerPanelMode === 'ai'" class="mt-4">
-                  <AiBuyerRecommendationPanel
-                    :recommendations="circularStockStore.recommendations"
-                    :loading="circularStockStore.isRecommendationLoading"
-                    :error="circularStockStore.recommendationError || ''"
-                    :selected-buyer-code="selectedBuyer?.code || ''"
-                    :material-fit-label="materialFitLabel"
-                    :locked-material-type="lockedMaterialType"
-                    @select="onRecommendationSelect"
-                    @retry="circularStockStore.fetchRecommendations()"
-                    @switch-to-manual="buyerPanelMode = 'manual'"
-                  />
+                <div v-if="buyerPanelMode === 'ai'" class="mt-4 space-y-2">
+                  <div v-if="circularStockStore.isRecommendationLoading" class="rounded-md border border-gray-200 bg-gray-50 px-3 py-4 text-xs font-bold text-gray-500">
+                    AI 추천을 불러오는 중입니다.
+                  </div>
+                  <div v-else-if="circularStockStore.recommendationError" class="rounded-md border border-red-200 bg-red-50 px-3 py-4 text-xs font-bold text-red-700">
+                    {{ circularStockStore.recommendationError }}
+                  </div>
+                  <div v-else-if="topRecommendations.length === 0" class="rounded-md border border-gray-200 bg-gray-50 px-3 py-4 text-xs font-bold text-gray-500">
+                    추천 결과가 없습니다. 수동 검색으로 거래처를 선택하세요.
+                  </div>
+                  <article
+                    v-for="rec in topRecommendations"
+                    :key="rec.code"
+                    class="overflow-hidden rounded-md border border-gray-200 bg-white"
+                  >
+                    <button
+                      type="button"
+                      class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-gray-50"
+                      @click="toggleRecommendationDetail(rec.code)"
+                    >
+                      <div class="min-w-0">
+                        <p class="text-sm font-black text-gray-900">{{ rec.companyName }}</p>
+                        <p class="mt-1 text-[11px] font-bold text-gray-500">
+                          {{ rec.code }} · {{ rec.industryGroup || '-' }} · {{ materialFitLabel(rec.primaryMaterialFit) }}
+                        </p>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <button
+                          type="button"
+                          class="h-8 border border-[#004D3C] bg-[#004D3C] px-3 text-[11px] font-black text-white hover:bg-[#00382c]"
+                          @click.stop="onRecommendationSelect(rec.code)"
+                        >선택</button>
+                        <span class="text-xs font-black text-gray-400">
+                          {{ expandedRecommendationCode === rec.code ? '접기' : '상세' }}
+                        </span>
+                      </div>
+                    </button>
+                    <div
+                      v-if="expandedRecommendationCode === rec.code"
+                      class="border-t border-gray-100 bg-[#FAFCFB] px-4 py-3 text-xs"
+                    >
+                      <p class="font-black text-[#0F5C4D]">추천 근거</p>
+                      <p class="mt-1 whitespace-pre-line font-bold leading-5 text-gray-700">
+                        {{ rec.rationale || '추천 근거 데이터가 없습니다.' }}
+                      </p>
+                    </div>
+                  </article>
                 </div>
 
-                <!-- 수동 검색 모드 -->
                 <div v-else class="mt-4">
                   <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">Buyer Search</p>
                   <label class="mt-2 flex flex-col gap-1.5">
@@ -694,6 +686,7 @@ onBeforeUnmount(() => {
             </div>
           </div>
         </div>
+      </div>
       </div>
 
       <div
