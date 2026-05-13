@@ -25,12 +25,12 @@ const headerClass = computed(() => {
 
 const confirmBtnClass = computed(() => {
   if (props.variant === 'amber') {
-    return 'border border-amber-600 bg-amber-600 px-4 py-2 text-xs font-black text-white hover:bg-amber-500'
+    return 'border border-amber-600 bg-amber-600 px-4 py-2 text-sm font-black text-white hover:bg-amber-500'
   }
   if (props.variant === 'red') {
-    return 'border border-red-700 bg-red-700 px-4 py-2 text-xs font-black text-white hover:bg-red-600'
+    return 'border border-red-700 bg-red-700 px-4 py-2 text-sm font-black text-white hover:bg-red-600'
   }
-  return 'border border-[#004D3C] bg-[#004D3C] px-4 py-2 text-xs font-black text-white hover:bg-[#1f4b3a]'
+  return 'border border-[#004D3C] bg-[#004D3C] px-4 py-2 text-sm font-black text-white hover:bg-[#1f4b3a]'
 })
 </script>
 
@@ -45,13 +45,13 @@ const confirmBtnClass = computed(() => {
         <AlertTriangleIcon v-if="variant === 'amber'" :size="14" />
         <h2 class="text-sm font-black">{{ title }}</h2>
       </div>
-      <div class="p-5 text-xs text-gray-700">
+      <div class="p-5 text-sm text-gray-700">
         <slot />
       </div>
       <div class="flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3">
         <button
           type="button"
-          class="border border-gray-300 bg-white px-4 py-2 text-xs font-black text-gray-700 hover:bg-gray-100"
+          class="border border-gray-300 bg-white px-4 py-2 text-sm font-black text-gray-700 hover:bg-gray-100"
           @click="$emit('cancel')"
         >
           취소

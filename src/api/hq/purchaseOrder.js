@@ -9,6 +9,8 @@
  *   POST   /api/hq/purchase-orders/{code}/complete                   (SHIPPING → COMPLETED, 창고 WHS-007)
  *   POST   /api/hq/purchase-orders/{code}/cancel                     (CEN-038 PENDING → REJECTED, with cancelReason)
  *   POST   /api/hq/purchase-orders/batch/run                         (SYS-001 강제 트리거, 시연·QA용)
+ *   GET    /api/hq/purchase-orders/catalog?...&page&size&sort        (새 발주 카탈로그 페이지)
+ *   GET    /api/hq/purchase-orders/catalog/facets?vendorCode=&keyword= (색상/사이즈 facet)
  *
  * SYS-001 자동화: PENDING → APPROVED, APPROVED → SHIPPING 두 단계는 5분 주기 배치가
  *   30분 경과한 발주를 자동 전환. 본사는 작성·취소만, 단건 수동 트리거 엔드포인트 없음.
@@ -78,21 +80,39 @@ export const purchaseOrderApi = {
     apiClient.post(`${BASE}/${code}/cancel`, { cancelReason }).then(unwrap),
 
   /**
-   * 새 발주 페이지 카탈로그 — vendor_product → ProductMaster → ProductSku 묶음 응답.
-   * GET /api/hq/purchase-orders/catalog?vendorCode=&warehouseId=
+   * 새 발주 페이지 카탈로그 — BE Page<SkuRowRes> 평탄 row.
+   * GET /api/hq/purchase-orders/catalog?page&size&sort&vendorCode&keyword&color&skuSize&shortageOnly&warehouseId
    *
-   * vendorCode 미지정: 모든 ACTIVE 공급처 펼침. 지정 시 그 공급처만.
-   * warehouseCode 는 본 사이클 BE 가 사용하지 않음 (인벤토리 합류 후 stock 필터링용).
-   * 응답: { masters: [{ vendorCode, vendorName, vendorProductCode, productCode, productName,
-   *                     contractUnitPrice, minSkuUnitPrice, maxSkuUnitPrice,
-   *                     skus: [{ skuCode, color, size, displayOption, unitPrice }] }],
-   *         optionFacets: [{ name, values: [string] }] }
+   * 응답: Page<{ vendorCode, vendorName, vendorProductCode, productCode, productName,
+   *              skuCode, color, size, displayOption, unitPrice, contractUnitPrice, availableQty }>
+   *
+   * @param {{page?, size?, sort?, vendorCode?, keyword?, color?, skuSize?, shortageOnly?, warehouseId?}} params
+   *   - sort: "vendorName,asc" / "productName,asc" / "unitPrice,asc|desc" / "availableQty,asc" / "id,asc"
+   *   - SKU 사이즈 필터 키는 page size 와 충돌 회피 위해 caller/server 모두 `skuSize`.
    */
-  getCatalog: ({ vendorCode = '', warehouseCode = '' } = {}) => {
+  getCatalog: (params = {}) => {
+    const query = {}
+    if (params.page !== undefined && params.page !== null) query.page = params.page
+    if (params.size !== undefined && params.size !== null) query.size = params.size
+    if (params.sort) query.sort = params.sort
+    if (params.vendorCode) query.vendorCode = params.vendorCode
+    if (params.keyword) query.keyword = params.keyword
+    if (params.color) query.color = params.color
+    if (params.skuSize) query.skuSize = params.skuSize
+    if (params.shortageOnly) query.shortageOnly = params.shortageOnly
+    if (params.warehouseId) query.warehouseId = params.warehouseId
+    return apiClient.get(`${BASE}/catalog`, { params: query }).then(unwrap)
+  },
+
+  /**
+   * 새 발주 카탈로그 facet — 같은 필터 조건의 색상/사이즈 distinct 옵션.
+   * GET /api/hq/purchase-orders/catalog/facets?vendorCode=&keyword=
+   * 응답: { colors: [string], sizes: [string] }
+   */
+  getCatalogFacets: ({ vendorCode = '', keyword = '' } = {}) => {
     const query = {}
     if (vendorCode) query.vendorCode = vendorCode
-    // warehouseCode 는 BE 가 warehouseId(Long) 로 받지만 본 사이클은 placeholder — 보내지 않음
-    void warehouseCode
-    return apiClient.get(`${BASE}/catalog`, { params: query }).then(unwrap)
+    if (keyword) query.keyword = keyword
+    return apiClient.get(`${BASE}/catalog/facets`, { params: query }).then(unwrap)
   },
 }

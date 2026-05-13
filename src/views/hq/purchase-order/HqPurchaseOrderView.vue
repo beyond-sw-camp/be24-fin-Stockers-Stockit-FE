@@ -158,15 +158,15 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
           <TruckIcon :size="22" />
         </div>
         <div class="min-w-0 flex-1">
-          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500">총 발주</p>
+          <p class="text-[11px] font-bold uppercase tracking-wider text-gray-500">총 발주</p>
           <p class="mt-0.5 truncate text-2xl font-black text-[#004D3C]">
             ₩{{ poStore.summary.totalPrice.toLocaleString() }}
           </p>
         </div>
         <div class="text-right">
-          <p class="text-[10px] font-bold uppercase tracking-wider text-gray-500">건수</p>
+          <p class="text-[11px] font-bold uppercase tracking-wider text-gray-500">건수</p>
           <p class="mt-0.5 text-xl font-black text-gray-700">
-            {{ poStore.summary.totalCount }}<span class="ml-0.5 text-xs font-bold">건</span>
+            {{ poStore.summary.totalCount }}<span class="ml-0.5 text-sm font-bold">건</span>
           </p>
         </div>
       </section>
@@ -179,7 +179,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
             v-for="tab in STATUS_TABS"
             :key="tab.key"
             type="button"
-            class="inline-flex items-center gap-1.5 border px-3 py-1.5 text-xs font-black transition-colors"
+            class="inline-flex items-center gap-1.5 border px-3 py-1.5 text-sm font-black transition-colors"
             :class="
               poStore.activeStatusTab === tab.key
                 ? 'border-[#004D3C] bg-[#004D3C] text-white'
@@ -189,7 +189,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
           >
             <span>{{ tab.label }}</span>
             <span
-              class="min-w-[18px] px-1 py-0.5 text-center text-[10px]"
+              class="min-w-[18px] px-1 py-0.5 text-center text-[11px]"
               :class="
                 poStore.activeStatusTab === tab.key
                   ? 'bg-white/20 text-white'
@@ -222,7 +222,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
           <div
             class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-white px-3 py-2"
           >
-            <span class="text-xs font-bold text-gray-600">
+            <span class="text-sm font-bold text-gray-600">
               총 {{ poStore.filteredOrders.length }}건
             </span>
             <div class="flex flex-wrap items-center gap-2">
@@ -235,12 +235,12 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
                   v-model="poStore.searchKeyword"
                   type="text"
                   placeholder="발주번호/공급처/품목명 검색"
-                  class="w-52 border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-xs outline-none focus:border-[#004D3C]"
+                  class="w-52 border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-sm outline-none focus:border-[#004D3C]"
                 />
               </label>
               <button
                 type="button"
-                class="inline-flex items-center gap-1.5 border border-gray-300 bg-white px-3 py-1.5 text-xs font-black text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
+                class="inline-flex items-center gap-1.5 border border-gray-300 bg-white px-3 py-1.5 text-sm font-black text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
                 :disabled="isRunningBatch"
                 title="SYS-001 배치를 즉시 한 번 돌립니다 (시연·QA용)"
                 @click="runBatchTrigger"
@@ -250,7 +250,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
               </button>
               <button
                 type="button"
-                class="inline-flex items-center gap-1.5 border border-[#004D3C] bg-[#004D3C] px-3 py-1.5 text-xs font-black text-white transition-colors hover:bg-[#1f4b3a]"
+                class="inline-flex items-center gap-1.5 border border-[#004D3C] bg-[#004D3C] px-3 py-1.5 text-sm font-black text-white transition-colors hover:bg-[#1f4b3a]"
                 @click="goCreatePage"
               >
                 <PlusIcon :size="14" />
@@ -265,7 +265,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
           >
             <select
               v-model="poStore.vendorFilter"
-              class="border border-gray-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-[#004D3C]"
+              class="border border-gray-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-[#004D3C]"
             >
               <option value="">전체 공급처</option>
               <option v-for="v in poStore.vendorOptions" :key="v.id" :value="v.id">
@@ -276,18 +276,18 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
             <input
               v-model="poStore.dateFrom"
               type="date"
-              class="border border-gray-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-[#004D3C]"
+              class="border border-gray-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-[#004D3C]"
             />
-            <span class="text-xs text-gray-400">~</span>
+            <span class="text-sm text-gray-400">~</span>
             <input
               v-model="poStore.dateTo"
               type="date"
-              class="border border-gray-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-[#004D3C]"
+              class="border border-gray-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-[#004D3C]"
             />
 
             <select
               v-model="poStore.sortBy"
-              class="ml-auto border border-gray-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-[#004D3C]"
+              class="ml-auto border border-gray-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-[#004D3C]"
             >
               <option value="latest">최신순</option>
               <option value="oldest">오래된순</option>
@@ -297,16 +297,16 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
           </div>
 
           <div class="overflow-auto">
-            <table class="w-full min-w-[760px] table-fixed border-collapse text-xs">
-              <thead class="bg-gray-100 text-[10px] uppercase tracking-wider text-gray-500">
+            <table class="w-full min-w-[1180px] table-fixed border-collapse text-sm">
+              <thead class="bg-gray-100 text-[11px] uppercase tracking-wider text-gray-500">
                 <tr>
-                  <th class="w-32 px-3 py-2 text-left font-black">발주번호</th>
-                  <th class="px-3 py-2 text-left font-black">공급처</th>
-                  <th class="w-28 px-3 py-2 text-left font-black">입고 창고</th>
-                  <th class="w-44 px-3 py-2 text-left font-black">품목</th>
-                  <th class="w-28 px-3 py-2 text-right font-black">총금액</th>
-                  <th class="w-20 px-3 py-2 text-center font-black">상태</th>
-                  <th class="w-28 px-3 py-2 text-center font-black">생성일</th>
+                  <th class="whitespace-nowrap w-48 px-3 py-2 text-left font-black">발주번호</th>
+                  <th class="whitespace-nowrap px-3 py-2 text-left font-black">공급처</th>
+                  <th class="whitespace-nowrap w-56 px-3 py-2 text-left font-black">입고 창고</th>
+                  <th class="whitespace-nowrap w-56 px-3 py-2 text-left font-black">품목</th>
+                  <th class="whitespace-nowrap w-28 px-3 py-2 text-right font-black">총금액</th>
+                  <th class="whitespace-nowrap w-24 px-3 py-2 text-center font-black">상태</th>
+                  <th class="whitespace-nowrap w-32 px-3 py-2 text-center font-black">생성일</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">
@@ -317,10 +317,10 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
                   :class="{ 'bg-[#E6F2F0]': poStore.selectedOrderId === order.id }"
                   @click="selectOrder(order.id)"
                 >
-                  <td class="px-3 py-3 font-bold text-gray-400">{{ order.id }}</td>
-                  <td class="px-3 py-3 font-black text-gray-800">{{ order.vendorName }}</td>
-                  <td class="px-3 py-3 font-bold text-gray-600">{{ order.warehouseName }}</td>
-                  <td class="px-3 py-3 font-bold text-gray-700">
+                  <td class="truncate px-3 py-3 font-bold text-gray-400" :title="order.id">{{ order.id }}</td>
+                  <td class="truncate px-3 py-3 font-black text-gray-800" :title="order.vendorName">{{ order.vendorName }}</td>
+                  <td class="truncate px-3 py-3 font-bold text-gray-600" :title="order.warehouseName">{{ order.warehouseName }}</td>
+                  <td class="truncate px-3 py-3 font-bold text-gray-700">
                     <span class="block truncate" :title="(order.productNames ?? []).join(', ')">
                       <template v-if="order.productNames && order.productNames.length > 0">
                         {{ order.productNames[0]
@@ -331,23 +331,23 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
                       <template v-else>—</template>
                     </span>
                   </td>
-                  <td class="px-3 py-3 text-right font-black text-gray-800">
+                  <td class="truncate px-3 py-3 text-right font-black text-gray-800">
                     ₩{{ order.totalPrice.toLocaleString() }}
                   </td>
-                  <td class="px-3 py-3 text-center">
+                  <td class="truncate px-3 py-3 text-center">
                     <span
-                      class="inline-flex px-2 py-1 text-[10px] font-black"
+                      class="inline-flex px-2 py-1 text-[11px] font-black"
                       :class="statusClass(order.status)"
                     >
                       {{ statusLabel(order.status) }}
                     </span>
                   </td>
-                  <td class="px-3 py-3 text-center text-[11px] text-gray-500">
+                  <td class="truncate px-3 py-3 text-center text-xs text-gray-500">
                     {{ formatDate(order.createdAt) }}
                   </td>
                 </tr>
                 <tr v-if="poStore.filteredOrders.length === 0">
-                  <td colspan="7" class="px-3 py-8 text-center text-xs text-gray-400">
+                  <td colspan="7" class="px-3 py-8 text-center text-sm text-gray-400">
                     조회된 발주 내역이 없습니다.
                   </td>
                 </tr>
@@ -382,7 +382,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
     >
       <div
         v-if="toast.show"
-        class="fixed right-4 top-4 z-[60] border border-[#004D3C] bg-white px-4 py-3 text-xs font-bold text-gray-800 shadow-lg"
+        class="fixed right-4 top-4 z-[60] border border-[#004D3C] bg-white px-4 py-3 text-sm font-bold text-gray-800 shadow-lg"
       >
         {{ toast.message }}
       </div>
