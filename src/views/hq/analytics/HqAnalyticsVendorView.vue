@@ -130,20 +130,6 @@ const kpiCards = computed(() => {
       icon: Handshake, valueCls: 'text-emerald-700', iconBg: 'bg-emerald-50', iconCls: 'text-emerald-600',
     },
     {
-      label: '제일 많이 거래한 거래처',
-      value: (kpi.topVendorName ?? '').trim() || '-',
-      unit: '',
-      sub: kpi.topVendorAmount != null ? formatKoreanMoney(kpi.topVendorAmount) : '-',
-      icon: Award, valueCls: 'text-amber-700', iconBg: 'bg-amber-50', iconCls: 'text-amber-600',
-    },
-    {
-      label: '제일 많이 팔린 소재',
-      value: kpi.topMaterialName || '-',
-      unit: '',
-      sub: kpi.topMaterialAmount != null ? formatKoreanMoney(kpi.topMaterialAmount) : '-',
-      icon: Recycle, valueCls: 'text-violet-700', iconBg: 'bg-violet-50', iconCls: 'text-violet-600',
-    },
-    {
       label: '총 판매 금액',
       value: formatKoreanMoney(kpi.totalSalesAmount ?? 0),
       unit: '',
@@ -232,8 +218,9 @@ const maxDependency = computed(() =>
   Math.max(...dependencyData.value.slice(0, 5).map((d) => d.pct), 0),
 )
 
-// ─── 거래처 상세 / 순환재고 상세 토글 ────────────────────────────────
-const detailView = ref('vendor') // 'vendor' | 'circular'
+// ─── 순환재고 상세 토글 ────────────────────────────────────────────
+const detailView = ref('circular') // 'circular' 고정 (거래처 상세 제거됨)
+const detailExpanded = ref(false) // 하단 상세 영역 펼침 상태 (기본 접힘)
 
 // ─── 순환재고 상세 (BE 응답 기반) ─────────────────────────────────────
 const circularMaterialStats = computed(() => {
@@ -365,8 +352,8 @@ const materialDoughnutData = computed(() => ({
         </label>
       </section>
 
-      <!-- KPI 4개 -->
-      <section class="grid gap-3 grid-cols-2 xl:grid-cols-4">
+      <!-- KPI 2개 -->
+      <section class="grid gap-3 grid-cols-1 sm:grid-cols-2">
         <article
           v-for="k in kpiCards"
           :key="k.label"
@@ -470,75 +457,33 @@ const materialDoughnutData = computed(() => ({
         </article>
       </section>
 
-      <!-- 거래처 상세 / 순환재고 상세 토글 박스 -->
+      <!-- 순환재고 소재 상세 박스 -->
       <section class="border border-gray-300 bg-white shadow-sm">
         <header class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-gray-50/70 px-4 py-3">
+          <div class="flex items-center gap-2 border-l-4 border-[#004D3C] pl-3">
+            <Recycle :size="18" class="text-[#004D3C]" />
+            <h3 class="text-base font-black tracking-tight text-[#004D3C]">순환재고 소재 상세</h3>
+          </div>
           <div class="flex items-center gap-2">
+            <span class="text-[10px] font-bold text-gray-400">{{ circularMaterialStats.length }}개 소재</span>
             <button
               type="button"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-black transition-colors"
-              :class="detailView === 'vendor'
-                ? 'bg-[#004D3C] text-white'
-                : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'"
-              @click="detailView = 'vendor'"
+              class="inline-flex items-center gap-1 border border-gray-300 bg-white px-2 py-1 text-[10px] font-black text-gray-600 transition-colors hover:bg-gray-50"
+              @click="detailExpanded = !detailExpanded"
             >
-              📋 거래처 상세
-            </button>
-            <button
-              type="button"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-black transition-colors"
-              :class="detailView === 'circular'
-                ? 'bg-[#004D3C] text-white'
-                : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'"
-              @click="detailView = 'circular'"
-            >
-              <Recycle :size="13" />
-              순환재고 상세
+              {{ detailExpanded ? '▲ 접기' : '▼ 상세 보기' }}
             </button>
           </div>
-          <span class="text-[10px] font-bold text-gray-400">
-            <template v-if="detailView === 'vendor'">{{ filteredVendors.length }}개 거래처</template>
-            <template v-else>{{ circularMaterialStats.length }}개 소재</template>
-          </span>
         </header>
 
-        <!-- 거래처 상세 -->
-        <div v-if="detailView === 'vendor'" class="overflow-auto">
-          <table class="w-full min-w-[640px] text-xs">
-            <thead class="bg-gray-100 text-[10px] text-gray-500">
-              <tr>
-                <th class="px-3 py-2 text-left font-bold">거래처</th>
-                <th class="w-44 px-3 py-2 text-center font-bold">소재</th>
-                <th class="w-28 px-3 py-2 text-right font-bold">단가 (원/kg)</th>
-                <th class="w-28 px-3 py-2 text-right font-bold">1회 거래 무게</th>
-                <th class="w-24 px-3 py-2 text-right font-bold">발주 금액</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100">
-              <tr v-if="!filteredVendors.length">
-                <td class="px-3 py-8 text-center text-gray-400" colspan="5">
-                  검색 조건에 맞는 거래처가 없습니다.
-                </td>
-              </tr>
-              <tr v-for="v in filteredVendors" :key="v.name" class="hover:bg-gray-50">
-                <td class="px-3 py-2 font-bold text-gray-800">{{ (v.name ?? '').trim() }}</td>
-                <td class="px-3 py-2 text-center text-gray-600">{{ v.material }}</td>
-                <td class="px-3 py-2 text-right font-mono text-gray-700">₩{{ Number(v.unitPrice ?? 0).toLocaleString() }}</td>
-                <td class="px-3 py-2 text-right font-mono text-gray-700">{{ Number(v.orderWeight ?? 0).toLocaleString() }}<span class="ml-0.5 text-[10px] text-gray-400">kg</span></td>
-                <td class="px-3 py-2 text-right font-mono font-bold text-gray-800">{{ formatKoreanMoney(v.orderValue) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
         <!-- 순환재고 상세 (소재별 판매 분석) -->
-        <div v-else class="overflow-auto">
+        <div v-if="detailExpanded" class="overflow-auto">
           <table class="w-full min-w-[680px] text-xs">
             <thead class="bg-gray-100 text-[10px] text-gray-500">
               <tr>
                 <th class="w-12 px-3 py-2 text-center font-bold">순위</th>
                 <th class="px-3 py-2 text-left font-bold">소재명</th>
-                <th class="w-20 px-3 py-2 text-center font-bold">소재 유형</th>
+                <th class="w-28 px-3 py-2 text-center font-bold">소재 유형</th>
                 <th class="w-20 px-3 py-2 text-right font-bold">판매수</th>
                 <th class="w-24 px-3 py-2 text-right font-bold">매출</th>
                 <th class="w-20 px-3 py-2 text-right font-bold">비중</th>
@@ -554,7 +499,7 @@ const materialDoughnutData = computed(() => ({
                   </span>
                 </td>
                 <td class="px-3 py-2 text-center">
-                  <span :class="materialTypeBadge(item.materialType)" class="px-2 py-0.5 text-[10px] font-black">
+                  <span :class="materialTypeBadge(item.materialType)" class="inline-block whitespace-nowrap px-2 py-0.5 text-[10px] font-black">
                     {{ item.materialType }}
                   </span>
                 </td>
