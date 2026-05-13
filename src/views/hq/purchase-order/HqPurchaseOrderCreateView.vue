@@ -127,8 +127,8 @@ function handleBulkApply(qty) {
     return
   }
   const selectedRows = []
-  for (const r of poStore.catalogSkuRows) {
-    if (r.type === 'sku' && selectedSkus.value.has(r.skuCode)) selectedRows.push(r)
+  for (const r of poStore.catalogRows) {
+    if (selectedSkus.value.has(r.skuCode)) selectedRows.push(r)
   }
   if (selectedRows.length === 0) return
   for (const row of selectedRows) {
@@ -468,21 +468,10 @@ function initEditMode() {
   }))
 }
 
-// ─── mounted + vendorFilter watch (카탈로그 fetch) ─────────────────────────
-function effectiveVendorCode() {
-  return vendorFilter.value && vendorFilter.value !== 'all' ? vendorFilter.value : ''
-}
-
-function reloadCatalog() {
-  poStore
-    .fetchCatalog({
-      vendorCode: effectiveVendorCode(),
-      warehouseCode: selectedWarehouseCode.value,
-    })
-    .catch((err) => {
-      console.error('[HqPurchaseOrderCreateView] fetchCatalog 실패', err)
-    })
-}
+// ─── mounted (카탈로그 초기 fetch) ─────────────────────────────────────────
+// 자식 컴포넌트(PurchaseOrderCatalog) 가 keyword/vendorFilter/sortBy/shortageOnly
+// 변경을 watch 해서 store.applyCatalogFilters 를 직접 호출한다.
+// 부모는 초기 페이지/facet fetch + warehouseId 매핑만 담당.
 
 onMounted(() => {
   if (isEditMode.value) {
@@ -490,16 +479,14 @@ onMounted(() => {
   } else {
     loadDraft()
   }
-  reloadCatalog()
   // 인증 hydrate race 로 store 마운트 시점 fetch 가 스킵될 수 있어 보장 fetch.
   if (poStore.warehouses.length === 0) {
     poStore.fetchWarehouses()
   }
-})
-
-// 공급처 필터 변경 시 server-side 재 fetch (한 공급처 결과만 받기)
-watch(vendorFilter, () => {
-  reloadCatalog()
+  poStore.fetchCatalogFacets().catch(() => {})
+  poStore.fetchCatalog().catch((err) => {
+    console.error('[HqPurchaseOrderCreateView] fetchCatalog 실패', err)
+  })
 })
 
 // 아이콘은 @/components/hq/purchase-order/icons.js 에서 import.
@@ -518,7 +505,7 @@ watch(vendorFilter, () => {
       >
         <button
           type="button"
-          class="inline-flex items-center gap-1 text-xs font-bold text-gray-600 hover:text-[#004D3C]"
+          class="inline-flex items-center gap-1 text-sm font-bold text-gray-600 hover:text-[#004D3C]"
           @click="router.push({ name: 'hq-purchase-orders' })"
         >
           <ArrowLeftIcon :size="14" />
@@ -526,13 +513,13 @@ watch(vendorFilter, () => {
         </button>
 
         <div class="ml-2 flex items-center gap-2">
-          <label class="text-[11px] font-black uppercase tracking-wider text-gray-500">
+          <label class="text-xs font-black uppercase tracking-wider text-gray-500">
             입고 창고
           </label>
           <select
             ref="warehouseSelectRef"
             :value="selectedWarehouseCode"
-            class="min-w-[160px] border border-gray-300 bg-white px-3 py-1.5 text-xs outline-none focus:border-[#004D3C]"
+            class="min-w-[160px] border border-gray-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-[#004D3C]"
             @change="handleWarehouseChange($event.target.value)"
           >
             <option value="">창고 선택</option>
@@ -544,13 +531,13 @@ watch(vendorFilter, () => {
 
         <span
           v-if="isEditMode"
-          class="ml-auto inline-flex items-center gap-1 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-700"
+          class="ml-auto inline-flex items-center gap-1 bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-700"
         >
           수정 중: {{ editingOrderId }} · {{ currentCartVendorName }}
         </span>
         <span
           v-else-if="cart.length > 0"
-          class="ml-auto inline-flex items-center gap-1 bg-[#E6F2F0] px-2 py-1 text-[10px] font-bold text-[#004D3C]"
+          class="ml-auto inline-flex items-center gap-1 bg-[#E6F2F0] px-2 py-1 text-[11px] font-bold text-[#004D3C]"
         >
           임시 저장된 품목 {{ cart.length }}건
         </span>
@@ -656,7 +643,7 @@ watch(vendorFilter, () => {
     >
       <div
         v-if="toast.show"
-        class="fixed right-4 top-4 z-[60] border border-[#004D3C] bg-white px-4 py-3 text-xs font-bold text-gray-800 shadow-lg"
+        class="fixed right-4 top-4 z-[60] border border-[#004D3C] bg-white px-4 py-3 text-sm font-bold text-gray-800 shadow-lg"
       >
         {{ toast.message }}
       </div>

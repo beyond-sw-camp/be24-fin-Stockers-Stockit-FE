@@ -1,6 +1,6 @@
 // 본사 발주 store BE ↔ FE 변환 레이어.
 // store 본체(`stores/purchaseOrder.js`) 의 state/getter/action 흐름과 분리해서
-// BE 컨트랙트(PurchaseOrder DetailRes/ListRes/CatalogRes) 매핑 규칙을 한 곳에 모은다.
+// BE 컨트랙트(PurchaseOrder DetailRes/ListRes/SkuRowRes/FacetsRes) 매핑 규칙을 한 곳에 모은다.
 //
 // 매핑:
 //   BE code               → FE id
@@ -74,37 +74,26 @@ export function toFeHistory(beHistory) {
   }
 }
 
-// ─── BE → FE (CatalogRes) ──────────────────────────────────────────────────
-// BE 키 ↔ FE 키 동일 유지 (이름 변환 0). 각 SKU 행에 그룹 컨텍스트 첨부해서
-// view 가 그룹 lookup 없이 자체 표시 가능하게.
+// ─── BE → FE (SkuRowRes 평탄 row) ──────────────────────────────────────────
+// 새 발주 카탈로그가 페이지 단위 SKU 평탄 row 로 옴.
+// master 헤더 grouping 키 (masterKey) 를 부여해 view 가 row 순회하며 직전 productCode 와 비교해 헤더 삽입.
 
-export function toFeCatalogMaster(beMaster) {
+export function toFeCatalogRow(beRow) {
   return {
-    masterKey: beMaster.vendorProductCode,
-    vendorCode: beMaster.vendorCode,
-    vendorName: beMaster.vendorName,
-    vendorProductCode: beMaster.vendorProductCode,
-    productCode: beMaster.productCode,
-    productName: beMaster.productName,
-    contractUnitPrice: beMaster.contractUnitPrice,
-    minSkuUnitPrice: beMaster.minSkuUnitPrice,
-    maxSkuUnitPrice: beMaster.maxSkuUnitPrice,
-    skus: Array.isArray(beMaster.skus)
-      ? beMaster.skus.map((s) => ({
-          skuCode: s.skuCode,
-          color: s.color ?? '',
-          size: s.size ?? '',
-          displayOption: s.displayOption ?? [s.color, s.size].filter(Boolean).join('/'),
-          unitPrice: s.unitPrice,
-        }))
-      : [],
-  }
-}
-
-export function toFeCatalogFacet(beFacet) {
-  return {
-    name: beFacet.name,
-    values: Array.isArray(beFacet.values) ? [...beFacet.values] : [],
+    masterKey: `${beRow.vendorCode}|${beRow.productCode}`,
+    vendorCode: beRow.vendorCode,
+    vendorName: beRow.vendorName,
+    vendorProductCode: beRow.vendorProductCode,
+    productCode: beRow.productCode,
+    productName: beRow.productName,
+    skuCode: beRow.skuCode,
+    color: beRow.color ?? '',
+    size: beRow.size ?? '',
+    displayOption:
+      beRow.displayOption || [beRow.color, beRow.size].filter(Boolean).join('/'),
+    unitPrice: Number(beRow.unitPrice ?? 0),
+    contractUnitPrice: Number(beRow.contractUnitPrice ?? 0),
+    availableQty: Number(beRow.availableQty ?? 0),
   }
 }
 

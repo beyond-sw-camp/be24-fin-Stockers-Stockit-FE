@@ -1,13 +1,14 @@
 <script setup>
-import { computed, ref, toRef } from 'vue'
+import { computed, ref, toRef, watch } from 'vue'
 import { usePurchaseOrderStore } from '@/stores/purchaseOrder.js'
-import { useFacets } from '@/composables/hq/purchaseOrder/useFacets.js'
 import { usePurchaseOrderStockSim } from '@/composables/hq/purchaseOrder/useStockSim.js'
 import { SearchIcon } from '@/components/hq/purchase-order/icons.js'
+import PaginationNav from '@/components/common/PaginationNav.vue'
 
-// 새 발주 카탈로그 — ERP 테이블 스타일.
-// 한 행 = 1 SKU. 공급처/제품/옵션이 컬럼으로 평면화 → 그룹 헤더 제거.
-// 멀티 공급처 카트 흐름 (BE batch API) 과 일관 — 사용자가 자유롭게 여러 공급처 SKU 를 담는다.
+// 새 발주 카탈로그 — ERP 평탄 테이블 (Page<SkuRowRes> 평탄 row 위에 master 헤더 inline grouping).
+// 검색·공급처·색상·사이즈·부족만·정렬 모두 서버 처리 (store.applyCatalogFilters).
+// 본 컴포넌트는 v-model 시그니처(keyword/vendorFilter/sortBy/shortageOnly/selectedSkus/rowQuantities/collapsed)
+// 를 호환 유지하되, 카탈로그 필터는 watch 로 store action 트리거.
 
 const props = defineProps({
   selectedWarehouseCode: { type: String, required: true },
@@ -20,15 +21,13 @@ const vendorFilter = defineModel('vendorFilter', { type: String, required: true 
 const sortBy = defineModel('sortBy', { type: String, required: true })
 const shortageOnly = defineModel('shortageOnly', { type: Boolean, required: true })
 const selectedSkus = defineModel('selectedSkus', { type: Set, required: true })
-// collapsed 는 평면 테이블에선 사용 안 함 — 부모 v-model 호환 위해 정의만 유지
+// collapsed 는 평면 테이블에서 사용 안 함 — 부모 v-model 호환 위해 정의만 유지
 defineModel('collapsed', { type: Object, required: true })
 const rowQuantities = defineModel('rowQuantities', { type: Object, required: true })
 
 const emit = defineEmits(['add-sku-to-cart', 'add-group-to-cart', 'scroll-to-cart-sku'])
 
 const poStore = usePurchaseOrderStore()
-const { activeFacetFilters, toggleFacet, isFacetActive, clearFacets, skuMatchesFacets } =
-  useFacets()
 const {
   stockStore,
   rowStock,
@@ -36,107 +35,95 @@ const {
   rowSuggested,
   stockLevelClass,
   statusChipForSku,
-  shortageRank,
 } = usePurchaseOrderStockSim(toRef(props, 'selectedWarehouseCode'))
 
 const searchInputRef = ref(null)
 
-const catalogSkuRows = computed(() => poStore.catalogSkuRows)
-const catalogFacets = computed(() => poStore.catalogFacets)
+// FE sortBy → BE Pageable.sort 키 매핑 (화이트리스트)
+const SORT_MAP = {
+  vendorAsc: 'vendorName,asc',
+  nameAsc: 'productName,asc',
+  priceAsc: 'unitPrice,asc',
+  priceDesc: 'unitPrice,desc',
+  shortage: 'availableQty,asc',
+}
+
+// vendorFilter 'all' → '' (store 는 빈 문자열 = 전체)
+function normalizeVendor(v) {
+  return v && v !== 'all' ? v : ''
+}
+
+// selectedWarehouseCode → warehouseId Long (store.warehouses 에서 매핑)
+const selectedWarehouseId = computed(() => {
+  const code = props.selectedWarehouseCode
+  if (!code) return null
+  const wh = poStore.warehouses.find((w) => w.code === code)
+  return wh?.id ?? null
+})
+
+// ── watch 모음 — 변경 시 server fetch 트리거 ───────────────────────────
+// keyword 는 300ms 디바운스. 그 외는 즉시 (드롭다운/칩/토글이라 매 변경 빈번 X).
+let keywordTimer = null
+watch(keyword, (v) => {
+  if (keywordTimer) clearTimeout(keywordTimer)
+  keywordTimer = setTimeout(() => {
+    poStore.applyCatalogFilters({ keyword: v ?? '' })
+  }, 300)
+})
+
+watch(vendorFilter, (v) => {
+  poStore.applyCatalogFilters({ vendor: normalizeVendor(v) })
+})
+
+watch(sortBy, (v) => {
+  poStore.applyCatalogFilters({ sort: SORT_MAP[v] ?? 'id,asc' })
+})
+
+watch(shortageOnly, (v) => {
+  poStore.applyCatalogFilters({ shortageOnly: !!v })
+})
+
+watch(selectedWarehouseId, (v) => {
+  poStore.applyCatalogFilters({ warehouseId: v })
+})
+
+// ── 색상/사이즈 facet — single select (현재 같은 값 다시 클릭하면 해제) ──
+function selectColor(c) {
+  const next = poStore.catalogColor === c ? '' : c
+  poStore.applyCatalogFilters({ color: next })
+}
+function selectSize(s) {
+  const next = poStore.catalogSkuSize === s ? '' : s
+  poStore.applyCatalogFilters({ skuSize: next })
+}
+function clearFacets() {
+  poStore.applyCatalogFilters({ color: '', skuSize: '' })
+}
+
+// ── 표시용 computed ───────────────────────────────────────────────────
+const catalogRows = computed(() => poStore.catalogRows)
+const catalogColors = computed(() => poStore.catalogColors)
+const catalogSizes = computed(() => poStore.catalogSizes)
 const catalogLoading = computed(() => poStore.catalogLoading)
 
+// 페이지 안 vendor distinct — 한 페이지 안 vendor 만 보이는 한계는 별 phase 개선 예정
 const vendorOptions = computed(() => {
   const seen = new Map()
-  for (const r of catalogSkuRows.value) {
-    if (r.type === 'header' && !seen.has(r.vendorCode)) {
+  for (const r of catalogRows.value) {
+    if (!seen.has(r.vendorCode)) {
       seen.set(r.vendorCode, { id: r.vendorCode, code: r.vendorCode, name: r.vendorName })
     }
   }
   return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name, 'ko'))
 })
 
-// 평면 SKU 행 — 검색/공급처필터/facet/부족/정렬 적용한 SKU 행만 반환.
-const filteredRows = computed(() => {
-  const kw = keyword.value.trim().toLowerCase()
-  let skus = catalogSkuRows.value.filter((r) => r.type === 'sku')
-  if (skus.length === 0) return []
+const skuRows = computed(() => catalogRows.value)
 
-  // 공급처 필터 (server-side fetch 와 별개로 client 도 안전망)
-  if (vendorFilter.value && vendorFilter.value !== 'all') {
-    skus = skus.filter((r) => r.vendorCode === vendorFilter.value)
-  }
-
-  // 키워드
-  if (kw) {
-    skus = skus.filter((r) =>
-      [
-        r.vendorName,
-        r.vendorCode,
-        r.productName,
-        r.productCode,
-        r.skuCode,
-        r.color,
-        r.size,
-        r.displayOption,
-      ].some((s) => (s ?? '').toLowerCase().includes(kw)),
-    )
-  }
-
-  // Facet (색상·사이즈)
-  skus = skus.filter(skuMatchesFacets)
-
-  // 부족만
-  if (shortageOnly.value && props.selectedWarehouseCode) {
-    skus = skus.filter((r) => {
-      const level = rowStockLevel(r.skuCode)
-      return level === 'critical' || level === 'warning'
-    })
-  }
-
-  // 정렬
-  switch (sortBy.value) {
-    case 'shortage':
-      skus = [...skus].sort((a, b) => {
-        const rankDiff = shortageRank(a.skuCode) - shortageRank(b.skuCode)
-        if (rankDiff !== 0) return rankDiff
-        return (
-          a.productName.localeCompare(b.productName, 'ko') ||
-          (a.displayOption ?? '').localeCompare(b.displayOption ?? '', 'ko')
-        )
-      })
-      break
-    case 'priceAsc':
-      skus = [...skus].sort((a, b) => a.unitPrice - b.unitPrice)
-      break
-    case 'priceDesc':
-      skus = [...skus].sort((a, b) => b.unitPrice - a.unitPrice)
-      break
-    case 'nameAsc':
-      skus = [...skus].sort(
-        (a, b) =>
-          a.productName.localeCompare(b.productName, 'ko') ||
-          (a.displayOption || '').localeCompare(b.displayOption || '', 'ko'),
-      )
-      break
-    case 'vendorAsc':
-    default:
-      // 공급처명 가나다 → 제품명 가나다 → 옵션 순. 기본 정렬.
-      skus = [...skus].sort(
-        (a, b) =>
-          a.vendorName.localeCompare(b.vendorName, 'ko') ||
-          a.productName.localeCompare(b.productName, 'ko') ||
-          (a.displayOption || '').localeCompare(b.displayOption || '', 'ko'),
-      )
-  }
-
-  return skus
-})
-
-const matchedSkuCount = computed(() => filteredRows.value.length)
+const matchedSkuCount = computed(() => poStore.catalogTotalElements)
 
 const shortageCount = computed(() => {
   if (!props.selectedWarehouseCode) return 0
-  const skuCodes = catalogSkuRows.value.filter((r) => r.type === 'sku').map((r) => r.skuCode)
+  const skuCodes = catalogRows.value.map((r) => r.skuCode)
   return stockStore.getSkuShortageCount(props.selectedWarehouseCode, skuCodes)
 })
 
@@ -153,23 +140,21 @@ function toggleSkuSelected(skuCode) {
 
 function toggleAllVisible() {
   const set = new Set(selectedSkus.value)
-  const allOn = filteredRows.value.every((r) => set.has(r.skuCode))
+  const allOn = skuRows.value.every((r) => set.has(r.skuCode))
   if (allOn) {
-    for (const r of filteredRows.value) set.delete(r.skuCode)
+    for (const r of skuRows.value) set.delete(r.skuCode)
   } else {
-    for (const r of filteredRows.value) set.add(r.skuCode)
+    for (const r of skuRows.value) set.add(r.skuCode)
   }
   selectedSkus.value = set
 }
 
 const isAllSelected = computed(
   () =>
-    filteredRows.value.length > 0 &&
-    filteredRows.value.every((r) => selectedSkus.value.has(r.skuCode)),
+    skuRows.value.length > 0 && skuRows.value.every((r) => selectedSkus.value.has(r.skuCode)),
 )
 const isSomeSelected = computed(
-  () =>
-    filteredRows.value.some((r) => selectedSkus.value.has(r.skuCode)) && !isAllSelected.value,
+  () => skuRows.value.some((r) => selectedSkus.value.has(r.skuCode)) && !isAllSelected.value,
 )
 
 function applySuggestedToSku(row) {
@@ -189,8 +174,7 @@ function scrollToSku(skuCode) {
 
 defineExpose({ focusSearch, scrollToSku })
 
-// 평면 테이블에선 그룹 단위 액션 의미 없음 — add-group-to-cart 는 emit 안 함.
-// 부모의 addGroupToCart 핸들러는 unused (호환 보존, 향후 제거 후보).
+// add-group-to-cart 는 평면 테이블에선 사용 안 함 — 호환 보존
 void emit
 </script>
 
@@ -209,20 +193,20 @@ void emit
           v-model="keyword"
           type="text"
           placeholder='제품명/SKU/공급처/옵션 검색  ("/" 로 포커스)'
-          class="w-72 border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-xs outline-none focus:border-[#004D3C]"
+          class="w-72 border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-sm outline-none focus:border-[#004D3C]"
         />
       </label>
       <select
         v-model="vendorFilter"
         :disabled="isEditMode"
-        class="border border-gray-300 bg-white px-3 py-1.5 text-xs outline-none focus:border-[#004D3C] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
+        class="border border-gray-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-[#004D3C] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
       >
         <option value="all">전체 공급처</option>
         <option v-for="v in vendorOptions" :key="v.code" :value="v.code">{{ v.name }}</option>
       </select>
       <select
         v-model="sortBy"
-        class="border border-gray-300 bg-white px-3 py-1.5 text-xs outline-none focus:border-[#004D3C]"
+        class="border border-gray-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-[#004D3C]"
         title="정렬 기준"
       >
         <option value="vendorAsc">공급처명 ↑</option>
@@ -233,7 +217,7 @@ void emit
       </select>
       <button
         type="button"
-        class="border px-3 py-1.5 text-[11px] font-black transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+        class="border px-3 py-1.5 text-xs font-black transition-colors disabled:cursor-not-allowed disabled:opacity-50"
         :class="
           shortageOnly
             ? 'border-red-400 bg-red-50 text-red-700'
@@ -241,55 +225,62 @@ void emit
               ? 'border-red-300 bg-white text-red-600 hover:bg-red-50'
               : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
         "
-        :disabled="!selectedWarehouseCode || shortageCount === 0"
+        :disabled="!selectedWarehouseCode"
         :title="
           !selectedWarehouseCode
             ? '먼저 창고를 선택하세요'
-            : shortageCount === 0
-              ? '재고 부족 SKU 없음'
-              : '가용재고가 안전재고 1.5배 미만인 SKU만 표시'
+            : '안전재고 미만 SKU 만 표시 (서버 필터)'
         "
         @click="shortageOnly = !shortageOnly"
       >
-        {{
-          shortageOnly
-            ? `✓ 부족만 (${shortageCount})`
-            : selectedWarehouseCode && shortageCount > 0
-              ? `부족만 보기 (${shortageCount})`
-              : '부족만 보기'
-        }}
+        {{ shortageOnly ? '✓ 부족만' : '부족만 보기' }}
       </button>
-      <span class="ml-auto text-[11px] font-bold text-gray-500">SKU {{ matchedSkuCount }}건</span>
+      <span class="ml-auto text-xs font-bold text-gray-500">SKU {{ matchedSkuCount }}건</span>
     </div>
 
-    <!-- Facet 필터 칩 (색상/사이즈) -->
+    <!-- Facet 필터 칩 (색상/사이즈) — single select -->
     <div
-      v-if="catalogFacets.length > 0"
+      v-if="catalogColors.length > 0 || catalogSizes.length > 0"
       class="flex flex-wrap items-center gap-2 border-b border-gray-200 bg-white px-2 py-2 pr-[15px]"
     >
-      <div v-for="facet in catalogFacets" :key="facet.name" class="flex items-center gap-1">
-        <span class="text-[10px] font-black uppercase tracking-wider text-gray-400">
-          {{ facet.name }}
-        </span>
+      <div v-if="catalogColors.length > 0" class="flex items-center gap-1">
+        <span class="text-[11px] font-black uppercase tracking-wider text-gray-400">색상</span>
         <button
-          v-for="value in facet.values"
-          :key="`${facet.name}-${value}`"
+          v-for="value in catalogColors"
+          :key="`color-${value}`"
           type="button"
-          class="border px-2 py-0.5 text-[10px] font-bold transition-colors"
+          class="border px-2 py-0.5 text-[11px] font-bold transition-colors"
           :class="
-            isFacetActive(facet.name, value)
+            poStore.catalogColor === value
               ? 'border-[#004D3C] bg-[#004D3C] text-white'
               : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
           "
-          @click="toggleFacet(facet.name, value)"
+          @click="selectColor(value)"
+        >
+          {{ value }}
+        </button>
+      </div>
+      <div v-if="catalogSizes.length > 0" class="flex items-center gap-1">
+        <span class="text-[11px] font-black uppercase tracking-wider text-gray-400">사이즈</span>
+        <button
+          v-for="value in catalogSizes"
+          :key="`size-${value}`"
+          type="button"
+          class="border px-2 py-0.5 text-[11px] font-bold transition-colors"
+          :class="
+            poStore.catalogSkuSize === value
+              ? 'border-[#004D3C] bg-[#004D3C] text-white'
+              : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
+          "
+          @click="selectSize(value)"
         >
           {{ value }}
         </button>
       </div>
       <button
-        v-if="Object.keys(activeFacetFilters).length > 0"
+        v-if="poStore.catalogColor || poStore.catalogSkuSize"
         type="button"
-        class="ml-auto text-[10px] font-bold text-gray-500 underline hover:text-gray-700"
+        class="ml-auto text-[11px] font-bold text-gray-500 underline hover:text-gray-700"
         @click="clearFacets"
       >
         필터 초기화
@@ -299,36 +290,31 @@ void emit
     <!-- 창고 미선택 안내 -->
     <div
       v-if="!selectedWarehouseCode"
-      class="border-b border-amber-200 bg-amber-50 px-3 py-2 pr-[15px] text-[11px] font-bold text-amber-700"
+      class="border-b border-amber-200 bg-amber-50 px-3 py-2 pr-[15px] text-xs font-bold text-amber-700"
     >
       입고 창고를 먼저 선택해주세요. 창고가 정해져야 발주서를 만들 수 있습니다.
     </div>
 
-    <!-- 카탈로그 테이블 — ERP 스타일 평면. 헤더 sticky. -->
+    <!-- 카탈로그 테이블 — master 헤더 inline. -->
     <div class="min-h-0 flex-1 overflow-auto">
-      <table class="w-full table-fixed border-collapse text-xs">
-        <thead class="sticky top-0 z-10 bg-gray-100 text-xs text-gray-600 shadow-sm">
+      <table class="w-full table-fixed border-collapse text-sm">
+        <thead class="sticky top-0 z-10 bg-gray-100 text-sm text-gray-600 shadow-sm">
           <tr>
             <th class="w-8 px-1 py-2 text-center font-black">
               <input
                 type="checkbox"
                 :checked="isAllSelected"
                 :indeterminate.prop="isSomeSelected"
-                :disabled="filteredRows.length === 0"
+                :disabled="skuRows.length === 0"
                 class="cursor-pointer disabled:cursor-not-allowed"
-                title="화면에 보이는 SKU 전체 선택"
+                title="현재 페이지 SKU 전체 선택"
                 @change="toggleAllVisible"
               />
             </th>
             <th class="w-28 px-2 py-2 text-left font-black">공급처</th>
             <th class="px-2 py-2 text-left font-black">제품</th>
             <th class="w-24 px-2 py-2 text-right font-black">단가</th>
-            <th
-              class="w-14 px-2 py-2 text-right font-black"
-              title="가용재고 (실재고 + 입고예정 - 출고예정)"
-            >
-              재고
-            </th>
+            <th class="w-14 px-2 py-2 text-right font-black" title="가용재고">재고</th>
             <th
               class="w-14 px-2 py-2 text-right font-black"
               title="안전재고 × 1.5 까지 채우는 권장 발주 수량"
@@ -342,132 +328,139 @@ void emit
         </thead>
         <tbody :class="!selectedWarehouseCode ? 'pointer-events-none opacity-50' : ''">
           <tr
-            v-for="row in filteredRows"
-            :key="`s-${row.skuCode}`"
+            v-for="row in catalogRows"
+            :key="row.skuCode"
             class="border-b border-gray-100 hover:bg-[#F4FAF8]"
             :class="selectedSkus.has(row.skuCode) ? 'bg-emerald-50' : ''"
             :data-sku-code="row.skuCode"
           >
-            <td class="px-1 py-2 text-center align-middle">
-              <input
-                type="checkbox"
-                :checked="selectedSkus.has(row.skuCode)"
-                class="cursor-pointer"
-                @change="toggleSkuSelected(row.skuCode)"
-              />
-            </td>
-            <td class="truncate px-2 py-2 align-middle" :title="row.vendorName">
-              <span class="text-[11px] font-black text-gray-700">{{ row.vendorName }}</span>
-            </td>
-            <td class="px-2 py-2 align-middle" :title="`${row.productName} · ${row.skuCode}`">
-              <div class="flex flex-col gap-0.5">
-                <div class="flex flex-wrap items-baseline gap-x-2">
-                  <span class="whitespace-normal break-words text-xs font-black leading-tight text-gray-800">
-                    {{ row.productName }}
-                  </span>
-                  <span v-if="row.displayOption" class="text-[11px] font-bold text-[#004D3C]">
-                    {{ row.displayOption }}
-                  </span>
+              <td class="px-1 py-2 text-center align-middle">
+                <input
+                  type="checkbox"
+                  :checked="selectedSkus.has(row.skuCode)"
+                  class="cursor-pointer"
+                  @change="toggleSkuSelected(row.skuCode)"
+                />
+              </td>
+              <td class="truncate px-2 py-2 align-middle" :title="row.vendorName">
+                <span class="text-xs font-black text-gray-700">{{ row.vendorName }}</span>
+              </td>
+              <td class="px-2 py-2 align-middle" :title="`${row.productName} · ${row.skuCode}`">
+                <div class="flex flex-col gap-0.5">
+                  <div class="flex flex-wrap items-baseline gap-x-2">
+                    <span class="whitespace-normal break-words text-sm font-black leading-tight text-gray-800">
+                      {{ row.productName }}
+                    </span>
+                    <span v-if="row.displayOption" class="text-xs font-bold text-[#004D3C]">
+                      {{ row.displayOption }}
+                    </span>
+                  </div>
+                  <span class="font-mono text-[11px] text-gray-400">{{ row.skuCode }}</span>
                 </div>
-                <span class="font-mono text-[10px] text-gray-400">{{ row.skuCode }}</span>
-              </div>
-            </td>
-            <td class="px-2 py-2 text-right align-middle font-bold text-[#004D3C]">
-              ₩{{ row.unitPrice.toLocaleString() }}
-            </td>
-            <td
-              class="px-2 py-2 text-right align-middle font-bold"
-              :class="stockLevelClass(rowStockLevel(row.skuCode))"
-              :title="
-                rowStock(row.skuCode)
-                  ? `실재고 ${rowStock(row.skuCode).onHand} · 안전 ${rowStock(row.skuCode).safetyStock}`
-                  : ''
-              "
-            >
-              <template v-if="rowStock(row.skuCode)">{{ rowStock(row.skuCode).available }}</template>
-              <span v-else class="text-gray-300">—</span>
-            </td>
-            <td class="px-2 py-2 text-right align-middle">
-              <template v-if="rowStock(row.skuCode)">
-                <button
-                  v-if="rowSuggested(row.skuCode) > 0"
-                  type="button"
-                  class="text-xs font-black text-[#004D3C] hover:underline"
-                  :title="`클릭 시 수량 입력란에 ${rowSuggested(row.skuCode)} 채움`"
-                  @click="applySuggestedToSku(row)"
-                >
-                  {{ rowSuggested(row.skuCode) }}
-                </button>
-                <span v-else class="text-gray-300">—</span>
-              </template>
-              <span v-else class="text-gray-300">—</span>
-            </td>
-            <td class="px-1 py-2 text-center align-middle">
-              <template v-if="statusChipForSku(row.skuCode)">
-                <span
-                  class="inline-flex min-w-9 justify-center px-1.5 py-0.5 text-[10px] font-black"
-                  :class="statusChipForSku(row.skuCode).class"
-                >
-                  {{ statusChipForSku(row.skuCode).label }}
-                </span>
-              </template>
-              <span v-else class="text-gray-300">—</span>
-            </td>
-            <td class="px-1 py-2 align-middle">
-              <input
-                type="number"
-                min="0"
-                placeholder="0"
-                class="w-full border border-gray-300 px-1 py-1 text-center text-xs outline-none focus:border-[#004D3C]"
-                :value="rowQuantities[row.skuCode] ?? ''"
-                @input="
-                  rowQuantities = {
-                    ...rowQuantities,
-                    [row.skuCode]: Number($event.target.value) || 0,
-                  }
+              </td>
+              <td class="px-2 py-2 text-right align-middle font-bold text-[#004D3C]">
+                ₩{{ row.unitPrice.toLocaleString() }}
+              </td>
+              <td
+                class="px-2 py-2 text-right align-middle font-bold"
+                :class="stockLevelClass(rowStockLevel(row.skuCode))"
+                :title="
+                  rowStock(row.skuCode)
+                    ? `실재고 ${rowStock(row.skuCode).onHand} · 안전 ${rowStock(row.skuCode).safetyStock}`
+                    : `BE 가용 ${row.availableQty}`
                 "
-                @keydown.enter.exact="$emit('add-sku-to-cart', row)"
-              />
-            </td>
-            <td class="px-1 py-2 text-center align-middle">
-              <button
-                v-if="isInCart(row.skuCode)"
-                type="button"
-                class="inline-flex items-center justify-center border border-[#004D3C] bg-[#E6F2F0] px-2 py-0.5 text-[10px] font-black text-[#004D3C] hover:bg-[#D6EAE6]"
-                title="장바구니에서 보기"
-                @click="$emit('scroll-to-cart-sku', row.skuCode)"
               >
-                ✓ 담김
-              </button>
-              <button
-                v-else
-                type="button"
-                class="inline-flex items-center justify-center border border-[#004D3C] bg-white px-2 py-0.5 text-[10px] font-black text-[#004D3C] hover:bg-[#E6F2F0] disabled:cursor-not-allowed disabled:opacity-40"
-                :disabled="!(Number(rowQuantities[row.skuCode]) > 0)"
-                title="장바구니 담기 (Enter)"
-                @click="$emit('add-sku-to-cart', row)"
-              >
-                담기
-              </button>
-            </td>
+                <template v-if="rowStock(row.skuCode)">{{ rowStock(row.skuCode).available }}</template>
+                <template v-else>{{ row.availableQty }}</template>
+              </td>
+              <td class="px-2 py-2 text-right align-middle">
+                <template v-if="rowStock(row.skuCode)">
+                  <button
+                    v-if="rowSuggested(row.skuCode) > 0"
+                    type="button"
+                    class="text-sm font-black text-[#004D3C] hover:underline"
+                    :title="`클릭 시 수량 입력란에 ${rowSuggested(row.skuCode)} 채움`"
+                    @click="applySuggestedToSku(row)"
+                  >
+                    {{ rowSuggested(row.skuCode) }}
+                  </button>
+                  <span v-else class="text-gray-300">—</span>
+                </template>
+                <span v-else class="text-gray-300">—</span>
+              </td>
+              <td class="px-1 py-2 text-center align-middle">
+                <template v-if="statusChipForSku(row.skuCode)">
+                  <span
+                    class="inline-flex min-w-9 justify-center px-1.5 py-0.5 text-[11px] font-black"
+                    :class="statusChipForSku(row.skuCode).class"
+                  >
+                    {{ statusChipForSku(row.skuCode).label }}
+                  </span>
+                </template>
+                <span v-else class="text-gray-300">—</span>
+              </td>
+              <td class="px-1 py-2 align-middle">
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  class="w-full border border-gray-300 px-1 py-1 text-center text-sm outline-none focus:border-[#004D3C]"
+                  :value="rowQuantities[row.skuCode] ?? ''"
+                  @input="
+                    rowQuantities = {
+                      ...rowQuantities,
+                      [row.skuCode]: Number($event.target.value) || 0,
+                    }
+                  "
+                  @keydown.enter.exact="$emit('add-sku-to-cart', row)"
+                />
+              </td>
+              <td class="px-1 py-2 text-center align-middle">
+                <button
+                  v-if="isInCart(row.skuCode)"
+                  type="button"
+                  class="inline-flex items-center justify-center border border-[#004D3C] bg-[#E6F2F0] px-2 py-0.5 text-[11px] font-black text-[#004D3C] hover:bg-[#D6EAE6]"
+                  title="장바구니에서 보기"
+                  @click="$emit('scroll-to-cart-sku', row.skuCode)"
+                >
+                  ✓ 담김
+                </button>
+                <button
+                  v-else
+                  type="button"
+                  class="inline-flex items-center justify-center border border-[#004D3C] bg-white px-2 py-0.5 text-[11px] font-black text-[#004D3C] hover:bg-[#E6F2F0] disabled:cursor-not-allowed disabled:opacity-40"
+                  :disabled="!(Number(rowQuantities[row.skuCode]) > 0)"
+                  title="장바구니 담기 (Enter)"
+                  @click="$emit('add-sku-to-cart', row)"
+                >
+                  담기
+                </button>
+              </td>
           </tr>
-          <tr v-if="!catalogLoading && catalogSkuRows.length === 0">
-            <td colspan="9" class="px-3 py-8 text-center text-xs text-gray-400">
-              노출 가능한 계약 제품이 없습니다.
-            </td>
-          </tr>
-          <tr v-else-if="!catalogLoading && filteredRows.length === 0">
-            <td colspan="9" class="px-3 py-8 text-center text-xs text-gray-400">
+          <tr v-if="!catalogLoading && skuRows.length === 0">
+            <td colspan="9" class="px-3 py-8 text-center text-sm text-gray-400">
               검색 결과가 없습니다.
             </td>
           </tr>
           <tr v-if="catalogLoading">
-            <td colspan="9" class="px-3 py-8 text-center text-xs text-gray-400">
+            <td colspan="9" class="px-3 py-8 text-center text-sm text-gray-400">
               카탈로그를 불러오는 중...
             </td>
           </tr>
         </tbody>
       </table>
     </div>
+
+    <!-- 페이지네이션 -->
+    <PaginationNav
+      :page="poStore.catalogPage"
+      :size="poStore.catalogSize"
+      :total-pages="poStore.catalogTotalPages"
+      :total-elements="poStore.catalogTotalElements"
+      :has-previous="poStore.catalogHasPrevious"
+      :has-next="poStore.catalogHasNext"
+      @update:page="poStore.setCatalogPage"
+      @update:size="poStore.setCatalogSize"
+    />
   </div>
 </template>

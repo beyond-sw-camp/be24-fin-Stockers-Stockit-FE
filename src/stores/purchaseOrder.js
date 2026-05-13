@@ -7,8 +7,7 @@ import {
   VENDOR_PROCESSING_STATUSES,
   toBeCreateReq,
   toBeUpdateReq,
-  toFeCatalogFacet,
-  toFeCatalogMaster,
+  toFeCatalogRow,
   toFeOrder,
 } from '@/stores/purchaseOrder/mappers.js'
 
@@ -128,79 +127,107 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     warehouseList.value.map((w) => ({ id: w.id, name: w.name, code: w.code })),
   )
 
-  // ─── 카탈로그 (새 발주 페이지) ──────────────────────────────────────────
-  // BE GET /api/hq/purchase-orders/catalog 응답을 매핑해 보관.
-  // catalogSkuRows getter 가 view 가 v-for 한 번에 돌릴 평탄 row 배열 반환.
-  const catalogMasters = ref([])
-  const catalogFacets = ref([])
+  // ─── 카탈로그 (새 발주 페이지) — Page<SkuRowRes> 평탄 row + 페이징 + 서버 필터/facet
+  const catalogRows = ref([])
+  const catalogPage = ref(0) // 0-based
+  const catalogSize = ref(50)
+  const catalogTotalElements = ref(0)
+  const catalogTotalPages = ref(0)
+  const catalogHasNext = ref(false)
+  const catalogHasPrevious = ref(false)
+  const catalogColors = ref([])
+  const catalogSizes = ref([])
   const catalogLoading = ref(false)
   const catalogError = ref(null)
 
-  // view 가 그룹 헤더 + SKU 행을 한 v-for 로 렌더 가능하도록 평탄 row 배열 반환
-  // row 형식:
-  //   { type: 'header', masterKey, vendorCode, vendorName, vendorProductCode, productCode,
-  //     productName, contractUnitPrice, minSkuUnitPrice, maxSkuUnitPrice, skuCount }
-  //   { type: 'sku',    masterKey, skuCode, color, size, displayOption, unitPrice,
-  //     vendorCode, vendorName, vendorProductCode, productCode, productName }
-  // 정렬 — vendorName 가나다 → productName 가나다 → SKU 는 BE id asc 순서 그대로
-  const catalogSkuRows = computed(() => {
-    const sorted = [...catalogMasters.value].sort((a, b) => {
-      const v = a.vendorName.localeCompare(b.vendorName, 'ko')
-      if (v !== 0) return v
-      return a.productName.localeCompare(b.productName, 'ko')
-    })
-    const rows = []
-    for (const m of sorted) {
-      rows.push({
-        type: 'header',
-        masterKey: m.masterKey,
-        vendorCode: m.vendorCode,
-        vendorName: m.vendorName,
-        vendorProductCode: m.vendorProductCode,
-        productCode: m.productCode,
-        productName: m.productName,
-        contractUnitPrice: m.contractUnitPrice,
-        minSkuUnitPrice: m.minSkuUnitPrice,
-        maxSkuUnitPrice: m.maxSkuUnitPrice,
-        skuCount: m.skus.length,
-      })
-      for (const s of m.skus) {
-        rows.push({
-          type: 'sku',
-          masterKey: m.masterKey,
-          skuCode: s.skuCode,
-          color: s.color,
-          size: s.size,
-          displayOption: s.displayOption,
-          unitPrice: s.unitPrice,
-          vendorCode: m.vendorCode,
-          vendorName: m.vendorName,
-          vendorProductCode: m.vendorProductCode,
-          productCode: m.productCode,
-          productName: m.productName,
-        })
-      }
-    }
-    return rows
-  })
+  // 필터 state — view 가 v-model 또는 직접 binding, action 이 서버 재호출
+  const catalogVendor = ref('')
+  const catalogKeyword = ref('')
+  const catalogColor = ref('')
+  const catalogSkuSize = ref('')
+  const catalogShortageOnly = ref(false)
+  const catalogSort = ref('id,asc')
+  const catalogWarehouseId = ref(null)
 
-  async function fetchCatalog({ vendorCode = '', warehouseCode = '' } = {}) {
+  async function fetchCatalog(overrides = {}) {
     catalogLoading.value = true
     catalogError.value = null
     try {
-      const res = await purchaseOrderApi.getCatalog({ vendorCode, warehouseCode })
-      catalogMasters.value = Array.isArray(res?.masters) ? res.masters.map(toFeCatalogMaster) : []
-      catalogFacets.value = Array.isArray(res?.optionFacets)
-        ? res.optionFacets.map(toFeCatalogFacet)
-        : []
+      const res = await purchaseOrderApi.getCatalog({
+        page: overrides.page ?? catalogPage.value,
+        size: overrides.size ?? catalogSize.value,
+        sort: overrides.sort ?? catalogSort.value,
+        vendorCode: overrides.vendor ?? catalogVendor.value,
+        keyword: overrides.keyword ?? catalogKeyword.value,
+        color: overrides.color ?? catalogColor.value,
+        skuSize: overrides.skuSize ?? catalogSkuSize.value,
+        shortageOnly: (overrides.shortageOnly ?? catalogShortageOnly.value) ? true : undefined,
+        warehouseId: overrides.warehouseId ?? catalogWarehouseId.value,
+      })
+      catalogRows.value = Array.isArray(res?.content) ? res.content.map(toFeCatalogRow) : []
+      catalogPage.value = Number(res?.number ?? 0)
+      catalogSize.value = Number(res?.size ?? 50)
+      catalogTotalElements.value = Number(res?.totalElements ?? 0)
+      catalogTotalPages.value = Number(res?.totalPages ?? 0)
+      catalogHasNext.value = !res?.last
+      catalogHasPrevious.value = !res?.first
     } catch (e) {
       catalogError.value = e?.message ?? '카탈로그를 불러오지 못했습니다.'
-      catalogMasters.value = []
-      catalogFacets.value = []
+      catalogRows.value = []
+      catalogTotalElements.value = 0
+      catalogTotalPages.value = 0
+      catalogHasNext.value = false
+      catalogHasPrevious.value = false
       console.error('[purchaseOrder] fetchCatalog 실패', e)
     } finally {
       catalogLoading.value = false
     }
+  }
+
+  async function fetchCatalogFacets() {
+    try {
+      const res = await purchaseOrderApi.getCatalogFacets({
+        vendorCode: catalogVendor.value,
+        keyword: catalogKeyword.value,
+      })
+      catalogColors.value = Array.isArray(res?.colors) ? res.colors : []
+      catalogSizes.value = Array.isArray(res?.sizes) ? res.sizes : []
+    } catch (e) {
+      console.error('[purchaseOrder] fetchCatalogFacets 실패', e)
+      catalogColors.value = []
+      catalogSizes.value = []
+    }
+  }
+
+  async function setCatalogPage(p) {
+    if (p < 0) return
+    await fetchCatalog({ page: p })
+  }
+
+  async function setCatalogSize(s) {
+    await fetchCatalog({ page: 0, size: s })
+  }
+
+  // 필터 변경 — page=0 으로 리셋. vendor/keyword 바뀌면 facet 도 같이 갱신.
+  async function applyCatalogFilters(patch = {}) {
+    let facetAffected = false
+    if ('vendor' in patch) {
+      catalogVendor.value = patch.vendor ?? ''
+      facetAffected = true
+    }
+    if ('keyword' in patch) {
+      catalogKeyword.value = patch.keyword ?? ''
+      facetAffected = true
+    }
+    if ('color' in patch) catalogColor.value = patch.color ?? ''
+    if ('skuSize' in patch) catalogSkuSize.value = patch.skuSize ?? ''
+    if ('shortageOnly' in patch) catalogShortageOnly.value = !!patch.shortageOnly
+    if ('sort' in patch) catalogSort.value = patch.sort ?? 'id,asc'
+    if ('warehouseId' in patch) catalogWarehouseId.value = patch.warehouseId ?? null
+    await Promise.all([
+      fetchCatalog({ page: 0 }),
+      facetAffected ? fetchCatalogFacets() : Promise.resolve(),
+    ])
   }
 
   async function fetchWarehouses() {
@@ -223,9 +250,12 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     loading.value = true
     error.value = null
     try {
-      const list = await purchaseOrderApi.list()
+      const res = await purchaseOrderApi.list()
+      // BE 가 Page<ListRes> (po-list-pagination-be) 또는 List 둘 다 대응.
+      // 페이지네이션 UI 도입은 별 phase 책임 — 일단 첫 페이지 데이터만 표시.
+      const list = Array.isArray(res) ? res : (res?.content ?? [])
       // ListRes 는 items/statusHistory 미포함 — 빈 배열로 채워둠
-      purchaseOrders.value = (list ?? []).map((o) => ({
+      purchaseOrders.value = list.map((o) => ({
         ...toFeOrder(o),
         items: [],
         statusHistory: [],
@@ -354,10 +384,25 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     sortBy,
     loading,
     error,
-    catalogMasters,
-    catalogFacets,
+    // catalog state
+    catalogRows,
+    catalogPage,
+    catalogSize,
+    catalogTotalElements,
+    catalogTotalPages,
+    catalogHasNext,
+    catalogHasPrevious,
+    catalogColors,
+    catalogSizes,
     catalogLoading,
     catalogError,
+    catalogVendor,
+    catalogKeyword,
+    catalogColor,
+    catalogSkuSize,
+    catalogShortageOnly,
+    catalogSort,
+    catalogWarehouseId,
     // getters
     selectedOrder,
     filteredOrders,
@@ -365,7 +410,6 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     vendorOptions,
     summary,
     warehouses,
-    catalogSkuRows,
     // actions
     selectOrder,
     fetchOrders,
@@ -376,6 +420,11 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     cancelOrder,
     markCompleted,
     runBatch,
+    // catalog actions
     fetchCatalog,
+    fetchCatalogFacets,
+    setCatalogPage,
+    setCatalogSize,
+    applyCatalogFilters,
   }
 })

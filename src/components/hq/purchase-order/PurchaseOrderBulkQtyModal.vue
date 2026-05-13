@@ -33,7 +33,7 @@ function onApply() {
       <div class="bg-[#004D3C] px-5 py-3 text-white">
         <h2 class="text-sm font-black">수량 일괄 입력</h2>
       </div>
-      <div class="p-5 text-xs text-gray-700">
+      <div class="p-5 text-sm text-gray-700">
         <p class="mb-3">
           선택한 <strong>{{ selectedCount }}개 SKU</strong> 모두에 동일한 수량을 적용합니다.
         </p>
@@ -49,14 +49,14 @@ function onApply() {
       <div class="flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-5 py-3">
         <button
           type="button"
-          class="border border-gray-300 bg-white px-4 py-2 text-xs font-black text-gray-700 hover:bg-gray-100"
+          class="border border-gray-300 bg-white px-4 py-2 text-sm font-black text-gray-700 hover:bg-gray-100"
           @click="emit('close')"
         >
           취소
         </button>
         <button
           type="button"
-          class="border border-[#004D3C] bg-[#004D3C] px-4 py-2 text-xs font-black text-white hover:bg-[#1f4b3a]"
+          class="border border-[#004D3C] bg-[#004D3C] px-4 py-2 text-sm font-black text-white hover:bg-[#1f4b3a]"
           @click="onApply"
         >
           적용
