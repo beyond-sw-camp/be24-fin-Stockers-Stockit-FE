@@ -60,32 +60,14 @@
       path: '/hq/esg',
       icon: 'sprout',
       children: [
-        { label: '친환경 발자국 현황판', path: '/hq/esg' },
+        { label: '탄소배출권 관리', path: '/hq/esg' },
         { label: '친환경 나무 키우기 점수', path: '/hq/esg/tree-score' },
-        { label: '탄소중립 관리', path: '/hq/esg/emissionquota' },
-        { label: '배출권 시장 가치', path: '/hq/esg/carbon-price' },
-      ],
-    },
-    {
-      label: '정산/통계',
-      path: '/hq/analytics',
-      icon: 'chart',
-      children: [
-        { label: '통합 KPI 대시보드', path: '/hq/analytics' },
-        { label: '판매량 통계', path: '/hq/analytics/sales' },
-        { label: '재고 회전율 통계', path: '/hq/analytics/turnover' },
-        { label: '발주량 통계', path: '/hq/analytics/order-stats' },
-        { label: '순환재고 거래처 통계', path: '/hq/analytics/vendors' },
       ],
     },
     {
       label: '계정 관리',
       path: '/hq/accounts',
       icon: 'user',
-      children: [
-        { label: '회원가입 승인', path: '/hq/accounts/approvals' },
-        { label: '계정 관리', path: '/hq/accounts' },
-      ],
     },
   ],
   store: [

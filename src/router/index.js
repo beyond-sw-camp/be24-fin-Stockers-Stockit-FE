@@ -51,14 +51,11 @@ import HqCircularStockSalesRegisterView from '@/views/hq/circular-stock/HqCircul
 import HqCircularStockSalesHistoryView from '@/views/hq/circular-stock/HqCircularStockSalesHistoryView.vue'
 import HqCircularStockSalesDetailView from '@/views/hq/circular-stock/HqCircularStockSalesDetailView.vue'
 import EsgDashBoardView from '@/views/hq/esg/EsgDashBoardView.vue'
-import EsgCarbonPriceView from '@/views/hq/esg/EsgCarbonPriceView.vue'
-import EsgQuotaView from '@/views/hq/esg/EsgQuotaView.vue'
 import EsgTreeScoreView from '@/views/hq/esg/EsgTreeScoreView.vue'
 import AccountListView from '@/views/hq/account/AccountListView.vue'
 import AccountApprovalView from '@/views/hq/account/AccountApprovalView.vue'
 import HqAnalyticsOrderStatsView from '@/views/hq/analytics/HqAnalyticsOrderStatsView.vue'
 import HqAnalyticsTurnoverView from '@/views/hq/analytics/HqAnalyticsTurnoverView.vue'
-import HqAnalyticsDashboardView from '@/views/hq/analytics/HqAnalyticsDashboardView.vue'
 import HqAnalyticsSalesView from '@/views/hq/analytics/HqAnalyticsSalesView.vue'
 import HqAnalyticsVendorView from '@/views/hq/analytics/HqAnalyticsVendorView.vue'
 
@@ -137,7 +134,7 @@ const router = createRouter({
       component: HqStoreOrderBatchApproveView,
       meta: { requiresAuth: true, role: 'hq' },
     },
-    { path: '/hq/analytics', name: 'hq-analytics', component: HqAnalyticsDashboardView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/analytics', redirect: '/hq/analytics/sales' },
     { path: '/hq/analytics/sales', name: 'hq-analytics-sales', component: HqAnalyticsSalesView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/analytics/vendors', name: 'hq-analytics-vendors', component: HqAnalyticsVendorView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/analytics/order-stats', name: 'hq-analytics-order-stats', component: HqAnalyticsOrderStatsView, meta: { requiresAuth: true, role: 'hq' } },
@@ -170,8 +167,6 @@ const router = createRouter({
     { path: '/hq/account/approval', name: 'hq-account-approval', component: AccountApprovalView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/esg', name: 'hq-esg', component: EsgDashBoardView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/esg/tree-score', name: 'hq-esg-tree-score', component: EsgTreeScoreView, meta: { requiresAuth: true, role: 'hq' } },
-    { path: '/hq/esg/carbon-price', name: 'hq-esg-carbon-price', component: EsgCarbonPriceView, meta: { requiresAuth: true, role: 'hq' } },
-    { path: '/hq/esg/emissionquota', name: 'hq-esg-emissionquota', component: EsgQuotaView, meta: { requiresAuth: true, role: 'hq' } },
 
     { path: '/store/dashboard', name: 'store-dashboard', component: StoreDashboardView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/dashboard2', name: 'store-dashboard2', component: StoreDashboardView2, meta: { requiresAuth: true, role: 'store' } },
