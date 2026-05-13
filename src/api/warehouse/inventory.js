@@ -1,7 +1,7 @@
 import api, { unwrap } from '@/api/axios.js'
 
-export async function getWarehouseInventories() {
-  const res = await api.get('/api/warehouse/inventories')
+export async function getWarehouseInventories(params = {}) {
+  const res = await api.get('/api/warehouse/inventories', { params })
   return unwrap(res)
 }
 
