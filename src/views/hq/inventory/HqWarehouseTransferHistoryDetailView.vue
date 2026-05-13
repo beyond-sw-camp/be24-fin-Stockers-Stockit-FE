@@ -14,6 +14,12 @@ const inventoryMenus = roleMenus.hq.find((menu) => menu.label === '물류 창고
 
 const activeTopMenu = computed(() => '물류 창고간 재고이동')
 const activeSideMenu = computed(() => '재고 이동 내역')
+const COLOR_LABEL_BY_CODE = {
+  BLK: '검정',
+  WHT: '흰색',
+  NVY: '네이비',
+  GRY: '그레이',
+}
 
 const record = ref(null)
 const loading = ref(false)
@@ -48,6 +54,7 @@ const lineRows = computed(() => {
   if (!record.value) return []
   return record.value.lines.map((line) => ({
     ...line,
+    colorLabel: COLOR_LABEL_BY_CODE[String(line.color ?? '').toUpperCase()] ?? String(line.color ?? ''),
     fromDelta: -line.qty,
     toDelta: line.qty,
   }))
@@ -330,7 +337,7 @@ onMounted(() => loadDetail())
 
                 <!-- 컬러 -->
                 <td class="px-3 py-3.5 text-center">
-                  <span class="inline-block px-2 py-0.5 bg-gray-100 text-[10px] font-black text-gray-600">{{ line.color }}</span>
+                  <span class="inline-block px-2 py-0.5 bg-gray-100 text-[10px] font-black text-gray-600">{{ line.colorLabel }}</span>
                 </td>
 
                 <!-- 사이즈 -->
