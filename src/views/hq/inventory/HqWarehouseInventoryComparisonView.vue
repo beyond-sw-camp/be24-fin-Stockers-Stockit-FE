@@ -27,7 +27,21 @@ const COLOR_LABEL_BY_CODE = {
 }
 
 const searchTerm = ref(String(route.query.search || ''))
-const selectedCategory = ref(String(route.query.category || '전체'))
+const parseCategoryLabel = (categoryLabel) => {
+  const [parentCategory = '', childCategory = ''] = String(categoryLabel ?? '')
+    .split('>')
+    .map((part) => part.trim())
+  return { parentCategory, childCategory }
+}
+
+const initialCategory = String(route.query.category || '')
+const initialParsedCategory = parseCategoryLabel(initialCategory)
+const selectedParentCategory = ref(
+  String(route.query.parentCategory || route.query.filterParentCategory || initialParsedCategory.parentCategory || ''),
+)
+const selectedChildCategory = ref(
+  String(route.query.childCategory || route.query.filterChildCategory || initialParsedCategory.childCategory || ''),
+)
 const selectedWarehouseGroup = ref(String(route.query.warehouseGroup || '전체'))
 const skuRows = ref([])
 const loading = ref(false)
@@ -36,7 +50,19 @@ const toastMessage = ref('')
 const toastShowHistoryAction = ref(false)
 let toastTimer = null
 
-const categoryOptions = computed(() => ['전체', ...new Set(skuRows.value.map(sku => sku.category).filter(Boolean))])
+const parentCategoryOptions = computed(() =>
+  [...new Set(skuRows.value.map((sku) => sku.parentCategory).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'ko')),
+)
+const childCategoryOptions = computed(() => {
+  if (!selectedParentCategory.value) return []
+  return [...new Set(
+    skuRows.value
+      .filter((sku) => sku.parentCategory === selectedParentCategory.value)
+      .map((sku) => sku.childCategory)
+      .filter(Boolean),
+  )].sort((a, b) => a.localeCompare(b, 'ko'))
+})
 const warehouseGroupOptions = ['전체', '수도권', '충청권', '영남권']
 
 const inferWarehouseGroups = () => ['수도권', '충청권', '영남권']
@@ -46,7 +72,8 @@ const filteredSkuRows = computed(() => {
 
   return [...skuRows.value]
     .filter((row) => {
-      if (selectedCategory.value !== '전체' && row.category !== selectedCategory.value) return false
+      if (selectedParentCategory.value && row.parentCategory !== selectedParentCategory.value) return false
+      if (selectedChildCategory.value && row.childCategory !== selectedChildCategory.value) return false
       if (selectedWarehouseGroup.value !== '전체' && !row.warehouseGroups.includes(selectedWarehouseGroup.value)) return false
       if (!keyword) return true
 
@@ -70,6 +97,7 @@ const loadImbalancedSkus = async () => {
     const items = await getWarehouseTransferImbalancedSkus()
     skuRows.value = (items ?? []).map((item) => ({
       ...item,
+      ...parseCategoryLabel(item.category),
       colorLabel: COLOR_LABEL_BY_CODE[String(item.color ?? '').toUpperCase()] ?? String(item.color ?? ''),
       warehouseGroups: inferWarehouseGroups(item.itemCode),
     }))
@@ -96,7 +124,8 @@ const moveToSkuDetail = (sku) => {
       color: sku.color || undefined,
       size: sku.size || undefined,
       search: searchTerm.value || undefined,
-      filterCategory: selectedCategory.value !== '전체' ? selectedCategory.value : undefined,
+      filterParentCategory: selectedParentCategory.value || undefined,
+      filterChildCategory: selectedChildCategory.value || undefined,
       warehouseGroup: selectedWarehouseGroup.value !== '전체' ? selectedWarehouseGroup.value : undefined,
     },
   })
@@ -111,8 +140,13 @@ const moveToSkuDetailFromCta = () => {
 
 const resetFilters = () => {
   searchTerm.value = ''
-  selectedCategory.value = '전체'
+  selectedParentCategory.value = ''
+  selectedChildCategory.value = ''
   selectedWarehouseGroup.value = '전체'
+}
+
+const handleParentCategoryChange = () => {
+  selectedChildCategory.value = ''
 }
 
 const openCartDrawer = () => {
@@ -212,7 +246,7 @@ const executeCartTransfers = async () => {
           <p class="mt-1 text-xs font-bold text-gray-500">부족 창고가 많은 SKU를 우선 확인하고 상세에서 장바구니를 구성해 이동을 실행합니다.</p>
         </div>
 
-        <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-[1.2fr_0.9fr_0.9fr_auto]">
+        <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr_auto]">
           <label class="flex flex-col gap-1">
             <span class="text-[11px] font-bold text-gray-500">검색</span>
             <input
@@ -224,9 +258,26 @@ const executeCartTransfers = async () => {
           </label>
 
           <label class="flex flex-col gap-1">
-            <span class="text-[11px] font-bold text-gray-500">카테고리</span>
-            <select v-model="selectedCategory" class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
-              <option v-for="category in categoryOptions" :key="category" :value="category">{{ category }}</option>
+            <span class="text-[11px] font-bold text-gray-500">카테고리 1단계</span>
+            <select
+              v-model="selectedParentCategory"
+              class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
+              @change="handleParentCategoryChange"
+            >
+              <option value="">전체</option>
+              <option v-for="category in parentCategoryOptions" :key="category" :value="category">{{ category }}</option>
+            </select>
+          </label>
+
+          <label class="flex flex-col gap-1">
+            <span class="text-[11px] font-bold text-gray-500">카테고리 2단계</span>
+            <select
+              v-model="selectedChildCategory"
+              class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C] disabled:bg-gray-50 disabled:text-gray-400"
+              :disabled="!selectedParentCategory"
+            >
+              <option value="">전체</option>
+              <option v-for="category in childCategoryOptions" :key="category" :value="category">{{ category }}</option>
             </select>
           </label>
 
