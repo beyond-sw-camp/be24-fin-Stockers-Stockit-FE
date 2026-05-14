@@ -47,7 +47,7 @@ function handleQueryChange(query) {
     warehouseCodes: query.warehouseCodes,
     materialGroup: query.materialGroup,
     materialName: query.materialName,
-    minRatio: query.minRatio,
+    materialNames: query.materialNames,
   })
 }
 

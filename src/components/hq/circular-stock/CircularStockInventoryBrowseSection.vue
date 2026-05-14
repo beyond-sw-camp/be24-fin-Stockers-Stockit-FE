@@ -82,9 +82,12 @@ const emit = defineEmits(['row-click', 'toggle-all-visible', 'query-change', 'pa
 const slots = useSlots()
 
 const searchTerm = ref('')
-const materialFilters = ref([])
-const isMaterialDropdownOpen = ref(false)
-const materialDropdownRef = ref(null)
+const selectedMaterialGroup = ref('')
+const isMaterialGroupDropdownOpen = ref(false)
+const materialGroupDropdownRef = ref(null)
+const selectedMaterialNames = ref([])
+const isMaterialDetailDropdownOpen = ref(false)
+const materialDetailDropdownRef = ref(null)
 const selectedWarehouseCodes = ref([])
 const warehouseOptions = ref([])
 const isWarehouseDropdownOpen = ref(false)
@@ -117,7 +120,6 @@ const materialNameAliasMap = {
   silk: '실크',
   linen: '리넨',
 }
-const materialOptions = [...naturalSingleMaterials, ...syntheticMaterials, '혼방']
 const materialOptionsByGroup = {
   '천연 단일 섬유': naturalSingleMaterials,
   '합성 섬유': syntheticMaterials,
@@ -138,9 +140,6 @@ const blendKgPrice = 1000
 
 const hasActionColumn = computed(() => Boolean(slots['header-action'] || slots['row-action']))
 
-const activeMaterialFilters = computed(() =>
-  materialFilters.value.filter(filter => filter.materialGroup),
-)
 const selectedWarehouseNames = computed(() =>
   warehouseOptions.value
     .filter(option => selectedWarehouseCodes.value.includes(option.code))
@@ -150,6 +149,15 @@ const warehouseSummaryLabel = computed(() => {
   if (selectedWarehouseCodes.value.length === 0) return '전체 창고'
   if (selectedWarehouseCodes.value.length === 1) return selectedWarehouseNames.value[0]
   return `${selectedWarehouseCodes.value.length}개 창고 선택됨`
+})
+const materialGroupSummaryLabel = computed(() =>
+  selectedMaterialGroup.value || '전체',
+)
+const materialDetailSummaryLabel = computed(() => {
+  const count = selectedMaterialNames.value.length
+  if (count === 0) return '전체'
+  if (count === 1) return selectedMaterialNames.value[0]
+  return `${count}개 선택`
 })
 const COLOR_LABEL_BY_CODE = {
   BLK: '검정',
@@ -207,21 +215,6 @@ const normalizedInventoryData = computed(() =>
     .filter(row => row.skuCode && row.inventoryId),
 )
 
-const materialFilterSummary = computed(() => {
-  if (activeMaterialFilters.value.length === 0) return '소재 조건 없음'
-
-  const [firstFilter] = activeMaterialFilters.value
-  const materialLabel = firstFilter.material
-    ? `${firstFilter.materialGroup || '소재 구분'} / ${firstFilter.material}`
-    : (firstFilter.materialGroup || '소재 구분')
-  const firstLabel = firstFilter.material && firstFilter.minRatio
-    ? `${materialLabel} ${firstFilter.minRatio}% 이상`
-    : materialLabel
-  const restCount = activeMaterialFilters.value.length - 1
-
-  return restCount > 0 ? `${firstLabel} 외 ${restCount}건` : firstLabel
-})
-
 const skuInventoryData = computed(() => normalizedInventoryData.value)
 
 const filteredRowsBase = computed(() => {
@@ -236,22 +229,10 @@ const filteredRowsBase = computed(() => {
       circularSalePrice: Number(item.circularSalePrice ?? resolveCircularSalePrice(item)),
     }))
     .filter((item) => {
-      const matchesMaterial = activeMaterialFilters.value.every((filter) => {
-        if (!filter.materialGroup) return false
-
-        const matchesGroup = filter.materialGroup === '혼방'
-          ? item.materialType === '혼방'
-          : item.materialType === filter.materialGroup
-        if (!matchesGroup) return false
-
-        if (!filter.material) return true
-
-        const itemMaterial = item.materials.find(material => material.name === filter.material)
-        if (!itemMaterial) return false
-
-        const minRatio = Number(filter.minRatio) || 0
-        return minRatio === 0 || itemMaterial.ratio >= minRatio
-      })
+      const matchesGroup = !selectedMaterialGroup.value
+        || item.materialType === selectedMaterialGroup.value
+      const matchesMaterial = selectedMaterialNames.value.length === 0
+        || item.materials.some(material => selectedMaterialNames.value.includes(material.name))
 
       const matchesSearch = !keyword || [item.itemCode, item.itemName, item.materialDetail]
         .join(' ')
@@ -260,7 +241,7 @@ const filteredRowsBase = computed(() => {
       const matchesWarehouse = selectedWarehouseCodes.value.length === 0
         || selectedWarehouseCodes.value.includes(item.warehouseCode)
 
-      return matchesMaterial && matchesSearch && matchesWarehouse
+      return matchesGroup && matchesMaterial && matchesSearch && matchesWarehouse
     })
 })
 
@@ -382,29 +363,32 @@ function resolveCircularSalePrice(item) {
   return Math.round(weight * kgPrice)
 }
 
-function isMaterialDisabled(material, index) {
-  const currentFilter = materialFilters.value[index]
-  return materialFilters.value.some((filter, filterIndex) =>
-    filterIndex !== index
-    && filter.materialGroup === currentFilter?.materialGroup
-    && filter.material === material,
-  )
-}
-
-function addMaterialFilter() {
-  const maxFilterCount = materialGroupOptions.length + materialOptions.length
-  if (materialFilters.value.length >= maxFilterCount) return
-  materialFilters.value = [...materialFilters.value, { materialGroup: '', material: '', minRatio: '' }]
+function updateMaterialGroup(group) {
+  selectedMaterialGroup.value = selectedMaterialGroup.value === group ? '' : group
+  selectedMaterialNames.value = []
+  isMaterialDetailDropdownOpen.value = false
+  isMaterialGroupDropdownOpen.value = false
   emitQueryChange()
 }
 
-function removeMaterialFilter(index) {
-  materialFilters.value = materialFilters.value.filter((_, filterIndex) => filterIndex !== index)
+function clearMaterialGroup() {
+  if (!selectedMaterialGroup.value) return
+  selectedMaterialGroup.value = ''
+  selectedMaterialNames.value = []
+  isMaterialDetailDropdownOpen.value = false
   emitQueryChange()
 }
 
-function clearMaterialFilters() {
-  materialFilters.value = []
+function toggleMaterialName(name) {
+  selectedMaterialNames.value = selectedMaterialNames.value.includes(name)
+    ? selectedMaterialNames.value.filter(value => value !== name)
+    : [...selectedMaterialNames.value, name]
+  emitQueryChange()
+}
+
+function clearMaterialNames() {
+  if (selectedMaterialNames.value.length === 0) return
+  selectedMaterialNames.value = []
   emitQueryChange()
 }
 
@@ -449,9 +433,11 @@ function sortIcon(key) {
 
 function resetFilters() {
   searchTerm.value = ''
-  materialFilters.value = []
+  selectedMaterialGroup.value = ''
+  isMaterialGroupDropdownOpen.value = false
+  selectedMaterialNames.value = []
+  isMaterialDetailDropdownOpen.value = false
   selectedWarehouseCodes.value = []
-  isMaterialDropdownOpen.value = false
   isWarehouseDropdownOpen.value = false
   if (props.serverMode) {
     emit('query-change', {
@@ -459,14 +445,17 @@ function resetFilters() {
       warehouseCodes: [],
       materialGroup: '',
       materialName: '',
-      minRatio: 0,
+      materialNames: [],
     })
   }
 }
 
 function handleDocumentClick(event) {
-  if (!materialDropdownRef.value?.contains(event.target)) {
-    isMaterialDropdownOpen.value = false
+  if (!materialGroupDropdownRef.value?.contains(event.target)) {
+    isMaterialGroupDropdownOpen.value = false
+  }
+  if (!materialDetailDropdownRef.value?.contains(event.target)) {
+    isMaterialDetailDropdownOpen.value = false
   }
   if (!warehouseDropdownRef.value?.contains(event.target)) {
     isWarehouseDropdownOpen.value = false
@@ -503,13 +492,15 @@ onBeforeUnmount(() => {
 
 function emitQueryChange() {
   if (!props.serverMode) return
-  const first = activeMaterialFilters.value[0] ?? { materialGroup: '', material: '', minRatio: 0 }
+  const materialName = selectedMaterialNames.value.length === 1
+    ? selectedMaterialNames.value[0]
+    : ''
   emit('query-change', {
     keyword: searchTerm.value.trim(),
     warehouseCodes: [...selectedWarehouseCodes.value],
-    materialGroup: first.materialGroup || '',
-    materialName: first.material || '',
-    minRatio: Number(first.minRatio) || 0,
+    materialGroup: selectedMaterialGroup.value,
+    materialName,
+    materialNames: [...selectedMaterialNames.value],
   })
 }
 
@@ -524,112 +515,84 @@ function goToPage(pageNumber) {
 <template>
   <div class="flex flex-col gap-4">
     <section class="border border-gray-200 bg-white p-4 shadow-sm">
-      <div class="grid items-end gap-3 xl:grid-cols-[minmax(18rem,1fr)_minmax(14rem,1fr)_minmax(16rem,1fr)_auto]">
-        <div ref="materialDropdownRef" class="relative flex flex-col gap-1.5">
-          <span class="text-[11px] font-bold text-gray-500">소재 조건</span>
+      <div class="grid items-end gap-3 xl:grid-cols-[minmax(12rem,1fr)_minmax(12rem,1fr)_minmax(14rem,1fr)_minmax(16rem,1fr)_auto]">
+        <div ref="materialGroupDropdownRef" class="relative flex flex-col gap-1.5">
+          <span class="text-[11px] font-bold text-gray-500">소재 구분</span>
           <button
             type="button"
-            class="flex h-9 w-full items-center justify-between gap-2 border border-gray-300 bg-white px-3 text-left text-xs font-bold text-gray-900 outline-none transition hover:bg-[#EBF5F5] focus:border-[#004D3C]"
-            @click="isMaterialDropdownOpen = !isMaterialDropdownOpen"
+            class="h-9 border border-gray-300 bg-white px-3 text-left text-xs font-bold text-gray-900 outline-none hover:bg-gray-50 focus:border-[#004D3C]"
+            @click.stop="isMaterialGroupDropdownOpen = !isMaterialGroupDropdownOpen"
           >
-            <span
-              class="min-w-0 truncate px-2 py-1 text-[11px]"
-              :class="activeMaterialFilters.length > 0 ? 'bg-[#EBF5F5] text-[#004D3C]' : 'text-gray-500'"
-            >
-              {{ materialFilterSummary }}
-            </span>
-            <span class="shrink-0 text-[10px] text-gray-500">{{ isMaterialDropdownOpen ? '▲' : '▼' }}</span>
+            <span>{{ materialGroupSummaryLabel }}</span>
+            <span class="float-right text-[11px] text-gray-500">{{ isMaterialGroupDropdownOpen ? '▲' : '▼' }}</span>
           </button>
-
           <div
-            v-if="isMaterialDropdownOpen"
-            class="absolute left-0 top-full z-30 mt-1 w-[min(26rem,calc(100vw-2rem))] border border-gray-200 bg-white p-3 shadow-lg xl:w-full xl:min-w-[26rem]"
+            v-if="isMaterialGroupDropdownOpen"
+            class="absolute top-[58px] z-20 w-full border border-gray-200 bg-white p-2 shadow-lg"
+            @click.stop
           >
-            <div class="flex items-center justify-between gap-3 border-b border-gray-100 pb-2">
-              <div>
-                <p class="text-xs font-black text-gray-900">소재 조건</p>
-                <p class="mt-0.5 text-[10px] font-bold text-gray-400">여러 조건을 모두 만족하는 항목만 조회합니다.</p>
-              </div>
+            <div class="mb-2 flex items-center justify-between">
+              <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-500">Material Group</p>
               <button
                 type="button"
-                class="text-[10px] font-black text-gray-500 hover:text-gray-900 disabled:cursor-not-allowed disabled:text-gray-300"
-                :disabled="materialFilters.length === 0"
-                @click="clearMaterialFilters"
+                class="text-[10px] font-black text-gray-500 hover:text-gray-700"
+                @click="clearMaterialGroup"
               >
                 전체 해제
               </button>
             </div>
-
-            <div class="mt-3 max-h-56 space-y-2 overflow-y-auto">
-              <div
-                v-for="(filter, index) in materialFilters"
-                :key="index"
-                class="grid grid-cols-[minmax(8rem,1fr)_minmax(8rem,1fr)_6rem_auto_2rem] items-center gap-2"
-              >
-                <select
-                  v-model="filter.materialGroup"
-                  class="h-8 border border-gray-200 bg-gray-50 px-2 text-[11px] font-bold text-gray-900 outline-none focus:border-[#004D3C] focus:bg-white"
-                  @change="filter.material = ''; emitQueryChange()"
-                >
-                  <option value="">소재 구분 선택</option>
-                  <option v-for="group in materialGroupOptions" :key="group" :value="group">
-                    {{ group }}
-                  </option>
-                </select>
-
-                <select
-                  v-model="filter.material"
-                  class="h-8 border border-gray-200 bg-gray-50 px-2 text-[11px] font-bold text-gray-900 outline-none focus:border-[#004D3C] focus:bg-white"
-                  :disabled="!filter.materialGroup"
-                  @change="emitQueryChange"
-                >
-                  <option value="">소재 상세 선택</option>
-                  <option
-                    v-for="material in (materialOptionsByGroup[filter.materialGroup] ?? [])"
-                    :key="material"
-                    :value="material"
-                    :disabled="isMaterialDisabled(material, index)"
-                  >
-                    {{ material }}
-                  </option>
-                </select>
-
-                <input
-                  v-model="filter.minRatio"
-                  type="number"
-                  min="0"
-                  max="100"
-                  class="h-8 border border-gray-200 bg-gray-50 px-2 text-right text-[11px] font-bold text-gray-900 outline-none focus:border-[#004D3C] focus:bg-white"
-                  placeholder="0"
-                  @change="emitQueryChange"
-                />
-                <span class="text-[10px] font-black text-gray-400">% 이상</span>
-                <button
-                  type="button"
-                  class="h-8 border border-gray-200 text-[12px] font-black text-gray-400 hover:bg-gray-50 hover:text-black"
-                  :aria-label="`${index + 1}번째 소재 조건 제거`"
-                  @click="removeMaterialFilter(index)"
-                >
-                  ×
-                </button>
-              </div>
-
-              <div
-                v-if="materialFilters.length === 0"
-                class="border border-dashed border-gray-200 bg-gray-50 px-3 py-4 text-center text-[11px] font-bold text-gray-400"
-              >
-                추가된 소재 조건이 없습니다.
-              </div>
-            </div>
-
             <button
+              v-for="group in materialGroupOptions"
+              :key="group"
               type="button"
-              class="mt-3 h-8 w-full border border-[#D6EAEA] bg-[#EBF5F5] text-xs font-black text-[#004D3C] transition hover:bg-[#dff0f0] disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
-              :disabled="materialFilters.length >= materialGroupOptions.length + materialOptions.length"
-              @click="addMaterialFilter"
+              class="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-[11px] font-bold hover:bg-[#EBF5F5]/60"
+              @click="updateMaterialGroup(group)"
             >
-              + 조건 추가
+              <span class="text-gray-700">{{ group }}</span>
+              <span v-if="selectedMaterialGroup === group" class="text-[#004D3C]">✓</span>
             </button>
+          </div>
+        </div>
+
+        <div ref="materialDetailDropdownRef" class="relative flex flex-col gap-1.5">
+          <span class="text-[11px] font-bold text-gray-500">소재 상세</span>
+          <button
+            type="button"
+            class="h-9 border border-gray-300 bg-white px-3 text-left text-xs font-bold text-gray-900 outline-none disabled:bg-gray-50 disabled:text-gray-400 focus:border-[#004D3C]"
+            :disabled="!selectedMaterialGroup"
+            @click.stop="isMaterialDetailDropdownOpen = !isMaterialDetailDropdownOpen"
+          >
+            <span>{{ materialDetailSummaryLabel }}</span>
+            <span class="float-right text-[11px] text-gray-500">{{ isMaterialDetailDropdownOpen ? '▲' : '▼' }}</span>
+          </button>
+          <div
+            v-if="isMaterialDetailDropdownOpen && selectedMaterialGroup"
+            class="absolute top-[58px] z-20 w-full border border-gray-200 bg-white p-2 shadow-lg"
+            @click.stop
+          >
+            <div class="mb-2 flex items-center justify-between">
+              <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-500">Material</p>
+              <button
+                type="button"
+                class="text-[10px] font-black text-gray-500 hover:text-gray-700"
+                @click="clearMaterialNames"
+              >
+                전체 해제
+              </button>
+            </div>
+            <label
+              v-for="material in (materialOptionsByGroup[selectedMaterialGroup] ?? [])"
+              :key="material"
+              class="flex cursor-pointer items-start gap-2 rounded px-2 py-1.5 hover:bg-[#EBF5F5]/60"
+            >
+              <input
+                type="checkbox"
+                class="mt-0.5 h-3.5 w-3.5 accent-[#004D3C]"
+                :checked="selectedMaterialNames.includes(material)"
+                @change="toggleMaterialName(material)"
+              />
+              <span class="text-[11px] font-bold text-gray-700">{{ material }}</span>
+            </label>
           </div>
         </div>
 
