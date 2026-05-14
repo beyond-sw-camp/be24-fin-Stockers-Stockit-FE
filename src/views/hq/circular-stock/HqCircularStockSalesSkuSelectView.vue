@@ -1,13 +1,12 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useCircularStockStore } from '@/stores/hq/circularStock/circularStock.js'
 
 const router = useRouter()
-const route = useRoute()
 const circularStockStore = useCircularStockStore()
 
 const hqMenus = roleMenus.hq
@@ -29,7 +28,6 @@ const lockedMaterialType = computed(() => {
   const raw = unref(circularStockStore.lockedMaterialType)
   return typeof raw === 'string' ? raw : ''
 })
-const browseSummaryText = computed(() => `담긴 SKU ${draftItems.value.length.toLocaleString()}건`)
 const drawerSummary = computed(() => circularStockStore.draftSummary)
 const showReturnToWorkflowButton = computed(() => (
   draftItems.value.length > 0
@@ -92,7 +90,44 @@ async function loadCircularInventoryRows() {
   isInventoryLoading.value = true
   inventoryLoadError.value = ''
   try {
-    await circularStockStore.loadCircularInventoryRows({ page: 0, size: 100, sort: 'skuCode,asc' })
+    await circularStockStore.loadCircularInventoryRows()
+  } catch (e) {
+    inventoryLoadError.value = e.message || '순환 재고를 불러오지 못했습니다.'
+  } finally {
+    isInventoryLoading.value = false
+  }
+}
+
+function handlePageChange(page) {
+  loadCircularInventoryRowsWithOverrides({ page })
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+function handleSizeChange(size) {
+  loadCircularInventoryRowsWithOverrides({ page: 0, size })
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+function handleSortChange({ sort }) {
+  loadCircularInventoryRowsWithOverrides({ page: 0, sort })
+}
+
+function handleQueryChange(query) {
+  loadCircularInventoryRowsWithOverrides({
+    page: 0,
+    keyword: query.keyword,
+    warehouseCodes: query.warehouseCodes,
+    materialGroup: query.materialGroup,
+    materialName: query.materialName,
+    materialNames: query.materialNames,
+  })
+}
+
+async function loadCircularInventoryRowsWithOverrides(overrides = {}) {
+  isInventoryLoading.value = true
+  inventoryLoadError.value = ''
+  try {
+    await circularStockStore.loadCircularInventoryRows(overrides)
   } catch (e) {
     inventoryLoadError.value = e.message || '순환 재고를 불러오지 못했습니다.'
   } finally {
@@ -158,23 +193,34 @@ onBeforeUnmount(() => {
             ? '순환 재고를 불러오는 중입니다.'
             : '조회 화면에서 SKU를 선택해 판매 등록 초안을 구성하세요.'
         "
-        :summary-text="browseSummaryText"
         :show-circular-sale-price-column="true"
+        :use-fixed-column-widths="true"
+        :compact-rows="true"
+        :pin-lead-columns="false"
+        :server-mode="true"
+        :page="circularStockStore.inventoryPage"
+        :size="circularStockStore.inventorySize"
+        :total-pages="circularStockStore.inventoryTotalPages"
+        :total-elements="circularStockStore.inventoryTotalElements"
         :inventory-rows="circularStockStore.inventoryRows"
         action-column-label="추가"
         action-column-position="end"
         :selected-row-ids="draftRowIds"
         :highlighted-row-ids="draftRowIds"
+        @page-change="handlePageChange"
+        @size-change="handleSizeChange"
+        @sort-change="handleSortChange"
+        @query-change="handleQueryChange"
       >
         <template #row-action="{ row }">
           <div class="flex flex-col items-center gap-1">
             <button
               type="button"
-              class="group inline-flex h-8 items-center justify-center gap-1.5 rounded-full border px-3 text-[11px] font-bold transition-all duration-200 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:opacity-100 active:scale-95"
+              class="group inline-flex h-7 items-center justify-center gap-1.5 rounded-full border px-2.5 text-[11px] font-bold transition-all duration-200 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:opacity-100 active:scale-95"
               :class="
                 isItemAdded(row.id)
-                  ? 'border-indigo-200/60 bg-indigo-50 text-indigo-600 hover:border-indigo-300 hover:bg-indigo-100 hover:text-indigo-700'
-                  : 'border-[#97BFB4]/30 bg-[#97BFB4]/10 text-[#5A7F75] hover:border-[#97BFB4]/50 hover:bg-[#97BFB4]/20 hover:text-[#4A6860]'
+                  ? 'border-indigo-200/50 bg-indigo-50 text-indigo-600 hover:border-indigo-300 hover:bg-indigo-100 hover:text-indigo-700'
+                  : 'border-[#97BFB4]/25 bg-[#97BFB4]/10 text-[#5A7F75] hover:border-[#97BFB4]/45 hover:bg-[#97BFB4]/20 hover:text-[#4A6860]'
               "
               :disabled="isRowSelectionDisabled(row)"
               :title="

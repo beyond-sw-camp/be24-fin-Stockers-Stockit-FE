@@ -48,6 +48,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  compactRows: {
+    type: Boolean,
+    default: false,
+  },
   pinLeadColumns: {
     type: Boolean,
     default: true,
@@ -694,23 +698,26 @@ function goToPage(pageNumber) {
       <div class="overflow-x-auto">
         <table
           class="w-full table-fixed border-collapse text-left text-xs"
-          :class="props.useFixedColumnWidths ? 'min-w-max' : 'min-w-[980px]'"
+          :class="[
+            props.useFixedColumnWidths ? 'min-w-max' : 'min-w-[980px]',
+            { 'compact-rows': props.compactRows },
+          ]"
         >
           <colgroup v-if="props.useFixedColumnWidths">
-            <col v-if="hasActionColumn && actionColumnPosition === 'start'" class="w-[140px]" />
+            <col v-if="hasActionColumn && actionColumnPosition === 'start'" class="w-[96px]" />
             <col class="w-[170px]" />
             <col class="w-[170px]" />
             <col class="w-[170px]" />
-            <col v-if="visibleColumns.color" class="w-[80px]" />
-            <col v-if="visibleColumns.size" class="w-[90px]" />
-            <col class="w-[130px]" />
-            <col class="w-[160px]" />
+            <col v-if="visibleColumns.color" class="w-[85px]" />
+            <col v-if="visibleColumns.size" class="w-[78px]" />
             <col class="w-[95px]" />
-            <col class="w-[110px]" />
+            <col class="w-[160px]" />
+            <col class="w-[86px]" />
+            <col class="w-[96px]" />
             <col v-if="props.showCircularSalePriceColumn" class="w-[110px]" />
             <col class="w-[95px]" />
             <col v-if="visibleColumns.perItemWeight" class="w-[95px]" />
-            <col v-if="hasActionColumn && actionColumnPosition === 'end'" class="w-[140px]" />
+            <col v-if="hasActionColumn && actionColumnPosition === 'end'" class="w-[96px]" />
           </colgroup>
           <colgroup v-else>
             <col v-if="hasActionColumn && actionColumnPosition === 'start'" class="w-[4%]" />
@@ -740,7 +747,7 @@ function goToPage(pageNumber) {
                 </slot>
               </th>
               <th
-                class="px-3 py-3 font-black"
+                class="pl-3 pr-6 py-3 font-black"
                 :class="props.pinLeadColumns ? 'sticky left-0 z-20 bg-gray-50' : ''"
               >
                 <button type="button" class="inline-flex items-center gap-1 hover:text-gray-900" @click="toggleSort('skuCode')">
@@ -749,7 +756,7 @@ function goToPage(pageNumber) {
                 </button>
               </th>
               <th
-                class="px-3 py-3 font-black"
+                class="pl-5 pr-3 py-3 font-black"
                 :class="props.pinLeadColumns ? 'sticky left-[170px] z-20 bg-gray-50' : ''"
               >
                 품목명
@@ -757,10 +764,10 @@ function goToPage(pageNumber) {
               <th class="px-3 py-3 font-black">창고</th>
               <th v-if="visibleColumns.color" class="px-3 py-3 text-center font-black">색상</th>
               <th v-if="visibleColumns.size" class="px-3 py-3 text-center font-black">사이즈</th>
-              <th class="px-3 py-3 font-black">소재 구분</th>
+              <th class="px-3 py-3 text-center font-black">소재 구분</th>
               <th class="px-3 py-3 font-black">소재 상세</th>
-              <th class="px-3 py-3 text-right font-black">
-                <button type="button" class="flex w-full items-center justify-end gap-1 hover:text-gray-900" @click="toggleSort('quantity')">
+              <th class="px-3 py-3 text-center font-black">
+                <button type="button" class="flex w-full items-center justify-center gap-1 hover:text-gray-900" @click="toggleSort('quantity')">
                   수량
                   <span class="text-[9px]">{{ sortIcon('quantity') }}</span>
                 </button>
@@ -817,7 +824,7 @@ function goToPage(pageNumber) {
                 />
               </td>
               <td
-                class="whitespace-nowrap px-3 py-3 font-mono font-bold text-gray-600 transition-colors"
+                class="whitespace-nowrap pl-3 pr-6 py-3 font-mono font-bold text-gray-600 transition-colors"
                 :class="props.pinLeadColumns
                   ? (highlightedRowIds.includes(item.id) || highlightedInventoryIds.includes(item.inventoryId)
                     ? 'sticky left-0 z-10 bg-[#EBF5F5]'
@@ -827,7 +834,7 @@ function goToPage(pageNumber) {
                   : ''"
               >{{ item.skuCode }}</td>
               <td
-                class="truncate px-3 py-3 font-black text-gray-900 transition-colors"
+                class="truncate pl-5 pr-3 py-3 font-black text-gray-900 transition-colors"
                 :class="props.pinLeadColumns
                   ? (highlightedRowIds.includes(item.id) || highlightedInventoryIds.includes(item.inventoryId)
                     ? 'sticky left-[170px] z-10 bg-[#EBF5F5]'
@@ -839,9 +846,9 @@ function goToPage(pageNumber) {
               <td class="px-3 py-3 font-bold text-gray-700">{{ item.warehouseName || '-' }}</td>
               <td v-if="visibleColumns.color" class="px-3 py-3 text-center font-black text-gray-900">{{ item.colorLabel }}</td>
               <td v-if="visibleColumns.size" class="px-3 py-3 text-center font-black text-gray-900">{{ item.size }}</td>
-              <td class="px-3 py-3 font-black text-gray-900">{{ item.materialType }}</td>
+              <td class="px-3 py-3 text-center font-black text-gray-900">{{ item.materialType }}</td>
               <td class="truncate px-3 py-3 font-black text-gray-900">{{ item.materialDetail }}</td>
-              <td class="px-3 py-3 text-right font-black text-gray-900">{{ item.quantity.toLocaleString() }}</td>
+              <td class="px-3 py-3 text-center font-black text-gray-900">{{ item.quantity.toLocaleString() }}</td>
               <td class="px-3 py-3 text-right font-black text-gray-900">{{ formatCurrency(item.materialKgPrice) }}</td>
               <td v-if="props.showCircularSalePriceColumn" class="px-3 py-3 text-right font-black text-gray-900">
                 {{ formatCurrency(item.circularSalePrice) }}
@@ -913,3 +920,10 @@ function goToPage(pageNumber) {
     </section>
   </div>
 </template>
+
+<style scoped>
+.compact-rows tbody td {
+  padding-top: 0.45rem !important;
+  padding-bottom: 0.45rem !important;
+}
+</style>
