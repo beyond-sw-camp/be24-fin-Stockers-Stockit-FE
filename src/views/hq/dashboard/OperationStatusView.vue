@@ -5,7 +5,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
-  Filter,
 } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import DoughnutChart from '@/components/common/charts/DoughnutChart.vue'
@@ -88,75 +87,100 @@ const statusByAvailableAndSafety = (available, safety) => {
 const fetchOperationData = async () => {
   isLoading.value = true
   loadError.value = ''
-  try {
-    const { fromDate, toDate } = getDefaultDateRange(30)
-    const [companyWide, purchaseOrders, transfers, stores] = await Promise.all([
-      getCompanyWideInventories(),
-      purchaseOrderApi.list({ from: fromDate, to: toDate }),
-      getWarehouseTransfers({ fromDate, toDate }),
-      getInfrastructures({ type: 'STORE', status: 'ACTIVE' }),
-    ])
 
-    const activeStoreCount = Array.isArray(stores) ? stores.length : 0
+  const { fromDate, toDate } = getDefaultDateRange(30)
+  // 재고이동 진행은 실시간(현재 시점 진행 중) 기준으로 표시 — 기간 필터 우회용 넓은 범위
+  const TRANSFER_FROM = '2020-01-01'
+  const TRANSFER_TO = '2099-12-31'
+  // Promise.allSettled — 부분 실패해도 나머지 KPI는 표시
+  const results = await Promise.allSettled([
+    getCompanyWideInventories(),
+    purchaseOrderApi.list({ from: fromDate, to: toDate }),
+    getWarehouseTransfers({ fromDate: TRANSFER_FROM, toDate: TRANSFER_TO }),
+    getInfrastructures({ type: 'STORE', status: 'ACTIVE' }),
+  ])
+  const [companyWideRes, purchaseOrdersRes, transfersRes, storesRes] = results
 
-    const items = Array.isArray(companyWide?.items) ? companyWide.items : []
-    const shortages = items
-      .map((item) => {
-        const availableStock = toNum(item.availableStock)
-        const safetyStock = toNum(item.safetyStock)
-        return {
-          item: item.itemName,
-          category: [item.parentCategory, item.childCategory].filter(Boolean).join(' > '),
-          location: '전사 집계',
-          status: statusByAvailableAndSafety(availableStock, safetyStock),
-          stock: availableStock,
-          safety: safetyStock,
-          gap: Math.max(0, safetyStock - availableStock),
-        }
-      })
-      .filter((item) => item.status === '부족' || item.status === '품절')
-      .sort((a, b) => b.gap - a.gap)
+  const companyWide = companyWideRes.status === 'fulfilled' ? companyWideRes.value : null
+  // BE 는 Page<> 객체를 반환 — content 배열 추출 (배열 직접 반환 케이스도 호환)
+  const purchaseOrdersRaw = purchaseOrdersRes.status === 'fulfilled' ? purchaseOrdersRes.value : null
+  const purchaseOrders = Array.isArray(purchaseOrdersRaw)
+    ? purchaseOrdersRaw
+    : (Array.isArray(purchaseOrdersRaw?.content) ? purchaseOrdersRaw.content : [])
+  const transfers = transfersRes.status === 'fulfilled'
+    ? (Array.isArray(transfersRes.value) ? transfersRes.value : (transfersRes.value?.content || []))
+    : []
+  const stores = storesRes.status === 'fulfilled'
+    ? (Array.isArray(storesRes.value) ? storesRes.value : (storesRes.value?.content || []))
+    : []
 
-    inventoryRisks.value = shortages.slice(0, 8)
+  const failedLabels = []
+  if (companyWideRes.status === 'rejected') failedLabels.push('전사 재고')
+  if (purchaseOrdersRes.status === 'rejected') failedLabels.push('발주')
+  if (transfersRes.status === 'rejected') failedLabels.push('재고이동')
+  if (storesRes.status === 'rejected') failedLabels.push('매장')
+  loadError.value = failedLabels.length
+    ? `일부 데이터를 불러오지 못했습니다 (${failedLabels.join(', ')}). 네트워크 상태나 BE 상태를 확인해주세요.`
+    : ''
 
-    const statusCountMap = {}
-    for (const order of purchaseOrders || []) {
-      const code = mapPurchaseStatus(order.status)
-      statusCountMap[code] = (statusCountMap[code] || 0) + 1
-    }
-    purchaseStatusBreakdown.value = PURCHASE_STATUS_META.map((s) => ({
-      ...s,
-      count: statusCountMap[s.code] || 0,
-    }))
+  const activeStoreCount = Array.isArray(stores) ? stores.length : 0
 
-    const inTransitTransferCount = (transfers || []).filter(
-      (row) => String(row.status || '').toUpperCase() !== 'ARRIVED',
-    ).length
+  const items = Array.isArray(companyWide?.items) ? companyWide.items : []
+  const shortages = items
+    .map((item) => {
+      const availableStock = toNum(item.availableStock)
+      const safetyStock = toNum(item.safetyStock)
+      return {
+        item: item.itemName,
+        category: [item.parentCategory, item.childCategory].filter(Boolean).join(' > '),
+        location: '전사 집계',
+        status: statusByAvailableAndSafety(availableStock, safetyStock),
+        stock: availableStock,
+        safety: safetyStock,
+        gap: Math.max(0, safetyStock - availableStock),
+      }
+    })
+    .filter((item) => item.status === '부족' || item.status === '품절')
+    .sort((a, b) => b.gap - a.gap)
 
-    kpiOps.value = [
-      {
-        label: '운영 매장 수',
-        value: `${activeStoreCount}`,
-        unit: '곳',
-        caption: '상태 ACTIVE 매장',
-        tone: 'green',
-      },
-      {
-        label: '재고이동 진행',
-        value: `${inTransitTransferCount}`,
-        unit: '건',
-        caption: '출고 준비중 + 배송중',
-        tone: 'blue',
-      },
-    ]
-  } catch (error) {
-    loadError.value = extractErrorMessage(error, '운영 현황 데이터를 불러오지 못했습니다.')
-    kpiOps.value = []
-    inventoryRisks.value = []
-    purchaseStatusBreakdown.value = []
-  } finally {
-    isLoading.value = false
+  inventoryRisks.value = shortages.slice(0, 8)
+
+  const statusCountMap = {}
+  for (const order of purchaseOrders || []) {
+    const code = mapPurchaseStatus(order.status)
+    statusCountMap[code] = (statusCountMap[code] || 0) + 1
   }
+  purchaseStatusBreakdown.value = PURCHASE_STATUS_META.map((s) => ({
+    ...s,
+    count: statusCountMap[s.code] || 0,
+  }))
+
+  const inTransitTransferCount = (transfers || []).filter(
+    (row) => String(row.status || '').toUpperCase() !== 'ARRIVED',
+  ).length
+
+  kpiOps.value = [
+    {
+      label: '운영 매장 수',
+      value: `${activeStoreCount}`,
+      unit: '곳',
+      caption: storesRes.status === 'fulfilled' ? '상태 ACTIVE 매장' : '불러오기 실패',
+      tone: 'green',
+      route: '/hq/infrastructure',
+      hoverCls: 'hover:border-emerald-400',
+    },
+    {
+      label: '재고이동 진행',
+      value: `${inTransitTransferCount}`,
+      unit: '건',
+      caption: transfersRes.status === 'fulfilled' ? '실시간 · 출고 준비중 + 배송중' : '불러오기 실패',
+      tone: 'blue',
+      route: '/hq/inventory/warehouse-comparison',
+      hoverCls: 'hover:border-blue-400',
+    },
+  ]
+
+  isLoading.value = false
 }
 
 // ───────── 상세 분석 (Analytics) 상태 ─────────
@@ -210,7 +234,9 @@ async function fetchAnalyticsData() {
   }
 }
 
-// ───────── 월별 판매 수량 (12회 API 호출 · FE 집계) ─────────
+// ───────── 월별 판매 수량 (단일 API 호출 · FE 월별 집계) ─────────
+// BE의 SalesAnalyticsDto.TrendPoint에 quantity 필드 추가로 1회 호출에서 모든 일자별 수량 수신.
+// FE는 label "MM/dd"에서 월을 추출해 12개 버킷으로 합산.
 const monthlyQuantities = ref(Array(12).fill(0))
 const monthlyQtyLoading = ref(false)
 
@@ -218,21 +244,21 @@ async function fetchMonthlyQuantities() {
   monthlyQtyLoading.value = true
   try {
     const year = selectedYear.value
-    const pad2 = (n) => String(n).padStart(2, '0')
-    const fmt = (y, m, d) => `${y}-${pad2(m)}-${pad2(d)}`
-    const promises = []
-    for (let m = 1; m <= 12; m++) {
-      const from = fmt(year, m, 1)
-      const lastDay = new Date(year, m, 0).getDate()
-      const to = fmt(year, m, lastDay)
-      promises.push(
-        salesAnalyticsApi
-          .get({ period: 'MONTH', from, to })
-          .then((d) => Number(d?.kpi?.totalQuantity ?? d?.kpi?.totalSalesQty ?? 0))
-          .catch(() => 0),
-      )
+    const from = `${year}-01-01`
+    const to = `${year}-12-31`
+    const data = await salesAnalyticsApi.get({ period: 'YEAR', from, to })
+
+    const buckets = Array(12).fill(0)
+    for (const point of (data?.trend?.current ?? [])) {
+      const monthToken = String(point?.label ?? '').split('/')[0]
+      const m = parseInt(monthToken, 10)
+      if (m >= 1 && m <= 12) {
+        buckets[m - 1] += Number(point?.quantity ?? 0)
+      }
     }
-    monthlyQuantities.value = await Promise.all(promises)
+    monthlyQuantities.value = buckets
+  } catch {
+    monthlyQuantities.value = Array(12).fill(0)
   } finally {
     monthlyQtyLoading.value = false
   }
@@ -362,7 +388,16 @@ const materialDoughnutOptions = {
   maintainAspectRatio: false,
   plugins: {
     legend: { display: false },
-    tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.parsed}%` } },
+    tooltip: {
+      callbacks: {
+        label: (ctx) => {
+          const item = circularMaterialStats.value[ctx.dataIndex]
+          const lines = [`${ctx.label}: ${ctx.parsed}%`]
+          if (item) lines.push(`판매량: ${Number(item.units ?? 0).toLocaleString()}건`)
+          return lines
+        },
+      },
+    },
   },
   cutout: '60%',
 }
@@ -392,7 +427,7 @@ onMounted(() => {
             </p>
             <h1 class="mt-1 text-xl font-black text-gray-950">본사 대시보드</h1>
             <p class="mt-1 text-xs font-bold text-gray-500">
-              전사 재고·발주·매출 추이·이상치 알림을 한 화면에서 확인합니다.
+              운영 KPI·월별 판매·재고 위험·소재 매출·발주 상태를 한 화면에서 확인합니다.
             </p>
           </div>
           <div class="flex items-center gap-2">
@@ -420,40 +455,14 @@ onMounted(() => {
         운영 현황 데이터를 불러오는 중입니다.
       </p>
 
-      <!-- 필터 바 (매출 추이/통계 카드 대상) -->
-      <section class="flex flex-wrap items-center gap-3 border border-gray-300 bg-white p-3 shadow-sm">
-        <div class="flex items-center gap-1.5 border-r border-gray-200 pr-3 text-[11px] font-bold text-gray-500">
-          <Filter :size="13" />
-          분석 필터
-        </div>
-        <label class="flex items-center gap-2 text-[11px] font-bold text-gray-500">
-          기간
-          <select v-model="periodUnit" class="border border-gray-300 bg-gray-50 px-3 py-1.5 text-xs font-bold text-gray-700 outline-none focus:border-[#004D3C] focus:bg-white">
-            <option v-for="p in periodOptions" :key="p" :value="p">{{ p }}</option>
-          </select>
-        </label>
-        <label class="flex items-center gap-2 text-[11px] font-bold text-gray-500">
-          연도
-          <select v-model.number="selectedYear" class="border border-gray-300 bg-gray-50 px-3 py-1.5 text-xs font-bold text-gray-700 outline-none focus:border-[#004D3C] focus:bg-white">
-            <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}년</option>
-          </select>
-        </label>
-        <label v-if="periodUnit === '월간'" class="flex items-center gap-2 text-[11px] font-bold text-gray-500">
-          월
-          <select v-model.number="selectedMonth" class="border border-gray-300 bg-gray-50 px-3 py-1.5 text-xs font-bold text-gray-700 outline-none focus:border-[#004D3C] focus:bg-white">
-            <option v-for="m in monthOptions" :key="m" :value="m">{{ m }}월</option>
-          </select>
-        </label>
-        <span v-if="statsLoading" class="ml-auto text-[11px] font-bold text-emerald-600">분석 데이터 불러오는 중…</span>
-        <span v-else-if="statsError" class="ml-auto text-[11px] font-bold text-red-600">{{ statsError }}</span>
-      </section>
-
       <!-- 운영 KPI + 통계 카드 -->
       <section class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <article
           v-for="stat in kpiOps"
           :key="stat.label"
-          class="border border-gray-200 bg-white px-4 py-3 shadow-sm"
+          class="group border border-gray-200 bg-white px-4 py-3 shadow-sm transition"
+          :class="stat.route ? ['cursor-pointer', stat.hoverCls || 'hover:border-gray-400', 'hover:-translate-y-0.5', 'hover:shadow-md'] : []"
+          @click="stat.route && router.push(stat.route)"
         >
           <p class="text-[11px] font-bold text-gray-500">{{ stat.label }}</p>
           <div class="mt-3 flex items-end justify-between gap-2">
@@ -473,12 +482,18 @@ onMounted(() => {
               }"
             />
           </div>
-          <p class="mt-2 text-[11px] font-bold text-gray-400">{{ stat.caption }}</p>
+          <div class="mt-2 flex items-center justify-between gap-2">
+            <p class="truncate text-[11px] font-bold text-gray-400">{{ stat.caption }}</p>
+            <span
+              v-if="stat.route"
+              class="shrink-0 text-[10px] font-black text-[#004D3C] group-hover:underline"
+            >자세히 보기 →</span>
+          </div>
         </article>
 
         <!-- 상품 판매량 (분석 점프 카드) -->
         <article
-          class="cursor-pointer border border-gray-200 bg-white px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-400 hover:shadow-md"
+          class="group cursor-pointer border border-gray-200 bg-white px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-400 hover:shadow-md"
           @click="router.push('/hq/analytics/sales')"
         >
           <p class="text-[11px] font-bold text-gray-500">상품 판매량</p>
@@ -489,12 +504,15 @@ onMounted(() => {
             </div>
             <span class="h-2.5 w-2.5 shrink-0 bg-emerald-400" />
           </div>
-          <p class="mt-2 truncate text-[11px] font-bold text-gray-400">{{ formatTrendPct(kpi.totalRevenueTrendPct) }} · 매출 1위 {{ kpi.topProductName || '-' }}</p>
+          <div class="mt-2 flex items-center justify-between gap-2">
+            <p class="truncate text-[11px] font-bold text-gray-400">{{ formatTrendPct(kpi.totalRevenueTrendPct) }} · 매출 1위 {{ kpi.topProductName || '-' }}</p>
+            <span class="shrink-0 text-[10px] font-black text-[#004D3C] group-hover:underline">자세히 보기 →</span>
+          </div>
         </article>
 
         <!-- 순환재고 판매량 (분석 점프 카드) -->
         <article
-          class="cursor-pointer border border-gray-200 bg-white px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-400 hover:shadow-md"
+          class="group cursor-pointer border border-gray-200 bg-white px-4 py-3 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-400 hover:shadow-md"
           @click="router.push('/hq/analytics/vendors')"
         >
           <p class="text-[11px] font-bold text-gray-500">순환재고 판매량</p>
@@ -505,7 +523,10 @@ onMounted(() => {
             </div>
             <span class="h-2.5 w-2.5 shrink-0 bg-blue-400" />
           </div>
-          <p class="mt-2 truncate text-[11px] font-bold text-gray-400">활성 거래처 {{ Number(kpi.activeVendorCount ?? 0).toLocaleString() }}곳 · TOP {{ (kpi.topVendorName ?? '').trim() || '-' }}</p>
+          <div class="mt-2 flex items-center justify-between gap-2">
+            <p class="truncate text-[11px] font-bold text-gray-400">활성 거래처 {{ Number(kpi.activeVendorCount ?? 0).toLocaleString() }}곳 · TOP {{ (kpi.topVendorName ?? '').trim() || '-' }}</p>
+            <span class="shrink-0 text-[10px] font-black text-[#004D3C] group-hover:underline">자세히 보기 →</span>
+          </div>
         </article>
 
         <article
@@ -529,7 +550,16 @@ onMounted(() => {
                 {{ selectedYear }}년 월별 상품 판매 수량 합계
               </p>
             </div>
-            <span v-if="monthlyQtyLoading" class="text-[11px] font-bold text-emerald-600">집계 중…</span>
+            <div class="flex items-center gap-3">
+              <span v-if="monthlyQtyLoading" class="text-[11px] font-bold text-emerald-600">집계 중…</span>
+              <button
+                type="button"
+                class="text-xs font-black text-[#004D3C] hover:underline"
+                @click="router.push('/hq/analytics/sales')"
+              >
+                판매량 조회
+              </button>
+            </div>
           </div>
           <div class="flex-1 px-4 py-4" style="min-height: 280px;">
             <BarChart :data="monthlySalesChartData" :options="monthlySalesChartOptions" />
@@ -591,11 +621,20 @@ onMounted(() => {
       <!-- 소재 매출 비중 + 발주 상태별 진행 -->
       <section class="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <article class="border border-gray-200 bg-white shadow-sm">
-          <div class="border-b border-gray-100 px-4 py-3">
-            <h2 class="inline-flex items-center gap-2 text-sm font-black text-gray-900">
-              🥧 소재 매출 비중
-            </h2>
-            <p class="mt-1 text-[11px] font-bold text-gray-400">순환재고 소재별 매출 점유율 (현재 필터 기준)</p>
+          <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+            <div>
+              <h2 class="inline-flex items-center gap-2 text-sm font-black text-gray-900">
+                🥧 소재 매출 비중
+              </h2>
+              <p class="mt-1 text-[11px] font-bold text-gray-400">순환재고 소재별 매출 점유율 (현재 필터 기준)</p>
+            </div>
+            <button
+              type="button"
+              class="text-xs font-black text-[#004D3C] hover:underline"
+              @click="router.push('/hq/analytics/vendors')"
+            >
+              순환재고 판매량 조회
+            </button>
           </div>
           <div class="grid gap-4 p-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <div class="min-h-[240px]">
