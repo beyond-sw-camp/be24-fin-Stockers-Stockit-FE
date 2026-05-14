@@ -22,8 +22,6 @@ const storeOrdersError = ref(false)
 const inventories = ref([])
 const todaySalesAmount = ref(0)
 const todaySalesCount = ref(0)
-// 최근 7일 일평균 판매 수량 (재고 보유일 계산용)
-const dailyAvgSalesQty = ref(0)
 
 // 발주 현황 (입고 현황 패턴 — 2 카드)
 const storeOrderSummary = ref({ pending: 0, todayRequested: 0 })
@@ -55,31 +53,6 @@ const totalItems = computed(() => safeInventories.value.length)
 const lowStockCount = computed(() => safeInventories.value.filter((row) => Number(row.availableStock ?? 0) > 0 && Number(row.availableStock ?? 0) <= Number(row.safetyStock ?? 0)).length)
 const outOfStockCount = computed(() => safeInventories.value.filter((row) => Number(row.availableStock ?? 0) <= 0).length)
 const riskItems = computed(() => safeInventories.value.filter((row) => Number(row.availableStock ?? 0) <= Number(row.safetyStock ?? 0)))
-
-// 재고 보유일 — 가장 시급한 SKU (Min)
-// 각 SKU별 보유일 = availableStock / (일평균 판매수량 / SKU 수)  [균일 속도 가정]
-const urgentSkuInventory = computed(() => {
-  const list = safeInventories.value
-  const avg = dailyAvgSalesQty.value
-  if (!list.length || !avg || avg <= 0) return null
-  const perSkuVelocity = avg / list.length
-  if (perSkuVelocity <= 0) return null
-  let minDays = Infinity
-  let urgent = null
-  for (const row of list) {
-    const stock = Number(row.availableStock ?? 0)
-    const days = stock / perSkuVelocity
-    if (days < minDays) {
-      minDays = days
-      urgent = row
-    }
-  }
-  if (!urgent || !Number.isFinite(minDays)) return null
-  return {
-    days: Math.round(minDays * 10) / 10,
-    itemName: urgent.itemName || urgent.itemCode || '-',
-  }
-})
 
 // 재고 리스크 미니 리스트 — 품절 우선, 그 다음 부족(부족분 큰 순) — TOP 6
 const topRiskItems = computed(() =>
@@ -225,22 +198,18 @@ async function fetchStats() {
       const dd = String(d.getDate()).padStart(2, '0')
       bucket[key] = { date: `${mm}/${dd}`, amount: 0 }
     }
-    let totalQty7d = 0
     for (const sale of list) {
       const soldAt = sale?.soldAt ? new Date(sale.soldAt) : null
       if (soldAt && !Number.isNaN(soldAt.getTime())) {
         const key = dateStr(soldAt)
         if (bucket[key]) bucket[key].amount += Number(sale?.totalAmount ?? 0)
       }
-      totalQty7d += Number(sale?.totalQuantity ?? 0)
     }
     dailySales.value = Object.keys(bucket)
       .sort()
       .map((k) => bucket[k])
-    dailyAvgSalesQty.value = totalQty7d / 7
   } catch {
     dailySales.value = []
-    dailyAvgSalesQty.value = 0
     dailySalesError.value = true
   }
 
@@ -314,18 +283,8 @@ onMounted(fetchStats)
       <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <article class="border border-gray-300 bg-white p-3 shadow-sm"><p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">금일 매출</p><p class="mt-2 text-2xl font-black text-gray-900">₩{{ todaySalesAmount.toLocaleString() }}</p><p v-if="salesError" class="mt-1 text-[10px] font-bold text-red-500">불러오기 실패</p></article>
         <article class="border border-gray-300 bg-white p-3 shadow-sm"><p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">금일 판매 건수</p><p class="mt-2 text-2xl font-black text-gray-900">{{ todaySalesCount.toLocaleString() }}<span class="ml-1 text-sm font-black text-gray-400">건</span></p></article>
-        <article class="border border-gray-300 bg-white p-3 shadow-sm"><p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">재고 위험 SKU</p><p class="mt-2 text-2xl font-black text-gray-900">{{ riskItems.length.toLocaleString() }}<span class="ml-1 text-sm font-black text-gray-400">개</span></p></article>
-        <article class="border border-gray-300 bg-white p-3 shadow-sm">
-          <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">재고 보유일 (최단)</p>
-          <p class="mt-2 text-2xl font-black text-gray-900">
-            <template v-if="urgentSkuInventory">{{ urgentSkuInventory.days.toLocaleString() }}<span class="ml-1 text-sm font-black text-gray-400">일</span></template>
-            <template v-else><span class="text-base font-black text-gray-400">—</span></template>
-          </p>
-          <p class="mt-1 truncate text-[10px] font-bold text-gray-500" :title="urgentSkuInventory?.itemName ?? ''">
-            <template v-if="urgentSkuInventory">{{ urgentSkuInventory.itemName }}</template>
-            <template v-else>판매 데이터 부족</template>
-          </p>
-        </article>
+        <article class="border border-gray-300 bg-white p-3 shadow-sm"><p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">품절 SKU 수</p><p class="mt-2 text-2xl font-black text-red-700">{{ outOfStockCount.toLocaleString() }}<span class="ml-1 text-sm font-black text-gray-400">개</span></p><p class="mt-1 text-[10px] font-bold text-gray-400">가용 재고 0 이하</p></article>
+        <article class="border border-gray-300 bg-white p-3 shadow-sm"><p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">부족 SKU 수</p><p class="mt-2 text-2xl font-black text-amber-700">{{ lowStockCount.toLocaleString() }}<span class="ml-1 text-sm font-black text-gray-400">개</span></p><p class="mt-1 text-[10px] font-bold text-gray-400">안전재고 이하 (0 초과)</p></article>
       </section>
 
       <section class="grid gap-3 xl:grid-cols-2">
