@@ -735,7 +735,7 @@ function goToPage(pageNumber) {
         >
           <colgroup v-if="props.useFixedColumnWidths">
             <col v-if="hasActionColumn && actionColumnPosition === 'start'" class="w-[140px]" />
-            <col class="w-[130px]" />
+            <col class="w-[170px]" />
             <col class="w-[170px]" />
             <col class="w-[170px]" />
             <col v-if="visibleColumns.color" class="w-[80px]" />
