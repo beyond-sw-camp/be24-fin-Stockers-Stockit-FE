@@ -49,6 +49,13 @@ function isRowSelectionDisabled(row) {
 }
 
 function addItemToDraft(row) {
+  const existing = circularStockStore.getDraftItem(row.id)
+  if (existing) {
+    circularStockStore.removeSaleDraftItem(existing.draftId)
+    showToast('선택한 SKU를 해제했습니다.', 'success')
+    return
+  }
+
   const result = circularStockStore.addSaleDraftItem(row)
   if (!result.success) {
     showToast(result.message, 'error')
@@ -219,8 +226,8 @@ onBeforeUnmount(() => {
               class="group inline-flex h-7 items-center justify-center gap-1.5 rounded-full border px-2.5 text-[11px] font-bold transition-all duration-200 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:opacity-100 active:scale-95"
               :class="
                 isItemAdded(row.id)
-                  ? 'border-indigo-200/50 bg-indigo-50 text-indigo-600 hover:border-indigo-300 hover:bg-indigo-100 hover:text-indigo-700'
-                  : 'border-[#97BFB4]/25 bg-[#97BFB4]/10 text-[#5A7F75] hover:border-[#97BFB4]/45 hover:bg-[#97BFB4]/20 hover:text-[#4A6860]'
+                  ? 'border-rose-200/70 bg-rose-50 text-rose-700 hover:border-rose-300 hover:bg-rose-100 hover:text-rose-800'
+                  : 'border-sky-200/70 bg-sky-50 text-sky-700 hover:border-sky-300 hover:bg-sky-100 hover:text-sky-800'
               "
               :disabled="isRowSelectionDisabled(row)"
               :title="
@@ -234,13 +241,13 @@ onBeforeUnmount(() => {
                 class="flex h-4 w-4 items-center justify-center rounded-full text-[10px] shadow-sm transition-colors"
                 :class="
                   isItemAdded(row.id)
-                    ? 'bg-white text-indigo-300 group-hover:bg-indigo-600 group-hover:text-white'
-                    : 'bg-white text-[#97BFB4] group-hover:bg-[#004D3C] group-hover:text-white'
+                    ? 'bg-white text-rose-300 group-hover:bg-rose-700 group-hover:text-white'
+                    : 'bg-white text-sky-400 group-hover:bg-sky-700 group-hover:text-white'
                 "
               >
                 {{ isItemAdded(row.id) ? '✓' : '+' }}
               </span>
-              <span>{{ isItemAdded(row.id) ? '수정' : '선택' }}</span>
+              <span>{{ isItemAdded(row.id) ? '취소' : '선택' }}</span>
             </button>
             <span v-if="isRowSelectionDisabled(row)" class="text-[10px] font-black text-gray-400">
               선택 불가
