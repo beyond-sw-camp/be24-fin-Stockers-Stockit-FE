@@ -21,7 +21,6 @@ import StoreInventorySkuDetailView from '@/views/store/inventory/StoreInventoryS
 
 import WarehouseDashboardView from '@/views/warehouse/dashboard/WarehouseDashboardView.vue'
 import WarehouseInventoryView from '@/views/warehouse/WarehouseInventoryView.vue'
-import WarehouseInventorySkuDetailView from '@/views/warehouse/WarehouseInventorySkuDetailView.vue'
 import WarehouseInboundView from '@/views/warehouse/inbound/WarehouseInboundView.vue'
 import WarehouseOutboundView from '@/views/warehouse/outbound/WarehouseOutboundView.vue'
 import WarehouseOutboundDetailView from '@/views/warehouse/outbound/WarehouseOutboundDetailView.vue'
@@ -38,7 +37,6 @@ import HqWarehouseInventoryComparisonView from '@/views/hq/inventory/HqWarehouse
 import HqWarehouseSkuTransferDetailView from '@/views/hq/inventory/HqWarehouseSkuTransferDetailView.vue'
 import HqWarehouseTransferHistoryView from '@/views/hq/inventory/HqWarehouseTransferHistoryView.vue'
 import HqWarehouseTransferHistoryDetailView from '@/views/hq/inventory/HqWarehouseTransferHistoryDetailView.vue'
-import HqCompanyWideInventorySkuDetailView from '@/views/hq/inventory/HqCompanyWideInventorySkuDetailView.vue'
 import HqProductManagementView from '@/views/hq/products/HqProductManagementView.vue'
 import HqInfrastructureManagementView from '@/views/hq/infrastructure/HqInfrastructureManagementView.vue'
 import HqStoreOrderBatchApproveView from '@/views/hq/store-order-batch/HqStoreOrderBatchApproveView.vue'
@@ -83,12 +81,6 @@ const router = createRouter({
 
     { path: '/hq/inventory', redirect: { name: 'hq-inventory-company-wide' } },
     { path: '/hq/inventory/company-wide', name: 'hq-inventory-company-wide', component: HqCompanyWideInventoryView, meta: { requiresAuth: true, role: 'hq' } },
-    {
-      path: '/hq/inventory/company-wide/:itemCode/skus',
-      name: 'hq-inventory-sku-detail',
-      component: HqCompanyWideInventorySkuDetailView,
-      meta: { requiresAuth: true, role: 'hq' },
-    },
     { path: '/hq/inventory/warehouse-comparison', name: 'hq-inventory-warehouse-comparison', component: HqWarehouseInventoryComparisonView, meta: { requiresAuth: true, role: 'hq' } },
     {
       path: '/hq/inventory/warehouse-comparison/:skuCode',
@@ -203,12 +195,6 @@ const router = createRouter({
       path: '/warehouse/inventory',
       name: 'wh-inventory',
       component: WarehouseInventoryView,
-      meta: { requiresAuth: true, role: 'warehouse' },
-    },
-    {
-      path: '/warehouse/inventory/:itemCode/skus',
-      name: 'wh-inventory-sku-detail',
-      component: WarehouseInventorySkuDetailView,
       meta: { requiresAuth: true, role: 'warehouse' },
     },
     {
