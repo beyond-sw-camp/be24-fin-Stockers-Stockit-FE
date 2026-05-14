@@ -21,7 +21,6 @@ import StoreInventorySkuDetailView from '@/views/store/inventory/StoreInventoryS
 
 import WarehouseDashboardView from '@/views/warehouse/dashboard/WarehouseDashboardView.vue'
 import WarehouseInventoryView from '@/views/warehouse/WarehouseInventoryView.vue'
-import WarehouseInventorySkuDetailView from '@/views/warehouse/WarehouseInventorySkuDetailView.vue'
 import WarehouseInboundView from '@/views/warehouse/inbound/WarehouseInboundView.vue'
 import WarehouseOutboundView from '@/views/warehouse/outbound/WarehouseOutboundView.vue'
 import WarehouseOutboundDetailView from '@/views/warehouse/outbound/WarehouseOutboundDetailView.vue'
@@ -194,12 +193,6 @@ const router = createRouter({
       path: '/warehouse/inventory',
       name: 'wh-inventory',
       component: WarehouseInventoryView,
-      meta: { requiresAuth: true, role: 'warehouse' },
-    },
-    {
-      path: '/warehouse/inventory/:itemCode/skus',
-      name: 'wh-inventory-sku-detail',
-      component: WarehouseInventorySkuDetailView,
       meta: { requiresAuth: true, role: 'warehouse' },
     },
     {
