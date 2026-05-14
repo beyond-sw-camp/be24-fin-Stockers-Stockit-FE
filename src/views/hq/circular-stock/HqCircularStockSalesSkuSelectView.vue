@@ -236,22 +236,27 @@ onBeforeUnmount(() => {
                   : ''
               "
               @click.stop="addItemToDraft(row)"
-            >
-              <span
-                class="flex h-4 w-4 items-center justify-center rounded-full text-[10px] shadow-sm transition-colors"
-                :class="
-                  isItemAdded(row.id)
-                    ? 'bg-white text-rose-300 group-hover:bg-rose-700 group-hover:text-white'
-                    : 'bg-white text-sky-400 group-hover:bg-sky-700 group-hover:text-white'
-                "
               >
-                {{ isItemAdded(row.id) ? '✓' : '+' }}
+                <span
+                  class="flex h-4 w-4 items-center justify-center rounded-full text-[10px] shadow-sm transition-colors"
+                  :class="
+                    isItemAdded(row.id)
+                      ? 'bg-white text-rose-300 group-hover:bg-rose-700 group-hover:text-white'
+                      : 'bg-white text-sky-400 group-hover:bg-sky-700 group-hover:text-white'
+                  "
+                >
+                  {{ isItemAdded(row.id) ? '✓' : '+' }}
+                </span>
+              <span>
+                {{
+                  isRowSelectionDisabled(row)
+                    ? '불가'
+                    : isItemAdded(row.id)
+                      ? '취소'
+                      : '선택'
+                }}
               </span>
-              <span>{{ isItemAdded(row.id) ? '취소' : '선택' }}</span>
             </button>
-            <span v-if="isRowSelectionDisabled(row)" class="text-[10px] font-black text-gray-400">
-              선택 불가
-            </span>
           </div>
         </template>
       </CircularStockInventoryBrowseSection>
