@@ -44,6 +44,14 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  useFixedColumnWidths: {
+    type: Boolean,
+    default: false,
+  },
+  pinLeadColumns: {
+    type: Boolean,
+    default: true,
+  },
   serverMode: {
     type: Boolean,
     default: false,
@@ -721,8 +729,27 @@ function goToPage(pageNumber) {
       </div>
 
       <div class="overflow-x-auto">
-        <table class="w-full min-w-[980px] table-fixed border-collapse text-left text-xs">
-          <colgroup>
+        <table
+          class="w-full table-fixed border-collapse text-left text-xs"
+          :class="props.useFixedColumnWidths ? 'min-w-max' : 'min-w-[980px]'"
+        >
+          <colgroup v-if="props.useFixedColumnWidths">
+            <col v-if="hasActionColumn && actionColumnPosition === 'start'" class="w-[140px]" />
+            <col class="w-[130px]" />
+            <col class="w-[170px]" />
+            <col class="w-[170px]" />
+            <col v-if="visibleColumns.color" class="w-[80px]" />
+            <col v-if="visibleColumns.size" class="w-[90px]" />
+            <col class="w-[130px]" />
+            <col class="w-[160px]" />
+            <col class="w-[95px]" />
+            <col class="w-[110px]" />
+            <col v-if="props.showCircularSalePriceColumn" class="w-[110px]" />
+            <col class="w-[95px]" />
+            <col v-if="visibleColumns.perItemWeight" class="w-[95px]" />
+            <col v-if="hasActionColumn && actionColumnPosition === 'end'" class="w-[140px]" />
+          </colgroup>
+          <colgroup v-else>
             <col v-if="hasActionColumn && actionColumnPosition === 'start'" class="w-[4%]" />
             <col class="w-[13%]" />
             <col class="w-[13%]" />
@@ -749,13 +776,21 @@ function goToPage(pageNumber) {
                   {{ actionColumnLabel }}
                 </slot>
               </th>
-              <th class="sticky left-0 z-20 bg-gray-50 px-3 py-3 font-black">
+              <th
+                class="px-3 py-3 font-black"
+                :class="props.pinLeadColumns ? 'sticky left-0 z-20 bg-gray-50' : ''"
+              >
                 <button type="button" class="inline-flex items-center gap-1 hover:text-gray-900" @click="toggleSort('skuCode')">
                   SKU 코드
                   <span class="text-[9px]">{{ sortIcon('skuCode') }}</span>
                 </button>
               </th>
-              <th class="sticky left-[170px] z-20 bg-gray-50 px-3 py-3 font-black">품목명</th>
+              <th
+                class="px-3 py-3 font-black"
+                :class="props.pinLeadColumns ? 'sticky left-[170px] z-20 bg-gray-50' : ''"
+              >
+                품목명
+              </th>
               <th class="px-3 py-3 font-black">창고</th>
               <th v-if="visibleColumns.color" class="px-3 py-3 text-center font-black">색상</th>
               <th v-if="visibleColumns.size" class="px-3 py-3 text-center font-black">사이즈</th>
@@ -819,20 +854,24 @@ function goToPage(pageNumber) {
                 />
               </td>
               <td
-                class="sticky left-0 z-10 whitespace-nowrap px-3 py-3 font-mono font-bold text-gray-600 transition-colors"
-                :class="highlightedRowIds.includes(item.id) || highlightedInventoryIds.includes(item.inventoryId)
-                  ? 'bg-[#EBF5F5]'
-                  : hoveredRowId === item.id
-                    ? 'bg-[#EBF5F5]/60'
-                    : 'bg-white'"
+                class="whitespace-nowrap px-3 py-3 font-mono font-bold text-gray-600 transition-colors"
+                :class="props.pinLeadColumns
+                  ? (highlightedRowIds.includes(item.id) || highlightedInventoryIds.includes(item.inventoryId)
+                    ? 'sticky left-0 z-10 bg-[#EBF5F5]'
+                    : hoveredRowId === item.id
+                      ? 'sticky left-0 z-10 bg-[#EBF5F5]/60'
+                      : 'sticky left-0 z-10 bg-white')
+                  : ''"
               >{{ item.skuCode }}</td>
               <td
-                class="sticky left-[170px] z-10 truncate px-3 py-3 font-black text-gray-900 transition-colors"
-                :class="highlightedRowIds.includes(item.id) || highlightedInventoryIds.includes(item.inventoryId)
-                  ? 'bg-[#EBF5F5]'
-                  : hoveredRowId === item.id
-                    ? 'bg-[#EBF5F5]/60'
-                    : 'bg-white'"
+                class="truncate px-3 py-3 font-black text-gray-900 transition-colors"
+                :class="props.pinLeadColumns
+                  ? (highlightedRowIds.includes(item.id) || highlightedInventoryIds.includes(item.inventoryId)
+                    ? 'sticky left-[170px] z-10 bg-[#EBF5F5]'
+                    : hoveredRowId === item.id
+                      ? 'sticky left-[170px] z-10 bg-[#EBF5F5]/60'
+                      : 'sticky left-[170px] z-10 bg-white')
+                  : ''"
               >{{ item.itemName }}</td>
               <td class="px-3 py-3 font-bold text-gray-700">{{ item.warehouseName || '-' }}</td>
               <td v-if="visibleColumns.color" class="px-3 py-3 text-center font-black text-gray-900">{{ item.colorLabel }}</td>
