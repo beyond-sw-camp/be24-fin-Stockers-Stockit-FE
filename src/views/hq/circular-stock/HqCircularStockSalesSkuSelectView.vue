@@ -204,15 +204,15 @@ onBeforeUnmount(() => {
       </CircularStockInventoryBrowseSection>
 
       <div
-        class="fixed bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-4 border border-gray-200 bg-white px-4 py-2 shadow-lg"
+        class="fixed bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-full border border-gray-200/80 bg-white/95 px-3 py-2 shadow-[0_16px_30px_-16px_rgba(15,23,42,0.45)] backdrop-blur-md"
       >
-        <span class="text-xs font-black text-gray-700"
-          >선택된 SKU {{ drawerSummary.totalItems }}건</span
-        >
-        
+        <span class="inline-flex h-8 items-center pl-1 text-xs font-extrabold text-gray-500">
+          선택된 SKU {{ drawerSummary.totalItems }}건
+        </span>
+
         <button
           type="button"
-          class="h-8 border border-[#004D3C] bg-[#004D3C] px-3 text-xs font-black text-white hover:bg-[#00382c]"
+          class="inline-flex h-8 items-center rounded-full border border-[#004D3C] bg-[#004D3C] px-4 text-xs font-extrabold text-white transition-colors duration-200 hover:bg-[#00382c]"
           @click="openSkuModal"
         >
           선택 SKU 보기
