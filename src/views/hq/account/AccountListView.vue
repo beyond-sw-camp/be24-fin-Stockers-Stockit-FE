@@ -4,7 +4,6 @@ import { useRouter } from 'vue-router'
 import {
   Users,
   Search,
-  RotateCcw,
   X,
   AlertCircle,
   CheckCircle2,
@@ -142,12 +141,13 @@ const paginated = computed(() => {
   return filtered.value.slice(start, start + PAGE_SIZE)
 })
 
-function resetFilter() {
+// 컴포넌트 진입(새로고침/페이지 재방문) 시 필터 강제 초기화 — keep-alive 도입 시에도 정상 동작 보장
+onMounted(() => {
   filter.keyword = ''
   filter.role = ''
   filter.status = ''
   currentPage.value = 1
-}
+})
 
 // ── 상세 패널
 const selected = ref(null)
@@ -267,14 +267,6 @@ async function confirmWithdraw() {
         >
           <option v-for="o in statusOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
         </select>
-        <button
-          type="button"
-          class="inline-flex h-9 items-center gap-1.5 border border-gray-300 bg-white px-3 text-[13px] font-medium text-gray-500 transition hover:bg-gray-50"
-          @click="resetFilter"
-        >
-          <RotateCcw :size="13" />
-          초기화
-        </button>
         <span class="text-[12px] font-medium text-gray-400">{{ filtered.length }}건</span>
       </section>
 
