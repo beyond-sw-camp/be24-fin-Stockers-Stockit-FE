@@ -50,6 +50,7 @@ import HqCircularStockSalesHistoryView from '@/views/hq/circular-stock/HqCircula
 import HqCircularStockSalesDetailView from '@/views/hq/circular-stock/HqCircularStockSalesDetailView.vue'
 import EsgDashBoardView from '@/views/hq/esg/EsgDashBoardView.vue'
 import EsgTreeScoreView from '@/views/hq/esg/EsgTreeScoreView.vue'
+import EsgCarbonPriceView from '@/views/hq/esg/EsgCarbonPriceView.vue'
 import AccountListView from '@/views/hq/account/AccountListView.vue'
 import AccountApprovalView from '@/views/hq/account/AccountApprovalView.vue'
 import HqAnalyticsOrderStatsView from '@/views/hq/analytics/HqAnalyticsOrderStatsView.vue'
@@ -160,6 +161,7 @@ const router = createRouter({
     { path: '/hq/account/approval', name: 'hq-account-approval', component: AccountApprovalView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/esg', name: 'hq-esg', component: EsgDashBoardView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/esg/tree-score', name: 'hq-esg-tree-score', component: EsgTreeScoreView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/esg/carbon-price', name: 'hq-esg-carbon-price', component: EsgCarbonPriceView, meta: { requiresAuth: true, role: 'hq' } },
 
     { path: '/store/dashboard', name: 'store-dashboard', component: StoreDashboardView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/dashboard2', name: 'store-dashboard2', component: StoreDashboardView2, meta: { requiresAuth: true, role: 'store' } },

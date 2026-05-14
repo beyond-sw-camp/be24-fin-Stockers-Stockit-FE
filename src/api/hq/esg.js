@@ -77,3 +77,51 @@ export const emissionQuotaApi = {
       .put('/api/hq/esg/quota', payload, { params: year ? { year } : {} })
       .then(unwrap),
 }
+
+/**
+ * 순환재고 월별 판매 수익 — ESG 대시보드 "월별 판매 수익" 카드.
+ *
+ * 응답 형태:
+ *   {
+ *     year: 2026,
+ *     monthly: [{ month, revenue, count }, ...12],
+ *     totalRevenue: number,
+ *     totalCount: number,
+ *     monthsWithData: number,
+ *     avgMonthly: number
+ *   }
+ */
+export const circularRevenueApi = {
+  /**
+   * 지정 연도의 12개월 수익/거래 건수 집계 조회.
+   * @param {number} [year] — 미지정 시 BE 가 현재 연도 사용
+   */
+  get: (year) =>
+    apiClient
+      .get('/api/hq/esg/circular-revenue', { params: year ? { year } : {} })
+      .then(unwrap),
+}
+
+/**
+ * 친환경 나무 키우기 점수 — 연간 sale 거래 이벤트.
+ *
+ * 응답 형태:
+ *   {
+ *     year: 2026,
+ *     events: [
+ *       { id, date: 'yyyy-MM-dd', type: 'sale', buyer, material, weightKg,
+ *         isNewBuyer, isLocalPartner }, ...
+ *     ]
+ *   }
+ *
+ * 기부 이벤트는 BE 에 도메인 없으므로 FE 에서 mock 으로 머지.
+ */
+export const scoreEventsApi = {
+  /**
+   * @param {number} [year] — 미지정 시 BE 가 현재 연도 사용
+   */
+  get: (year) =>
+    apiClient
+      .get('/api/hq/esg/score-events', { params: year ? { year } : {} })
+      .then(unwrap),
+}

@@ -467,7 +467,16 @@ const productDetailBarOptions = {
   indexAxis: 'y',
   plugins: {
     legend: { display: false },
-    tooltip: { callbacks: { label: (ctx) => formatKoreanMoney(ctx.parsed.x) } },
+    tooltip: {
+      callbacks: {
+        label: (ctx) => {
+          const item = top10ProductDetails.value[ctx.dataIndex]
+          const lines = [`매출: ${formatKoreanMoney(ctx.parsed.x)}`]
+          if (item) lines.push(`판매량: ${Number(item.units ?? 0).toLocaleString()}개`)
+          return lines
+        },
+      },
+    },
   },
   scales: {
     x: { grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, callback: (v) => formatKoreanMoney(v) } },
