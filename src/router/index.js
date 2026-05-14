@@ -38,7 +38,6 @@ import HqWarehouseInventoryComparisonView from '@/views/hq/inventory/HqWarehouse
 import HqWarehouseSkuTransferDetailView from '@/views/hq/inventory/HqWarehouseSkuTransferDetailView.vue'
 import HqWarehouseTransferHistoryView from '@/views/hq/inventory/HqWarehouseTransferHistoryView.vue'
 import HqWarehouseTransferHistoryDetailView from '@/views/hq/inventory/HqWarehouseTransferHistoryDetailView.vue'
-import HqCompanyWideInventorySkuDetailView from '@/views/hq/inventory/HqCompanyWideInventorySkuDetailView.vue'
 import HqProductManagementView from '@/views/hq/products/HqProductManagementView.vue'
 import HqInfrastructureManagementView from '@/views/hq/infrastructure/HqInfrastructureManagementView.vue'
 import HqStoreOrderBatchApproveView from '@/views/hq/store-order-batch/HqStoreOrderBatchApproveView.vue'
@@ -82,12 +81,6 @@ const router = createRouter({
 
     { path: '/hq/inventory', redirect: { name: 'hq-inventory-company-wide' } },
     { path: '/hq/inventory/company-wide', name: 'hq-inventory-company-wide', component: HqCompanyWideInventoryView, meta: { requiresAuth: true, role: 'hq' } },
-    {
-      path: '/hq/inventory/company-wide/:itemCode/skus',
-      name: 'hq-inventory-sku-detail',
-      component: HqCompanyWideInventorySkuDetailView,
-      meta: { requiresAuth: true, role: 'hq' },
-    },
     { path: '/hq/inventory/warehouse-comparison', name: 'hq-inventory-warehouse-comparison', component: HqWarehouseInventoryComparisonView, meta: { requiresAuth: true, role: 'hq' } },
     {
       path: '/hq/inventory/warehouse-comparison/:skuCode',
