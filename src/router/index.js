@@ -17,7 +17,6 @@ import StoreOrderDetailView from '@/views/store/orders/StoreOrderDetailView.vue'
 import StoreInboundListView from '@/views/store/inbound/StoreInboundListView.vue'
 import StoreInboundDetailView from '@/views/store/inbound/StoreInboundDetailView.vue'
 import StoreInventoryView from '@/views/store/inventory/StoreInventoryView.vue'
-import StoreInventorySkuDetailView from '@/views/store/inventory/StoreInventorySkuDetailView.vue'
 
 import WarehouseDashboardView from '@/views/warehouse/dashboard/WarehouseDashboardView.vue'
 import WarehouseInventoryView from '@/views/warehouse/WarehouseInventoryView.vue'
@@ -171,12 +170,6 @@ const router = createRouter({
     { path: '/store/orders/history', name: 'store-order-history', component: StoreOrderHistoryView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/orders/history/:orderNo', name: 'store-order-detail', component: StoreOrderDetailView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/inventory', name: 'store-inventory', component: StoreInventoryView, meta: { requiresAuth: true, role: 'store' } },
-    {
-      path: '/store/inventory/:itemCode/skus',
-      name: 'store-inventory-sku-detail',
-      component: StoreInventorySkuDetailView,
-      meta: { requiresAuth: true, role: 'store' },
-    },
     { path: '/store/inbound', redirect: { name: 'store-inbound-list' } },
     { path: '/store/inbound/list', name: 'store-inbound-list', component: StoreInboundListView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/inbound/list/:id', name: 'store-inbound-detail', component: StoreInboundDetailView, meta: { requiresAuth: true, role: 'store' } },
