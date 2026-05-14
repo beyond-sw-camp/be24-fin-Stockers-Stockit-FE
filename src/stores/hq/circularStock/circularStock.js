@@ -469,7 +469,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
   const inventoryWarehouseCodes = ref([])
   const inventoryMaterialGroup = ref('')
   const inventoryMaterialName = ref('')
-  const inventoryMinRatio = ref(0)
+  const inventoryMaterialNames = ref([])
 
   // ADR-021 AI 거래처 추천 — Step 1 → Step 2 [다음] 클릭 시 1회 호출 (사용자 결정 2026-04-30).
   const recommendations = ref([])
@@ -653,8 +653,12 @@ export const useCircularStockStore = defineStore('circularStock', () => {
       ? overrides.warehouseCodes
       : inventoryWarehouseCodes.value
     const nextMaterialGroup = String((overrides.materialGroup ?? inventoryMaterialGroup.value) || '').trim()
-    const nextMaterialName = String((overrides.materialName ?? inventoryMaterialName.value) || '').trim()
-    const nextMinRatio = Number((overrides.minRatio ?? inventoryMinRatio.value) || 0)
+    const nextMaterialNames = Array.isArray(overrides.materialNames)
+      ? overrides.materialNames.map(value => String(value || '').trim()).filter(Boolean)
+      : inventoryMaterialNames.value
+    const fallbackMaterialName = nextMaterialNames.length === 1 ? nextMaterialNames[0] : ''
+    const materialNameSource = overrides.materialName ?? fallbackMaterialName ?? inventoryMaterialName.value
+    const nextMaterialName = String(materialNameSource || '').trim()
 
     const response = await getCircularInventories({
       page: Math.max(0, Number(nextPage) || 0),
@@ -664,7 +668,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
       warehouseCodes: nextWarehouseCodes.length > 0 ? nextWarehouseCodes : undefined,
       materialGroup: nextMaterialGroup || undefined,
       materialName: nextMaterialName || undefined,
-      minRatio: nextMaterialName ? Math.max(0, nextMinRatio) : undefined,
+      materialNames: nextMaterialNames.length > 0 ? nextMaterialNames : undefined,
     })
 
     const rows = Array.isArray(response?.content) ? response.content : []
@@ -681,7 +685,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     inventoryWarehouseCodes.value = [...nextWarehouseCodes]
     inventoryMaterialGroup.value = nextMaterialGroup
     inventoryMaterialName.value = nextMaterialName
-    inventoryMinRatio.value = Math.max(0, nextMinRatio)
+    inventoryMaterialNames.value = [...nextMaterialNames]
 
     liveCircularInventoryRows.value = mapped
     inventoryItems.value = mapped.map(enrichInventoryItem)
@@ -1054,7 +1058,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     inventoryWarehouseCodes,
     inventoryMaterialGroup,
     inventoryMaterialName,
-    inventoryMinRatio,
+    inventoryMaterialNames,
     sortedSales,
     draftBuyerId,
     draftMemo,

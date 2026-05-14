@@ -124,7 +124,7 @@ function moveStep(step) {
     return
   }
   saleStep.value = step
-  // ADR-021 — Step 2 진입 시 AI 추천 1회 자동 호출 (사용자 결정 2026-04-30).
+  // ADR-021 — Step 2 진입 시 AI 추천 호출
   if (step === 2 && !circularStockStore.isRecommendationLoading) {
     const shouldRefetch = (
       circularStockStore.recommendations.length === 0
@@ -317,12 +317,12 @@ onBeforeUnmount(() => {
             >
               SKU 목록으로 돌아가기
             </button>
-            
+
           </div>
         </div>
       </section>
 
-      
+
 
       <div class="w-full">
         <div class="w-full">
@@ -336,7 +336,7 @@ onBeforeUnmount(() => {
               </div>
               <div class="flex items-center gap-3">
                 <span class="text-sm font-black text-gray-900">{{ formatCurrency(drawerSummary.totalActualAmount) }}</span>
-                
+
               </div>
             </div>
 
