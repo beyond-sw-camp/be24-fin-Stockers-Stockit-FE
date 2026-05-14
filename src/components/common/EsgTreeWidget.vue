@@ -24,9 +24,12 @@ const stageLabels = [
 ]
 const stageLabel = computed(() => stageLabels[stage.value - 1])
 
-const trunkHeight = computed(() => 8 + stage.value * 5)
-const crownRadius = computed(() => 5 + stage.value * 2.6)
-const crownCenterY = computed(() => 92 - trunkHeight.value - crownRadius.value * 0.35)
+// 성장 공식 — Stage 1 씨앗(매우 작음) → Stage 10 거목(viewBox top 까지 길쭉)
+// viewBox `0 -32 100 132` 기준: 지면 cy=100 (viewBox 최하단, 라벨 글자 바로 위)
+const TRUNK_BOTTOM = 99   // 줄기 바닥 y (지면 cy=100 바로 위)
+const trunkHeight = computed(() => 5 + stage.value * 8.5)      // 1:13.5, 5:47.5, 10:90
+const crownRadius = computed(() => 3 + stage.value * 2.7)      // 1:5.7, 5:16.5, 10:30
+const crownCenterY = computed(() => TRUNK_BOTTOM - trunkHeight.value - crownRadius.value * 0.35)
 const showSideLeaves = computed(() => stage.value >= 4)
 const showFruits = computed(() => stage.value >= 8)
 </script>
@@ -50,12 +53,12 @@ const showFruits = computed(() => stage.value >= 8)
       </div>
 
       <div :class="expanded ? 'flex min-h-0 flex-1 items-end justify-center' : 'flex h-36 items-end justify-center'">
-        <svg viewBox="0 -22 100 122" class="h-full w-auto" aria-hidden="true">
-          <ellipse cx="50" cy="93" rx="30" ry="3.5" class="fill-emerald-200/70" />
+        <svg viewBox="0 -32 100 132" class="h-full w-auto" aria-hidden="true">
+          <ellipse cx="50" cy="100" rx="30" ry="2" class="fill-emerald-200/70" />
 
           <rect
             x="48"
-            :y="92 - trunkHeight"
+            :y="TRUNK_BOTTOM - trunkHeight"
             width="4"
             :height="trunkHeight"
             rx="1.2"
