@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   ArrowLeft, RefreshCw, Leaf, Recycle, ShieldCheck, Heart,
@@ -12,6 +12,9 @@ import DoughnutChart from '@/components/common/charts/DoughnutChart.vue'
 import EsgTreeWidget from '@/components/common/EsgTreeWidget.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { useEsgStore } from '@/stores/esg.js'
+import { scoreEventsApi } from '@/api/hq/esg.js'
+import { extractErrorMessage } from '@/api/axios.js'
 const router = useRouter()
 const auth = useAuthStore()
 const topMenus = computed(() => roleMenus.hq ?? [])
@@ -118,29 +121,57 @@ const MATERIAL_GROUP_LABEL = {
   BLEND:          '혼방',
 }
 
-// ─────────── Mock 이벤트 데이터 (BE 연동 시 GET /api/hq/esg/score/events 로 교체) ───────────
-const events = ref([
-  // 4월 판매 4건
-  { id: 1,  date: '2026-04-27', type: 'sale',     buyer: '신규 D사', material: 'POLYESTER', weightKg: 500, isNewBuyer: true,  isLocalPartner: false, donationType: null,        method: 'RECYCLE' },
-  { id: 2,  date: '2026-04-20', type: 'sale',     buyer: '마을협동조합', material: 'BLEND',     weightKg: 300, isNewBuyer: false, isLocalPartner: true,  donationType: null,        method: 'UPCYCLE' },
-  { id: 3,  date: '2026-04-15', type: 'sale',     buyer: 'B사',     material: 'COTTON',    weightKg: 250, isNewBuyer: false, isLocalPartner: false, donationType: null,        method: 'RESALE' },
-  { id: 4,  date: '2026-04-10', type: 'sale',     buyer: 'A사',     material: 'COTTON',    weightKg: 100, isNewBuyer: false, isLocalPartner: false, donationType: null,        method: 'RESALE' },
+// ─────────── 이벤트 데이터 ───────────
+//   sale: BE 연동 (GET /api/hq/esg/score-events)
+//   donation: BE 도메인 미구현 → mock 유지 (향후 BE 추가 시 같은 형태로 머지)
+const MOCK_DONATION_EVENTS = [
   // 4월 기부 4건
-  { id: 5,  date: '2026-04-28', type: 'donation', buyer: '재해구호본부',  material: 'COTTON',    weightKg:  95, isNewBuyer: false, isLocalPartner: false, donationType: 'DISASTER',  method: null },
-  { id: 6,  date: '2026-04-22', type: 'donation', buyer: '사회복지시설',  material: 'COTTON',    weightKg:  80, isNewBuyer: false, isLocalPartner: false, donationType: 'VULNERABLE',method: null },
-  { id: 7,  date: '2026-04-14', type: 'donation', buyer: '해외구호단체',  material: 'POLYESTER', weightKg:  50, isNewBuyer: false, isLocalPartner: false, donationType: 'OVERSEAS',  method: null },
-  { id: 8,  date: '2026-04-05', type: 'donation', buyer: '직업학교',      material: 'BLEND',     weightKg:  30, isNewBuyer: false, isLocalPartner: false, donationType: 'EDU',       method: null },
-  // 3월 mock (월별 추이용)
-  { id: 9,  date: '2026-03-25', type: 'sale',     buyer: 'B사',     material: 'WOOL',      weightKg: 150, isNewBuyer: false, isLocalPartner: false, donationType: null,        method: 'UPCYCLE' },
-  { id: 10, date: '2026-03-18', type: 'sale',     buyer: 'C사',     material: 'NYLON',     weightKg: 200, isNewBuyer: true,  isLocalPartner: false, donationType: null,        method: 'RECYCLE' },
-  { id: 11, date: '2026-03-12', type: 'donation', buyer: '재해구호본부',  material: 'COTTON',    weightKg:  60, isNewBuyer: false, isLocalPartner: false, donationType: 'DISASTER',  method: null },
-  // 2월 mock
-  { id: 12, date: '2026-02-28', type: 'sale',     buyer: 'A사',     material: 'COTTON',    weightKg: 180, isNewBuyer: false, isLocalPartner: false, donationType: null,        method: 'RESALE' },
-  { id: 13, date: '2026-02-15', type: 'sale',     buyer: '마을협동조합', material: 'BLEND',     weightKg: 220, isNewBuyer: false, isLocalPartner: true,  donationType: null,        method: 'UPCYCLE' },
-  // 1월 mock
-  { id: 14, date: '2026-01-22', type: 'sale',     buyer: 'A사',     material: 'COTTON',    weightKg:   8, isNewBuyer: false, isLocalPartner: false, donationType: null,        method: 'RESALE' },  // 최소 미달
-  { id: 15, date: '2026-01-12', type: 'donation', buyer: '직업학교',      material: 'BLEND',     weightKg:  40, isNewBuyer: false, isLocalPartner: false, donationType: 'EDU',       method: null },
-])
+  { id: 'd-1', date: '2026-04-28', type: 'donation', buyer: '재해구호본부',  material: 'COTTON',    weightKg:  95, isNewBuyer: false, isLocalPartner: false, donationType: 'DISASTER',  method: null },
+  { id: 'd-2', date: '2026-04-22', type: 'donation', buyer: '사회복지시설',  material: 'COTTON',    weightKg:  80, isNewBuyer: false, isLocalPartner: false, donationType: 'VULNERABLE',method: null },
+  { id: 'd-3', date: '2026-04-14', type: 'donation', buyer: '해외구호단체',  material: 'POLYESTER', weightKg:  50, isNewBuyer: false, isLocalPartner: false, donationType: 'OVERSEAS',  method: null },
+  { id: 'd-4', date: '2026-04-05', type: 'donation', buyer: '직업학교',      material: 'BLEND',     weightKg:  30, isNewBuyer: false, isLocalPartner: false, donationType: 'EDU',       method: null },
+  // 3월 기부 1건
+  { id: 'd-5', date: '2026-03-12', type: 'donation', buyer: '재해구호본부',  material: 'COTTON',    weightKg:  60, isNewBuyer: false, isLocalPartner: false, donationType: 'DISASTER',  method: null },
+  // 1월 기부 1건
+  { id: 'd-6', date: '2026-01-12', type: 'donation', buyer: '직업학교',      material: 'BLEND',     weightKg:  40, isNewBuyer: false, isLocalPartner: false, donationType: 'EDU',       method: null },
+]
+
+const saleEvents = ref([])
+const loadEventsError = ref('')
+
+/** BE 응답 sale events 를 FE event 형태로 정규화
+ *  - Jackson+Lombok 직렬화 quirk: isNewBuyer → "newBuyer" 로 직렬화됨
+ *  - 양쪽 필드명 모두 수용해서 BE/FE 직렬화 컨벤션 변경에 견고
+ */
+function normalizeSaleEvent(e) {
+  return {
+    id: e.id,
+    date: e.date,
+    type: 'sale',
+    buyer: e.buyer,
+    material: e.material,
+    weightKg: e.weightKg,
+    isNewBuyer: e.isNewBuyer ?? e.newBuyer ?? false,
+    isLocalPartner: e.isLocalPartner ?? e.localPartner ?? false,
+    donationType: null,
+    method: null,
+  }
+}
+
+async function loadEvents(year) {
+  loadEventsError.value = ''
+  try {
+    const targetYear = year ?? new Date().getFullYear()
+    const res = await scoreEventsApi.get(targetYear)
+    saleEvents.value = (res?.events ?? []).map(normalizeSaleEvent)
+  } catch (err) {
+    loadEventsError.value = extractErrorMessage(err, '점수 이벤트를 불러오지 못했습니다.')
+    saleEvents.value = []
+  }
+}
+
+// sale (BE) + donation (mock) 머지 → 기존 events 변수와 동일 인터페이스
+const events = computed(() => [...saleEvents.value, ...MOCK_DONATION_EVENTS])
 
 // ─────────── 점수 계산 함수 (이벤트 1건 → 분해 점수) ───────────
 //   탄소 점수 = 무게(kg) × 소재 계수 × 0.5
@@ -229,6 +260,10 @@ const totalScore = computed(() =>
   Object.values(categoryTotals.value).reduce((a, b) => a + b, 0),
 )
 
+// ESG 대시보드 헤더와 누적 점수 동기화 — totalScore 변할 때마다 esgStore 갱신
+const esgStore = useEsgStore()
+watch(totalScore, (n) => esgStore.setTotalPoints(n), { immediate: true })
+
 const scoreCategories = computed(() => {
   const t = categoryTotals.value
   const total = totalScore.value || 1
@@ -258,6 +293,9 @@ const stats = computed(() => {
     avgScore: validEvents.length > 0 ? Math.round(totalScore.value / validEvents.length) : 0,
   }
 })
+
+// ESG 대시보드 KPI "순환재고 판매량" 카드와 동기화
+watch(() => stats.value.totalKg, (n) => esgStore.setTotalSalesKg(n), { immediate: true })
 
 // ─────────── 월별 추이 차트 ───────────
 const monthLabels = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월']
@@ -325,14 +363,48 @@ const categoryDoughnutOptions = {
 const sortedEvents = computed(() =>
   [...logEvents.value].sort((a, b) => new Date(b.date) - new Date(a.date)),
 )
-const pageSize = ref(8)
+const pageSize = ref(20)
 const page = ref(1)
 const totalPages = computed(() => Math.max(1, Math.ceil(sortedEvents.value.length / pageSize.value)))
 const pagedEvents = computed(() => {
   const start = (page.value - 1) * pageSize.value
   return sortedEvents.value.slice(start, start + pageSize.value)
 })
-function changePage(p) { if (p >= 1 && p <= totalPages.value) page.value = p }
+
+/**
+ * 화살표 페이지네이션 — 현재 페이지를 중심으로 최대 5개 번호만 표시.
+ *  - totalPages ≤ 5: 전체 표시
+ *  - cur ≤ 3: [1, 2, 3, 4, 5]
+ *  - cur ≥ total-2: 마지막 5개
+ *  - 그 외: [cur-2, cur-1, cur, cur+1, cur+2]
+ */
+const PAGE_WINDOW = 5
+const pageNumbers = computed(() => {
+  const total = totalPages.value
+  const cur = page.value
+  if (total <= PAGE_WINDOW) {
+    return Array.from({ length: total }, (_, i) => i + 1)
+  }
+  let start
+  if (cur <= 3) {
+    start = 1
+  } else if (cur >= total - 2) {
+    start = total - PAGE_WINDOW + 1
+  } else {
+    start = cur - 2
+  }
+  return Array.from({ length: PAGE_WINDOW }, (_, i) => start + i)
+})
+
+const PAGE_JUMP = 5
+function changePage(p) {
+  const clamped = Math.max(1, Math.min(totalPages.value, p))
+  page.value = clamped
+}
+function goJumpBack()    { changePage(page.value - PAGE_JUMP) }
+function goPrev()        { changePage(page.value - 1) }
+function goNext()        { changePage(page.value + 1) }
+function goJumpForward() { changePage(page.value + PAGE_JUMP) }
 
 
 // ─────────── 포맷터 ───────────
@@ -341,11 +413,15 @@ const formatDate = (s) => s.slice(5).replace('-', '.')
 const typeLabel = (t) => t === 'sale' ? '판매' : '기부'
 const typeCls = (t) => t === 'sale' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-pink-50 text-pink-700 border-pink-200'
 
-// 페이지 로드
+// 페이지 로드 — BE sale events 호출
 const loading = ref(false)
 async function reload() {
   loading.value = true
-  try { await new Promise(r => setTimeout(r, 100)) } finally { loading.value = false }
+  try {
+    await loadEvents()
+  } finally {
+    loading.value = false
+  }
 }
 onMounted(reload)
 </script>
@@ -431,8 +507,10 @@ onMounted(reload)
         </div>
         <div class="border border-gray-300 bg-white p-4 shadow-sm">
           <p class="text-[10px] font-bold uppercase tracking-widest text-gray-400">총 순환재고 판매량</p>
-          <p class="mt-1 text-[22px] font-black text-gray-800">{{ formatNum(stats.totalKg) }}</p>
-          <p class="mt-0.5 text-[10px] text-gray-500">kg / 평균 {{ formatNum(stats.avgScore) }} pt/건</p>
+          <p class="mt-1 flex items-baseline gap-1">
+            <span class="text-[22px] font-black text-gray-800">{{ formatNum(stats.totalKg) }}</span>
+            <span class="text-[11px] font-medium text-gray-500">kg</span>
+          </p>
         </div>
       </section>
 
@@ -628,8 +706,29 @@ onMounted(reload)
             </template>
           </span>
           <div v-if="totalPages > 1" class="inline-flex items-center gap-1">
+            <!-- 5페이지 이전 -->
             <button
-              v-for="p in totalPages"
+              type="button"
+              :disabled="page === 1"
+              class="h-7 min-w-[28px] border border-gray-300 bg-white px-2 text-[11px] font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+              title="5페이지 이전"
+              @click="goJumpBack"
+            >
+              «
+            </button>
+            <!-- 이전 -->
+            <button
+              type="button"
+              :disabled="page === 1"
+              class="h-7 min-w-[28px] border border-gray-300 bg-white px-2 text-[11px] font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+              title="이전 페이지"
+              @click="goPrev"
+            >
+              ‹
+            </button>
+            <!-- 페이지 번호 (최대 5개) -->
+            <button
+              v-for="p in pageNumbers"
               :key="p"
               type="button"
               class="h-7 min-w-[28px] border border-gray-300 px-2 text-[11px] font-medium transition"
@@ -637,6 +736,26 @@ onMounted(reload)
               @click="changePage(p)"
             >
               {{ p }}
+            </button>
+            <!-- 다음 -->
+            <button
+              type="button"
+              :disabled="page === totalPages"
+              class="h-7 min-w-[28px] border border-gray-300 bg-white px-2 text-[11px] font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+              title="다음 페이지"
+              @click="goNext"
+            >
+              ›
+            </button>
+            <!-- 5페이지 이후 -->
+            <button
+              type="button"
+              :disabled="page === totalPages"
+              class="h-7 min-w-[28px] border border-gray-300 bg-white px-2 text-[11px] font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+              title="5페이지 이후"
+              @click="goJumpForward"
+            >
+              »
             </button>
           </div>
         </div>

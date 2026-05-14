@@ -24,7 +24,7 @@ import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useEsgStore } from '@/stores/esg.js'
 import { useEmissionQuotaStore } from '@/stores/emissionQuota.js'
-import { carbonPriceApi } from '@/api/hq/esg.js'
+import { carbonPriceApi, circularRevenueApi } from '@/api/hq/esg.js'
 import { extractErrorMessage } from '@/api/axios.js'
 const router = useRouter()
 const auth = useAuthStore()
@@ -35,7 +35,15 @@ const activeSideMenu = ref('탄소배출권 관리')
 const esgSideMenus = (hqMenus.find((menu) => menu.label === 'ESG 대시보드')?.children ?? [])
 
 const esgStore = useEsgStore()
-const { totalPoints, kauPrice, kauPriceUpdatedAt, kauPriceLoading } = storeToRefs(esgStore)
+const {
+  totalPoints,
+  totalSalesKg,
+  totalCarbonReductionTon,
+  carbonReductionDeltaPct,
+  kauPrice,
+  kauPriceUpdatedAt,
+  kauPriceLoading,
+} = storeToRefs(esgStore)
 
 // ─────────── 배출권(KAU25) 실시간 시세 — BE 연동 ───────────
 const carbonLatest = ref(null)        // { pricePerTon, symbol, basDt, fltRt, fallback }
@@ -53,6 +61,10 @@ async function loadCarbonPrice() {
     ])
     carbonLatest.value = latestRes
     carbonTrend.value = trendRes ?? []
+    // esgStore.kauPrice 와 동기화 — circularStock 빌더 / 다른 화면이 동일 가격 참조
+    if (latestRes?.pricePerTon != null) {
+      esgStore.setKauPrice(latestRes.pricePerTon)
+    }
   } catch (err) {
     carbonError.value = extractErrorMessage(err, '배출권 시세를 불러오지 못했습니다.')
   } finally {
@@ -135,6 +147,13 @@ const formatBasDtShort = (yyyymmdd) => {
 }
 
 onMounted(loadCarbonPrice)
+
+// 헤더 누적 ESG 점수 — BE sale events + mock donation 으로 자동 계산
+onMounted(() => {
+  esgStore.fetchTotalPoints().catch(err => {
+    console.error('[EsgDashBoardView] fetchTotalPoints failed:', err)
+  })
+})
 
 // 배출 한도 vs 실적 데이터 — emissionQuota 스토어와 연동
 // 대시보드 진입 시 BE 에서 저장된 할당량/월별 실적을 불러와 새로고침/재로그인 후에도 동일하게 유지
@@ -432,14 +451,23 @@ const kauUpdatedLabel = computed(() => {
   )
 })
 
-onMounted(() => {
-  esgStore.fetchKauPrice()
-})
+// 별도 esgStore.fetchKauPrice() 호출은 제거 — loadCarbonPrice 가 BE 호출 후
+// esgStore.setKauPrice 로 동기화하므로 중복 API 호출을 피함
 
-const kpiMetrics = [
-  { label: '탄소 배출 절감', value: '2,847', unit: 'kg CO₂', sub: '전월 대비 +12%', icon: TrendingDown, valueCls: 'text-emerald-700', iconBg: 'bg-emerald-50', iconCls: 'text-emerald-600' },
-  { label: '순환재고 판매량', value: '1,240', unit: 'kg', sub: '불법폐기 0건', icon: ShieldCheck, valueCls: 'text-teal-700', iconBg: 'bg-teal-50', iconCls: 'text-teal-600' },
-]
+// KPI 2카드 — BE 데이터 기반 (esgStore.fetchTotalPoints 에서 계산)
+//   탄소 배출 절감 = SUM(weight × material_factor) / 1000 [tCO₂]
+//   순환재고 판매량 = SUM(weight) [kg]
+//   전월 대비 변동률 = (이번달 - 전월) / 전월 × 100
+const carbonDeltaLabel = computed(() => {
+  const pct = carbonReductionDeltaPct.value
+  if (pct === 0) return '전월 대비 변동 없음'
+  const sign = pct > 0 ? '+' : ''
+  return `전월 대비 ${sign}${pct}%`
+})
+const kpiMetrics = computed(() => [
+  { label: '탄소 배출 절감',   value: (totalCarbonReductionTon.value ?? 0).toFixed(2),    unit: 'tCO₂', sub: carbonDeltaLabel.value, icon: TrendingDown, valueCls: 'text-emerald-700', iconBg: 'bg-emerald-50', iconCls: 'text-emerald-600' },
+  { label: '순환재고 판매량', value: (totalSalesKg.value ?? 0).toLocaleString('ko-KR'), unit: 'kg',   sub: '불법폐기 0건',         icon: ShieldCheck,  valueCls: 'text-teal-700',     iconBg: 'bg-teal-50',     iconCls: 'text-teal-600' },
+])
 
 // ─────────── 거래 가능 탄소 배출권 (자산 포트폴리오 스타일) ───────────
 //   잔여 한도 × KAU25 시세 = 보유 자산 가치
@@ -448,9 +476,15 @@ const carbonAssetValue = computed(() =>
   Math.round(emissionCompliance.value.expectedSurplus * (kauPrice.value || 0)),
 )
 
-// 변동률 (1월 평균 대비) — mock baseline ₩42,000,000
+// 변동률 (7거래일 첫째 날 대비) — carbonTrend 의 첫째 날 종가를 baseline 으로 동적 산정
 const carbonAssetTrend = computed(() => {
-  const baseline = 42_000_000
+  const surplus = emissionCompliance.value.expectedSurplus
+  const trend = carbonTrend.value ?? []
+  if (trend.length === 0) {
+    return { up: false, down: false, label: '시세 미조회', detail: '기준값 없음' }
+  }
+  const firstPrice = Number(trend[0]?.pricePerTon) || 0
+  const baseline = Math.round(surplus * firstPrice)
   const current = carbonAssetValue.value
   if (baseline === 0) return { up: false, down: false, label: '0%', detail: '기준값 없음' }
   const diff = current - baseline
@@ -459,26 +493,36 @@ const carbonAssetTrend = computed(() => {
   const formattedDiff = (diff >= 0 ? '+' : '−') + '₩' + Math.abs(diff).toLocaleString('ko-KR')
   return {
     up: diff > 0, down: diff < 0,
-    label: `${formattedPct} (vs 1월 평균)`,
-    detail: `${formattedDiff} · 잔여 ${emissionCompliance.value.expectedSurplus.toLocaleString()} tCO₂ × ₩${(kauPrice.value || 0).toLocaleString()}`,
+    label: `${formattedPct} (vs 7거래일 첫날)`,
+    detail: `${formattedDiff} · 잔여 ${surplus.toLocaleString()} tCO₂ × ₩${(kauPrice.value || 0).toLocaleString()}`,
   }
 })
 
-// 월별 자산 가치 추이 (mock — 잔여량은 동일, 시세 변동 반영)
-const CARBON_ASSET_MONTHLY_PRICE = [8200, 8400, 8950, 9100, 9620, 9840, 9700, 9550, 9420, 9180, 8950, 8800]
-const carbonAssetMonthlyData = computed(() => ({
-  labels: ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'],
-  datasets: [{
-    label: '자산 가치',
-    data: CARBON_ASSET_MONTHLY_PRICE.map(p =>
-      Math.round(emissionCompliance.value.expectedSurplus * p),
-    ),
-    backgroundColor: 'rgba(245, 158, 11, 0.85)',
-    borderColor: '#d97706',
-    borderWidth: 1.5, borderRadius: 3,
-    maxBarThickness: 18, categoryPercentage: 0.7, barPercentage: 0.8,
-  }],
-}))
+// 일별 자산 가치 추이 — 잔여 한도(현재) × 일별 KAU25 종가 (carbonTrend, BE 연동)
+const carbonAssetMonthlyData = computed(() => {
+  const trend = carbonTrend.value ?? []
+  const surplus = emissionCompliance.value.expectedSurplus
+  return {
+    labels: trend.map(d => {
+      const s = d?.basDt ?? ''
+      return s.length === 8 ? `${s.slice(4,6)}/${s.slice(6,8)}` : s
+    }),
+    datasets: [{
+      label: '자산 가치',
+      data: trend.map(d => Math.round(surplus * (Number(d?.pricePerTon) || 0))),
+      borderColor: '#d97706',
+      backgroundColor: 'rgba(245, 158, 11, 0.12)',
+      pointBackgroundColor: '#d97706',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 1.5,
+      pointRadius: 3.5,
+      pointHoverRadius: 5,
+      borderWidth: 2,
+      tension: 0.3,
+      fill: true,
+    }],
+  }
+})
 const carbonAssetMonthlyOptions = {
   responsive: true, maintainAspectRatio: false,
   layout: { padding: { left: 0, right: 4, top: 4, bottom: 4 } },
@@ -511,39 +555,62 @@ const carbonAssetMonthlyOptions = {
   },
 }
 
-// ─────────── 순환 재고 판매 수익 (mock) ───────────
-//   향후 BE 연동: GET /api/hq/circular-stock/sales/revenue?period=YEAR|Q|M
-//   계산: SUM(sale_price) by month/buyer
-const revenuePeriod = ref('YEAR')   // M | Q | YEAR
+// ─────────── 순환 재고 판매 수익 — BE 연동 ───────────
+//   GET /api/hq/esg/circular-revenue?year=YYYY
+//   응답: { year, monthly:[{month,revenue,count}], totalRevenue, totalCount, monthsWithData, avgMonthly }
+const revenuePeriod = ref('YEAR')   // M | Q | YEAR (토글 — totalRevenue 계산 범위만 영향)
+const revenueData = ref(null)        // BE 응답 원본
+const revenueLoading = ref(false)
+const revenueError = ref('')
 
-// 월별 수익 mock (1~12월, 단위 원)
-const REVENUE_MONTHLY = [376_000, 800_000, 630_000, 2_010_000, 0, 0, 0, 0, 0, 0, 0, 0]
-// 월별 거래 건수 mock (1~12월)
-const REVENUE_COUNT_MONTHLY = [1, 2, 2, 4, 0, 0, 0, 0, 0, 0, 0, 0]
+async function loadRevenue() {
+  revenueLoading.value = true
+  revenueError.value = ''
+  try {
+    const year = new Date().getFullYear()
+    revenueData.value = await circularRevenueApi.get(year)
+  } catch (err) {
+    revenueError.value = extractErrorMessage(err, '순환재고 판매 수익을 불러오지 못했습니다.')
+  } finally {
+    revenueLoading.value = false
+  }
+}
+onMounted(loadRevenue)
 
+// 12개월 수익 배열 — BE 응답 기반 (없으면 0으로 패딩)
+const revenueMonthly = computed(() => {
+  const monthly = revenueData.value?.monthly ?? []
+  const arr = Array(12).fill(0)
+  for (const p of monthly) {
+    const m = Number(p?.month) || 0
+    if (m >= 1 && m <= 12) arr[m - 1] = Number(p?.revenue) || 0
+  }
+  return arr
+})
+
+// 토글 (월/분기/연) 에 따른 합계 — BE 의 12개월 데이터를 FE 에서 슬라이싱
 const totalRevenue = computed(() => {
+  const arr = revenueMonthly.value
   const now = new Date()
   const m = now.getMonth()
-  if (revenuePeriod.value === 'M') return REVENUE_MONTHLY[m] ?? 0
+  if (revenuePeriod.value === 'M') return arr[m] ?? 0
   if (revenuePeriod.value === 'Q') {
     const start = Math.max(0, m - 2)
-    return REVENUE_MONTHLY.slice(start, m + 1).reduce((s, v) => s + v, 0)
+    return arr.slice(start, m + 1).reduce((s, v) => s + v, 0)
   }
-  return REVENUE_MONTHLY.reduce((s, v) => s + v, 0)
+  return revenueData.value?.totalRevenue ?? arr.reduce((s, v) => s + v, 0)
 })
 
-const revenueStats = computed(() => {
-  const monthsWithData = REVENUE_MONTHLY.filter(v => v > 0).length || 1
-  const avgMonthly = Math.round(REVENUE_MONTHLY.reduce((s, v) => s + v, 0) / monthsWithData)
-  const count = REVENUE_COUNT_MONTHLY.reduce((s, v) => s + v, 0)
-  return { avgMonthly, count }
-})
+const revenueStats = computed(() => ({
+  avgMonthly: Number(revenueData.value?.avgMonthly) || 0,
+  count: Number(revenueData.value?.totalCount) || 0,
+}))
 
 const revenueChartData = computed(() => ({
   labels: ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'],
   datasets: [{
     label: '월별 수익',
-    data: REVENUE_MONTHLY,
+    data: revenueMonthly.value,
     backgroundColor: 'rgba(16, 185, 129, 0.85)',
     borderColor: '#059669',
     borderWidth: 1.5, borderRadius: 3,
@@ -581,12 +648,6 @@ const revenueChartOptions = {
     },
   },
 }
-
-const topBuyers = computed(() => {
-  const sorted = [...REVENUE_BY_BUYER].sort((a, b) => b.amount - a.amount)
-  const total = sorted.reduce((s, b) => s + b.amount, 0) || 1
-  return sorted.map(b => ({ ...b, share: ((b.amount / total) * 100).toFixed(1) }))
-})
 
 const dateLabel = computed(() =>
   new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
@@ -649,7 +710,7 @@ const dateLabel = computed(() =>
         </article>
       </section>
 
-      <!-- 배출 한도 vs 실적 + 배출권 시장 가치 환산 -->
+      <!-- 배출 한도 vs 실적 + 거래 가능 탄소 배출권 -->
       <section class="grid gap-3 xl:grid-cols-2">
 
         <!-- 탄소중립 관리 (emissionQuota 스토어 연동) -->
@@ -715,7 +776,8 @@ const dateLabel = computed(() =>
               <div class="border border-emerald-200 bg-emerald-50 px-2 py-2">
                 <p class="text-[10px] text-emerald-700">절감한 탄소 배출량</p>
                 <div class="mt-0.5 flex items-baseline gap-0.5">
-                  <span class="text-[14px] font-bold text-emerald-700">{{ emissionCompliance.ytdAvoided.toLocaleString() }}</span>
+                  <!-- KPI "탄소 배출 절감" 카드와 동일한 값 (esgStore.totalCarbonReductionKg / 1000) -->
+                  <span class="text-[14px] font-bold text-emerald-700">{{ totalCarbonReductionTon.toFixed(2) }}</span>
                   <span class="text-[9px] text-emerald-600">tCO₂</span>
                 </div>
               </div>
@@ -736,12 +798,117 @@ const dateLabel = computed(() =>
           </div>
         </article>
 
-        <!-- 배출권 시장 가치 환산 (BE 실시간 KAU25 연동) -->
+        <!-- 거래 가능 탄소 배출권 (자산 포트폴리오 스타일) -->
+        <article class="flex min-w-0 flex-col border border-gray-300 bg-white shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-gray-200 px-3 py-2.5">
+            <h3 class="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm font-medium text-gray-800">
+              <span class="inline-flex items-center gap-2">
+                <Coins :size="15" class="text-amber-600" />
+                거래 가능 탄소 배출권
+                <span class="text-[10px] font-normal text-gray-400">자산 포트폴리오</span>
+              </span>
+              <span class="text-[10.5px] font-normal text-amber-700/80">
+                ⓘ 잔여 한도 × KAU25 시세 · KRX 매도 가능 (평일 10:00~12:00)
+              </span>
+            </h3>
+            <span class="shrink-0 text-[10px] text-gray-400">기준: {{ dateLabel }}</span>
+          </div>
+
+          <!-- 보유 자산 가치 (메인 메트릭) -->
+          <div class="border-b border-amber-100 bg-gradient-to-br from-amber-50 to-yellow-50 px-3 py-3">
+            <p class="text-[10px] font-medium text-amber-700/80">보유 자산 가치</p>
+            <div class="mt-1 flex items-baseline gap-1.5">
+              <span class="text-[24px] font-black text-amber-700">
+                ₩{{ carbonAssetValue.toLocaleString('ko-KR') }}
+              </span>
+              <span
+                class="text-[11px] font-bold"
+                :class="carbonAssetTrend.up ? 'text-red-600' : carbonAssetTrend.down ? 'text-blue-600' : 'text-gray-500'"
+              >
+                {{ carbonAssetTrend.up ? '↗' : carbonAssetTrend.down ? '↘' : '·' }}
+                {{ carbonAssetTrend.label }}
+              </span>
+            </div>
+            <p class="mt-1 text-[10px] text-amber-700/70">
+              {{ carbonAssetTrend.detail }}
+            </p>
+          </div>
+
+          <!-- 월별 가치 추이 (막대 차트) -->
+          <div class="flex min-w-0 flex-1 flex-col px-3 py-2.5">
+            <p class="mb-1.5 text-[10px] font-medium uppercase tracking-widest text-gray-500">최근 7거래일 자산 가치 추이</p>
+            <div class="relative w-full flex-1" style="min-height: 220px;">
+              <LineChart :data="carbonAssetMonthlyData" :options="carbonAssetMonthlyOptions" fill-height />
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- 순환 재고 판매 수익 + 탄소 배출권 시장 -->
+      <section class="grid gap-3 xl:grid-cols-2">
+
+        <!-- 순환 재고 판매 수익 -->
+        <article class="flex min-w-0 flex-col border border-gray-300 bg-white shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-gray-200 px-3 py-2.5">
+            <h3 class="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm font-medium text-gray-800">
+              <span class="inline-flex items-center gap-2">
+                <Wallet :size="15" class="text-emerald-600" />
+                순환 재고 판매 수익
+              </span>
+              <span class="text-[10.5px] font-normal text-emerald-700/80">
+                ⓘ 판매 단가 × 무게 합산 · 월말 마감 후 자동 갱신
+              </span>
+            </h3>
+            <div class="inline-flex shrink-0 items-center gap-0.5 border border-gray-300 bg-white p-0.5">
+              <button
+                v-for="p in [{v:'M',l:'월'},{v:'Q',l:'분기'},{v:'YEAR',l:'년'}]"
+                :key="p.v"
+                type="button"
+                class="px-2 py-0.5 text-[10px] font-medium transition"
+                :class="revenuePeriod === p.v ? 'bg-emerald-700 text-white' : 'text-gray-600 hover:bg-gray-50'"
+                @click="revenuePeriod = p.v"
+              >{{ p.l }}</button>
+            </div>
+          </div>
+
+          <!-- 월별 판매 수익 (메인) -->
+          <div class="border-b border-emerald-100 bg-gradient-to-br from-emerald-50 to-white px-3 py-3">
+            <p class="text-[10px] font-medium text-emerald-700/80">
+              월별 판매 수익
+            </p>
+            <div class="mt-1 flex items-baseline gap-1.5">
+              <span class="text-[24px] font-black text-emerald-700">
+                ₩{{ totalRevenue.toLocaleString('ko-KR') }}
+              </span>
+            </div>
+            <p class="mt-1 text-[10px] text-emerald-700/70">
+              거래 {{ revenueStats.count }}건 · 월 평균 ₩{{ revenueStats.avgMonthly.toLocaleString() }}
+              <span class="ml-1 text-gray-500">(데이터 있는 월 기준)</span>
+            </p>
+          </div>
+
+          <!-- 월별 수익 추이 -->
+          <div class="flex min-w-0 flex-1 flex-col px-3 py-2.5">
+            <p class="mb-1.5 text-[10px] font-medium uppercase tracking-widest text-gray-500">월별 수익 추이 (12개월)</p>
+            <div class="relative w-full flex-1" style="min-height: 220px;">
+              <BarChart :data="revenueChartData" :options="revenueChartOptions" fill-height />
+            </div>
+          </div>
+        </article>
+
+        <!-- 탄소 배출권 시장 (BE 실시간 KAU25 연동) -->
         <article class="flex flex-col border border-gray-300 bg-white shadow-sm">
           <div class="flex items-center justify-between gap-2 border-b border-gray-200 px-3 py-2.5">
             <h3 class="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
               <Coins :size="15" class="text-amber-600" />
-              배출권 시장 가치 환산
+              탄소 배출권 시장
+              <button
+                type="button"
+                class="ml-1 inline-flex items-center gap-0.5 text-[10px] font-normal text-amber-700 transition-colors hover:text-amber-800 hover:underline"
+                @click="router.push('/hq/esg/carbon-price')"
+              >
+                자세히 보기 →
+              </button>
             </h3>
             <div class="flex items-center gap-1.5">
               <span v-if="carbonLatest?.basDt" class="text-[9px] text-gray-400">
@@ -811,104 +978,6 @@ const dateLabel = computed(() =>
               한국거래소 배출권 시장은 <strong>평일 오전 10:00~12:00</strong>만 운영됩니다.
               <strong>주말·공휴일</strong>은 휴장이라 시세가 형성되지 않아 그래프와 표에서 제외됩니다.
             </p>
-          </div>
-        </article>
-      </section>
-
-      <!-- 거래 가능 탄소 배출권 + 활동 내역 -->
-      <section class="grid gap-3 xl:grid-cols-2">
-
-        <!-- 거래 가능 탄소 배출권 (자산 포트폴리오 스타일) -->
-        <article class="flex min-w-0 flex-col border border-gray-300 bg-white shadow-sm">
-          <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-gray-200 px-3 py-2.5">
-            <h3 class="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm font-medium text-gray-800">
-              <span class="inline-flex items-center gap-2">
-                <Coins :size="15" class="text-amber-600" />
-                거래 가능 탄소 배출권
-                <span class="text-[10px] font-normal text-gray-400">자산 포트폴리오</span>
-              </span>
-              <span class="text-[10.5px] font-normal text-amber-700/80">
-                ⓘ 잔여 한도 × KAU25 시세 · KRX 매도 가능 (평일 10:00~12:00)
-              </span>
-            </h3>
-            <span class="shrink-0 text-[10px] text-gray-400">기준: {{ dateLabel }}</span>
-          </div>
-
-          <!-- 보유 자산 가치 (메인 메트릭) -->
-          <div class="border-b border-amber-100 bg-gradient-to-br from-amber-50 to-yellow-50 px-3 py-3">
-            <p class="text-[10px] font-medium text-amber-700/80">보유 자산 가치</p>
-            <div class="mt-1 flex items-baseline gap-1.5">
-              <span class="text-[24px] font-black text-amber-700">
-                ₩{{ carbonAssetValue.toLocaleString('ko-KR') }}
-              </span>
-              <span
-                class="text-[11px] font-bold"
-                :class="carbonAssetTrend.up ? 'text-red-600' : carbonAssetTrend.down ? 'text-blue-600' : 'text-gray-500'"
-              >
-                {{ carbonAssetTrend.up ? '↗' : carbonAssetTrend.down ? '↘' : '·' }}
-                {{ carbonAssetTrend.label }}
-              </span>
-            </div>
-            <p class="mt-1 text-[10px] text-amber-700/70">
-              {{ carbonAssetTrend.detail }}
-            </p>
-          </div>
-
-          <!-- 월별 가치 추이 (막대 차트) -->
-          <div class="flex min-w-0 flex-1 flex-col px-3 py-2.5">
-            <p class="mb-1.5 text-[10px] font-medium uppercase tracking-widest text-gray-500">월별 자산 가치 추이</p>
-            <div class="relative w-full" style="height: 220px;">
-              <BarChart :data="carbonAssetMonthlyData" :options="carbonAssetMonthlyOptions" />
-            </div>
-          </div>
-        </article>
-
-        <!-- 순환 재고 판매 수익 -->
-        <article class="flex min-w-0 flex-col border border-gray-300 bg-white shadow-sm">
-          <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-gray-200 px-3 py-2.5">
-            <h3 class="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm font-medium text-gray-800">
-              <span class="inline-flex items-center gap-2">
-                <Wallet :size="15" class="text-emerald-600" />
-                순환 재고 판매 수익
-              </span>
-              <span class="text-[10.5px] font-normal text-emerald-700/80">
-                ⓘ 판매 단가 × 무게 합산 · 월말 마감 후 자동 갱신
-              </span>
-            </h3>
-            <div class="inline-flex shrink-0 items-center gap-0.5 border border-gray-300 bg-white p-0.5">
-              <button
-                v-for="p in [{v:'M',l:'월'},{v:'Q',l:'분기'},{v:'YEAR',l:'년'}]"
-                :key="p.v"
-                type="button"
-                class="px-2 py-0.5 text-[10px] font-medium transition"
-                :class="revenuePeriod === p.v ? 'bg-emerald-700 text-white' : 'text-gray-600 hover:bg-gray-50'"
-                @click="revenuePeriod = p.v"
-              >{{ p.l }}</button>
-            </div>
-          </div>
-
-          <!-- 누적 수익 (메인) -->
-          <div class="border-b border-emerald-100 bg-gradient-to-br from-emerald-50 to-white px-3 py-3">
-            <p class="text-[10px] font-medium text-emerald-700/80">
-              {{ revenuePeriod === 'M' ? '이번 달' : revenuePeriod === 'Q' ? '최근 3개월' : '올해 (YTD)' }} 누적 수익
-            </p>
-            <div class="mt-1 flex items-baseline gap-1.5">
-              <span class="text-[24px] font-black text-emerald-700">
-                ₩{{ totalRevenue.toLocaleString('ko-KR') }}
-              </span>
-            </div>
-            <p class="mt-1 text-[10px] text-emerald-700/70">
-              거래 {{ revenueStats.count }}건 · 월 평균 ₩{{ revenueStats.avgMonthly.toLocaleString() }}
-              <span class="ml-1 text-gray-500">(데이터 있는 월 기준)</span>
-            </p>
-          </div>
-
-          <!-- 월별 수익 추이 -->
-          <div class="flex min-w-0 flex-1 flex-col px-3 py-2.5">
-            <p class="mb-1.5 text-[10px] font-medium uppercase tracking-widest text-gray-500">월별 수익 추이 (12개월)</p>
-            <div class="relative w-full" style="height: 220px;">
-              <BarChart :data="revenueChartData" :options="revenueChartOptions" />
-            </div>
           </div>
         </article>
       </section>

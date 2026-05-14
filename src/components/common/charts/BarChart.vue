@@ -29,11 +29,16 @@ defineProps({
   data: { type: Object, required: true },
   options: { type: Object, default: () => ({}) },
   height: { type: Number, default: 240 },
+  // true 일 때 부모 컨테이너 높이를 100% 채움 (height prop 무시)
+  fillHeight: { type: Boolean, default: false },
 })
 </script>
 
 <template>
-  <div :style="{ height: height + 'px' }" class="relative w-full">
+  <div
+    :class="['relative w-full', fillHeight ? 'h-full' : '']"
+    :style="fillHeight ? null : { height: height + 'px' }"
+  >
     <Bar :data="data" :options="options" />
   </div>
 </template>

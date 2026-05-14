@@ -214,6 +214,26 @@ const doughnutOptions = {
   cutout: '60%',
 }
 
+// 소재 매출 비중 도넛 전용 — 판매량(units) 함께 표시
+const materialDoughnutOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      callbacks: {
+        label: (ctx) => {
+          const item = circularMaterialStats.value[ctx.dataIndex]
+          const lines = [`${ctx.label}: ${ctx.parsed}%`]
+          if (item) lines.push(`판매량: ${Number(item.units ?? 0).toLocaleString()}건`)
+          return lines
+        },
+      },
+    },
+  },
+  cutout: '60%',
+}
+
 const maxDependency = computed(() =>
   Math.max(...dependencyData.value.slice(0, 5).map((d) => d.pct), 0),
 )
@@ -247,15 +267,13 @@ const materialTypeBadge = (type) => {
   return 'bg-gray-100 text-gray-600'
 }
 
-// ─── 소재 매출 순위 막대 (순환재고 모드용) ────────────────────────────
-const MATERIAL_BAR_COLOR = '#047857'
-
+// ─── 소재 매출 순위 막대 (순환재고 모드용) — 도넛과 동일한 소재별 컬러 매핑 ────
 const materialSalesBarData = computed(() => ({
   labels: circularMaterialStats.value.map((m) => m.name),
   datasets: [{
     label: '매출',
     data: circularMaterialStats.value.map((m) => m.sales),
-    backgroundColor: MATERIAL_BAR_COLOR,
+    backgroundColor: circularMaterialStats.value.map((_, i) => MATERIAL_PALETTE[i % MATERIAL_PALETTE.length]),
     borderRadius: 4,
   }],
 }))
@@ -439,7 +457,7 @@ const materialDoughnutData = computed(() => ({
                 🥧 소재 매출 비중
               </h3>
             </header>
-            <DoughnutChart :data="materialDoughnutData" :options="doughnutOptions" :height="220" />
+            <DoughnutChart :data="materialDoughnutData" :options="materialDoughnutOptions" :height="220" />
             <ul class="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
               <li
                 v-for="mat in materialShareList"
