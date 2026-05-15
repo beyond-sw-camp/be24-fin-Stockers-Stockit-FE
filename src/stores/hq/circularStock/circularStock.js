@@ -312,14 +312,14 @@ function resolveTreatmentTypeFromBuyer(buyer = {}) {
   const exactMatch = INDUSTRY_TREATMENT_TYPE_MAP[buyer?.industryGroup]
   if (exactMatch) return exactMatch
 
-  const joinedProductTypes = Array.isArray(buyer?.productTypes)
-    ? buyer.productTypes.join(' ')
-    : String(buyer?.productNote ?? '')
+  const joinedFactoryProduct = Array.isArray(buyer?.factoryProduct)
+    ? buyer.factoryProduct.join(' ')
+    : String(buyer?.address ?? '')
 
-  if (/유니폼|워크웨어|조끼|단체복/.test(joinedProductTypes)) return '중고 재판매'
-  if (/가방|파우치|쿠션|커버|텍스타일|잡화|공예/.test(joinedProductTypes)) return '업사이클링'
-  if (/흡음|단열|완충|패널|소모품/.test(joinedProductTypes)) return '다운사이클링'
-  if (/재생|원사|방적|사출|원재료|패키징/.test(joinedProductTypes)) return '재활용'
+  if (/유니폼|워크웨어|조끼|단체복/.test(joinedFactoryProduct)) return '중고 재판매'
+  if (/가방|파우치|쿠션|커버|텍스타일|잡화|공예/.test(joinedFactoryProduct)) return '업사이클링'
+  if (/흡음|단열|완충|패널|소모품/.test(joinedFactoryProduct)) return '다운사이클링'
+  if (/재생|원사|방적|사출|원재료|패키징/.test(joinedFactoryProduct)) return '재활용'
 
   return '재활용'
 }
@@ -719,8 +719,8 @@ export const useCircularStockStore = defineStore('circularStock', () => {
 
     const buyer = buyerStore.getBuyerById(saleRecord.buyerId) ?? {
       industryGroup: saleRecord.buyerIndustryGroup,
-      productTypes: saleRecord.buyerProductTypes,
-      productNote: saleRecord.buyerProductNote,
+      factoryProduct: saleRecord.buyerFactoryProduct ?? saleRecord.buyerProductTypes,
+      address: saleRecord.buyerAddress ?? saleRecord.buyerProductNote,
       primaryMaterialFit: saleRecord.buyerPrimaryMaterialFit,
     }
 
@@ -1010,8 +1010,8 @@ export const useCircularStockStore = defineStore('circularStock', () => {
       buyerName: buyer.companyName,
       buyerCode: buyer.code,
       buyerIndustryGroup: buyer.industryGroup,
-      buyerProductTypes: buyer.productTypes,
-      buyerProductNote: buyer.productNote,
+      buyerFactoryProduct: buyer.factoryProduct,
+      buyerAddress: buyer.address,
       buyerManagerName: buyer.managerName,
       buyerPhone: buyer.phone,
       buyerDescription: buyer.description,

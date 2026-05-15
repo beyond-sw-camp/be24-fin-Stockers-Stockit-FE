@@ -56,7 +56,7 @@ const panelCaption = computed(() => {
     return '소재 적합도와 산업군을 기준으로 순환 재고 판매 대상 거래처를 등록합니다.'
   }
   if (panelMode.value === 'edit') {
-    return '거래처 정보와 생산품 키워드, 생산품 메모를 수정해 판매 등록 화면에서 바로 사용할 수 있게 정리합니다.'
+    return '거래처 정보와 생산품 키워드, 주소를 수정해 판매 등록 화면에서 바로 사용할 수 있게 정리합니다.'
   }
   return '선택한 거래처 정보를 읽기 전용으로 확인한 뒤, 필요할 때만 수정 모드로 전환합니다.'
 })
@@ -71,8 +71,8 @@ function fillFormFromBuyer(buyer) {
   form.value = {
     companyName: buyer.companyName,
     industryGroup: buyer.industryGroup,
-    productTypes: [...(buyer.productTypes ?? [])],
-    productNote: buyer.productNote ?? '',
+    factoryProduct: [...(buyer.factoryProduct ?? [])],
+    address: buyer.address ?? '',
     description: buyer.description,
     primaryMaterialFit: buyer.primaryMaterialFit,
     managerName: buyer.managerName,
@@ -85,14 +85,14 @@ function fillFormFromBuyer(buyer) {
 function addProductKeyword() {
   const nextKeyword = productKeywordInput.value.trim()
   if (!nextKeyword) return
-  if (!form.value.productTypes.includes(nextKeyword)) {
-    form.value.productTypes = [...form.value.productTypes, nextKeyword]
+  if (!form.value.factoryProduct.includes(nextKeyword)) {
+    form.value.factoryProduct = [...form.value.factoryProduct, nextKeyword]
   }
   productKeywordInput.value = ''
 }
 
 function removeProductKeyword(keyword) {
-  form.value.productTypes = form.value.productTypes.filter((item) => item !== keyword)
+  form.value.factoryProduct = form.value.factoryProduct.filter((item) => item !== keyword)
 }
 
 function handleCreateNew() {
@@ -378,17 +378,17 @@ function partnerTypeBadgeClass(value) {
 
               <div class="mt-4 flex flex-wrap gap-2">
                 <span
-                  v-for="product in buyer.productTypes.slice(0, 3)"
+                  v-for="product in buyer.factoryProduct.slice(0, 3)"
                   :key="product"
                   class="rounded-full bg-[#f3f5f3] px-2.5 py-1 text-[10px] font-black text-gray-600"
                 >
                   {{ product }}
                 </span>
                 <span
-                  v-if="buyer.productTypes.length > 3"
+                  v-if="buyer.factoryProduct.length > 3"
                   class="rounded-full bg-[#f3f5f3] px-2.5 py-1 text-[10px] font-black text-gray-500"
                 >
-                  +{{ buyer.productTypes.length - 3 }}
+                  +{{ buyer.factoryProduct.length - 3 }}
                 </span>
               </div>
 
@@ -529,14 +529,14 @@ function partnerTypeBadgeClass(value) {
                   </p>
                   <div class="flex flex-wrap gap-2">
                     <span
-                      v-for="product in selectedBuyer.productTypes"
+                      v-for="product in selectedBuyer.factoryProduct"
                       :key="product"
                       class="bg-[#f3f5f3] px-2.5 py-1 text-[10px] font-black text-gray-700"
                     >
                       {{ product }}
                     </span>
                     <span
-                      v-if="selectedBuyer.productTypes.length === 0"
+                      v-if="selectedBuyer.factoryProduct.length === 0"
                       class="text-xs font-bold text-gray-400"
                     >
                       등록된 생산품 정보가 없습니다.
@@ -555,10 +555,10 @@ function partnerTypeBadgeClass(value) {
               </div>
 
               <div class="flex flex-col gap-2">
-                <p class="text-[11px] font-black tracking-[0.12em] text-gray-400">생산품 메모</p>
+                <p class="text-[11px] font-black tracking-[0.12em] text-gray-400">주소</p>
                 <div class="border border-[#ecefed] bg-[#fafaf8] px-4 py-3">
                   <p class="text-sm font-bold leading-6 text-gray-700">
-                    {{ selectedBuyer.productNote || '메모 없음' }}
+                    {{ selectedBuyer.address || '주소 없음' }}
                   </p>
                 </div>
               </div>
@@ -676,7 +676,7 @@ function partnerTypeBadgeClass(value) {
                 </div>
                 <div class="flex flex-wrap gap-2">
                   <button
-                    v-for="product in form.productTypes"
+                    v-for="product in form.factoryProduct"
                     :key="product"
                     type="button"
                     class="inline-flex items-center gap-2 rounded-full bg-[#f4faf7] px-3 py-1.5 text-[11px] font-black text-[#19352c]"
@@ -686,7 +686,7 @@ function partnerTypeBadgeClass(value) {
                     <span class="text-[10px]">X</span>
                   </button>
                   <span
-                    v-if="form.productTypes.length === 0"
+                    v-if="form.factoryProduct.length === 0"
                     class="text-[11px] font-bold text-gray-400"
                   >
                     아직 추가된 키워드가 없습니다.
@@ -695,13 +695,16 @@ function partnerTypeBadgeClass(value) {
               </div>
 
               <label class="flex flex-col gap-1.5">
-                <span class="text-[11px] font-bold text-gray-500">생산품 메모</span>
+                <span class="text-[11px] font-bold text-gray-500">주소</span>
                 <textarea
-                  v-model="form.productNote"
+                  v-model="form.address"
                   rows="4"
                   class="border border-gray-300 bg-[#fafaf8] px-3 py-3 text-sm font-bold text-gray-900 outline-none focus:border-[#19352c] focus:bg-white"
-                  placeholder="주요 생산 방식, 주력 생산품, 사용 방향 등을 메모해두세요."
+                  placeholder="거래처 주소를 입력하세요."
                 />
+                <span v-if="errors.address" class="text-[11px] font-bold text-red-500">{{
+                  errors.address
+                }}</span>
               </label>
 
               <label class="flex flex-col gap-1.5">

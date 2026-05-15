@@ -25,12 +25,12 @@ export const circularBuyerApi = {
 
   /**
    * 등록. BE 가 등록 직후 OpenAI 임베딩 1콜로 embedding 컬럼 자동 채움.
-   * @param {{code, companyName, industryGroup, productTypes, productNote, description, primaryMaterialFit, managerName, phone}} req
+   * @param {{code, companyName, industryGroup, factoryProduct, description, primaryMaterialFit, managerName, phone, address}} req
    */
   create: (req) => apiClient.post(BASE, req).then(unwrap),
 
   /**
-   * 수정. BE 가 의미 필드(companyName/industryGroup/productTypes/productNote/description/primaryMaterialFit) 변경 시 임베딩 재생성.
+   * 수정. BE 가 의미 필드(companyName/industryGroup/factoryProduct/description/primaryMaterialFit/address) 변경 시 임베딩 재생성.
    * managerName/phone 만 바뀌면 OpenAI 콜 안 감.
    * null 필드는 PATCH 시멘틱 — 변경 안 함.
    */

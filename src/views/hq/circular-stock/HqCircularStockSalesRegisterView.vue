@@ -784,7 +784,7 @@ onBeforeUnmount(() => {
                     <div class="mt-4 border-t border-gray-200 pt-3">
                       <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">취급제품 / 생산품</p>
                       <p class="mt-1 text-xs font-bold leading-5 text-gray-700">
-                        {{ selectedBuyer?.productTypes?.join(', ') || selectedBuyer?.productNote || '-' }}
+                        {{ selectedBuyer?.factoryProduct?.join(', ') || selectedBuyer?.address || '-' }}
                       </p>
                     </div>
 

@@ -62,12 +62,14 @@ function fromApi(v) {
     code: v.code,
     companyName: v.companyName,
     industryGroup: v.industryGroup,
-    productTypes: Array.isArray(v.productTypes) ? v.productTypes : [],
-    productNote: v.productNote ?? '',
+    factoryProduct: Array.isArray(v.factoryProduct ?? v.productTypes)
+      ? (v.factoryProduct ?? v.productTypes)
+      : [],
     description: v.description ?? '',
     primaryMaterialFit: v.primaryMaterialFit,
     managerName: v.managerName,
     phone: v.phone,
+    address: v.address ?? '',
     partnerType: v.partnerType ?? 'general',
     createdAt: v.createdAt,
     updatedAt: v.updatedAt,
@@ -78,21 +80,21 @@ function createEmptyBuyerForm() {
   return {
     companyName: '',
     industryGroup: '',
-    productTypes: [],
-    productNote: '',
+    factoryProduct: [],
     description: '',
     primaryMaterialFit: '',
     managerName: '',
     phone: '',
+    address: '',
     partnerType: 'general',
   }
 }
 
-function normalizeProductTypes(productTypes) {
-  if (Array.isArray(productTypes)) {
+function normalizeFactoryProduct(factoryProduct) {
+  if (Array.isArray(factoryProduct)) {
     return [
       ...new Set(
-        productTypes
+        factoryProduct
           .map((item) => String(item ?? '').trim())
           .filter(Boolean),
       ),
@@ -100,8 +102,8 @@ function normalizeProductTypes(productTypes) {
   }
 
   return [
-    ...new Set(
-      String(productTypes ?? '')
+      ...new Set(
+      String(factoryProduct ?? '')
         .split('\n')
         .flatMap((line) => line.split(','))
         .map((item) => item.trim())
@@ -123,12 +125,12 @@ function normalizeBuyerPayload(payload) {
   return {
     companyName: String(payload.companyName ?? '').trim(),
     industryGroup: String(payload.industryGroup ?? '').trim(),
-    productTypes: normalizeProductTypes(payload.productTypes),
-    productNote: String(payload.productNote ?? '').trim(),
+    factoryProduct: normalizeFactoryProduct(payload.factoryProduct),
     description: String(payload.description ?? '').trim(),
     primaryMaterialFit: String(payload.primaryMaterialFit ?? '').trim(),
     managerName: String(payload.managerName ?? '').trim(),
     phone: String(payload.phone ?? '').trim(),
+    address: String(payload.address ?? '').trim(),
     partnerType: partnerTypeRaw || 'general',
   }
 }
@@ -142,6 +144,7 @@ function validateBuyerPayload(payload) {
   if (!payload.primaryMaterialFit) errors.primaryMaterialFit = '대표 소재 적합도를 선택해주세요.'
   if (!payload.managerName) errors.managerName = '담당자명을 입력해주세요.'
   if (!payload.phone) errors.phone = '연락처를 입력해주세요.'
+  if (!payload.address) errors.address = '주소를 입력해주세요.'
   if (!PARTNER_TYPE_SET.has(payload.partnerType)) {
     errors.partnerType = '파트너 유형을 선택해주세요.'
   }
