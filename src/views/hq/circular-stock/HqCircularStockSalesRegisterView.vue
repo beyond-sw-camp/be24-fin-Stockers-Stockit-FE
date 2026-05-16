@@ -1,7 +1,7 @@
 ﻿<script setup>
 import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { BadgeCheck, Info, Loader2, Sprout } from 'lucide-vue-next'
+import { BadgeCheck, Bot, Info, Loader2, Sprout } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
 import { roleMenus } from '@/config/roleMenus.js'
@@ -750,51 +750,12 @@ onBeforeUnmount(() => {
               <template v-else-if="saleStep === 2">
               <div class="mt-0">
                 <section ref="buyerDropdownRef">
-                  <!-- 선택된 거래처 컴팩트 카드 (AI/수동 공용) -->
-                  <section
-                    v-if="selectedBuyer"
-                    class="rounded-lg border border-[#D8E5E0] bg-[#F8FCFA] px-4 py-3"
-                  >
-                    <div class="flex min-w-0 items-center gap-2">
-                      <span
-                        class="inline-flex h-5 items-center rounded-full bg-[#0F5C4D] px-2 text-[10px] font-black text-white"
-                      >
-                        선택됨
-                      </span>
-                      <p class="truncate text-sm font-black text-gray-900">
-                        {{ selectedBuyer.companyName }}
-                      </p>
-                      <span class="text-[11px] font-semibold text-gray-500">
-                        {{ selectedBuyer.code }}
-                      </span>
-                      <span
-                        class="rounded-full border border-[#BFDCCF] bg-[#ECF7F1] px-2 py-0.5 text-[10px] font-black text-[#2F6B4F]"
-                      >
-                        {{ materialFitLabel(selectedBuyer.primaryMaterialFit) }}
-                      </span>
-                    </div>
-                    <div
-                      class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold text-gray-600"
-                    >
-                      <span>{{ selectedBuyer.industryGroup || '-' }}</span>
-                      <span>담당자 {{ selectedBuyer.managerName || '-' }}</span>
-                      <span>{{ selectedBuyer.phone || '-' }}</span>
-                    </div>
-                    <p
-                      v-if="selectedBuyer.description"
-                      class="mt-2 line-clamp-1 text-[11px] font-medium text-gray-600"
-                    >
-                      {{ selectedBuyer.description }}
-                    </p>
-                  </section>
-                  <div v-if="selectedBuyer" class="h-5" />
-
                   <!-- 모드 토글 — AI 추천 (default) / 수동 검색 -->
                   <div class="border-b border-gray-200">
-                    <div class="flex items-end gap-8">
+                    <div class="flex items-end gap-0">
                       <button
                         type="button"
-                        class="inline-flex h-11 items-center gap-2 border-b-2 px-0 text-sm font-black transition"
+                        class="inline-flex h-11 items-center gap-2 border-b-2 px-8 text-sm font-black transition"
                         :class="
                           buyerPanelMode === 'ai'
                             ? 'border-[#2D5B35] text-[#1F2937]'
@@ -802,7 +763,7 @@ onBeforeUnmount(() => {
                         "
                         @click="buyerPanelMode = 'ai'"
                       >
-                        <span class="text-[11px] text-[#7A5A2D]">✦</span>
+                        <Bot class="h-3.5 w-3.5 text-[#7A5A2D]" :stroke-width="2.2" />
                         <span class="text-sm font-black leading-none">AI 추천</span>
                         <span
                           v-if="!circularStockStore.isRecommendationLoading"
@@ -814,7 +775,7 @@ onBeforeUnmount(() => {
 
                       <button
                         type="button"
-                        class="inline-flex h-11 items-center gap-2 border-b-2 px-0 text-sm font-black leading-none transition"
+                        class="inline-flex h-11 items-center gap-2 border-b-2 px-8 text-sm font-black leading-none transition"
                         :class="
                           buyerPanelMode === 'manual'
                             ? 'border-[#2D5B35] text-[#1F2937]'
@@ -822,7 +783,7 @@ onBeforeUnmount(() => {
                         "
                         @click="buyerPanelMode = 'manual'"
                       >
-                        <span>수동 검색</span>
+                        <span>수동 선택</span>
                         <span class="text-[11px] font-bold text-gray-500">전체</span>
                       </button>
                     </div>
@@ -835,7 +796,7 @@ onBeforeUnmount(() => {
                     <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#B38A3A]" :stroke-width="2" />
                     <span>
                       선택된 소재 정보를 기반으로 DB에서 가장 적합한 거래처 5곳을 AI가 분석했습니다.
-                      각 거래처를 클릭해 AI 추천 상세 이유를 확인하세요
+                      각 거래처를 클릭해 AI 거래처 매칭 추천 상세 이유를 확인하세요
                     </span>
                   </div>
                   <div v-if="buyerPanelMode === 'ai'" class="h-3" />
