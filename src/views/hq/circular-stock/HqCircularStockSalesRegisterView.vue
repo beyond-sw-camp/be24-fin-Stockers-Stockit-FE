@@ -747,7 +747,8 @@ onBeforeUnmount(() => {
                 </div>
               </div>
 
-              <div v-else-if="saleStep === 2" class="mt-0 flex min-h-[560px] flex-col">
+              <template v-else-if="saleStep === 2">
+              <div class="mt-0">
                 <section ref="buyerDropdownRef">
                   <!-- 선택된 거래처 컴팩트 카드 (AI/수동 공용) -->
                   <section
@@ -1073,7 +1074,7 @@ onBeforeUnmount(() => {
                       </button>
                     </div>
 
-                    <div class="h-8" />
+                    <div class="h-4" />
                     <div
                       class="min-h-[180px] rounded-2xl border border-gray-200 bg-white px-5 py-6"
                     >
@@ -1121,37 +1122,9 @@ onBeforeUnmount(() => {
                     </div>
                   </div>
                 </section>
-
-                <div
-                  class="sticky bottom-0 z-10 -mx-6 border-t border-gray-200 bg-gray-50/95 px-6 py-4 backdrop-blur-sm"
-                >
-                  <div class="flex items-center justify-between gap-4">
-                    <p class="text-base font-bold text-gray-500">
-                      선택된 거래처:
-                      <span class="font-black text-[#1F3A2D]">{{
-                        selectedBuyer?.companyName || '-'
-                      }}</span>
-                    </p>
-                    <div class="flex items-center gap-3">
-                      <button
-                        type="button"
-                        class="h-12 rounded-xl border border-gray-300 bg-white px-6 text-base font-black text-gray-700 hover:bg-gray-50"
-                        @click="moveStep(1)"
-                      >
-                        ← SKU 목록으로
-                      </button>
-                      <button
-                        type="button"
-                        class="h-12 rounded-xl border border-[#004D3C] bg-[#004D3C] px-7 text-base font-black text-white disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
-                        :disabled="!canMoveStep3"
-                        @click="moveStep(3)"
-                      >
-                        판매 조건 확정으로 →
-                      </button>
-                    </div>
-                  </div>
-                </div>
               </div>
+
+              </template>
 
               <div
                 v-else
@@ -1403,6 +1376,54 @@ onBeforeUnmount(() => {
                   >
                     {{ submitDisabledReason }}
                   </p>
+                </div>
+              </div>
+            </div>
+            <div
+              v-if="saleStep === 2"
+              class="border-t border-gray-200 bg-gray-50 px-6 py-4"
+            >
+              <div class="flex items-center justify-between gap-4">
+                <div class="pl-2 min-w-0">
+                  <div class="flex min-w-0 items-center gap-2">
+                    <span
+                      class="inline-flex h-6 items-center rounded-full bg-[#0F5C4D] px-2.5 text-[11px] font-black text-white"
+                    >
+                      선택됨
+                    </span>
+                    <span class="truncate text-base font-black text-gray-900">
+                      {{ selectedBuyer?.companyName || '-' }}
+                    </span>
+                    <span class="text-sm font-bold text-gray-500">
+                      {{ selectedBuyer?.code || '-' }}
+                    </span>
+                    <span
+                      class="rounded-full border border-[#BFDFFF] bg-[#EAF6FF] px-2 py-0.5 text-[11px] font-black text-[#1F6FAE]"
+                    >
+                      {{ materialFitLabel(selectedBuyer?.primaryMaterialFit) || '-' }}
+                    </span>
+                  </div>
+                  <p class="mt-1 text-sm font-bold text-gray-500">
+                    {{ selectedBuyer?.industryGroup || '-' }} · 담당자
+                    {{ selectedBuyer?.managerName || '-' }} · {{ selectedBuyer?.phone || '-' }}
+                  </p>
+                </div>
+                <div class="flex items-center gap-3">
+                  <button
+                    type="button"
+                    class="h-10 rounded-xl border border-gray-300 bg-white px-6 text-base font-black text-gray-700 hover:bg-gray-50"
+                    @click="moveStep(1)"
+                  >
+                    ← 선택한 SKU 목록으로
+                  </button>
+                  <button
+                    type="button"
+                    class="h-10 rounded-xl border border-[#004D3C] bg-[#004D3C] px-7 text-base font-black text-white disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
+                    :disabled="!canMoveStep3"
+                    @click="moveStep(3)"
+                  >
+                    판매 조건 확정으로 →
+                  </button>
                 </div>
               </div>
             </div>
