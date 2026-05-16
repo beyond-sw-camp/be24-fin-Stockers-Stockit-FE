@@ -645,28 +645,25 @@ onBeforeUnmount(() => {
                 </div>
               </div>
 
-              <div class="h-6" />
+              <div class="h-10" />
 
               <div v-if="saleStep === 1" class="mt-0">
-                <div class="mb-3 flex items-center justify-between gap-3">
+                <div class="mb-0 pl-2 flex items-center justify-between gap-3">
                   <div>
-                    <p class="text-sm font-black text-gray-900">선택 SKU</p>
+                    <p class="text-sm font-black text-gray-900">선택한 SKU 확인</p>
                   </div>
                   <div class="flex items-center gap-3">
-                    <p class="text-[11px] font-bold text-gray-500">
-                      한 건의 판매에서 같은 소재 구분의 SKU만 선택할 수 있습니다.
-                    </p>
                     <button
                       type="button"
-                      class="text-[11px] font-black text-gray-500 hover:text-gray-900"
+                      class="pr-4 cursor-pointer text-[11px] font-black text-gray-500 hover:text-gray-900"
                       @click="clearDraftPanel"
                     >
                       전체 비우기
                     </button>
                   </div>
                 </div>
-                <div class="h-2" />
-                <div class="overflow-x-auto border border-gray-200">
+                <div class="h-2.5" />
+                <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white">
                   <table class="w-full border-collapse text-left text-xs">
                     <thead
                       class="sticky top-0 bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500"
@@ -676,7 +673,7 @@ onBeforeUnmount(() => {
                         <th class="px-3 py-3 font-black">품목</th>
                         <th class="px-3 py-3 font-black">소재 구분</th>
                         <th class="px-3 py-3 font-black">소재 상세</th>
-                        <th class="px-3 py-3 text-right font-black">재고 수량</th>
+                        <th class="px-3 py-3 text-center font-black">재고 수량</th>
                         <th class="px-3 py-3 text-right font-black">kg당 단가</th>
                         <th class="px-3 py-3 text-right font-black">환산 금액</th>
                         <th class="px-3 py-3 text-right font-black">무게</th>
@@ -694,7 +691,7 @@ onBeforeUnmount(() => {
                         <td class="px-3 py-3 font-bold text-gray-700">
                           {{ formatMaterials(item.materials) }}
                         </td>
-                        <td class="px-3 py-3 text-right font-black text-gray-900">
+                        <td class="px-3 py-3 text-center font-black text-gray-900">
                           {{ item.availableQuantity.toLocaleString() }}벌
                         </td>
                         <td class="px-3 py-3 text-right font-black text-gray-900">
@@ -717,7 +714,7 @@ onBeforeUnmount(() => {
                         <td class="px-3 py-3 text-center">
                           <button
                             type="button"
-                            class="h-7 border border-gray-200 px-2 text-[11px] font-black text-gray-500"
+                            class="h-8 rounded-lg border border-gray-200 bg-white px-3 text-[11px] font-black text-gray-500 transition hover:bg-gray-50 hover:text-gray-700"
                             @click="removeDraftItem(item.draftId)"
                           >
                             삭제
@@ -734,6 +731,13 @@ onBeforeUnmount(() => {
                       </tr>
                     </tbody>
                   </table>
+                </div>
+                <div class="h-3" />
+                <div
+                  class="flex items-start gap-2 rounded-lg border border-[#F1E7CF] bg-[#FFFBF3] px-4 py-2 text-xs font-bold text-[#7D6432]"
+                >
+                  <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#B38A3A]" :stroke-width="2" />
+                  <span>한 건의 판매에서는 같은 소재 구분의 SKU만 함께 선택할 수 있습니다.</span>
                 </div>
               </div>
 
