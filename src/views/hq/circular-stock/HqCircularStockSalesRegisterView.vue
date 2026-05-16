@@ -792,39 +792,44 @@ onBeforeUnmount(() => {
                   <div v-if="selectedBuyer" class="h-5" />
 
                   <!-- 모드 토글 — AI 추천 (default) / 수동 검색 -->
-                  <div
-                    class="grid max-w-md grid-cols-2 gap-1 rounded-md border border-gray-200 bg-gray-50 p-1"
-                  >
-                    <button
-                      type="button"
-                      class="h-9 text-xs font-black transition"
-                      :class="
-                        buyerPanelMode === 'ai'
-                          ? 'bg-[#004D3C] text-white'
-                          : 'bg-transparent text-gray-500 hover:text-gray-700'
-                      "
-                      @click="buyerPanelMode = 'ai'"
-                    >
-                      ✨ AI 추천<span
-                        v-if="!circularStockStore.isRecommendationLoading"
-                        class="ml-1 opacity-80"
-                        >· {{ circularStockStore.recommendations.length }}</span
+                  <div class="border-b border-gray-200">
+                    <div class="flex items-end gap-8">
+                      <button
+                        type="button"
+                        class="inline-flex h-11 items-center gap-2 border-b-2 px-0 text-sm font-black transition"
+                        :class="
+                          buyerPanelMode === 'ai'
+                            ? 'border-[#2D5B35] text-[#1F2937]'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                        "
+                        @click="buyerPanelMode = 'ai'"
                       >
-                    </button>
-                    <button
-                      type="button"
-                      class="h-9 text-xs font-black transition"
-                      :class="
-                        buyerPanelMode === 'manual'
-                          ? 'bg-[#004D3C] text-white'
-                          : 'bg-transparent text-gray-500 hover:text-gray-700'
-                      "
-                      @click="buyerPanelMode = 'manual'"
-                    >
-                      수동 검색<span class="ml-1 opacity-80">· {{ filteredBuyers.length }}</span>
-                    </button>
+                        <span class="text-[11px] text-[#7A5A2D]">✦</span>
+                        <span class="text-sm font-black leading-none">AI 추천</span>
+                        <span
+                          v-if="!circularStockStore.isRecommendationLoading"
+                          class="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#D4E8D2] px-1.5 text-[11px] font-black text-[#2D5B35]"
+                        >
+                          {{ circularStockStore.recommendations.length }}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        class="inline-flex h-11 items-center gap-2 border-b-2 px-0 text-sm font-black leading-none transition"
+                        :class="
+                          buyerPanelMode === 'manual'
+                            ? 'border-[#2D5B35] text-[#1F2937]'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                        "
+                        @click="buyerPanelMode = 'manual'"
+                      >
+                        <span>수동 검색</span>
+                        <span class="text-[11px] font-bold text-gray-500">전체</span>
+                      </button>
+                    </div>
                   </div>
-                  <div class="h-3" />
+                  <div class="h-4" />
                 <div
                   v-if="buyerPanelMode === 'ai'"
                   class="flex items-start gap-2 rounded-lg border border-[#F1E7CF] bg-[#FFFBF3] px-4 py-2 text-xs font-bold text-[#7D6432]"
