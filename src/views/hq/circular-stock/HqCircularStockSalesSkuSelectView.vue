@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { X } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
 import { roleMenus } from '@/config/roleMenus.js'
@@ -297,10 +298,11 @@ onBeforeUnmount(() => {
               </div>
               <button
                 type="button"
-                class="inline-flex h-8 w-8 items-center justify-center border border-gray-300 bg-white text-base font-black text-gray-700 hover:bg-gray-100"
+                class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-gray-500 transition-all duration-200 hover:bg-gray-100 hover:text-gray-700 active:scale-95"
                 @click="showSkuModal = false"
+                aria-label="닫기"
               >
-                X
+                <X class="h-4 w-4" :stroke-width="2" />
               </button>
             </header>
 

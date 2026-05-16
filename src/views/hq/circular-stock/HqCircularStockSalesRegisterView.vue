@@ -341,34 +341,39 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="flex-1 overflow-y-auto p-4">
-            <div class="grid gap-2 md:grid-cols-3">
-                <button type="button" class="group overflow-hidden rounded-md border text-left transition" :class="saleStep >= 1 ? 'border-[#B7D8D1] bg-[#F3FAF8]' : 'border-gray-200 bg-white'" @click="moveStep(1)">
-                  <div class="h-1.5 bg-[#E6ECE9]">
-                    <div class="h-full bg-gradient-to-r from-[#2F9E87] to-[#0F5C4D] transition-all duration-500 ease-out" :style="{ width: saleStep >= 1 ? '100%' : '0%' }" />
-                  </div>
-                  <div class="flex items-center gap-2 px-3 py-2">
-                  <span class="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-black transition" :class="saleStep >= 1 ? 'bg-[#0F5C4D] text-white' : 'bg-gray-200 text-gray-500'">1</span>
-                  <span class="text-xs font-black" :class="saleStep === 1 ? 'text-[#0F5C4D]' : 'text-gray-600'">선택한 SKU 확인</span>
-                  </div>
-                </button>
-                <button type="button" class="group overflow-hidden rounded-md border text-left transition" :class="saleStep >= 2 ? 'border-[#B7D8D1] bg-[#F3FAF8]' : 'border-gray-200 bg-white'" @click="moveStep(2)">
-                  <div class="h-1.5 bg-[#E6ECE9]">
-                    <div class="h-full bg-gradient-to-r from-[#2F9E87] to-[#0F5C4D] transition-all duration-500 ease-out" :style="{ width: saleStep >= 2 ? '100%' : '0%' }" />
-                  </div>
-                  <div class="flex items-center gap-2 px-3 py-2">
-                  <span class="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-black transition" :class="saleStep >= 2 ? 'bg-[#0F5C4D] text-white' : 'bg-gray-200 text-gray-500'">2</span>
-                  <span class="text-xs font-black" :class="saleStep === 2 ? 'text-[#0F5C4D]' : 'text-gray-600'">거래처 매칭</span>
-                  </div>
-                </button>
-                <button type="button" class="group overflow-hidden rounded-md border text-left transition" :class="saleStep >= 3 ? 'border-[#B7D8D1] bg-[#F3FAF8]' : 'border-gray-200 bg-white'" @click="moveStep(3)">
-                  <div class="h-1.5 bg-[#E6ECE9]">
-                    <div class="h-full bg-gradient-to-r from-[#2F9E87] to-[#0F5C4D] transition-all duration-500 ease-out" :style="{ width: saleStep >= 3 ? '100%' : '0%' }" />
-                  </div>
-                  <div class="flex items-center gap-2 px-3 py-2">
-                  <span class="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-black transition" :class="saleStep >= 3 ? 'bg-[#0F5C4D] text-white' : 'bg-gray-200 text-gray-500'">3</span>
-                  <span class="text-xs font-black" :class="saleStep === 3 ? 'text-[#0F5C4D]' : 'text-gray-600'">판매 조건 확정</span>
-                  </div>
-                </button>
+            <div class="h-5" />
+            <div class="relative">
+              <div class="pointer-events-none absolute left-0 right-0 top-5 flex items-center px-[16.666%]">
+                <span class="h-[2px] flex-1 rounded-full" :class="saleStep >= 2 ? 'bg-[#0F5C4D]' : 'bg-gray-200'" />
+                <span class="mx-2 h-[2px] w-8 rounded-full bg-transparent" />
+                <span class="h-[2px] flex-1 rounded-full" :class="saleStep >= 3 ? 'bg-[#0F5C4D]' : 'bg-gray-200'" />
+              </div>
+
+              <div class="relative flex items-start">
+              <button type="button" class="group flex min-w-0 flex-1 flex-col items-center gap-2 text-center" @click="moveStep(1)">
+                <span
+                  class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-black transition"
+                  :class="saleStep >= 1 ? 'border-[#0F5C4D] bg-[#0F5C4D] text-white' : 'border-gray-300 bg-white text-gray-500'"
+                >1</span>
+                <span class="text-xs font-black" :class="saleStep === 1 ? 'text-[#0F5C4D]' : 'text-gray-600'">선택한 SKU 확인</span>
+              </button>
+
+              <button type="button" class="group flex min-w-0 flex-1 flex-col items-center gap-2 text-center" @click="moveStep(2)">
+                <span
+                  class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-black transition"
+                  :class="saleStep >= 2 ? 'border-[#0F5C4D] bg-[#0F5C4D] text-white' : 'border-gray-300 bg-white text-gray-500'"
+                >2</span>
+                <span class="text-xs font-black" :class="saleStep === 2 ? 'text-[#0F5C4D]' : 'text-gray-600'">거래처 매칭</span>
+              </button>
+
+              <button type="button" class="group flex min-w-0 flex-1 flex-col items-center gap-2 text-center" @click="moveStep(3)">
+                <span
+                  class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-black transition"
+                  :class="saleStep >= 3 ? 'border-[#0F5C4D] bg-[#0F5C4D] text-white' : 'border-gray-300 bg-white text-gray-500'"
+                >3</span>
+                <span class="text-xs font-black" :class="saleStep === 3 ? 'text-[#0F5C4D]' : 'text-gray-600'">판매 조건 확정</span>
+              </button>
+              </div>
             </div>
 
             <div class="h-1" />
