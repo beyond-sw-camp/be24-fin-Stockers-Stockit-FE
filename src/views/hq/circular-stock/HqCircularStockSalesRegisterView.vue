@@ -515,7 +515,7 @@ onBeforeUnmount(() => {
   >
     <div class="flex flex-col gap-4 pb-36">
       <section class="border border-gray-200 bg-white p-4 shadow-sm">
-        <div class="flex flex-wrap items-start justify-between gap-4">
+        <div class="flex flex-wrap items-start justify-between gap-6">
           <div>
             <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">
               Circular Inventory Sales
@@ -545,7 +545,7 @@ onBeforeUnmount(() => {
         <div class="w-full">
           <div class="flex w-full flex-col overflow-hidden border border-gray-200 bg-white">
             <div
-              class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3"
+              class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-5"
             >
               <div class="flex flex-wrap items-center gap-3">
                 <span class="text-sm font-black text-gray-900">판매 등록</span>
@@ -561,7 +561,7 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <div class="flex-1 overflow-y-auto p-4">
+            <div class="flex-1 overflow-y-auto p-7">
               <div class="h-5" />
               <div class="relative">
                 <div
