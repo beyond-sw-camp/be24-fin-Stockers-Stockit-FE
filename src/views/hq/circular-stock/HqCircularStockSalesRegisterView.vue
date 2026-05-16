@@ -735,16 +735,6 @@ onBeforeUnmount(() => {
                     </tbody>
                   </table>
                 </div>
-                <div class="mt-6 border-t border-gray-100 pt-3 flex justify-end">
-                  <button
-                    type="button"
-                    class="h-9 border border-[#004D3C] bg-[#004D3C] px-4 text-xs font-black text-white disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
-                    :disabled="!canMoveStep2"
-                    @click="moveStep(2)"
-                  >
-                    다음
-                  </button>
-                </div>
               </div>
 
               <template v-else-if="saleStep === 2">
@@ -1314,33 +1304,22 @@ onBeforeUnmount(() => {
                     </div>
                   </section>
 
-                  <button
-                    type="button"
-                    class="h-9 w-full border border-gray-300 bg-white text-xs font-black text-gray-700 hover:bg-gray-50"
-                    @click="moveStep(2)"
-                  >
-                    이전
-                  </button>
-                  <button
-                    type="button"
-                    class="h-10 w-full text-sm font-black transition"
-                    :class="
-                      canSubmit
-                        ? 'bg-[#004D3C] text-white hover:bg-[#00382c]'
-                        : 'cursor-not-allowed bg-gray-100 text-gray-400'
-                    "
-                    :disabled="!canSubmit"
-                    @click="openFinalReviewModal"
-                  >
-                    최종 판매 등록서 확인
-                  </button>
-                  <p
-                    v-if="submitDisabledReason"
-                    class="text-[11px] font-bold leading-5 text-red-600"
-                  >
-                    {{ submitDisabledReason }}
-                  </p>
                 </div>
+              </div>
+            </div>
+            <div
+              v-if="saleStep === 1"
+              class="border-t border-gray-200 bg-gray-50 px-6 py-4"
+            >
+              <div class="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  class="h-10 cursor-pointer rounded-xl border border-[#004D3C] bg-[#004D3C] px-7 text-base font-black text-white transition-all duration-150 hover:border-[#00382c] hover:bg-[#00382c] hover:shadow-[0_8px_16px_-10px_rgba(0,77,60,0.55)] disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:shadow-none"
+                  :disabled="!canMoveStep2"
+                  @click="moveStep(2)"
+                >
+                  거래처 매칭 →
+                </button>
               </div>
             </div>
             <div
@@ -1376,18 +1355,49 @@ onBeforeUnmount(() => {
                 <div class="flex items-center gap-3">
                   <button
                     type="button"
-                    class="h-10 rounded-xl border border-gray-300 bg-white px-6 text-base font-black text-gray-700 hover:bg-gray-50"
+                    class="h-10 cursor-pointer rounded-xl border border-gray-300 bg-white px-6 text-base font-black text-gray-700 transition-all duration-150 hover:bg-gray-50 hover:shadow-sm"
                     @click="moveStep(1)"
                   >
                     ← 선택한 SKU 목록으로
                   </button>
                   <button
                     type="button"
-                    class="h-10 rounded-xl border border-[#004D3C] bg-[#004D3C] px-7 text-base font-black text-white disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
+                    class="h-10 cursor-pointer rounded-xl border border-[#004D3C] bg-[#004D3C] px-7 text-base font-black text-white transition-all duration-150 hover:border-[#00382c] hover:bg-[#00382c] hover:shadow-[0_8px_16px_-10px_rgba(0,77,60,0.55)] disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:shadow-none"
                     :disabled="!canMoveStep3"
                     @click="moveStep(3)"
                   >
                     판매 조건 확정으로 →
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div
+              v-if="saleStep === 3"
+              class="border-t border-gray-200 bg-gray-50 px-6 py-4"
+            >
+              <div class="flex items-center justify-between gap-4">
+                <p
+                  v-if="submitDisabledReason"
+                  class="pl-2 text-[11px] font-bold leading-5 text-red-600"
+                >
+                  {{ submitDisabledReason }}
+                </p>
+                <div v-else />
+                <div class="flex items-center gap-3">
+                  <button
+                    type="button"
+                    class="h-10 cursor-pointer rounded-xl border border-gray-300 bg-white px-6 text-base font-black text-gray-700 transition-all duration-150 hover:bg-gray-50 hover:shadow-sm"
+                    @click="moveStep(2)"
+                  >
+                    ← 거래처 매칭으로
+                  </button>
+                  <button
+                    type="button"
+                    class="h-10 cursor-pointer rounded-xl border border-[#004D3C] bg-[#004D3C] px-7 text-base font-black text-white transition-all duration-150 hover:border-[#00382c] hover:bg-[#00382c] hover:shadow-[0_8px_16px_-10px_rgba(0,77,60,0.55)] disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:shadow-none"
+                    :disabled="!canSubmit"
+                    @click="openFinalReviewModal"
+                  >
+                    최종 판매 등록서 확인
                   </button>
                 </div>
               </div>
