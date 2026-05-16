@@ -344,52 +344,59 @@ onBeforeUnmount(() => {
             <div class="h-5" />
             <div class="relative">
               <div class="pointer-events-none absolute left-0 right-0 top-5 flex items-center px-[16.666%]">
-                <span class="h-[2px] flex-1 rounded-full" :class="saleStep >= 2 ? 'bg-[#0F5C4D]' : 'bg-gray-200'" />
+                <span class="relative h-[2px] flex-1 rounded-full bg-gray-200">
+                  <span
+                    class="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-[#2F9E87] to-[#0F5C4D] transition-all duration-400 ease-out"
+                    :style="{ width: saleStep >= 2 ? '100%' : '0%' }"
+                  />
+                </span>
                 <span class="mx-2 h-[2px] w-8 rounded-full bg-transparent" />
-                <span class="h-[2px] flex-1 rounded-full" :class="saleStep >= 3 ? 'bg-[#0F5C4D]' : 'bg-gray-200'" />
+                <span class="relative h-[2px] flex-1 rounded-full bg-gray-200">
+                  <span
+                    class="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-[#2F9E87] to-[#0F5C4D] transition-all duration-400 ease-out"
+                    :style="{ width: saleStep >= 3 ? '100%' : '0%' }"
+                  />
+                </span>
               </div>
 
               <div class="relative flex items-start">
-              <button type="button" class="group flex min-w-0 flex-1 flex-col items-center gap-2 text-center" @click="moveStep(1)">
+              <button type="button" class="group flex min-w-0 flex-1 flex-col items-center gap-3 text-center" @click="moveStep(1)">
                 <span
-                  class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-black transition"
-                  :class="saleStep >= 1 ? 'border-[#0F5C4D] bg-[#0F5C4D] text-white' : 'border-gray-300 bg-white text-gray-500'"
+                  class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-black transition-all duration-200"
+                  :class="saleStep >= 1 ? 'border-[#0F5C4D] bg-[#0F5C4D] text-white shadow-[0_6px_14px_-8px_rgba(15,92,77,0.75)] ring-2 ring-[#0F5C4D]/15' : 'border-gray-300 bg-white text-gray-500 shadow-sm'"
                 >1</span>
                 <span class="text-xs font-black" :class="saleStep === 1 ? 'text-[#0F5C4D]' : 'text-gray-600'">선택한 SKU 확인</span>
               </button>
 
-              <button type="button" class="group flex min-w-0 flex-1 flex-col items-center gap-2 text-center" @click="moveStep(2)">
+              <button type="button" class="group flex min-w-0 flex-1 flex-col items-center gap-3 text-center" @click="moveStep(2)">
                 <span
-                  class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-black transition"
-                  :class="saleStep >= 2 ? 'border-[#0F5C4D] bg-[#0F5C4D] text-white' : 'border-gray-300 bg-white text-gray-500'"
+                  class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-black transition-all duration-200"
+                  :class="saleStep >= 2 ? 'border-[#0F5C4D] bg-[#0F5C4D] text-white shadow-[0_6px_14px_-8px_rgba(15,92,77,0.75)] ring-2 ring-[#0F5C4D]/15' : 'border-gray-300 bg-white text-gray-500 shadow-sm'"
                 >2</span>
                 <span class="text-xs font-black" :class="saleStep === 2 ? 'text-[#0F5C4D]' : 'text-gray-600'">거래처 매칭</span>
               </button>
 
-              <button type="button" class="group flex min-w-0 flex-1 flex-col items-center gap-2 text-center" @click="moveStep(3)">
+              <button type="button" class="group flex min-w-0 flex-1 flex-col items-center gap-3 text-center" @click="moveStep(3)">
                 <span
-                  class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-black transition"
-                  :class="saleStep >= 3 ? 'border-[#0F5C4D] bg-[#0F5C4D] text-white' : 'border-gray-300 bg-white text-gray-500'"
+                  class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-black transition-all duration-200"
+                  :class="saleStep >= 3 ? 'border-[#0F5C4D] bg-[#0F5C4D] text-white shadow-[0_6px_14px_-8px_rgba(15,92,77,0.75)] ring-2 ring-[#0F5C4D]/15' : 'border-gray-300 bg-white text-gray-500 shadow-sm'"
                 >3</span>
                 <span class="text-xs font-black" :class="saleStep === 3 ? 'text-[#0F5C4D]' : 'text-gray-600'">판매 조건 확정</span>
               </button>
               </div>
             </div>
 
-            <div class="h-1" />
-            <p class="text-[11px] font-bold text-gray-500">
-              <template v-if="saleStep === 1"><span class="block text-right">한 건의 판매에서 같은 소재 구분의 SKU만 선택할 수 있습니다.</span></template>
-              <template v-else-if="saleStep === 2"><span class="block text-right">AI가 추천한 거래처 중 선택하거나, 수동 검색으로 직접 찾을 수 있습니다.</span></template>
-              <template v-else><span class="block text-right">판매 kg 기준 입력이며, 차감 벌 수량은 항상 올림 처리됩니다.</span></template>
-            </p>
-            <div class="h-1" />
+            <div class="h-6" />
 
             <div v-if="saleStep === 1" class="mt-0">
               <div class="mb-3 flex items-center justify-between gap-3">
                 <div>
                   <p class="text-sm font-black text-gray-900">선택 SKU</p>
                 </div>
-                <button type="button" class="text-[11px] font-black text-gray-500 hover:text-gray-900" @click="clearDraftPanel">전체 비우기</button>
+                <div class="flex items-center gap-3">
+                  <p class="text-[11px] font-bold text-gray-500">한 건의 판매에서 같은 소재 구분의 SKU만 선택할 수 있습니다.</p>
+                  <button type="button" class="text-[11px] font-black text-gray-500 hover:text-gray-900" @click="clearDraftPanel">전체 비우기</button>
+                </div>
               </div>
               <div class="h-2" />
               <div class="overflow-x-auto border border-gray-200">
@@ -435,6 +442,10 @@ onBeforeUnmount(() => {
             </div>
 
             <div v-else-if="saleStep === 2" class="mt-0">
+              <div class="mb-3 flex items-center justify-between gap-3">
+                <div />
+                <p class="text-[11px] font-bold text-gray-500">AI가 추천한 거래처 중 선택하거나, 수동 검색으로 직접 찾을 수 있습니다.</p>
+              </div>
               <section ref="buyerDropdownRef" class="rounded-md border border-gray-200 bg-white p-4">
                 <!-- 모드 토글 — AI 추천 (default) / 수동 검색 -->
                 <div class="grid max-w-md grid-cols-2 gap-1 rounded-md border border-gray-200 bg-gray-50 p-1">
@@ -593,9 +604,11 @@ onBeforeUnmount(() => {
                 <div class="mb-3 flex items-center justify-between gap-3">
                   <div>
                   <p class="text-sm font-black text-gray-900">판매 조건 입력</p>
-                  <p class="mt-1 text-[11px] font-bold text-gray-400">kg당 단가는 자동 입력되며 수정 가능합니다.</p>
                   </div>
-                  <button type="button" class="text-[11px] font-black text-gray-500 hover:text-gray-900" @click="clearDraftPanel">전체 비우기</button>
+                  <div class="flex items-center gap-3">
+                    <p class="text-[11px] font-bold text-gray-500">판매 kg 기준 입력이며, 차감 벌 수량은 항상 올림 처리됩니다.</p>
+                    <button type="button" class="text-[11px] font-black text-gray-500 hover:text-gray-900" @click="clearDraftPanel">전체 비우기</button>
+                  </div>
                 </div>
                 <div class="max-h-[22rem] overflow-y-auto border border-gray-200">
                   <table class="min-w-[980px] w-full border-collapse text-left text-xs">
