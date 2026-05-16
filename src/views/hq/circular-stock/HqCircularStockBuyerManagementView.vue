@@ -29,9 +29,7 @@ const emptyForm = () => buyerStore.createEmptyBuyerForm()
 const form = ref(emptyForm())
 const errors = ref({})
 
-const displayedBuyers = computed(() =>
-  buyerStore.sortedBuyers,
-)
+const displayedBuyers = computed(() => buyerStore.sortedBuyers)
 
 const selectedBuyer = computed(() => buyerStore.getBuyerById(selectedBuyerId.value) ?? null)
 
@@ -194,8 +192,6 @@ onMounted(() => {
   fetchBuyerPage({ page: 0, size: buyerStore.size || 20 }).catch(() => {})
   buyerStore.fetchStats().catch(() => {})
 })
-
-
 </script>
 
 <template>
@@ -215,9 +211,9 @@ onMounted(() => {
               Circular Buyer Studio
             </p>
             <h1 class="mt-2 text-2xl font-black text-[#19352c]">순환재고 거래처 관리</h1>
-            <p class="mt-2 max-w-2xl text-sm font-bold leading-6 text-[#5d6f67]">
-              소재 성향과 산업군을 기준으로 순환재고 판매 거래처를 정리하고, 판매 등록
-              화면에서 바로 연결할 수 있는 전용 거래처 정보를 관리합니다.
+            <p class="mt-2 max-w-3xl break-keep text-sm font-bold leading-6 text-[#5d6f67]">
+              소재 성향과 산업군을 기준으로 순환재고 판매 거래처를 정리하고, 판매 등록 화면에서 바로
+              연결할 수 있는 전용 거래처 정보를 관리합니다.
             </p>
 
             <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -252,30 +248,13 @@ onMounted(() => {
             </div>
           </div>
 
-          <div
-            class="flex flex-col justify-between border border-[#d7e3dd] bg-white/75 p-4 backdrop-blur"
+          <button
+            type="button"
+            class="h-11 self-end justify-self-end border border-[#d8e4df] bg-[#19352c] px-4 text-sm font-black text-white transition hover:bg-[#10261f]"
+            @click="handleCreateNew"
           >
-            <div>
-              <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[#7c8d84]">
-                Working Rule
-              </p>
-              <p class="mt-2 text-sm font-black text-[#19352c]">
-                AI 추천은 아직 포함하지 않습니다.
-              </p>
-              <p class="mt-2 text-xs font-bold leading-5 text-[#65776d]">
-                이번 단계에서는 거래처 자체 정보를 먼저 정돈하고, 이후 순환재고 품목 선택
-                시 어떤 거래처와 잘 맞는지 추천하는 기능으로 확장할 수 있게 기반만 맞춥니다.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              class="mt-5 h-11 border border-[#d8e4df] bg-[#19352c] px-4 text-sm font-black text-white transition hover:bg-[#10261f]"
-              @click="handleCreateNew"
-            >
-              + 새 거래처 등록 시작
-            </button>
-          </div>
+            + 새 거래처 등록
+          </button>
         </div>
       </section>
 
@@ -289,8 +268,7 @@ onMounted(() => {
                 </p>
                 <h2 class="mt-1 text-lg font-black text-gray-900">거래처 목록</h2>
                 <p class="mt-1 text-xs font-bold text-gray-500">
-                  업체명, 담당자, 거래처 코드로 빠르게 찾고 소재 적합도에 따라 정리할 수
-                  있습니다.
+                  업체명, 담당자, 거래처 코드로 빠르게 찾고 소재 적합도에 따라 정리할 수 있습니다.
                 </p>
               </div>
               <div class="flex items-center gap-2 text-[11px] font-bold text-gray-500">
@@ -381,7 +359,11 @@ onMounted(() => {
                 class="group border p-4 text-left transition-all duration-150"
                 :class="
                   selectedBuyerId === buyer.id
-                    ? ['border-[#19352c]', 'bg-[#f6fbf8]', 'shadow-[0_12px_28px_rgba(25,53,44,0.08)]']
+                    ? [
+                        'border-[#19352c]',
+                        'bg-[#f6fbf8]',
+                        'shadow-[0_12px_28px_rgba(25,53,44,0.08)]',
+                      ]
                     : [
                         'border-gray-200',
                         'bg-white',
