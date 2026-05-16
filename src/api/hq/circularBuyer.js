@@ -3,6 +3,7 @@
  *
  * BE 엔드포인트:
  *   GET    /api/hq/circular-buyers?keyword=&materialFit=    목록
+ *   GET    /api/hq/circular-buyers/page?page=&size=&keyword=&materialFit=  페이징 목록
  *   GET    /api/hq/circular-buyers/{code}                    상세
  *   POST   /api/hq/circular-buyers                           등록 (등록 시 BE 가 임베딩 자동 생성)
  *   PATCH  /api/hq/circular-buyers/{code}                    수정 (의미 필드 변경 시 BE 가 임베딩 재생성)
@@ -21,6 +22,10 @@ export const circularBuyerApi = {
   list: ({ keyword, materialFit } = {}) =>
     apiClient.get(BASE, { params: { keyword, materialFit } }).then(unwrap),
 
+  /** @param {{ page?: number, size?: number, keyword?: string, materialFit?: 'natural-single'|'synthetic'|'blended' }} [opts] */
+  listPage: ({ page = 0, size = 20, keyword, materialFit } = {}) =>
+    apiClient.get(`${BASE}/page`, { params: { page, size, keyword, materialFit } }).then(unwrap),
+
   detail: (code) => apiClient.get(`${BASE}/${code}`).then(unwrap),
 
   /**
@@ -38,6 +43,9 @@ export const circularBuyerApi = {
 
   /** hard delete — 거래처 행 자체 삭제. */
   delete: (code) => apiClient.delete(`${BASE}/${code}`).then(unwrap),
+
+  /** primaryMaterialFit 별 전체 건수 — { 'natural-single': n, synthetic: n, blended: n } */
+  stats: () => apiClient.get(`${BASE}/stats`).then(unwrap),
 
   /** embedding NULL 거래처 일괄 임베딩 — 시드 backfill 용. */
   backfillEmbeddings: () => apiClient.post(`${BASE}/embeddings/backfill`).then(unwrap),

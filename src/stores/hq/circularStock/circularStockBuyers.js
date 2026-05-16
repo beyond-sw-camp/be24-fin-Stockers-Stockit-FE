@@ -157,6 +157,13 @@ export const useCircularStockBuyerStore = defineStore('circularStockBuyers', () 
   const buyers = ref([])
   const loading = ref(false)
   const error = ref(null)
+  const page = ref(0)
+  const size = ref(20)
+  const totalPages = ref(0)
+  const totalElements = ref(0)
+  const hasNext = ref(false)
+  const hasPrevious = ref(false)
+  const materialFitCounts = ref({ 'natural-single': 0, synthetic: 0, blended: 0 })
 
   // --- getters ---
   const sortedBuyers = computed(() =>
@@ -190,12 +197,48 @@ export const useCircularStockBuyerStore = defineStore('circularStockBuyers', () 
 
   // --- actions ---
 
+  async function fetchStats() {
+    try {
+      const counts = await circularBuyerApi.stats()
+      materialFitCounts.value = counts ?? {}
+    } catch {
+      // stats 실패는 목록 동작에 영향 없으므로 무시
+    }
+  }
+
   async function fetchAll(opts = {}) {
     loading.value = true
     error.value = null
     try {
       const list = await circularBuyerApi.list(opts)
       buyers.value = (list ?? []).map(fromApi)
+    } catch (e) {
+      error.value = e?.message ?? '거래처 목록을 불러오지 못했습니다.'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function fetchPage(opts = {}) {
+    loading.value = true
+    error.value = null
+    try {
+      const res = await circularBuyerApi.listPage({
+        page: opts.page ?? page.value,
+        size: opts.size ?? size.value,
+        keyword: opts.keyword,
+        materialFit: opts.materialFit,
+      })
+      const list = Array.isArray(res?.content) ? res.content : []
+      buyers.value = list.map(fromApi)
+      page.value = Number(res?.page ?? 0)
+      size.value = Number(res?.size ?? (opts.size ?? size.value))
+      totalPages.value = Number(res?.totalPages ?? 0)
+      totalElements.value = Number(res?.totalElements ?? 0)
+      hasNext.value = Boolean(res?.hasNext)
+      hasPrevious.value = Boolean(res?.hasPrevious)
+      return res
     } catch (e) {
       error.value = e?.message ?? '거래처 목록을 불러오지 못했습니다.'
       throw e
@@ -257,16 +300,18 @@ export const useCircularStockBuyerStore = defineStore('circularStockBuyers', () 
     }
   }
 
-  // 마운트 자동 fetch — vendor store 패턴 일관.
-  fetchAll().catch((err) => {
-    console.error('[circularInventoryBuyers] fetchAll 실패', err)
-  })
-
   return {
     buyers,
     sortedBuyers,
     loading,
     error,
+    page,
+    size,
+    totalPages,
+    totalElements,
+    hasNext,
+    hasPrevious,
+    materialFitCounts,
     MATERIAL_FIT_OPTIONS,
     INDUSTRY_GROUP_OPTIONS,
     PARTNER_TYPE_OPTIONS,
@@ -276,6 +321,8 @@ export const useCircularStockBuyerStore = defineStore('circularStockBuyers', () 
     getBuyerById,
     filteredBuyers,
     fetchAll,
+    fetchPage,
+    fetchStats,
     createBuyer,
     updateBuyer,
   }

@@ -254,8 +254,25 @@ watch(toastMessage, (message) => {
   }, 3000)
 })
 
+// 거래처 수동 검색 — 타이핑 300ms 후 서버 검색 (4만 건 전체 로드 방지)
+let buyerSearchTimer = null
+watch(buyerSearchTerm, (keyword) => {
+  clearTimeout(buyerSearchTimer)
+  buyerSearchTimer = setTimeout(() => {
+    const materialFit = (() => {
+      const mt = lockedMaterialType.value
+      if (mt === '천연 단일 섬유') return 'natural-single'
+      if (mt === '합성 섬유') return 'synthetic'
+      if (mt) return 'blended'
+      return undefined
+    })()
+    buyerStore.fetchPage({ keyword: keyword.trim() || undefined, materialFit, size: 20 }).catch(() => {})
+  }, 300)
+})
+
 onMounted(() => {
   document.addEventListener('mousedown', handleDocumentClick)
+  buyerStore.fetchPage({ size: 20 }).catch(() => {})
   loadCircularInventoryRows()
   if (draftItems.value.length > 0) {
     isDrawerOpen.value = true

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
@@ -27,7 +27,7 @@ const activeTab = ref('sales')
 const saleId = computed(() => String(route.params.saleId ?? ''))
 const sale = computed(() => circularStockStore.getSaleById(saleId.value))
 const saleEsgSnapshot = computed(() => circularStockStore.getSaleEsgSnapshot(sale.value))
-const linkedBuyer = computed(() => buyerStore.getBuyerById(sale.value?.buyerId) ?? null)
+const linkedBuyer = computed(() => null)
 
 const includedMaterialNames = computed(() => {
   const names = sale.value?.items?.flatMap((item) => item.materials?.map((material) => material.name) ?? []) ?? []
@@ -218,6 +218,9 @@ function materialTypeLabel(item) {
 function industryGroupLabel() {
   return sale.value?.buyerIndustryGroup || linkedBuyer.value?.industryGroup || '-'
 }
+
+onMounted(() => {
+})
 
 function factoryProductLabel() {
   const fromSale = sale.value?.buyerFactoryProduct ?? sale.value?.buyerProductTypes

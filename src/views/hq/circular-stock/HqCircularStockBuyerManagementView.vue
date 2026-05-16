@@ -1,9 +1,10 @@
 ﻿<script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import AppLayout from '@/components/common/AppLayout.vue'
+import PaginationNav from '@/components/common/PaginationNav.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
+import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
 const auth = useAuthStore()
 const buyerStore = useCircularStockBuyerStore()
 
@@ -28,20 +29,20 @@ const form = ref(emptyForm())
 const errors = ref({})
 
 const displayedBuyers = computed(() =>
-  buyerStore.filteredBuyers(searchKeyword.value, {
-    primaryMaterialFit: materialFitFilter.value,
-  }),
+  buyerStore.sortedBuyers,
 )
 
 const selectedBuyer = computed(() => buyerStore.getBuyerById(selectedBuyerId.value) ?? null)
 
 const buyerStats = computed(() => {
-  const buyers = buyerStore.sortedBuyers
+  const natural = buyerStore.materialFitCounts['natural-single'] ?? 0
+  const synthetic = buyerStore.materialFitCounts['synthetic'] ?? 0
+  const blended = buyerStore.materialFitCounts['blended'] ?? 0
   return {
-    total: buyers.length,
-    natural: buyers.filter((buyer) => buyer.primaryMaterialFit === 'natural-single').length,
-    synthetic: buyers.filter((buyer) => buyer.primaryMaterialFit === 'synthetic').length,
-    blended: buyers.filter((buyer) => buyer.primaryMaterialFit === 'blended').length,
+    total: natural + synthetic + blended,
+    natural,
+    synthetic,
+    blended,
   }
 })
 
@@ -101,6 +102,15 @@ function handleCreateNew() {
   resetForm()
 }
 
+async function fetchBuyerPage(overrides = {}) {
+  await buyerStore.fetchPage({
+    page: overrides.page ?? buyerStore.page,
+    size: overrides.size ?? buyerStore.size,
+    keyword: searchKeyword.value.trim() || undefined,
+    materialFit: materialFitFilter.value || undefined,
+  })
+}
+
 function handleSelectBuyer(id) {
   const buyer = buyerStore.getBuyerById(id)
   if (!buyer) return
@@ -153,6 +163,9 @@ async function submitForm() {
   if (isCreate) {
     searchKeyword.value = ''
     materialFitFilter.value = ''
+    await fetchBuyerPage({ page: 0 })
+  } else {
+    await fetchBuyerPage()
   }
   handleSelectBuyer(result.buyer.id)
 }
@@ -169,6 +182,15 @@ function partnerTypeBadgeClass(value) {
   if (value === 'social_enterprise') return 'bg-[#ede9fe] text-[#5b21b6]'
   return 'bg-gray-100 text-gray-500'
 }
+
+watch([searchKeyword, materialFitFilter], () => {
+  fetchBuyerPage({ page: 0 }).catch(() => {})
+})
+
+onMounted(() => {
+  fetchBuyerPage({ page: 0, size: buyerStore.size || 20 }).catch(() => {})
+  buyerStore.fetchStats().catch(() => {})
+})
 
 
 </script>
@@ -337,76 +359,88 @@ function partnerTypeBadgeClass(value) {
             </div>
           </div>
 
-          <div v-if="browseMode === 'card'" class="grid gap-4 p-5 md:grid-cols-2">
-            <button
-              v-for="buyer in displayedBuyers"
-              :key="buyer.id"
-              type="button"
-              class="group border p-4 text-left transition-all duration-150"
-              :class="
-                selectedBuyerId === buyer.id
-                  ? ['border-[#19352c]', 'bg-[#f6fbf8]', 'shadow-[0_12px_28px_rgba(25,53,44,0.08)]']
-                  : [
-                      'border-gray-200',
-                      'bg-white',
-                      'hover:-translate-y-[1px]',
-                      'hover:border-[#cfd9d4]',
-                      'hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)]',
-                    ]
-              "
-              @click="handleSelectBuyer(buyer.id)"
-            >
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <p class="truncate text-[12px] font-black tracking-[0.08em] text-gray-400">
-                    {{ buyer.code }}
-                  </p>
-                  <h3 class="mt-2 text-base font-black text-gray-900">{{ buyer.companyName }}</h3>
+          <div v-if="browseMode === 'card'" class="flex flex-col">
+            <div class="grid gap-4 p-5 md:grid-cols-2">
+              <button
+                v-for="buyer in displayedBuyers"
+                :key="buyer.id"
+                type="button"
+                class="group border p-4 text-left transition-all duration-150"
+                :class="
+                  selectedBuyerId === buyer.id
+                    ? ['border-[#19352c]', 'bg-[#f6fbf8]', 'shadow-[0_12px_28px_rgba(25,53,44,0.08)]']
+                    : [
+                        'border-gray-200',
+                        'bg-white',
+                        'hover:-translate-y-[1px]',
+                        'hover:border-[#cfd9d4]',
+                        'hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)]',
+                      ]
+                "
+                @click="handleSelectBuyer(buyer.id)"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <p class="truncate text-[12px] font-black tracking-[0.08em] text-gray-400">
+                      {{ buyer.code }}
+                    </p>
+                    <h3 class="mt-2 text-base font-black text-gray-900">{{ buyer.companyName }}</h3>
+                  </div>
+                  <span
+                    class="shrink-0 px-2.5 py-1 text-[10px] font-black"
+                    :class="materialFitBadgeClass(buyer.primaryMaterialFit)"
+                  >
+                    {{ buyerStore.materialFitLabel(buyer.primaryMaterialFit) }}
+                  </span>
                 </div>
-                <span
-                  class="shrink-0 px-2.5 py-1 text-[10px] font-black"
-                  :class="materialFitBadgeClass(buyer.primaryMaterialFit)"
-                >
-                  {{ buyerStore.materialFitLabel(buyer.primaryMaterialFit) }}
-                </span>
+
+                <p class="mt-3 text-[12px] font-bold text-gray-600">{{ buyer.industryGroup }}</p>
+                <p class="mt-2 line-clamp-2 text-[12px] font-bold leading-5 text-gray-500">
+                  {{ buyer.description }}
+                </p>
+
+                <div class="mt-4 flex flex-wrap gap-2">
+                  <span
+                    v-for="product in buyer.factoryProduct.slice(0, 3)"
+                    :key="product"
+                    class="rounded-full bg-[#f3f5f3] px-2.5 py-1 text-[10px] font-black text-gray-600"
+                  >
+                    {{ product }}
+                  </span>
+                  <span
+                    v-if="buyer.factoryProduct.length > 3"
+                    class="rounded-full bg-[#f3f5f3] px-2.5 py-1 text-[10px] font-black text-gray-500"
+                  >
+                    +{{ buyer.factoryProduct.length - 3 }}
+                  </span>
+                </div>
+
+                <div class="mt-5 flex items-center justify-between text-[11px]">
+                  <span class="font-bold text-gray-500">{{ buyer.managerName }}</span>
+                  <span class="font-black text-gray-700">{{ buyer.phone }}</span>
+                </div>
+              </button>
+
+              <div
+                v-if="displayedBuyers.length === 0"
+                class="border border-dashed border-gray-200 bg-[#fafaf8] px-6 py-16 text-center md:col-span-2"
+              >
+                <p class="text-sm font-black text-gray-900">조건에 맞는 거래처가 없습니다.</p>
+                <p class="mt-2 text-xs font-bold text-gray-400">
+                  검색어를 바꾸거나 새 거래처를 등록해보세요.
+                </p>
               </div>
-
-              <p class="mt-3 text-[12px] font-bold text-gray-600">{{ buyer.industryGroup }}</p>
-              <p class="mt-2 line-clamp-2 text-[12px] font-bold leading-5 text-gray-500">
-                {{ buyer.description }}
-              </p>
-
-              <div class="mt-4 flex flex-wrap gap-2">
-                <span
-                  v-for="product in buyer.factoryProduct.slice(0, 3)"
-                  :key="product"
-                  class="rounded-full bg-[#f3f5f3] px-2.5 py-1 text-[10px] font-black text-gray-600"
-                >
-                  {{ product }}
-                </span>
-                <span
-                  v-if="buyer.factoryProduct.length > 3"
-                  class="rounded-full bg-[#f3f5f3] px-2.5 py-1 text-[10px] font-black text-gray-500"
-                >
-                  +{{ buyer.factoryProduct.length - 3 }}
-                </span>
-              </div>
-
-              <div class="mt-5 flex items-center justify-between text-[11px]">
-                <span class="font-bold text-gray-500">{{ buyer.managerName }}</span>
-                <span class="font-black text-gray-700">{{ buyer.phone }}</span>
-              </div>
-            </button>
-
-            <div
-              v-if="displayedBuyers.length === 0"
-              class="border border-dashed border-gray-200 bg-[#fafaf8] px-6 py-16 text-center md:col-span-2"
-            >
-              <p class="text-sm font-black text-gray-900">조건에 맞는 거래처가 없습니다.</p>
-              <p class="mt-2 text-xs font-bold text-gray-400">
-                검색어를 바꾸거나 새 거래처를 등록해보세요.
-              </p>
             </div>
+            <PaginationNav
+              :page="buyerStore.page"
+              :size="buyerStore.size"
+              :total-pages="buyerStore.totalPages"
+              :total-elements="buyerStore.totalElements"
+              :has-previous="buyerStore.hasPrevious"
+              :has-next="buyerStore.hasNext"
+              @update:page="fetchBuyerPage({ page: $event })"
+              @update:size="fetchBuyerPage({ page: 0, size: $event })"
+            />
           </div>
 
           <div v-else class="p-5">
@@ -453,6 +487,16 @@ function partnerTypeBadgeClass(value) {
                 </tbody>
               </table>
             </div>
+            <PaginationNav
+              :page="buyerStore.page"
+              :size="buyerStore.size"
+              :total-pages="buyerStore.totalPages"
+              :total-elements="buyerStore.totalElements"
+              :has-previous="buyerStore.hasPrevious"
+              :has-next="buyerStore.hasNext"
+              @update:page="fetchBuyerPage({ page: $event })"
+              @update:size="fetchBuyerPage({ page: 0, size: $event })"
+            />
           </div>
         </section>
 
