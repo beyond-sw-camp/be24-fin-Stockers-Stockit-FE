@@ -1,7 +1,7 @@
-<script setup>
+﻿<script setup>
 import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Check, Info, Loader2, Sprout } from 'lucide-vue-next'
+import { BadgeCheck, Info, Loader2, Sprout } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
 import { roleMenus } from '@/config/roleMenus.js'
@@ -236,6 +236,10 @@ function moveStep(step) {
 function onRecommendationSelect(code) {
   const rec = circularStockStore.recommendations.find((r) => r.code === code)
   if (!rec) return
+  if (selectedBuyer.value?.id === code || selectedBuyer.value?.code === code) {
+    circularStockStore.selectBuyer('')
+    return
+  }
   circularStockStore.selectBuyer(code)
   buyerSearchTerm.value = rec.companyName
 }
@@ -751,73 +755,41 @@ onBeforeUnmount(() => {
                   <!-- 선택된 거래처 컴팩트 카드 (AI/수동 공용) -->
                   <section
                     v-if="selectedBuyer"
-                    class="rounded-md border border-[#DCE8E4] bg-[#F3FAF8] px-4 py-3"
+                    class="rounded-lg border border-[#D8E5E0] bg-[#F8FCFA] px-4 py-3"
                   >
-                    <div class="flex items-start justify-between gap-3">
-                      <div>
-                        <div class="flex items-center gap-2">
-                          <p
-                            class="text-[9px] font-bold uppercase tracking-[0.14em] text-[#0F5C4D]"
-                          >
-                            선택된 거래처
-                          </p>
-                          <span
-                            class="rounded-full bg-[#0F5C4D] px-1.5 py-0.5 text-[9px] font-black text-white"
-                            >✓</span
-                          >
-                        </div>
-                        <p class="mt-1 text-sm font-black text-gray-900">
-                          {{ selectedBuyer.companyName }}
-                        </p>
-                        <p class="mt-0.5 font-mono text-[11px] font-semibold text-gray-500">
-                          {{ selectedBuyer.code }}
-                        </p>
-                      </div>
+                    <div class="flex min-w-0 items-center gap-2">
                       <span
-                        class="rounded-full bg-[#EAF4F0] px-2 py-0.5 text-[10px] font-bold text-[#255F52]"
+                        class="inline-flex h-5 items-center rounded-full bg-[#0F5C4D] px-2 text-[10px] font-black text-white"
+                      >
+                        선택됨
+                      </span>
+                      <p class="truncate text-sm font-black text-gray-900">
+                        {{ selectedBuyer.companyName }}
+                      </p>
+                      <span class="text-[11px] font-semibold text-gray-500">
+                        {{ selectedBuyer.code }}
+                      </span>
+                      <span
+                        class="rounded-full border border-[#BFDFFF] bg-[#EAF6FF] px-2 py-0.5 text-[10px] font-black text-[#1F6FAE]"
                       >
                         {{ materialFitLabel(selectedBuyer.primaryMaterialFit) }}
                       </span>
                     </div>
-                    <div class="mt-3 grid grid-cols-3 gap-3 text-xs">
-                      <div>
-                        <p class="text-[9px] font-bold uppercase tracking-[0.12em] text-gray-400">
-                          담당자
-                        </p>
-                        <p class="mt-0.5 font-semibold text-gray-800">
-                          {{ selectedBuyer.managerName || '-' }}
-                        </p>
-                      </div>
-                      <div>
-                        <p class="text-[9px] font-bold uppercase tracking-[0.12em] text-gray-400">
-                          연락처
-                        </p>
-                        <p class="mt-0.5 font-semibold text-gray-800">
-                          {{ selectedBuyer.phone || '-' }}
-                        </p>
-                      </div>
-                      <div>
-                        <p class="text-[9px] font-bold uppercase tracking-[0.12em] text-gray-400">
-                          산업군
-                        </p>
-                        <p class="mt-0.5 font-semibold text-gray-800">
-                          {{ selectedBuyer.industryGroup || '-' }}
-                        </p>
-                      </div>
-                    </div>
                     <div
-                      v-if="selectedBuyer.description"
-                      class="mt-3 border-t border-[#DCE8E4] pt-3"
+                      class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold text-gray-600"
                     >
-                      <p class="text-[9px] font-bold uppercase tracking-[0.12em] text-gray-400">
-                        거래처 설명
-                      </p>
-                      <p class="mt-1 text-[11px] font-medium leading-5 text-gray-700">
-                        {{ selectedBuyer.description }}
-                      </p>
+                      <span>{{ selectedBuyer.industryGroup || '-' }}</span>
+                      <span>담당자 {{ selectedBuyer.managerName || '-' }}</span>
+                      <span>{{ selectedBuyer.phone || '-' }}</span>
                     </div>
+                    <p
+                      v-if="selectedBuyer.description"
+                      class="mt-2 line-clamp-1 text-[11px] font-medium text-gray-600"
+                    >
+                      {{ selectedBuyer.description }}
+                    </p>
                   </section>
-                  <div v-if="selectedBuyer" class="h-6" />
+                  <div v-if="selectedBuyer" class="h-5" />
 
                   <!-- 모드 토글 — AI 추천 (default) / 수동 검색 -->
                   <div
@@ -1018,14 +990,16 @@ onBeforeUnmount(() => {
                             class="inline-flex h-9 items-center rounded-xl px-4 text-sm font-extrabold tracking-[0.01em] transition-all duration-200 active:scale-[0.98]"
                             :class="
                               selectedBuyer?.id === rec.code || selectedBuyer?.code === rec.code
-                                ? 'border border-[#7FA28A] bg-[#F3FAF4] text-[#2F5E38] font-black shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]'
-                                : 'border border-[#2E5734] bg-linear-to-b from-[#3E6C47] to-[#2E5734] text-white shadow-[0_8px_18px_-10px_rgba(26,64,41,0.65)] hover:from-[#467650] hover:to-[#335F3D]'
+                                ? 'border border-[#7FA28A] bg-[#F3FAF4] text-[#285734] font-black shadow-[0_3px_10px_-8px_rgba(34,84,52,0.45)]'
+                                : 'border border-[#315E3B] bg-[#315E3B] text-white shadow-[0_8px_16px_-10px_rgba(26,64,41,0.55)] hover:border-[#2A5032] hover:bg-[#2A5032]'
                             "
                             @click.stop="onRecommendationSelect(rec.code)"
                           >
                             <template v-if="selectedBuyer?.id === rec.code || selectedBuyer?.code === rec.code">
-                              <Check class="mr-1 h-4 w-4" :stroke-width="2.5" />
-                              선택됨
+                              <span class="inline-flex items-center gap-1">
+                                <BadgeCheck class="h-4 w-4" :stroke-width="2.2" />
+                                <span>선택됨</span>
+                              </span>
                             </template>
                             <template v-else>선택</template>
                           </button>
