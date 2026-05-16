@@ -229,6 +229,7 @@ export const useCircularStockBuyerStore = defineStore('circularStockBuyers', () 
         size: opts.size ?? size.value,
         keyword: opts.keyword,
         materialFit: opts.materialFit,
+        partnerType: opts.partnerType,
       })
       const list = Array.isArray(res?.content) ? res.content : []
       buyers.value = list.map(fromApi)

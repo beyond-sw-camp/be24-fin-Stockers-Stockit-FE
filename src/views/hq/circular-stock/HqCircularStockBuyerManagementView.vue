@@ -17,6 +17,7 @@ const activeSideMenu = ref('순환 재고 거래처 관리')
 
 const searchKeyword = ref('')
 const materialFitFilter = ref('')
+const partnerTypeFilter = ref('')
 const selectedBuyerId = ref('')
 const panelMode = ref('create')
 const browseMode = ref('card')
@@ -108,6 +109,7 @@ async function fetchBuyerPage(overrides = {}) {
     size: overrides.size ?? buyerStore.size,
     keyword: searchKeyword.value.trim() || undefined,
     materialFit: materialFitFilter.value || undefined,
+    partnerType: partnerTypeFilter.value || undefined,
   })
 }
 
@@ -163,6 +165,7 @@ async function submitForm() {
   if (isCreate) {
     searchKeyword.value = ''
     materialFitFilter.value = ''
+    partnerTypeFilter.value = ''
     await fetchBuyerPage({ page: 0 })
   } else {
     await fetchBuyerPage()
@@ -183,7 +186,7 @@ function partnerTypeBadgeClass(value) {
   return 'bg-gray-100 text-gray-500'
 }
 
-watch([searchKeyword, materialFitFilter], () => {
+watch([searchKeyword, materialFitFilter, partnerTypeFilter], () => {
   fetchBuyerPage({ page: 0 }).catch(() => {})
 })
 
@@ -298,7 +301,7 @@ onMounted(() => {
               </div>
             </div>
 
-            <div class="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_14rem_auto]">
+            <div class="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_12rem_12rem_auto]">
               <input
                 v-model="searchKeyword"
                 type="search"
@@ -318,6 +321,16 @@ onMounted(() => {
                 >
                   {{ option.label }}
                 </option>
+              </select>
+
+              <select
+                v-model="partnerTypeFilter"
+                class="h-11 border border-gray-300 bg-[#fafaf8] px-3 text-sm font-bold text-gray-900 outline-none focus:border-[#19352c] focus:bg-white"
+              >
+                <option value="">전체 거래처 분류</option>
+                <option value="general">일반</option>
+                <option value="local_small">지역 소규모</option>
+                <option value="social_enterprise">사회적기업</option>
               </select>
 
               <div class="flex overflow-hidden border border-gray-300 bg-white">

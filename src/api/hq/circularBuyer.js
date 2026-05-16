@@ -2,8 +2,8 @@
  * circularBuyer.js — BE 연동 (ADR-021 순환재고 거래처)
  *
  * BE 엔드포인트:
- *   GET    /api/hq/circular-buyers?keyword=&materialFit=    목록
- *   GET    /api/hq/circular-buyers/page?page=&size=&keyword=&materialFit=  페이징 목록
+ *   GET    /api/hq/circular-buyers?keyword=&materialFit=&partnerType=    목록
+ *   GET    /api/hq/circular-buyers/page?page=&size=&keyword=&materialFit=&partnerType=  페이징 목록
  *   GET    /api/hq/circular-buyers/{code}                    상세
  *   POST   /api/hq/circular-buyers                           등록 (등록 시 BE 가 임베딩 자동 생성)
  *   PATCH  /api/hq/circular-buyers/{code}                    수정 (의미 필드 변경 시 BE 가 임베딩 재생성)
@@ -18,13 +18,13 @@ import { apiClient, unwrap } from '../axios.js'
 const BASE = '/api/hq/circular-buyers'
 
 export const circularBuyerApi = {
-  /** @param {{ keyword?: string, materialFit?: 'natural-single'|'synthetic'|'blended' }} [opts] */
-  list: ({ keyword, materialFit } = {}) =>
-    apiClient.get(BASE, { params: { keyword, materialFit } }).then(unwrap),
+  /** @param {{ keyword?: string, materialFit?: 'natural-single'|'synthetic'|'blended', partnerType?: 'general'|'local_small'|'social_enterprise' }} [opts] */
+  list: ({ keyword, materialFit, partnerType } = {}) =>
+    apiClient.get(BASE, { params: { keyword, materialFit, partnerType } }).then(unwrap),
 
-  /** @param {{ page?: number, size?: number, keyword?: string, materialFit?: 'natural-single'|'synthetic'|'blended' }} [opts] */
-  listPage: ({ page = 0, size = 20, keyword, materialFit } = {}) =>
-    apiClient.get(`${BASE}/page`, { params: { page, size, keyword, materialFit } }).then(unwrap),
+  /** @param {{ page?: number, size?: number, keyword?: string, materialFit?: 'natural-single'|'synthetic'|'blended', partnerType?: 'general'|'local_small'|'social_enterprise' }} [opts] */
+  listPage: ({ page = 0, size = 20, keyword, materialFit, partnerType } = {}) =>
+    apiClient.get(`${BASE}/page`, { params: { page, size, keyword, materialFit, partnerType } }).then(unwrap),
 
   detail: (code) => apiClient.get(`${BASE}/${code}`).then(unwrap),
 
