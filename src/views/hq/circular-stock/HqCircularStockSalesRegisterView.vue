@@ -240,7 +240,7 @@ function onRecommendationSelect(code) {
     return
   }
   circularStockStore.selectBuyer(code)
-  buyerSearchTerm.value = rec.companyName
+  buyerSearchTerm.value = ''
 }
 
 function toggleRecommendationDetail(code) {
@@ -379,7 +379,7 @@ function removeDraftItem(draftId) {
 
 function selectBuyer(buyer) {
   circularStockStore.selectBuyer(buyer.id)
-  buyerSearchTerm.value = buyer.companyName
+  buyerSearchTerm.value = ''
 }
 
 function clearDraftPanel() {
@@ -768,7 +768,7 @@ onBeforeUnmount(() => {
                         {{ selectedBuyer.code }}
                       </span>
                       <span
-                        class="rounded-full border border-[#BFDFFF] bg-[#EAF6FF] px-2 py-0.5 text-[10px] font-black text-[#1F6FAE]"
+                        class="rounded-full border border-[#BFDCCF] bg-[#ECF7F1] px-2 py-0.5 text-[10px] font-black text-[#2F6B4F]"
                       >
                         {{ materialFitLabel(selectedBuyer.primaryMaterialFit) }}
                       </span>
@@ -949,7 +949,7 @@ onBeforeUnmount(() => {
                             >
                               {{ rec.companyName }}
                             </p>
-                            <span class="text-xs font-bold leading-none text-gray-400">{{
+                            <span class="pt-[1px] text-xs font-bold leading-none text-gray-400">{{
                               rec.code
                             }}</span>
                             <span
@@ -1075,35 +1075,38 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div class="h-4" />
-                    <div
-                      class="min-h-[180px] rounded-2xl border border-gray-200 bg-white px-5 py-6"
-                    >
+                    <div class="min-h-[240px] rounded-xl border border-gray-200 bg-[#FBFCFB] px-2 py-2">
                       <div
                         v-if="filteredBuyers.length > 0"
-                        class="max-h-72 space-y-1.5 overflow-y-auto"
+                        class="max-h-[24rem] space-y-1.5 overflow-y-auto pr-1"
                       >
                         <button
                           v-for="buyer in filteredBuyers"
                           :key="buyer.id"
                           type="button"
-                          class="flex w-full flex-col items-start rounded-lg border border-gray-200 px-4 py-2.5 text-left transition hover:border-[#CFE2DA] hover:bg-[#F6FBF9]"
+                          class="flex w-full flex-col items-start rounded-lg border border-gray-200 px-3 py-2 text-left transition hover:border-[#CFE2DA] hover:bg-[#F6FBF9]"
                           @click="selectBuyer(buyer)"
                         >
-                          <span class="text-sm font-black text-gray-900">{{
-                            buyer.companyName
-                          }}</span>
-                          <span class="mt-1 text-xs font-bold text-gray-500">
-                            {{ buyer.code }} · {{ buyer.managerName }} · {{ buyer.phone }}
+                          <div class="flex items-center gap-2">
+                            <span class="text-sm font-black leading-none text-gray-900">{{ buyer.companyName }}</span>
+                            <span class="pt-[1px] text-xs font-bold leading-none text-gray-500">{{ buyer.code }}</span>
+                          </div>
+                          <div class="h-1.5" />
+                          <span class="block text-xs font-bold text-gray-400">
+                            {{ materialFitLabel(buyer.primaryMaterialFit) }} ·
+                            {{ buyer.industryGroup || '-' }} ·
+                            {{ buyer.productNote || '-' }}
                           </span>
-                          <span class="mt-1 text-xs font-bold text-gray-400">
-                            {{ buyer.industryGroup }} ·
-                            {{ materialFitLabel(buyer.primaryMaterialFit) }}
+                          <div class="h-1.5" />
+                          <span class="block text-xs font-bold text-gray-500">
+                            담당자 {{ buyer.managerName || '-' }} · {{ buyer.phone || '-' }} ·
+                            {{ recommendationLocationLabel(buyer) }}
                           </span>
                         </button>
                       </div>
                       <div
                         v-else
-                        class="flex min-h-[140px] flex-col items-center justify-center text-center"
+                        class="flex min-h-[140px] flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 text-center"
                       >
                         <p class="text-[28px] leading-none text-gray-300">⌕</p>
                         <p class="mt-2 text-lg font-bold text-gray-500">
@@ -1383,8 +1386,8 @@ onBeforeUnmount(() => {
               v-if="saleStep === 2"
               class="border-t border-gray-200 bg-gray-50 px-6 py-4"
             >
-              <div class="flex items-center justify-between gap-4">
-                <div class="pl-2 min-w-0">
+              <div class="relative flex items-center justify-end gap-3">
+                <div v-if="selectedBuyer" class="absolute left-2 right-[26rem] min-w-0">
                   <div class="flex min-w-0 items-center gap-2">
                     <span
                       class="inline-flex h-6 items-center rounded-full bg-[#0F5C4D] px-2.5 text-[11px] font-black text-white"
@@ -1394,16 +1397,17 @@ onBeforeUnmount(() => {
                     <span class="truncate text-base font-black text-gray-900">
                       {{ selectedBuyer?.companyName || '-' }}
                     </span>
-                    <span class="text-sm font-bold text-gray-500">
+                    <span class="pt-[1px] text-sm font-bold leading-none text-gray-500">
                       {{ selectedBuyer?.code || '-' }}
                     </span>
                     <span
-                      class="rounded-full border border-[#BFDFFF] bg-[#EAF6FF] px-2 py-0.5 text-[11px] font-black text-[#1F6FAE]"
+                      class="rounded-full border border-[#BFDCCF] bg-[#ECF7F1] px-2 py-0.5 text-[11px] font-black text-[#2F6B4F]"
                     >
                       {{ materialFitLabel(selectedBuyer?.primaryMaterialFit) || '-' }}
                     </span>
                   </div>
-                  <p class="mt-1 text-sm font-bold text-gray-500">
+                  <div class="h-1" />
+                  <p class="pl-[3.7rem] text-sm font-bold text-gray-500">
                     {{ selectedBuyer?.industryGroup || '-' }} · 담당자
                     {{ selectedBuyer?.managerName || '-' }} · {{ selectedBuyer?.phone || '-' }}
                   </p>
