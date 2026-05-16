@@ -398,6 +398,12 @@ onMounted(() => {
                       {{ buyer.code }}
                     </p>
                     <h3 class="mt-2 text-base font-black text-gray-900">{{ buyer.companyName }}</h3>
+                    <span
+                      class="mt-2 inline-flex px-2.5 py-1 text-[10px] font-black"
+                      :class="partnerTypeBadgeClass(buyer.partnerType)"
+                    >
+                      {{ buyerStore.partnerTypeLabel(buyer.partnerType) }}
+                    </span>
                   </div>
                   <span
                     class="shrink-0 px-2.5 py-1 text-[10px] font-black"
@@ -426,11 +432,6 @@ onMounted(() => {
                   >
                     +{{ buyer.factoryProduct.length - 3 }}
                   </span>
-                </div>
-
-                <div class="mt-5 flex items-center justify-between text-[11px]">
-                  <span class="font-bold text-gray-500">{{ buyer.managerName }}</span>
-                  <span class="font-black text-gray-700">{{ buyer.phone }}</span>
                 </div>
               </button>
 
