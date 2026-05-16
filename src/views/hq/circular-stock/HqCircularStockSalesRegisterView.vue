@@ -24,7 +24,6 @@ const activeTopMenu = computed(() => '순환 재고 관리')
 const activeSideMenu = ref('순환 재고 판매 등록')
 
 const buyerSearchTerm = ref('')
-const isBuyerDropdownOpen = ref(false)
 const buyerDropdownRef = ref(null)
 const isDrawerOpen = ref(false)
 const showFinalReviewModal = ref(false)
@@ -381,7 +380,6 @@ function removeDraftItem(draftId) {
 function selectBuyer(buyer) {
   circularStockStore.selectBuyer(buyer.id)
   buyerSearchTerm.value = buyer.companyName
-  isBuyerDropdownOpen.value = false
 }
 
 function clearDraftPanel() {
@@ -447,7 +445,6 @@ function showToast(message, tone = 'success') {
 
 function handleDocumentClick(event) {
   if (!buyerDropdownRef.value?.contains(event.target)) {
-    isBuyerDropdownOpen.value = false
   }
 }
 
@@ -750,7 +747,7 @@ onBeforeUnmount(() => {
                 </div>
               </div>
 
-              <div v-else-if="saleStep === 2" class="mt-0">
+              <div v-else-if="saleStep === 2" class="mt-0 flex min-h-[560px] flex-col">
                 <section ref="buyerDropdownRef">
                   <!-- 선택된 거래처 컴팩트 카드 (AI/수동 공용) -->
                   <section
@@ -830,16 +827,16 @@ onBeforeUnmount(() => {
                     </div>
                   </div>
                   <div class="h-4" />
-                <div
-                  v-if="buyerPanelMode === 'ai'"
-                  class="flex items-start gap-2 rounded-lg border border-[#F1E7CF] bg-[#FFFBF3] px-4 py-2 text-xs font-bold text-[#7D6432]"
-                >
-                  <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#B38A3A]" :stroke-width="2" />
-                  <span>
-                    선택된 소재 정보를 기반으로 DB에서 가장 적합한 거래처 5곳을 AI가 분석했습니다.
-                    각 거래처를 클릭해 AI 추천 상세 이유를 확인하세요
-                  </span>
-                </div>
+                  <div
+                    v-if="buyerPanelMode === 'ai'"
+                    class="flex items-start gap-2 rounded-lg border border-[#F1E7CF] bg-[#FFFBF3] px-4 py-2 text-xs font-bold text-[#7D6432]"
+                  >
+                    <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#B38A3A]" :stroke-width="2" />
+                    <span>
+                      선택된 소재 정보를 기반으로 DB에서 가장 적합한 거래처 5곳을 AI가 분석했습니다.
+                      각 거래처를 클릭해 AI 추천 상세 이유를 확인하세요
+                    </span>
+                  </div>
                   <div v-if="buyerPanelMode === 'ai'" class="h-3" />
 
                   <!-- AI 추천 모드 -->
@@ -1000,7 +997,11 @@ onBeforeUnmount(() => {
                             "
                             @click.stop="onRecommendationSelect(rec.code)"
                           >
-                            <template v-if="selectedBuyer?.id === rec.code || selectedBuyer?.code === rec.code">
+                            <template
+                              v-if="
+                                selectedBuyer?.id === rec.code || selectedBuyer?.code === rec.code
+                              "
+                            >
                               <span class="inline-flex items-center gap-1">
                                 <BadgeCheck class="h-4 w-4" :stroke-width="2.2" />
                                 <span>선택됨</span>
@@ -1010,10 +1011,10 @@ onBeforeUnmount(() => {
                           </button>
                         </div>
                       </div>
-                    <div
-                      v-if="expandedRecommendationCode === rec.code"
-                      class="border-t border-[#E5EEEA] bg-[#F8FBFA] px-4 py-3 text-xs"
-                    >
+                      <div
+                        v-if="expandedRecommendationCode === rec.code"
+                        class="border-t border-[#E5EEEA] bg-[#F8FBFA] px-4 py-3 text-xs"
+                      >
                         <div class="pl-[calc(28px+40px+0.75rem)] pr-20">
                           <p
                             class="font-black text-[#0F5C4D]"
@@ -1045,8 +1046,8 @@ onBeforeUnmount(() => {
                         <div class="flex items-center gap-2 pl-[calc(28px+40px+0.75rem)] pr-4">
                           <Sprout class="h-4 w-4 shrink-0 text-[#2E5734]" :stroke-width="2" />
                           <span>
-                            이 거래처와 거래하면 <span class="font-black">ESG 나무 +150점</span> 추가
-                            적립
+                            이 거래처와 거래하면
+                            <span class="font-black">ESG 나무 +150점</span> 추가 적립
                             <span class="text-xs font-bold text-[#4E6D54]">
                               ({{ recommendationBonusReason(rec, index) }})
                             </span>
@@ -1057,71 +1058,98 @@ onBeforeUnmount(() => {
                   </div>
 
                   <div v-else class="mt-4">
-                    <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">
-                      Buyer Search
-                    </p>
-                    <label class="mt-2 flex flex-col gap-1.5">
-                      <span class="text-[11px] font-bold text-gray-500">거래처 검색</span>
+                    <div class="flex items-center gap-6">
                       <input
                         v-model="buyerSearchTerm"
                         type="search"
-                        class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#004D3C]"
-                        placeholder="업체명, 코드, 담당자명"
-                        @focus="isBuyerDropdownOpen = true"
+                        class="h-10 w-full rounded-xl border border-gray-300 bg-white px-4 text-sm font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#004D3C]"
+                        placeholder="거래처명, 거래처 코드, 담당자명, 연락처, 처리 소재, 지역으로 검색..."
                       />
-                    </label>
-                    <p class="mt-2 text-[10px] font-bold text-gray-400">
-                      소재 구분 {{ lockedMaterialType || '-' }} 기준 후보
-                      {{ filteredBuyers.length }}건
-                    </p>
-                    <div
-                      v-if="isBuyerDropdownOpen"
-                      class="mt-2 max-h-64 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-xl"
-                    >
                       <button
-                        v-for="buyer in filteredBuyers"
-                        :key="buyer.id"
                         type="button"
-                        class="flex w-full flex-col items-start border-b border-gray-100 px-3 py-2 text-left transition hover:bg-[#EBF5F5]"
-                        @click="selectBuyer(buyer)"
+                        class="h-10 min-w-[80px] rounded-xl bg-[#2D5B35] px-5 text-sm font-black text-white transition hover:bg-[#244B2B]"
                       >
-                        <span class="text-xs font-black text-gray-900">{{
-                          buyer.companyName
-                        }}</span>
-                        <span class="mt-0.5 text-[11px] font-bold text-gray-500"
-                          >{{ buyer.code }} · {{ buyer.managerName }} · {{ buyer.phone }}</span
-                        >
-                        <span class="mt-1 text-[11px] font-bold text-gray-400"
-                          >{{ buyer.industryGroup }} ·
-                          {{ materialFitLabel(buyer.primaryMaterialFit) }}</span
-                        >
+                        검색
                       </button>
+                    </div>
+
+                    <div class="h-8" />
+                    <div
+                      class="min-h-[180px] rounded-2xl border border-gray-200 bg-white px-5 py-6"
+                    >
                       <div
-                        v-if="filteredBuyers.length === 0"
-                        class="px-3 py-4 text-center text-xs font-bold text-gray-400"
+                        v-if="filteredBuyers.length > 0"
+                        class="max-h-72 space-y-1.5 overflow-y-auto"
                       >
-                        검색 결과가 없습니다.
+                        <button
+                          v-for="buyer in filteredBuyers"
+                          :key="buyer.id"
+                          type="button"
+                          class="flex w-full flex-col items-start rounded-lg border border-gray-200 px-4 py-2.5 text-left transition hover:border-[#CFE2DA] hover:bg-[#F6FBF9]"
+                          @click="selectBuyer(buyer)"
+                        >
+                          <span class="text-sm font-black text-gray-900">{{
+                            buyer.companyName
+                          }}</span>
+                          <span class="mt-1 text-xs font-bold text-gray-500">
+                            {{ buyer.code }} · {{ buyer.managerName }} · {{ buyer.phone }}
+                          </span>
+                          <span class="mt-1 text-xs font-bold text-gray-400">
+                            {{ buyer.industryGroup }} ·
+                            {{ materialFitLabel(buyer.primaryMaterialFit) }}
+                          </span>
+                        </button>
                       </div>
+                      <div
+                        v-else
+                        class="flex min-h-[140px] flex-col items-center justify-center text-center"
+                      >
+                        <p class="text-[28px] leading-none text-gray-300">⌕</p>
+                        <p class="mt-2 text-lg font-bold text-gray-500">
+                          검색어를 입력하면 전체 거래처 DB에서 조회합니다.
+                        </p>
+                        <p class="mt-1 text-base font-semibold text-gray-400">
+                          AI 추천 거래처는 매칭 적합도와 추천 근거가 자동 제공됩니다.
+                        </p>
+                      </div>
+                    </div>
+                    <div class="pt-3">
+                      <p class="text-right text-xs font-bold text-gray-500">
+                        현재 선택된 소재 구분(천연 단일 섬유/합성 섬유/혼방)에 맞는 거래처만
+                        표시됩니다.
+                      </p>
                     </div>
                   </div>
                 </section>
 
-                <div class="mt-6 border-t border-gray-100 pt-3 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    class="h-9 border border-gray-300 bg-white px-4 text-xs font-black text-gray-700 hover:bg-gray-50"
-                    @click="moveStep(1)"
-                  >
-                    이전
-                  </button>
-                  <button
-                    type="button"
-                    class="h-9 border border-[#004D3C] bg-[#004D3C] px-4 text-xs font-black text-white disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
-                    :disabled="!canMoveStep3"
-                    @click="moveStep(3)"
-                  >
-                    다음
-                  </button>
+                <div
+                  class="sticky bottom-0 z-10 -mx-6 border-t border-gray-200 bg-gray-50/95 px-6 py-4 backdrop-blur-sm"
+                >
+                  <div class="flex items-center justify-between gap-4">
+                    <p class="text-base font-bold text-gray-500">
+                      선택된 거래처:
+                      <span class="font-black text-[#1F3A2D]">{{
+                        selectedBuyer?.companyName || '-'
+                      }}</span>
+                    </p>
+                    <div class="flex items-center gap-3">
+                      <button
+                        type="button"
+                        class="h-12 rounded-xl border border-gray-300 bg-white px-6 text-base font-black text-gray-700 hover:bg-gray-50"
+                        @click="moveStep(1)"
+                      >
+                        ← SKU 목록으로
+                      </button>
+                      <button
+                        type="button"
+                        class="h-12 rounded-xl border border-[#004D3C] bg-[#004D3C] px-7 text-base font-black text-white disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
+                        :disabled="!canMoveStep3"
+                        @click="moveStep(3)"
+                      >
+                        판매 조건 확정으로 →
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
