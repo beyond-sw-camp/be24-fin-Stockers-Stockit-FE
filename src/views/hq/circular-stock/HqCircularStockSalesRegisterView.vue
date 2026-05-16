@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Info, Loader2, Sprout } from 'lucide-vue-next'
+import { Check, Info, Loader2, Sprout } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
 import { roleMenus } from '@/config/roleMenus.js'
@@ -38,7 +38,6 @@ let toastTimer = null
 // ADR-021 AI 거래처 추천 — Step 2 좌측 영역 모드 토글. 'ai' | 'manual'.
 const buyerPanelMode = ref('ai')
 const expandedRecommendationCode = ref('')
-const lastRecommendationKey = ref('')
 const visibleRationaleCodes = ref({})
 let rationaleTimers = []
 
@@ -101,6 +100,17 @@ const recommendationKey = computed(() =>
     .sort()
     .join('|'),
 )
+
+async function ensureRecommendationsUpToDate() {
+  if (circularStockStore.isRecommendationLoading) return
+  const shouldRefetch =
+    circularStockStore.recommendationDirty ||
+    circularStockStore.recommendations.length === 0 ||
+    circularStockStore.recommendationBasisKey !== circularStockStore.lastRecommendationBasisKey
+  if (shouldRefetch) {
+    await circularStockStore.fetchRecommendations()
+  }
+}
 const matchingMaterialBadges = computed(() => {
   const badgeMap = new Map()
   for (const item of draftItems.value) {
@@ -218,14 +228,8 @@ function moveStep(step) {
   }
   saleStep.value = step
   // ADR-021 — Step 2 진입 시 AI 추천 호출
-  if (step === 2 && !circularStockStore.isRecommendationLoading) {
-    const shouldRefetch =
-      circularStockStore.recommendations.length === 0 ||
-      recommendationKey.value !== lastRecommendationKey.value
-    if (shouldRefetch) {
-      lastRecommendationKey.value = recommendationKey.value
-      circularStockStore.fetchRecommendations()
-    }
+  if (step === 2) {
+    ensureRecommendationsUpToDate()
   }
 }
 
@@ -247,9 +251,9 @@ function clearRationaleTimers() {
 
 function startRationaleProgressiveReveal() {
   clearRationaleTimers()
-  visibleRationaleCodes.value = {}
   const list = topRecommendations.value
   list.forEach((rec, index) => {
+    if (visibleRationaleCodes.value[rec.code]) return
     const timer = setTimeout(
       () => {
         visibleRationaleCodes.value = {
@@ -468,28 +472,27 @@ watch(toastMessage, (message) => {
 })
 
 watch(
-  () => topRecommendations.value.map((rec) => rec.code).join('|'),
-  () => {
+  () => `${recommendationKey.value}::${topRecommendations.value.map((rec) => rec.code).join('|')}`,
+  (next, prev) => {
+    if (next !== prev) {
+      visibleRationaleCodes.value = {}
+    }
     if (buyerPanelMode.value === 'ai' && topRecommendations.value.length > 0) {
       startRationaleProgressiveReveal()
     }
   },
 )
 
-watch(
-  () => buyerPanelMode.value,
-  (mode) => {
-    if (mode === 'ai' && topRecommendations.value.length > 0) {
-      startRationaleProgressiveReveal()
-    }
-  },
-)
+// 탭 전환만으로는 이미 표시된 AI 추천 이유를 다시 스켈레톤으로 되돌리지 않는다.
 
 onMounted(() => {
   document.addEventListener('mousedown', handleDocumentClick)
   loadCircularInventoryRows()
   circularStockStore.markWorkflowStarted()
   isDrawerOpen.value = true
+  if (saleStep.value >= 2) {
+    ensureRecommendationsUpToDate()
+  }
 })
 
 onBeforeUnmount(() => {
@@ -1020,11 +1023,11 @@ onBeforeUnmount(() => {
                             "
                             @click.stop="onRecommendationSelect(rec.code)"
                           >
-                            {{
-                              selectedBuyer?.id === rec.code || selectedBuyer?.code === rec.code
-                                ? '✓ 선택됨'
-                                : '선택'
-                            }}
+                            <template v-if="selectedBuyer?.id === rec.code || selectedBuyer?.code === rec.code">
+                              <Check class="mr-1 h-4 w-4" :stroke-width="2.5" />
+                              선택됨
+                            </template>
+                            <template v-else>선택</template>
                           </button>
                         </div>
                       </div>

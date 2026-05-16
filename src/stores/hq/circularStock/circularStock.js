@@ -475,6 +475,8 @@ export const useCircularStockStore = defineStore('circularStock', () => {
   const recommendations = ref([])
   const isRecommendationLoading = ref(false)
   const recommendationError = ref(null)
+  const lastRecommendationBasisKey = ref('')
+  const recommendationDirty = ref(true)
 
   const inventoryRows = computed(() => {
     const source = liveCircularInventoryRows.value.length > 0
@@ -540,6 +542,11 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     const totalQty = items.reduce((sum, item) => sum + (Number(item.availableQuantity) || 0), 0)
     const quantityHint = `약 ${totalKg.toFixed(1)}kg / ${totalQty}벌`
     return { materialFit, productName, description, quantityHint, productCode: head.itemCode ?? null }
+  })
+
+  const recommendationBasisKey = computed(() => {
+    if (!recommendationPayload.value) return ''
+    return JSON.stringify(recommendationPayload.value)
   })
 
   const matchedBuyerCandidates = computed(() => {
@@ -805,6 +812,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     })
 
     draftItems.value = [...draftItems.value, draftItem]
+    recommendationDirty.value = true
     return { success: true, item: draftItem }
   }
 
@@ -822,6 +830,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
 
   function removeSaleDraftItem(draftId) {
     draftItems.value = draftItems.value.filter(item => item.draftId !== draftId)
+    recommendationDirty.value = true
     if (draftItems.value.length === 0) {
       lockedMaterialType.value = ''
       draftBuyerId.value = ''
@@ -829,6 +838,8 @@ export const useCircularStockStore = defineStore('circularStock', () => {
       hasStartedWorkflow.value = false
       recommendations.value = []
       recommendationError.value = null
+      lastRecommendationBasisKey.value = ''
+      recommendationDirty.value = true
     }
   }
 
@@ -841,6 +852,8 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     hasStartedWorkflow.value = false
     recommendations.value = []
     recommendationError.value = null
+    lastRecommendationBasisKey.value = ''
+    recommendationDirty.value = true
   }
 
   function markWorkflowStarted() {
@@ -861,6 +874,8 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     try {
       const res = await circularBuyerApi.recommend(payload)
       recommendations.value = Array.isArray(res?.recommendations) ? res.recommendations : []
+      lastRecommendationBasisKey.value = recommendationBasisKey.value
+      recommendationDirty.value = false
     } catch (err) {
       recommendationError.value = err?.message ?? 'AI 추천을 불러오지 못했습니다.'
       recommendations.value = []
@@ -1075,6 +1090,9 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     isRecommendationLoading,
     recommendationError,
     recommendationPayload,
+    recommendationBasisKey,
+    lastRecommendationBasisKey,
+    recommendationDirty,
     formatWeight,
     filteredBuyers,
     getInventoryById,
