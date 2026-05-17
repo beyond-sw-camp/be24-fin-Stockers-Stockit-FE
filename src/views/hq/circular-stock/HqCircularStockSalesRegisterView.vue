@@ -1,10 +1,11 @@
 ﻿<script setup>
 import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowDown, ChevronDown, ChevronUp, BadgeCheck, Bot, Info, Loader2, Package, Ruler, Shirt, Sprout, Tag } from 'lucide-vue-next'
+import { ArrowDown, ChevronDown, ChevronUp, Info, Package, Ruler, Shirt, Tag } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import SalesRegisterStepper from '@/components/hq/circular-stock/sales-register/SalesRegisterStepper.vue'
 import SalesRegisterStep1SkuTable from '@/components/hq/circular-stock/sales-register/SalesRegisterStep1SkuTable.vue'
+import SalesRegisterStep2BuyerSection from '@/components/hq/circular-stock/sales-register/SalesRegisterStep2BuyerSection.vue'
 import SalesRegisterStepFooter from '@/components/hq/circular-stock/sales-register/SalesRegisterStepFooter.vue'
 import SalesRegisterFinalReviewModal from '@/components/hq/circular-stock/sales-register/SalesRegisterFinalReviewModal.vue'
 import { roleMenus } from '@/config/roleMenus.js'
@@ -27,7 +28,6 @@ const activeTopMenu = computed(() => '순환 재고 관리')
 const activeSideMenu = ref('순환 재고 판매 등록')
 
 const buyerSearchTerm = ref('')
-const buyerDropdownRef = ref(null)
 const isDrawerOpen = ref(false)
 const showFinalReviewModal = ref(false)
 const priceEditModes = ref({})
@@ -860,11 +860,6 @@ function showToast(message, tone = 'success') {
   toastTone.value = tone
 }
 
-function handleDocumentClick(event) {
-  if (!buyerDropdownRef.value?.contains(event.target)) {
-  }
-}
-
 function materialFitLabel(value) {
   return buyerStore.materialFitLabel(value)
 }
@@ -909,7 +904,6 @@ onMounted(() => {
     Object.entries(groupRequestedKg.value).map(([key, value]) => [key, Number(value || 0).toFixed(2)]),
   )
   window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
-  document.addEventListener('mousedown', handleDocumentClick)
   loadCircularInventoryRows()
   circularStockStore.markWorkflowStarted()
   isDrawerOpen.value = true
@@ -920,7 +914,6 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  document.removeEventListener('mousedown', handleDocumentClick)
   if (toastTimer) clearTimeout(toastTimer)
   clearRationaleTimers()
 })
@@ -995,349 +988,37 @@ onBeforeUnmount(() => {
                 @clear-all="clearDraftPanel"
               />
 
-              <template v-else-if="saleStep === 2">
-              <div class="mt-0">
-                <section ref="buyerDropdownRef">
-                  <!-- 모드 토글 — AI 추천 (default) / 수동 검색 -->
-                  <div class="border-b border-gray-200">
-                    <div class="flex items-end gap-0">
-                      <button
-                        type="button"
-                        class="inline-flex h-11 items-center gap-2 border-b-2 px-8 text-sm font-black transition"
-                        :class="
-                          buyerPanelMode === 'ai'
-                            ? 'border-[#2D5B35] text-[#1F2937]'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
-                        "
-                        @click="buyerPanelMode = 'ai'"
-                      >
-                        <Bot class="h-3.5 w-3.5 text-[#7A5A2D]" :stroke-width="2.2" />
-                        <span class="text-sm font-black leading-none">AI 추천</span>
-                        <span
-                          v-if="!circularStockStore.isRecommendationLoading"
-                          class="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#D4E8D2] px-1.5 text-[11px] font-black text-[#2D5B35]"
-                        >
-                          {{ circularStockStore.recommendations.length }}
-                        </span>
-                      </button>
-
-                      <button
-                        type="button"
-                        class="inline-flex h-11 items-center gap-2 border-b-2 px-8 text-sm font-black leading-none transition"
-                        :class="
-                          buyerPanelMode === 'manual'
-                            ? 'border-[#2D5B35] text-[#1F2937]'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
-                        "
-                        @click="buyerPanelMode = 'manual'"
-                      >
-                        <span>수동 선택</span>
-                        <span class="text-[11px] font-bold text-gray-500">전체</span>
-                      </button>
-                    </div>
-                  </div>
-                  <div class="h-4" />
-                  <div
-                    v-if="buyerPanelMode === 'ai'"
-                    class="flex items-start gap-2 rounded-lg border border-[#F1E7CF] bg-[#FFFBF3] px-4 py-2 text-xs font-bold text-[#7D6432]"
-                  >
-                    <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#B38A3A]" :stroke-width="2" />
-                    <span>
-                      출고 창고 {{ outboundWarehouseLabel }} 기준,
-                      선택된 소재 정보를 기반으로 DB에서 가장 적합한 거래처 5곳을 AI가 분석했습니다.
-                      각 거래처를 클릭해 AI 거래처 매칭 추천 상세 이유를 확인하세요
-                    </span>
-                  </div>
-                  <div v-if="buyerPanelMode === 'ai'" class="h-3" />
-
-                  <!-- AI 추천 모드 -->
-                  <div v-if="buyerPanelMode === 'ai'" class="space-y-5">
-                    <div
-                      v-if="
-                        circularStockStore.isRecommendationLoading &&
-                        topRecommendations.length === 0
-                      "
-                    >
-                      <div
-                        class="mb-2 flex items-center gap-2 pl-2 text-sm text-gray-700"
-                        style="font-weight: 700; margin-bottom: 8px"
-                      >
-                        <Loader2 class="h-4 w-4 animate-spin text-[#2E5734]" :stroke-width="2.2" />
-                        <span>AI가 거래처 추천 이유를 분석중입니다.</span>
-                      </div>
-                      <template v-for="n in 5" :key="`rec-skeleton-${n}`">
-                        <div
-                          class="overflow-hidden rounded-xl border border-gray-200 bg-white px-4 py-4"
-                        >
-                          <div
-                            class="grid grid-cols-[28px_40px_minmax(0,1fr)_auto] items-start gap-3"
-                          >
-                            <div class="mt-1 h-7 w-7 animate-pulse rounded-full bg-gray-200" />
-                            <div class="h-10 w-10 animate-pulse rounded-xl bg-gray-200" />
-                            <div>
-                              <div class="h-4 w-56 animate-pulse rounded bg-gray-200" />
-                              <div
-                                class="h-4 w-72 animate-pulse rounded bg-gray-200"
-                                style="margin-top: 8px"
-                              />
-                              <div
-                                class="h-4 w-80 animate-pulse rounded bg-gray-200"
-                                style="margin-top: 8px"
-                              />
-                            </div>
-                            <div class="h-9 w-20 animate-pulse rounded-lg bg-gray-200" />
-                          </div>
-                        </div>
-                        <div v-if="n < 5" class="h-3" />
-                      </template>
-                    </div>
-                    <div
-                      v-else-if="circularStockStore.recommendationError"
-                      class="rounded-md border border-red-200 bg-red-50 px-3 py-4 text-xs font-bold text-red-700"
-                    >
-                      {{ circularStockStore.recommendationError }}
-                    </div>
-                    <div
-                      v-else-if="topRecommendations.length === 0"
-                      class="rounded-md border border-gray-200 bg-gray-50 px-3 py-4 text-xs font-bold text-gray-500"
-                    >
-                      추천 결과가 없습니다. 수동 검색으로 거래처를 선택하세요.
-                    </div>
-                    <article
-                      v-for="(rec, index) in topRecommendations"
-                      :key="rec.code"
-                      class="overflow-hidden rounded-xl border border-gray-200 bg-white transition-all duration-200 hover:border-[#9DBCAF] hover:shadow-[0_10px_24px_-14px_rgba(15,92,77,0.45)]"
-                      :class="
-                        selectedBuyer?.id === rec.code ||
-                        selectedBuyer?.code === rec.code ||
-                        expandedRecommendationCode === rec.code
-                          ? 'bg-[#F9FCFB]'
-                          : ''
-                      "
-                      :style="{
-                        marginBottom: index === topRecommendations.length - 1 ? '0px' : '20px',
-                        borderColor:
-                          selectedBuyer?.id === rec.code ||
-                          selectedBuyer?.code === rec.code ||
-                          expandedRecommendationCode === rec.code
-                            ? '#6EA08F'
-                            : undefined,
-                        boxShadow:
-                          selectedBuyer?.id === rec.code ||
-                          selectedBuyer?.code === rec.code ||
-                          expandedRecommendationCode === rec.code
-                            ? '0 10px 24px -14px rgba(15,92,77,0.35)'
-                            : undefined,
-                      }"
-                    >
-                      <div
-                        class="grid cursor-pointer grid-cols-[28px_40px_minmax(0,1fr)_auto] items-start gap-3 px-4 py-3"
-                        @click="toggleRecommendationDetail(rec.code)"
-                      >
-                        <span
-                          class="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black leading-none"
-                          :class="
-                            selectedBuyer?.id === rec.code || selectedBuyer?.code === rec.code
-                              ? 'bg-[#234D31] text-white'
-                              : 'bg-gray-100 text-gray-500'
-                          "
-                        >
-                          {{ index + 1 }}
-                        </span>
-                        <span
-                          class="inline-flex h-10 w-10 items-center justify-center rounded-xl text-sm font-black tracking-tight"
-                          :class="companyBadgeClass(index)"
-                          style="font-weight: 700"
-                        >
-                          {{ companyBadgeText(rec.companyName) }}
-                        </span>
-                        <div class="min-w-0">
-                          <div class="flex min-h-10 flex-wrap items-center gap-2">
-                            <p
-                              class="text-base font-black leading-none text-gray-900"
-                              style="font-weight: 600"
-                            >
-                              {{ rec.companyName }}
-                            </p>
-                            <span class="pt-[1px] text-xs font-bold leading-none text-gray-400">{{
-                              rec.code
-                            }}</span>
-                            <span
-                              class="rounded-full border border-[#BFDFFF] bg-[#EAF6FF] px-2.5 py-1.5 text-[11px] font-black leading-none text-[#1F6FAE]"
-                            >
-                              소재 적합도 상
-                            </span>
-                            <span
-                              v-if="isSocialEnterprise(rec)"
-                              class="rounded-full border border-[#D9C6F7] bg-[#F1EAFE] px-2.5 py-1.5 text-[11px] font-black leading-none text-[#6C3FB4]"
-                            >
-                              사회적기업
-                            </span>
-                            <span
-                              v-if="isLocalSmallPartner(rec)"
-                              class="rounded-full border border-[#F3C8D1] bg-[#FCECEF] px-2.5 py-1.5 text-[11px] font-black leading-none text-[#B24563]"
-                            >
-                              소규모 기업
-                            </span>
-                            <span
-                              v-if="isNewPartner(rec, index)"
-                              class="rounded-full border border-[#F2DE9C] bg-[#FFF8DC] px-2.5 py-1.5 text-[11px] font-black leading-none text-[#9A6A00]"
-                            >
-                              신규 거래처
-                            </span>
-                          </div>
-                          <p class="mt-1 text-sm font-bold text-gray-500">
-                            {{ lockedMaterialType || '-' }} ·
-                            {{ rec.industryGroup || '재생원사' }} ·
-                            {{ recommendationProductLabel(rec, index) }}
-                          </p>
-                          <p class="mt-1 text-sm font-bold text-gray-500">
-                            담당자 {{ recommendationManagerLabel(rec, index) }} ·
-                            {{ recommendationPhoneLabel(rec, index) }} ·
-                            {{ recommendationLocationLabel(rec) }}
-                          </p>
-                        </div>
-                        <div class="flex shrink-0 flex-col items-end gap-3">
-                          <button
-                            type="button"
-                            class="inline-flex h-9 items-center rounded-xl px-4 text-sm font-extrabold tracking-[0.01em] transition-all duration-200 active:scale-[0.98]"
-                            :class="
-                              selectedBuyer?.id === rec.code || selectedBuyer?.code === rec.code
-                                ? 'border border-[#7FA28A] bg-[#F3FAF4] text-[#285734] font-black shadow-[0_3px_10px_-8px_rgba(34,84,52,0.45)]'
-                                : 'border border-[#315E3B] bg-[#315E3B] text-white shadow-[0_8px_16px_-10px_rgba(26,64,41,0.55)] hover:border-[#2A5032] hover:bg-[#2A5032]'
-                            "
-                            @click.stop="onRecommendationSelect(rec.code)"
-                          >
-                            <template
-                              v-if="
-                                selectedBuyer?.id === rec.code || selectedBuyer?.code === rec.code
-                              "
-                            >
-                              <span class="inline-flex items-center gap-1">
-                                <BadgeCheck class="h-4 w-4" :stroke-width="2.2" />
-                                <span>선택됨</span>
-                              </span>
-                            </template>
-                            <template v-else>선택</template>
-                          </button>
-                        </div>
-                      </div>
-                      <div
-                        v-if="expandedRecommendationCode === rec.code"
-                        class="border-t border-[#E5EEEA] bg-[#F8FBFA] px-4 py-3 text-xs"
-                      >
-                        <div class="pl-[calc(28px+40px+0.75rem)] pr-20">
-                          <p
-                            class="font-black text-[#0F5C4D]"
-                            style="font-weight: 700; margin-top: 5px; margin-bottom: 5px"
-                          >
-                            AI 추천 이유
-                          </p>
-                          <div v-if="!visibleRationaleCodes[rec.code]" class="mt-2 space-y-1.5">
-                            <div class="h-3 w-[92%] animate-pulse rounded bg-gray-200" />
-                            <div class="h-3 w-[86%] animate-pulse rounded bg-gray-200" />
-                            <div class="h-3 w-[74%] animate-pulse rounded bg-gray-200" />
-                          </div>
-                          <p
-                            v-else
-                            class="mt-2 whitespace-pre-line font-bold leading-5 text-gray-700"
-                          >
-                            {{ rec.rationale || '추천 근거 데이터가 없습니다.' }}
-                          </p>
-                        </div>
-                      </div>
-                      <div
-                        v-if="
-                          isSocialEnterprise(rec) ||
-                          isLocalSmallPartner(rec) ||
-                          isNewPartner(rec, index)
-                        "
-                        class="border-t border-[#D4E4D6] bg-[#EAF2EC] px-4 py-2 text-sm font-semibold text-[#2C5131]"
-                      >
-                        <div class="flex items-center gap-2 pl-[calc(28px+40px+0.75rem)] pr-4">
-                          <Sprout class="h-4 w-4 shrink-0 text-[#2E5734]" :stroke-width="2" />
-                          <span>
-                            이 거래처와 거래하면
-                            <span class="font-black">ESG 나무 +150점</span> 추가 적립
-                            <span class="text-xs font-bold text-[#4E6D54]">
-                              ({{ recommendationBonusReason(rec, index) }})
-                            </span>
-                          </span>
-                        </div>
-                      </div>
-                    </article>
-                  </div>
-
-                  <div v-else class="mt-4">
-                    <div class="flex items-center gap-6">
-                      <input
-                        v-model="buyerSearchTerm"
-                        type="search"
-                        class="h-10 w-full rounded-xl border border-gray-300 bg-white px-4 text-sm font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#004D3C]"
-                        placeholder="거래처명, 거래처 코드, 담당자명, 연락처, 처리 소재, 지역으로 검색..."
-                      />
-                      <button
-                        type="button"
-                        class="h-10 min-w-[80px] rounded-xl bg-[#2D5B35] px-5 text-sm font-black text-white transition hover:bg-[#244B2B]"
-                      >
-                        검색
-                      </button>
-                    </div>
-
-                    <div class="h-4" />
-                    <div class="min-h-[240px] rounded-xl border border-gray-200 bg-[#FBFCFB] px-2 py-2">
-                      <div
-                        v-if="filteredBuyers.length > 0"
-                        class="max-h-[24rem] space-y-1.5 overflow-y-auto pr-1"
-                      >
-                        <button
-                          v-for="buyer in filteredBuyers"
-                          :key="buyer.id"
-                          type="button"
-                          class="flex w-full flex-col items-start rounded-lg border border-gray-200 px-3 py-2 text-left transition hover:border-[#CFE2DA] hover:bg-[#F6FBF9]"
-                          @click="selectBuyer(buyer)"
-                        >
-                          <div class="flex items-center gap-2">
-                            <span class="text-sm font-black leading-none text-gray-900">{{ buyer.companyName }}</span>
-                            <span class="pt-[1px] text-xs font-bold leading-none text-gray-500">{{ buyer.code }}</span>
-                          </div>
-                          <div class="h-1.5" />
-                          <span class="block text-xs font-bold text-gray-400">
-                            {{ materialFitLabel(buyer.primaryMaterialFit) }} ·
-                            {{ buyer.industryGroup || '-' }} ·
-                            {{ buyer.productNote || '-' }}
-                          </span>
-                          <div class="h-1.5" />
-                          <span class="block text-xs font-bold text-gray-500">
-                            담당자 {{ buyer.managerName || '-' }} · {{ buyer.phone || '-' }} ·
-                            {{ recommendationLocationLabel(buyer) }}
-                          </span>
-                        </button>
-                      </div>
-                      <div
-                        v-else
-                        class="flex min-h-[140px] flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 text-center"
-                      >
-                        <p class="text-[28px] leading-none text-gray-300">⌕</p>
-                        <p class="mt-2 text-lg font-bold text-gray-500">
-                          검색어를 입력하면 전체 거래처 DB에서 조회합니다.
-                        </p>
-                        <p class="mt-1 text-base font-semibold text-gray-400">
-                          AI 추천 거래처는 매칭 적합도와 추천 근거가 자동 제공됩니다.
-                        </p>
-                      </div>
-                    </div>
-                    <div class="pt-3">
-                      <p class="text-right text-xs font-bold text-gray-500">
-                        현재 선택된 소재 구분(천연 단일 섬유/합성 섬유/혼방)에 맞는 거래처만
-                        표시됩니다.
-                      </p>
-                    </div>
-                  </div>
-                </section>
-              </div>
-
-              </template>
+              <SalesRegisterStep2BuyerSection
+                v-else-if="saleStep === 2"
+                :buyer-panel-mode="buyerPanelMode"
+                :buyer-search-term="buyerSearchTerm"
+                :outbound-warehouse-label="outboundWarehouseLabel"
+                :locked-material-type="lockedMaterialType"
+                :selected-buyer="selectedBuyer"
+                :filtered-buyers="filteredBuyers"
+                :top-recommendations="topRecommendations"
+                :is-recommendation-loading="circularStockStore.isRecommendationLoading"
+                :recommendation-error="circularStockStore.recommendationError"
+                :recommendation-total-count="circularStockStore.recommendations.length"
+                :expanded-recommendation-code="expandedRecommendationCode"
+                :visible-rationale-codes="visibleRationaleCodes"
+                :material-fit-label="materialFitLabel"
+                :recommendation-product-label="recommendationProductLabel"
+                :recommendation-manager-label="recommendationManagerLabel"
+                :recommendation-phone-label="recommendationPhoneLabel"
+                :recommendation-location-label="recommendationLocationLabel"
+                :company-badge-text="companyBadgeText"
+                :company-badge-class="companyBadgeClass"
+                :is-social-enterprise="isSocialEnterprise"
+                :is-local-small-partner="isLocalSmallPartner"
+                :is-new-partner="isNewPartner"
+                :recommendation-bonus-reason="recommendationBonusReason"
+                @update:buyer-panel-mode="buyerPanelMode = $event"
+                @update:buyer-search-term="buyerSearchTerm = $event"
+                @toggle-recommendation-detail="toggleRecommendationDetail"
+                @select-recommendation="onRecommendationSelect"
+                @select-buyer="selectBuyer"
+              />
 
               <div
                 v-else
