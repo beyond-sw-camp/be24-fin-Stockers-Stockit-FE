@@ -140,10 +140,12 @@ const includedMaterialBadges = computed(() => {
         <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
           <section class="bg-white p-4 pr-6 pl-6">
             <div class="flex flex-wrap items-start justify-between gap-3">
-              <div>
+              <div class="flex flex-col">
                 <p class="text-base !font-semibold uppercase tracking-[0.1em] text-gray-500">거래 요약</p>
-                <p class="mt-1 text-2xl !font-medium text-gray-900">{{ selectedBuyer?.companyName ?? '-' }}</p>
-                <p class="mt-1 text-xs font-bold text-gray-500">
+                <div class="h-3"></div>
+                <p class="text-2xl !font-medium text-gray-900">{{ selectedBuyer?.companyName ?? '-' }}</p>
+                <div class="h-1"></div>
+                <p class="text-xs font-bold text-gray-500">
                   {{ selectedBuyer?.industryGroup ?? '-' }} · SKU {{ formatQuantity(drawerSummary.totalItems) }}종
                 </p>
               </div>
@@ -152,7 +154,8 @@ const includedMaterialBadges = computed(() => {
               </div>
             </div>
 
-            <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div class="h-2"></div>
+            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <article class="kpi-card">
                 <p class="kpi-title">
                   <Shirt :size="12" />
@@ -222,11 +225,12 @@ const includedMaterialBadges = computed(() => {
               </article>
             </div>
 
+            <div class="h-4"></div>
             <div
               v-if="Math.abs(finalReviewSummary.totalActualWeightKg - finalReviewSummary.totalRequestedWeightKg) >= 0.01"
-              class="mt-3 rounded-md border border-[#EADFC8] bg-[#FFFBEB] px-3 py-3"
+              class="rounded-md border border-[#EADFC8] bg-[#FFFBEB] px-3 py-3"
             >
-              <p class="flex items-center gap-1.5 text-sm font-black text-gray-900">
+              <p class="flex items-center gap-3 text-sm font-black text-gray-900">
                 <Settings2 :size="12" :stroke-width="2.6" class="shrink-0 text-[#0F5C4D]" />
                 <span class="text-gray-900">
                 kg → 벌 수 환산시 올림 처리로 요청 {{ formatKg(finalReviewSummary.totalRequestedWeightKg) }}보다
@@ -237,7 +241,7 @@ const includedMaterialBadges = computed(() => {
             </div>
           </section>
 
-          <div class="mx-6 py-6">
+          <div class="mx-6 py-2">
             <div class="border-t border-gray-300"></div>
           </div>
           <section class="px-5 bg-white">
@@ -301,7 +305,7 @@ const includedMaterialBadges = computed(() => {
             </div>
           </section>
 
-          <div class="mx-6 py-6">
+          <div class="mx-6 py-5.5">
             <div class="border-t border-gray-300"></div>
           </div>
           <section class="min-w-0 bg-white">
@@ -310,9 +314,8 @@ const includedMaterialBadges = computed(() => {
             </div>
 
             <div class="space-y-3 p-3 pr-5 pl-5">
+              <template v-for="(group, groupIndex) in groupedDraftItems" :key="group.key">
               <article
-                v-for="group in groupedDraftItems"
-                :key="group.key"
                 class="overflow-hidden rounded-md border border-gray-300 bg-white"
               >
                 <div class="flex flex-wrap items-end justify-between gap-3 border-b border-gray-300 bg-[#F6F6F4] pl-3 px-4 py-3">
@@ -391,6 +394,8 @@ const includedMaterialBadges = computed(() => {
                   </table>
                 </div>
               </article>
+              <div v-if="groupIndex < groupedDraftItems.length - 1" class="h-6.5"></div>
+              </template>
             </div>
           </section>
         </div>
@@ -485,6 +490,8 @@ const includedMaterialBadges = computed(() => {
   display: flex;
   align-items: center;
   gap: 0.375rem;
+  margin-top: 1rem;
+  margin-bottom: 0.7rem;
   font-size: 14px;
   font-weight: 500;
   color: #374151;
