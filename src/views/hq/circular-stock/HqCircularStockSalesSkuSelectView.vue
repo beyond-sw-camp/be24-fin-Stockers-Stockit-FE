@@ -1,6 +1,6 @@
-<script setup>
+﻿<script setup>
 import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { X } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
@@ -8,6 +8,7 @@ import { roleMenus } from '@/config/roleMenus.js'
 import { useCircularStockStore } from '@/stores/hq/circularStock/circularStock.js'
 
 const router = useRouter()
+const route = useRoute()
 const circularStockStore = useCircularStockStore()
 
 const hqMenus = roleMenus.hq
@@ -30,10 +31,12 @@ const lockedMaterialType = computed(() => {
   return typeof raw === 'string' ? raw : ''
 })
 const drawerSummary = computed(() => circularStockStore.draftSummary)
-const showReturnToWorkflowButton = computed(() => (
-  draftItems.value.length > 0
-  && Boolean(circularStockStore.hasStartedWorkflow)
-))
+const showReturnToWorkflowButton = computed(
+  () =>
+    draftItems.value.length > 0 &&
+    (Boolean(circularStockStore.hasStartedWorkflow) ||
+      String(route.query.fromWorkflow || '') === '1'),
+)
 
 function formatMaterials(materials) {
   return (materials || []).map((material) => `${material.name} ${material.ratio}%`).join(', ')
@@ -182,15 +185,6 @@ onBeforeUnmount(() => {
               {{ inventoryLoadError }}
             </p>
           </div>
-
-          <button
-            v-if="showReturnToWorkflowButton"
-            type="button"
-            class="h-9 border border-gray-300 bg-white px-4 text-xs font-black text-gray-700 hover:bg-gray-50"
-            @click="returnToWorkflowPage"
-          >
-            판매 등록으로 돌아가기
-          </button>
         </div>
       </section>
 
@@ -237,25 +231,19 @@ onBeforeUnmount(() => {
                   : ''
               "
               @click.stop="addItemToDraft(row)"
+            >
+              <span
+                class="flex h-4 w-4 items-center justify-center rounded-full text-[10px] shadow-sm transition-colors"
+                :class="
+                  isItemAdded(row.id)
+                    ? 'bg-white text-rose-300 group-hover:bg-rose-700 group-hover:text-white'
+                    : 'bg-white text-sky-400 group-hover:bg-sky-700 group-hover:text-white'
+                "
               >
-                <span
-                  class="flex h-4 w-4 items-center justify-center rounded-full text-[10px] shadow-sm transition-colors"
-                  :class="
-                    isItemAdded(row.id)
-                      ? 'bg-white text-rose-300 group-hover:bg-rose-700 group-hover:text-white'
-                      : 'bg-white text-sky-400 group-hover:bg-sky-700 group-hover:text-white'
-                  "
-                >
-                  {{ isItemAdded(row.id) ? '✓' : '+' }}
-                </span>
+                {{ isItemAdded(row.id) ? '✓' : '+' }}
+              </span>
               <span>
-                {{
-                  isRowSelectionDisabled(row)
-                    ? '불가'
-                    : isItemAdded(row.id)
-                      ? '취소'
-                      : '선택'
-                }}
+                {{ isRowSelectionDisabled(row) ? '불가' : isItemAdded(row.id) ? '취소' : '선택' }}
               </span>
             </button>
           </div>
@@ -271,19 +259,27 @@ onBeforeUnmount(() => {
 
         <button
           type="button"
-          class="inline-flex h-8 items-center rounded-full border border-[#004D3C] bg-[#004D3C] px-4 text-xs font-extrabold text-white transition-colors duration-200 hover:bg-[#00382c]"
+          class="inline-flex h-8 items-center rounded-full border border-[#8FB7A9] bg-[#DCEEE7] px-4 text-xs font-extrabold text-[#2A5348] transition-colors duration-200 hover:bg-[#CFE6DD]"
           @click="openSkuModal"
         >
           선택 SKU 보기
+        </button>
+
+        <button
+          v-if="showReturnToWorkflowButton"
+          type="button"
+          class="inline-flex h-8 items-center rounded-full border border-[#8FB7A9] bg-[#DCEEE7] px-4 text-xs font-extrabold text-[#2A5348] transition-colors duration-200 hover:bg-[#CFE6DD]"
+          @click="returnToWorkflowPage"
+        >
+          판매 등록 진행
         </button>
       </div>
 
       <div
         v-if="showSkuModal"
         class="fixed inset-0 z-40 bg-black/45 backdrop-blur-sm"
-        @click.self="showSkuModal = false"
       >
-        <div class="flex h-full w-full items-center justify-center p-4">
+        <div class="flex h-full w-full items-center justify-center p-4" @click.self="showSkuModal = false">
           <section
             class="flex h-full max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden border border-gray-200 bg-white shadow-2xl"
           >
@@ -391,7 +387,7 @@ onBeforeUnmount(() => {
                 :disabled="drawerSummary.totalItems === 0"
                 @click="proceedToWorkflow"
               >
-                판매 등록하기
+                판매 등록 진행
               </button>
             </footer>
           </section>

@@ -384,6 +384,12 @@ function onRecommendationSelect(code) {
 
 function toggleRecommendationDetail(code) {
   expandedRecommendationCode.value = expandedRecommendationCode.value === code ? '' : code
+  if (!visibleRationaleCodes.value[code]) {
+    visibleRationaleCodes.value = {
+      ...visibleRationaleCodes.value,
+      [code]: true,
+    }
+  }
 }
 
 function clearRationaleTimers() {
@@ -407,6 +413,13 @@ function startRationaleProgressiveReveal() {
     )
     rationaleTimers.push(timer)
   })
+}
+
+function revealAllVisibleRationales() {
+  if (topRecommendations.value.length === 0) return
+  const next = { ...visibleRationaleCodes.value }
+  for (const rec of topRecommendations.value) next[rec.code] = true
+  visibleRationaleCodes.value = next
 }
 
 function recommendationBonusReason(rec, index) {
@@ -648,12 +661,14 @@ watch(
 // 탭 전환만으로는 이미 표시된 AI 추천 이유를 다시 스켈레톤으로 되돌리지 않는다.
 
 onMounted(() => {
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   document.addEventListener('mousedown', handleDocumentClick)
   loadCircularInventoryRows()
   circularStockStore.markWorkflowStarted()
   isDrawerOpen.value = true
   if (saleStep.value >= 2) {
     ensureRecommendationsUpToDate()
+    revealAllVisibleRationales()
   }
 })
 
@@ -1580,8 +1595,12 @@ onBeforeUnmount(() => {
                   </button>
                   <button
                     type="button"
-                    class="h-10 cursor-pointer rounded-xl border border-[#004D3C] bg-[#004D3C] px-7 text-base font-black text-white transition-all duration-150 hover:border-[#00382c] hover:bg-[#00382c] hover:shadow-[0_8px_16px_-10px_rgba(0,77,60,0.55)] disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:shadow-none"
-                    :disabled="!canMoveStep3"
+                    class="h-10 cursor-pointer rounded-xl border px-7 text-base font-black text-white transition-all duration-150"
+                    :class="
+                      canMoveStep3
+                        ? 'border-[#004D3C] bg-[#004D3C] hover:border-[#00382c] hover:bg-[#00382c] hover:shadow-[0_8px_16px_-10px_rgba(0,77,60,0.55)]'
+                        : 'border-gray-300 bg-gray-400 text-white hover:bg-gray-500'
+                    "
                     @click="moveStep(3)"
                   >
                     판매 조건 확정으로 →
