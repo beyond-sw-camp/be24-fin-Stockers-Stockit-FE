@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, useSlots } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useSlots, watch } from 'vue'
 import { getInfrastructures } from '@/api/hq/infrastructure.js'
 
 const props = defineProps({
@@ -79,6 +79,14 @@ const props = defineProps({
   inventoryRows: {
     type: Array,
     default: () => [],
+  },
+  initialWarehouseCodes: {
+    type: Array,
+    default: () => [],
+  },
+  initialMaterialGroup: {
+    type: String,
+    default: '',
   },
 })
 
@@ -401,9 +409,7 @@ function toggleWarehouseDropdown() {
 }
 
 function toggleWarehouseCode(code) {
-  selectedWarehouseCodes.value = selectedWarehouseCodes.value.includes(code)
-    ? selectedWarehouseCodes.value.filter(value => value !== code)
-    : [...selectedWarehouseCodes.value, code]
+  selectedWarehouseCodes.value = selectedWarehouseCodes.value.includes(code) ? [] : [code]
   emitQueryChange()
 }
 
@@ -486,6 +492,10 @@ async function loadWarehouseOptions() {
 }
 
 onMounted(() => {
+  selectedWarehouseCodes.value = Array.isArray(props.initialWarehouseCodes)
+    ? [...props.initialWarehouseCodes]
+    : []
+  selectedMaterialGroup.value = String(props.initialMaterialGroup || '')
   document.addEventListener('mousedown', handleDocumentClick)
   loadWarehouseOptions()
 })
@@ -493,6 +503,21 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener('mousedown', handleDocumentClick)
 })
+
+watch(
+  () => props.initialWarehouseCodes,
+  (next) => {
+    selectedWarehouseCodes.value = Array.isArray(next) ? [...next] : []
+  },
+  { deep: true },
+)
+
+watch(
+  () => props.initialMaterialGroup,
+  (next) => {
+    selectedMaterialGroup.value = String(next || '')
+  },
+)
 
 function emitQueryChange() {
   if (!props.serverMode) return

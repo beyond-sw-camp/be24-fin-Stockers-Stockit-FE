@@ -58,9 +58,17 @@ const lockedMaterialType = computed(() => {
   const raw = unref(circularStockStore.lockedMaterialType)
   return typeof raw === 'string' ? raw : ''
 })
+const selectedWarehouseCode = computed(() => String(circularStockStore.selectedWarehouseCode || ''))
+const selectedWarehouseName = computed(() => String(circularStockStore.selectedWarehouseName || ''))
+const outboundWarehouseLabel = computed(
+  () => selectedWarehouseName.value || selectedWarehouseCode.value || '-',
+)
 
 const canMoveStep2 = computed(
-  () => draftItems.value.length > 0 && Boolean(lockedMaterialType.value),
+  () =>
+    draftItems.value.length > 0 &&
+    Boolean(lockedMaterialType.value) &&
+    Boolean(selectedWarehouseCode.value),
 )
 const canMoveStep3 = computed(() => canMoveStep2.value && Boolean(selectedBuyer.value))
 const canSubmit = computed(() => submitValidation.value.success)
@@ -829,6 +837,9 @@ onBeforeUnmount(() => {
                     <p class="text-sm font-black text-gray-900">선택한 SKU 확인</p>
                   </div>
                   <div class="flex items-center gap-3">
+                    <span class="text-xs font-black text-gray-500">
+                      출고 창고: <span class="text-gray-900">{{ outboundWarehouseLabel }}</span>
+                    </span>
                     <button
                       type="button"
                       class="pr-4 cursor-pointer text-[11px] font-black text-gray-500 hover:text-gray-900"
@@ -965,6 +976,7 @@ onBeforeUnmount(() => {
                   >
                     <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#B38A3A]" :stroke-width="2" />
                     <span>
+                      출고 창고 {{ outboundWarehouseLabel }} 기준,
                       선택된 소재 정보를 기반으로 DB에서 가장 적합한 거래처 5곳을 AI가 분석했습니다.
                       각 거래처를 클릭해 AI 거래처 매칭 추천 상세 이유를 확인하세요
                     </span>
@@ -1485,6 +1497,12 @@ onBeforeUnmount(() => {
                   <section>
                     <p class="text-xs text-gray-500" style="font-weight: 600; margin-bottom: 4px">판매 요약</p>
                     <div class="mt-2 divide-y divide-gray-200 text-xs">
+                      <div class="flex items-center justify-between py-2.5">
+                        <span class="font-bold text-gray-500">출고 창고</span>
+                        <span class="text-sm text-gray-900" style="font-weight: 600">
+                          {{ outboundWarehouseLabel }}
+                        </span>
+                      </div>
                       <div class="flex items-center justify-between py-2.5">
                         <span class="font-bold text-gray-500">소재 구분</span>
                         <span class="text-sm text-gray-900" style="font-weight: 600">{{ lockedMaterialType || '-' }}</span>

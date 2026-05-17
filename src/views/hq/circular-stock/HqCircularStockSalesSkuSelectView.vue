@@ -22,6 +22,8 @@ const toastTone = ref('success')
 const inventoryLoadError = ref('')
 const isInventoryLoading = ref(false)
 const showSkuModal = ref(false)
+const showResetConfirmModal = ref(false)
+const pendingQuery = ref(null)
 let toastTimer = null
 
 const draftItems = computed(() => circularStockStore.draftItems)
@@ -37,6 +39,27 @@ const showReturnToWorkflowButton = computed(
     (Boolean(circularStockStore.hasStartedWorkflow) ||
       String(route.query.fromWorkflow || '') === '1'),
 )
+const selectedWarehouseCode = computed(() => String(circularStockStore.selectedWarehouseCode || ''))
+const selectedMaterialGroup = computed(() => String(circularStockStore.inventoryMaterialGroup || ''))
+
+function hasRequiredFilters() {
+  const hasWarehouse = Array.isArray(circularStockStore.inventoryWarehouseCodes)
+    ? circularStockStore.inventoryWarehouseCodes.length === 1
+    : false
+  const hasMaterialGroup = Boolean(String(circularStockStore.inventoryMaterialGroup || '').trim())
+  return hasWarehouse && hasMaterialGroup
+}
+
+function applyQuery(query) {
+  loadCircularInventoryRowsWithOverrides({
+    page: 0,
+    keyword: query.keyword,
+    warehouseCodes: query.warehouseCodes,
+    materialGroup: query.materialGroup,
+    materialName: query.materialName,
+    materialNames: query.materialNames,
+  })
+}
 
 function formatMaterials(materials) {
   return (materials || []).map((material) => `${material.name} ${material.ratio}%`).join(', ')
@@ -53,6 +76,21 @@ function isRowSelectionDisabled(row) {
 }
 
 function addItemToDraft(row) {
+  const warehouseCount = Array.isArray(circularStockStore.inventoryWarehouseCodes)
+    ? circularStockStore.inventoryWarehouseCodes.length
+    : 0
+  const hasWarehouse = warehouseCount === 1
+  const hasMaterialGroup = Boolean(String(circularStockStore.inventoryMaterialGroup || '').trim())
+  if (!hasWarehouse || !hasMaterialGroup) {
+    if (!hasWarehouse && !hasMaterialGroup) {
+      showToast('창고와 소재 구분을 먼저 선택해 주세요.', 'error')
+    } else if (!hasWarehouse) {
+      showToast('창고를 먼저 선택해주세요.', 'error')
+    } else {
+      showToast('소재구분을 먼저 선택해주세요.', 'error')
+    }
+    return
+  }
   const existing = circularStockStore.getDraftItem(row.id)
   if (existing) {
     circularStockStore.removeSaleDraftItem(existing.draftId)
@@ -80,6 +118,10 @@ function returnToWorkflowPage() {
 }
 
 async function proceedToWorkflow() {
+  if (!hasRequiredFilters()) {
+    showToast('창고 1개와 소재 구분을 먼저 선택해 주세요.', 'error')
+    return
+  }
   if (drawerSummary.value.totalItems === 0) {
     showToast('SKU를 1건 이상 선택해 주세요.', 'error')
     return
@@ -124,13 +166,39 @@ function handleSortChange({ sort }) {
 }
 
 function handleQueryChange(query) {
+  const nextWarehouseCode = Array.isArray(query.warehouseCodes) ? String(query.warehouseCodes[0] || '') : ''
+  const nextMaterialGroup = String(query.materialGroup || '').trim()
+  const isConditionChanged =
+    nextWarehouseCode !== selectedWarehouseCode.value || nextMaterialGroup !== selectedMaterialGroup.value
+
+  if (draftItems.value.length > 0 && isConditionChanged) {
+    pendingQuery.value = query
+    showResetConfirmModal.value = true
+    return
+  }
+
+  applyQuery(query)
+}
+
+function confirmResetAndApplyQuery() {
+  if (!pendingQuery.value) {
+    showResetConfirmModal.value = false
+    return
+  }
+  circularStockStore.clearDraft()
+  applyQuery(pendingQuery.value)
+  pendingQuery.value = null
+  showResetConfirmModal.value = false
+  showToast('창고/소재 구분이 변경되어 판매 등록 초안을 초기화했습니다.', 'success')
+}
+
+function cancelResetAndApplyQuery() {
+  pendingQuery.value = null
+  showResetConfirmModal.value = false
   loadCircularInventoryRowsWithOverrides({
     page: 0,
-    keyword: query.keyword,
-    warehouseCodes: query.warehouseCodes,
-    materialGroup: query.materialGroup,
-    materialName: query.materialName,
-    materialNames: query.materialNames,
+    warehouseCodes: selectedWarehouseCode.value ? [selectedWarehouseCode.value] : [],
+    materialGroup: selectedMaterialGroup.value,
   })
 }
 
@@ -205,6 +273,8 @@ onBeforeUnmount(() => {
         :total-pages="circularStockStore.inventoryTotalPages"
         :total-elements="circularStockStore.inventoryTotalElements"
         :inventory-rows="circularStockStore.inventoryRows"
+        :initial-warehouse-codes="circularStockStore.inventoryWarehouseCodes"
+        :initial-material-group="circularStockStore.inventoryMaterialGroup"
         action-column-label="추가"
         action-column-position="end"
         :selected-row-ids="draftRowIds"
@@ -392,6 +462,37 @@ onBeforeUnmount(() => {
             </footer>
           </section>
         </div>
+      </div>
+
+      <div
+        v-if="showResetConfirmModal"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4"
+      >
+        <section class="w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-2xl">
+          <p class="text-base font-black text-gray-900">조건 변경 시 판매 등록 초기화</p>
+          <p class="mt-2 text-sm font-bold text-gray-600">
+            창고 또는 소재 구분을 변경하면 진행 중인 판매 등록 Draft가 전체 초기화됩니다.
+          </p>
+          <p class="mt-1 text-xs font-bold text-gray-500">
+            초기화 대상: SKU, 거래처, 메모, AI 추천 상태, 현재 Step
+          </p>
+          <div class="mt-4 flex justify-end gap-2">
+            <button
+              type="button"
+              class="h-9 rounded-lg border border-gray-200 bg-white px-3 text-xs font-black text-gray-700 hover:bg-gray-50"
+              @click="cancelResetAndApplyQuery"
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              class="h-9 rounded-lg border border-rose-700 bg-rose-700 px-3 text-xs font-black text-white hover:bg-rose-800"
+              @click="confirmResetAndApplyQuery"
+            >
+              초기화 후 변경
+            </button>
+          </div>
+        </section>
       </div>
 
       <p

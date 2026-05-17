@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia'
+﻿import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { circularBuyerApi } from '@/api/hq/circularBuyer.js'
 import { getCircularInventories } from '@/api/hq/inventory.js'
@@ -254,7 +254,7 @@ const CARBON_REDUCTION_FACTORS = {
   면: 6.5,
   폴리에스터: 6.8,
   나일론: 5.5,
-  데님: 6.5,
+  혼방: 6.5,
   울: 20.0,
   default: 6.0,
 }
@@ -269,7 +269,7 @@ const RESOURCE_CIRCULATION_FACTORS = {
   나일론: 2.1,
   아크릴: 2.0,
   스판덱스: 1.7,
-  데님: 1.9,
+  혼방: 1.9,
   default: 1.9,
 }
 
@@ -285,20 +285,20 @@ const TRACEABILITY_POINT_RULES = [
 
 const INDUSTRY_TREATMENT_TYPE_MAP = {
   재생원사: '재활용',
-  '화학 사출': '재활용',
+  '화학 재활용': '재활용',
   '가구 자재': '재활용',
   '물류 자재': '재활용',
-  '물류 패키징': '재활용',
+  '물류 패키지': '재활용',
   '패션 잡화': '업사이클링',
-  홈텍스타일: '업사이클링',
-  '반려동물 용품': '업사이클링',
+  텍스타일: '업사이클링',
+  '반려용품': '업사이클링',
   '교육/공예': '업사이클링',
   인테리어: '업사이클링',
-  유니폼: '중고 재판매',
-  '단체복/워크웨어': '중고 재판매',
-  '의류/워크웨어': '중고 재판매',
+  빈티지: '중고 재판매',
+  '의류/핸드메이드': '중고 재판매',
+  '리퍼브/핸드케어': '중고 재판매',
   '건설 자재': '다운사이클링',
-  '자동차 흡음': '다운사이클링',
+  '자동차 부품': '다운사이클링',
   '산업 소모품': '다운사이클링',
   에너지: '다운사이클링',
 }
@@ -316,10 +316,10 @@ function resolveTreatmentTypeFromBuyer(buyer = {}) {
     ? buyer.productTypes.join(' ')
     : String(buyer?.productNote ?? '')
 
-  if (/유니폼|워크웨어|조끼|단체복/.test(joinedProductTypes)) return '중고 재판매'
-  if (/가방|파우치|쿠션|커버|텍스타일|잡화|공예/.test(joinedProductTypes)) return '업사이클링'
-  if (/흡음|단열|완충|패널|소모품/.test(joinedProductTypes)) return '다운사이클링'
-  if (/재생|원사|방적|사출|원재료|패키징/.test(joinedProductTypes)) return '재활용'
+  if (/빈티지|핸드케어|중고|의류\/핸드메이드/.test(joinedProductTypes)) return '중고 재판매'
+  if (/가방|파우치|쿠션|컨버전|텍스타일|잡화|공예/.test(joinedProductTypes)) return '업사이클링'
+  if (/보온|단열|완충|부품|소모품/.test(joinedProductTypes)) return '다운사이클링'
+  if (/재생|원사|방적|재활용|재생원료|패키지/.test(joinedProductTypes)) return '재활용'
 
   return '재활용'
 }
@@ -335,7 +335,7 @@ function buildSaleEsgSnapshot(sale, buyer, kauPrice, options = {}) {
     const actualWeightKg = Number(item.actualWeightKg) || 0
     const materials = Array.isArray(item.materials) && item.materials.length > 0
       ? item.materials
-      : [{ name: '기타', ratio: 100 }]
+      : [{ name: '湲고?', ratio: 100 }]
 
     const totalRatio = materials.reduce((sum, material) => sum + (Number(material.ratio) || 0), 0) || 100
 
@@ -401,27 +401,27 @@ function buildSaleEsgSnapshot(sale, buyer, kauPrice, options = {}) {
   const scoreBreakdown = [
     {
       scoreType: 'execution',
-      label: '순환 판매 실행 점수',
+      label: '?쒗솚 ?먮ℓ ?ㅽ뻾 ?먯닔',
       points: items.length > 0 ? EXECUTION_BASE_POINTS : 0,
-      formulaSummary: `판매 1건 최종 등록 완료 시 기본 ${EXECUTION_BASE_POINTS}pt`,
+      formulaSummary: `?먮ℓ 1嫄?理쒖쥌 ?깅줉 ?꾨즺 ??湲곕낯 ${EXECUTION_BASE_POINTS}pt`,
     },
     {
       scoreType: 'resourceCirculation',
-      label: '자원 순환 전환 점수',
+      label: '?먯썝 ?쒗솚 ?꾪솚 ?먯닔',
       points: resourceCirculationPoints,
-      formulaSummary: '실제 판매 무게 × 소재별 순환 전환 계수',
+      formulaSummary: '?ㅼ젣 ?먮ℓ 臾닿쾶 횞 ?뚯옱蹂??쒗솚 ?꾪솚 怨꾩닔',
     },
     {
       scoreType: 'carbonContribution',
-      label: '탄소 절감 기여 점수',
+      label: '?꾩냼 ?덇컧 湲곗뿬 ?먯닔',
       points: carbonContributionPoints,
-      formulaSummary: `실제 탄소 감축량 ${roundedSavedCarbonKg.toFixed(2)}kgCO₂ × ${CARBON_POINT_MULTIPLIER}`,
+      formulaSummary: `?ㅼ젣 ?꾩냼 媛먯텞??${roundedSavedCarbonKg.toFixed(2)}kgCO??횞 ${CARBON_POINT_MULTIPLIER}`,
     },
     {
       scoreType: 'traceability',
-      label: '인증/추적 완료 점수',
+      label: '?몄쬆/異붿쟻 ?꾨즺 ?먯닔',
       points: traceabilityBreakdown.reduce((sum, item) => sum + item.points, 0),
-      formulaSummary: `${traceabilityBreakdown.filter(item => item.points > 0).length}/${traceabilityBreakdown.length} 항목 충족`,
+      formulaSummary: `${traceabilityBreakdown.filter(item => item.points > 0).length}/${traceabilityBreakdown.length} ??ぉ 異⑹”`,
     },
   ]
 
@@ -438,7 +438,7 @@ function buildSaleEsgSnapshot(sale, buyer, kauPrice, options = {}) {
       treeGrowPoints: scoreBreakdown.reduce((sum, item) => sum + item.points, 0),
       treatmentType,
       kauPriceAtSale: Number(kauPrice) || 0,
-      formulaSummary: '나무 키우기 점수 = 순환 판매 실행 + 자원 순환 전환 + 탄소 절감 기여 + 인증/추적 완료',
+      formulaSummary: '?섎Т ?ㅼ슦湲??먯닔 = ?쒗솚 ?먮ℓ ?ㅽ뻾 + ?먯썝 ?쒗솚 ?꾪솚 + ?꾩냼 ?덇컧 湲곗뿬 + ?몄쬆/異붿쟻 ?꾨즺',
       materialBreakdown: normalizedBreakdown,
       traceabilityBreakdown,
     },
@@ -457,6 +457,8 @@ export const useCircularStockStore = defineStore('circularStock', () => {
   const saleStep = ref(1)
   const hasStartedWorkflow = ref(false)
   const lockedMaterialType = ref('')
+  const selectedWarehouseCode = ref('')
+  const selectedWarehouseName = ref('')
   const liveCircularInventoryRows = ref([])
   const inventoryPage = ref(0)
   const inventorySize = ref(20)
@@ -471,7 +473,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
   const inventoryMaterialName = ref('')
   const inventoryMaterialNames = ref([])
 
-  // ADR-021 AI 거래처 추천 — Step 1 → Step 2 [다음] 클릭 시 1회 호출 (사용자 결정 2026-04-30).
+  // ADR-021 AI 嫄곕옒泥?異붿쿇 ??Step 1 ??Step 2 [?ㅼ쓬] ?대┃ ??1???몄텧 (?ъ슜??寃곗젙 2026-04-30).
   const recommendations = ref([])
   const isRecommendationLoading = ref(false)
   const recommendationError = ref(null)
@@ -518,8 +520,8 @@ export const useCircularStockStore = defineStore('circularStock', () => {
   }))
 
   /**
-   * 추천 호출 페이로드 자동 합성. Step 1 의 SKU 들 + lockedMaterialType 으로 4필드 만든다.
-   * 사용자 추가 입력 0 — 옵션 A 자동 추출 (사용자 결정 2026-04-30).
+   * 異붿쿇 ?몄텧 ?섏씠濡쒕뱶 ?먮룞 ?⑹꽦. Step 1 ??SKU ??+ lockedMaterialType ?쇰줈 4?꾨뱶 留뚮뱺??
+   * ?ъ슜??異붽? ?낅젰 0 ???듭뀡 A ?먮룞 異붿텧 (?ъ슜??寃곗젙 2026-04-30).
    */
   const recommendationPayload = computed(() => {
     const items = draftItems.value
@@ -534,7 +536,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
       .join(', ')
     const categories = [...new Set(items.map(item => item.mainCategory).filter(Boolean))].join(', ')
     const description = [
-      `${lockedMaterialType.value} 잔재고.`,
+      `${lockedMaterialType.value} 잔재고`,
       materialsLabel ? `${materialsLabel}.` : '',
       categories ? `${categories} 카테고리.` : '',
     ].filter(Boolean).join(' ')
@@ -760,23 +762,43 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     const inventoryId = String(resolvedInventoryId)
     const inventory = getInventoryById(inventoryId)
     if (!inventory) {
-      return { success: false, message: '순환 재고 품목을 찾을 수 없습니다.' }
+      return { success: false, message: '?쒗솚 ?ш퀬 ?덈ぉ??李얠쓣 ???놁뒿?덈떎.' }
     }
-
+    if (!Array.isArray(inventoryWarehouseCodes.value) || inventoryWarehouseCodes.value.length !== 1) {
+      return { success: false, message: '창고 1개를 먼저 선택해 주세요.' }
+    }
+    if (!String(inventoryMaterialGroup.value || '').trim()) {
+      return { success: false, message: '소재 구분을 먼저 선택해 주세요.' }
+    }
     const existing = getDraftItem(draftId)
     if (existing) {
       return { success: true, item: existing, alreadyExists: true }
     }
 
     const materialType = skuRow?.materialType ?? deriveMaterialType(inventory.materials)
+    const currentWarehouseCode = String(skuRow?.warehouseCode ?? inventory.warehouseCode ?? '')
+    const currentWarehouseName = String(skuRow?.warehouseName ?? inventory.warehouseName ?? '')
+    if (!currentWarehouseCode) {
+      return { success: false, message: '異쒓퀬 李쎄퀬 ?뺣낫瑜??뺤씤?????놁뒿?덈떎.' }
+    }
     if (lockedMaterialType.value && lockedMaterialType.value !== materialType) {
       return {
         success: false,
-        message: `현재 요청서는 ${lockedMaterialType.value}만 선택할 수 있습니다.`,
+        message: `?꾩옱 ?붿껌?쒕뒗 ${lockedMaterialType.value}留??좏깮?????덉뒿?덈떎.`,
+      }
+    }
+    if (selectedWarehouseCode.value && selectedWarehouseCode.value !== currentWarehouseCode) {
+      return {
+        success: false,
+        message: `?꾩옱 ?붿껌?쒕뒗 ${selectedWarehouseName.value || selectedWarehouseCode.value} 李쎄퀬 SKU留??좏깮?????덉뒿?덈떎.`,
       }
     }
     if (!lockedMaterialType.value) {
       lockedMaterialType.value = materialType
+    }
+    if (!selectedWarehouseCode.value) {
+      selectedWarehouseCode.value = currentWarehouseCode
+      selectedWarehouseName.value = currentWarehouseName
     }
 
     const availableQuantity = Number(skuRow?.quantity) || 0
@@ -819,7 +841,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
   function updateSaleDraftItem(draftId, payload) {
     const index = draftItems.value.findIndex(item => item.draftId === draftId)
     if (index === -1) {
-      return { success: false, message: '판매 패널에서 항목을 찾을 수 없습니다.' }
+      return { success: false, message: '?먮ℓ ?⑤꼸?먯꽌 ??ぉ??李얠쓣 ???놁뒿?덈떎.' }
     }
 
     const next = [...draftItems.value]
@@ -833,6 +855,8 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     recommendationDirty.value = true
     if (draftItems.value.length === 0) {
       lockedMaterialType.value = ''
+      selectedWarehouseCode.value = ''
+      selectedWarehouseName.value = ''
       draftBuyerId.value = ''
       saleStep.value = 1
       hasStartedWorkflow.value = false
@@ -848,6 +872,8 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     draftMemo.value = ''
     draftItems.value = []
     lockedMaterialType.value = ''
+    selectedWarehouseCode.value = ''
+    selectedWarehouseName.value = ''
     saleStep.value = 1
     hasStartedWorkflow.value = false
     recommendations.value = []
@@ -861,9 +887,9 @@ export const useCircularStockStore = defineStore('circularStock', () => {
   }
 
   /**
-   * ADR-021 추천 호출. 페이로드는 recommendationPayload computed 가 자동 합성.
-   * 호출 시점은 페이지의 moveStep(2) 안 — Step 1 → Step 2 [다음] 클릭 시 1회.
-   * BE 가 LLM 실패해도 200 OK + rationale fallback 텍스트 반환하므로 catch 는 네트워크/4xx 만.
+   * ADR-021 異붿쿇 ?몄텧. ?섏씠濡쒕뱶??recommendationPayload computed 媛 ?먮룞 ?⑹꽦.
+   * ?몄텧 ?쒖젏? ?섏씠吏??moveStep(2) ????Step 1 ??Step 2 [?ㅼ쓬] ?대┃ ??1??
+   * BE 媛 LLM ?ㅽ뙣?대룄 200 OK + rationale fallback ?띿뒪??諛섑솚?섎?濡?catch ???ㅽ듃?뚰겕/4xx 留?
    */
   async function fetchRecommendations() {
     const payload = recommendationPayload.value
@@ -877,7 +903,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
       lastRecommendationBasisKey.value = recommendationBasisKey.value
       recommendationDirty.value = false
     } catch (err) {
-      recommendationError.value = err?.message ?? 'AI 추천을 불러오지 못했습니다.'
+      recommendationError.value = err?.message ?? 'AI 異붿쿇??遺덈윭?ㅼ? 紐삵뻽?듬땲??'
       recommendations.value = []
     } finally {
       isRecommendationLoading.value = false
@@ -894,24 +920,27 @@ export const useCircularStockStore = defineStore('circularStock', () => {
 
   function validateCircularStockSaleDraft() {
     if (draftItems.value.length === 0) {
-      return { success: false, message: 'Step 1에서 판매할 SKU를 1건 이상 선택해주세요.' }
+      return { success: false, message: 'Step 1?먯꽌 ?먮ℓ??SKU瑜?1嫄??댁긽 ?좏깮?댁＜?몄슂.' }
     }
     if (!draftBuyerId.value) {
-      return { success: false, message: 'Step 2에서 거래처를 선택해주세요.' }
+      return { success: false, message: 'Step 2?먯꽌 嫄곕옒泥섎? ?좏깮?댁＜?몄슂.' }
     }
     if (!lockedMaterialType.value) {
-      return { success: false, message: '요청서 소재 구분이 확정되지 않았습니다. Step 1 선택 상태를 다시 확인해주세요.' }
+      return { success: false, message: '?붿껌???뚯옱 援щ텇???뺤젙?섏? ?딆븯?듬땲?? Step 1 ?좏깮 ?곹깭瑜??ㅼ떆 ?뺤씤?댁＜?몄슂.' }
+    }
+    if (!selectedWarehouseCode.value) {
+      return { success: false, message: '異쒓퀬 李쎄퀬瑜?癒쇱? ?좏깮?댁＜?몄슂.' }
     }
 
     const buyer = buyerStore.getBuyerById(draftBuyerId.value)
     if (!buyer) {
-      return { success: false, message: '선택한 거래처 정보를 찾을 수 없습니다. Step 2에서 다시 선택해주세요.' }
+      return { success: false, message: '?좏깮??嫄곕옒泥??뺣낫瑜?李얠쓣 ???놁뒿?덈떎. Step 2?먯꽌 ?ㅼ떆 ?좏깮?댁＜?몄슂.' }
     }
     const expectedBuyerFit = buyerMaterialFitValue(lockedMaterialType.value)
     if (buyer.primaryMaterialFit !== expectedBuyerFit) {
       return {
         success: false,
-        message: `선택한 거래처의 대표 소재 적합도(${buyerStore.materialFitLabel(buyer.primaryMaterialFit)})가 요청 소재 구분(${lockedMaterialType.value})과 맞지 않습니다.`,
+        message: `?좏깮??嫄곕옒泥섏쓽 ????뚯옱 ?곹빀??${buyerStore.materialFitLabel(buyer.primaryMaterialFit)})媛 ?붿껌 ?뚯옱 援щ텇(${lockedMaterialType.value})怨?留욎? ?딆뒿?덈떎.`,
       }
     }
 
@@ -923,31 +952,35 @@ export const useCircularStockStore = defineStore('circularStock', () => {
       const inventory = getInventoryById(item.inventoryId)
 
       if (!inventory) {
-        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) 재고를 찾을 수 없습니다.` }
+        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) ?ш퀬瑜?李얠쓣 ???놁뒿?덈떎.` }
       }
       if (Number.isNaN(requestedWeightKg) || requestedWeightKg <= 0) {
-        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) 판매 kg을 입력해주세요.` }
+        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) ?먮ℓ kg???낅젰?댁＜?몄슂.` }
       }
       if (Number.isNaN(unitPrice) || unitPrice <= 0) {
-        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) kg당 단가를 입력해주세요.` }
+        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) kg???④?瑜??낅젰?댁＜?몄슂.` }
       }
       if (item.deductedQuantity <= 0) {
-        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) 실차감 수량을 계산할 수 없습니다. 판매 kg과 단위중량을 확인해주세요.` }
+        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) ?ㅼ감媛??섎웾??怨꾩궛?????놁뒿?덈떎. ?먮ℓ kg怨??⑥쐞以묐웾???뺤씤?댁＜?몄슂.` }
       }
       if (actualWeightKg <= 0) {
-        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) 실제 반영 kg을 계산할 수 없습니다.` }
+        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) ?ㅼ젣 諛섏쁺 kg??怨꾩궛?????놁뒿?덈떎.` }
       }
       if (actualWeightKg > item.availableWeightKg) {
         return {
           success: false,
-          message: `${item.itemName}(${item.skuCode || item.itemCode}) 요청값은 가능하지만 올림 차감 후 실제 반영 kg이 SKU 재고 kg을 초과합니다.`,
+          message: `${item.itemName}(${item.skuCode || item.itemCode}) ?붿껌媛믪? 媛?ν븯吏留??щ┝ 李④컧 ???ㅼ젣 諛섏쁺 kg??SKU ?ш퀬 kg??珥덇낵?⑸땲??`,
         }
       }
       if (item.deductedQuantity > item.availableQuantity) {
-        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) SKU 재고 수량을 초과할 수 없습니다.` }
+        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) SKU ?ш퀬 ?섎웾??珥덇낵?????놁뒿?덈떎.` }
       }
       if (item.materialType !== lockedMaterialType.value) {
-        return { success: false, message: '요청서 내 SKU의 소재 구분이 일치하지 않습니다. Step 1에서 같은 소재 구분만 남겨주세요.' }
+        return { success: false, message: '?붿껌????SKU???뚯옱 援щ텇???쇱튂?섏? ?딆뒿?덈떎. Step 1?먯꽌 媛숈? ?뚯옱 援щ텇留??④꺼二쇱꽭??' }
+      }
+      const itemWarehouseCode = String(inventory.warehouseCode ?? item.warehouseCode ?? '')
+      if (itemWarehouseCode !== selectedWarehouseCode.value) {
+        return { success: false, message: '?붿껌????SKU??異쒓퀬 李쎄퀬媛 ?쇱튂?섏? ?딆뒿?덈떎. 媛숈? 李쎄퀬 SKU留??좏깮?댁＜?몄슂.' }
       }
 
       const aggregate = inventoryAggregate.get(item.inventoryId) ?? { actualWeightKg: 0, deductedQuantity: 0 }
@@ -960,17 +993,17 @@ export const useCircularStockStore = defineStore('circularStock', () => {
       const inventory = getInventoryById(inventoryId)
       if (!inventory) continue
       if (aggregate.actualWeightKg > inventory.weightKg) {
-        return { success: false, message: `${inventory.itemName} 품목은 요청값은 가능하지만 올림 차감 후 실제 반영 kg 합계가 재고 kg을 초과합니다.` }
+        return { success: false, message: `${inventory.itemName} ?덈ぉ? ?붿껌媛믪? 媛?ν븯吏留??щ┝ 李④컧 ???ㅼ젣 諛섏쁺 kg ?⑷퀎媛 ?ш퀬 kg??珥덇낵?⑸땲??` }
       }
       if (aggregate.deductedQuantity > inventory.quantity) {
-        return { success: false, message: `${inventory.itemName} 품목 총 차감 수량이 재고 수량을 초과할 수 없습니다.` }
+        return { success: false, message: `${inventory.itemName} ?덈ぉ 珥?李④컧 ?섎웾???ш퀬 ?섎웾??珥덇낵?????놁뒿?덈떎.` }
       }
     }
 
     return { success: true, buyer }
   }
 
-  function submitCircularStockSale(soldBy = '본사 관리자') {
+  function submitCircularStockSale(soldBy = '蹂몄궗 愿由ъ옄') {
     const validation = validateCircularStockSaleDraft()
     if (!validation.success) {
       return validation
@@ -1081,6 +1114,8 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     saleStep,
     hasStartedWorkflow,
     lockedMaterialType,
+    selectedWarehouseCode,
+    selectedWarehouseName,
     selectedBuyer,
     matchedBuyerCandidates,
     draftSummary,
@@ -1113,3 +1148,5 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     submitCircularStockSale,
   }
 })
+
+
