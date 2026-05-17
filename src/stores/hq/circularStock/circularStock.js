@@ -178,8 +178,10 @@ function normalizeDraftField(item, updates = {}) {
   const requestedWeightKg = Math.min(Math.max(rawRequestedWeightKg, 0), Number(next.availableWeightKg) || 0)
   const unitPrice = Number(next.unitPrice) || 0
   const estimatedQuantity = next.unitWeightKg > 0 ? requestedWeightKg / next.unitWeightKg : 0
+  const availableQuantity = Math.max(0, Number(next.availableQuantity) || 0)
+  const ceilSafeQuantity = Math.ceil(Math.max(estimatedQuantity - 1e-9, 0))
   const deductedQuantity = requestedWeightKg > 0 && next.unitWeightKg > 0
-    ? Math.ceil(estimatedQuantity)
+    ? Math.min(ceilSafeQuantity, availableQuantity)
     : 0
   const actualWeightKg = deductedQuantity > 0 && next.unitWeightKg > 0
     ? roundTo(deductedQuantity * next.unitWeightKg, 4)
@@ -955,7 +957,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
       const inventory = getInventoryById(item.inventoryId)
 
       if (!inventory) {
-        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) ?ш퀬瑜?李얠쓣 ???놁뒿?덈떎.` }
+        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) 재고를 찾을 수 없습니다.` }
       }
       if (Number.isNaN(requestedWeightKg) || requestedWeightKg <= 0) {
         return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) ?먮ℓ kg???낅젰?댁＜?몄슂.` }

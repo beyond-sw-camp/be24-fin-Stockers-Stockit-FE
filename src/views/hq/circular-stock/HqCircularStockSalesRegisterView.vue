@@ -30,6 +30,7 @@ const showFinalReviewModal = ref(false)
 const priceEditModes = ref({})
 const expandedStep3Rows = ref({})
 const groupRequestedKg = ref({})
+const groupRequestedInputText = ref({})
 const manualAdjustedKgBySku = ref({})
 const autoAllocatedKgBySku = ref({})
 const step3SkuInputText = ref({})
@@ -212,14 +213,37 @@ function isStep3DetailOpen(draftId) {
   return Boolean(expandedStep3Rows.value[draftId])
 }
 
+function normalizeMaterialDetailCompositions(materials = []) {
+  return (Array.isArray(materials) ? materials : [])
+    .map((material) => ({
+      name: String(material?.name || '').trim(),
+      ratio: Number(material?.ratio || 0),
+    }))
+    .filter((material) => material.name && material.ratio > 0)
+    .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+}
+
+function buildMaterialDetailKey(materials = []) {
+  const normalized = normalizeMaterialDetailCompositions(materials)
+  if (normalized.length === 0) return '기타'
+  return normalized.map((material) => `${material.name}:${material.ratio}`).join('|')
+}
+
+function buildMaterialDetailLabel(materials = []) {
+  const normalized = normalizeMaterialDetailCompositions(materials)
+  if (normalized.length === 0) return '기타'
+  return normalized.map((material) => `${material.name} ${material.ratio}%`).join(' · ')
+}
+
 const step3GroupCards = computed(() => {
   const groups = new Map()
   for (const item of draftItems.value) {
-    const key = String(item.materialType || '기타')
+    const key = buildMaterialDetailKey(item.materials)
     if (!groups.has(key)) {
       groups.set(key, {
         key,
-        materialType: key,
+        materialType: String(item.materialType || '기타'),
+        materialDetailLabel: buildMaterialDetailLabel(item.materials),
         items: [],
         requestedKg: Number(groupRequestedKg.value[key] || 0),
       })
@@ -233,6 +257,22 @@ const step3GroupCards = computed(() => {
     const totalActualKg = group.items.reduce((sum, item) => sum + (Number(item.actualWeightKg) || 0), 0)
     const totalActualAmount = group.items.reduce((sum, item) => sum + (Number(item.actualAmount) || 0), 0)
     const completedCount = group.items.filter((item) => Number(item.requestedWeightKg) > 0).length
+    const unfilledSkuCount = group.items.filter((item) => Number(item.requestedWeightKg) <= 0).length
+    const errorSkuCount = group.items.filter((item) => {
+      const requested = Number(item.requestedWeightKg) || 0
+      const actual = Number(item.actualWeightKg) || 0
+      const qty = Number(item.deductedQuantity) || 0
+      const availableKg = Number(item.availableWeightKg) || 0
+      const availableQty = Number(item.availableQuantity) || 0
+      if (requested <= 0) return false
+      if (!Number.isFinite(requested) || !Number.isFinite(actual) || !Number.isFinite(qty)) return true
+      if (actual > availableKg + 0.0001) return true
+      if (qty > availableQty) return true
+      return false
+    }).length
+    const isCompleted = group.items.length > 0 && group.items.every((item) => Number(item.requestedWeightKg) > 0)
+    const hasError = errorSkuCount > 0
+    const status = hasError ? 'error' : isCompleted ? 'completed' : 'idle'
 
     return {
       ...group,
@@ -242,6 +282,11 @@ const step3GroupCards = computed(() => {
       totalActualKg,
       totalActualAmount,
       completedCount,
+      unfilledSkuCount,
+      errorSkuCount,
+      isCompleted,
+      hasError,
+      status,
       hasOverLimit: totalActualKg > totalAvailableKg + 0.0001,
     }
   })
@@ -257,8 +302,31 @@ const step3Summary = computed(() => {
 })
 
 const step3HasOverLimit = computed(() => step3GroupCards.value.some((group) => group.hasOverLimit))
+const step3UnfilledSkuCount = computed(() =>
+  draftItems.value.filter((item) => Number(item.requestedWeightKg) <= 0).length,
+)
+const step3ErrorSkuCount = computed(() =>
+  draftItems.value.filter((item) => {
+    const requested = Number(item.requestedWeightKg) || 0
+    const actual = Number(item.actualWeightKg) || 0
+    const qty = Number(item.deductedQuantity) || 0
+    const availableKg = Number(item.availableWeightKg) || 0
+    const availableQty = Number(item.availableQuantity) || 0
+    if (requested <= 0) return false
+    if (!Number.isFinite(requested) || !Number.isFinite(actual) || !Number.isFinite(qty)) return true
+    if (actual > availableKg + 0.0001) return true
+    if (qty > availableQty) return true
+    return false
+  }).length,
+)
+const step3CanRegisterNow = computed(
+  () => canSubmit.value && !step3HasOverLimit.value && step3UnfilledSkuCount.value === 0 && step3ErrorSkuCount.value === 0,
+)
 const step3FooterWarning = computed(() => {
+  if (step3ErrorSkuCount.value > 0) return `오류 SKU ${step3ErrorSkuCount.value}개를 수정해 주세요.`
+  if (step3UnfilledSkuCount.value > 0) return `미입력 SKU ${step3UnfilledSkuCount.value}개가 있습니다.`
   if (step3HasOverLimit.value) return '재고 가능 kg를 초과한 배분이 있습니다. 값을 조정해주세요.'
+  if (step3CanRegisterNow.value) return '등록 가능'
   return submitDisabledReason.value || ''
 })
 
@@ -267,7 +335,28 @@ function distributeGroupRequestedKg(groupKey, requestedValue) {
   if (!group) return
 
   const maxGroupKg = Math.max(0, Number(group.totalAvailableKg) || 0)
-  const requestedKg = Math.min(Math.max(0, Number(requestedValue) || 0), maxGroupKg)
+  const normalizedRaw = String(requestedValue ?? '').replace(/[^0-9.]/g, '')
+  const firstDotIndex = normalizedRaw.indexOf('.')
+  const merged = firstDotIndex === -1
+    ? normalizedRaw
+    : `${normalizedRaw.slice(0, firstDotIndex + 1)}${normalizedRaw.slice(firstDotIndex + 1).replace(/\./g, '')}`
+  const [wholePartRaw = '', decimalRaw = ''] = merged.split('.')
+  const wholePart = wholePartRaw.replace(/^0+(?=\d)/, '') || '0'
+  const decimalPart = decimalRaw.slice(0, 2)
+  const hasDot = merged.includes('.')
+  const candidateText = hasDot ? `${wholePart}.${decimalPart}` : wholePart
+  const rawNumeric = Number(candidateText)
+  let requestedKg = Number.isFinite(rawNumeric) ? rawNumeric : 0
+  requestedKg = Math.min(Math.max(0, requestedKg), maxGroupKg)
+  const isOverMax = Number.isFinite(rawNumeric) && rawNumeric > maxGroupKg
+  groupRequestedInputText.value = {
+    ...groupRequestedInputText.value,
+    [groupKey]: isOverMax
+      ? Number(maxGroupKg).toFixed(2)
+      : (hasDot
+        ? `${Number(requestedKg).toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}${merged.endsWith('.') ? '.' : ''}`
+        : String(Math.trunc(requestedKg))),
+  }
   groupRequestedKg.value = { ...groupRequestedKg.value, [groupKey]: requestedKg }
   circularStockStore.step3GroupRequestedKg = { ...groupRequestedKg.value }
 
@@ -305,6 +394,19 @@ function distributeGroupRequestedKg(groupKey, requestedValue) {
 
   autoAllocatedKgBySku.value = nextAuto
   step3SkuInputText.value = nextInputText
+}
+
+function onGroupRequestedKgBlur(groupKey) {
+  const current = Number(groupRequestedKg.value[groupKey] || 0)
+  const group = step3GroupCards.value.find((entry) => entry.key === groupKey)
+  const maxGroupKg = Math.max(0, Number(group?.totalAvailableKg) || 0)
+  const clamped = Math.min(Math.max(current, 0), maxGroupKg)
+  groupRequestedKg.value = { ...groupRequestedKg.value, [groupKey]: clamped }
+  circularStockStore.step3GroupRequestedKg = { ...groupRequestedKg.value }
+  groupRequestedInputText.value = {
+    ...groupRequestedInputText.value,
+    [groupKey]: Number(clamped).toFixed(2),
+  }
 }
 
 function onStep3SkuKgInput(groupKey, draftId, rawValue) {
@@ -652,6 +754,7 @@ function removeDraftItem(draftId) {
   if (draftItems.value.length === 0) {
     isDrawerOpen.value = false
     groupRequestedKg.value = {}
+    groupRequestedInputText.value = {}
     circularStockStore.step3GroupRequestedKg = {}
     manualAdjustedKgBySku.value = {}
     autoAllocatedKgBySku.value = {}
@@ -668,6 +771,7 @@ function clearDraftPanel() {
   priceEditModes.value = {}
   buyerSearchTerm.value = ''
   groupRequestedKg.value = {}
+  groupRequestedInputText.value = {}
   circularStockStore.step3GroupRequestedKg = {}
   manualAdjustedKgBySku.value = {}
   autoAllocatedKgBySku.value = {}
@@ -773,6 +877,9 @@ watch(
 
 onMounted(() => {
   groupRequestedKg.value = { ...(circularStockStore.step3GroupRequestedKg || {}) }
+  groupRequestedInputText.value = Object.fromEntries(
+    Object.entries(groupRequestedKg.value).map(([key, value]) => [key, Number(value || 0).toFixed(2)]),
+  )
   window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   document.addEventListener('mousedown', handleDocumentClick)
   loadCircularInventoryRows()
@@ -1392,12 +1499,19 @@ onBeforeUnmount(() => {
                 </div>
 
                 <div class="grid w-full gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
-                <div class="min-w-0 space-y-4">
+                <div class="min-w-0" style="display: flex; flex-direction: column; row-gap: 24px;">
 
                   <article
                     v-for="group in step3GroupCards"
                     :key="group.key"
-                    class="overflow-hidden rounded-2xl border border-[#B8DAC8] bg-white"
+                    class="overflow-hidden rounded-2xl border-[1.5px] transition-shadow duration-200"
+                    :class="
+                      group.status === 'error'
+                        ? 'border-rose-300 bg-white shadow-[0_12px_26px_-12px_rgba(15,23,42,0.34)]'
+                        : group.status === 'completed'
+                          ? 'border-emerald-400 bg-white shadow-[0_12px_26px_-12px_rgba(15,23,42,0.34)]'
+                          : 'border-gray-200 bg-white shadow-[0_10px_22px_-14px_rgba(15,23,42,0.32)]'
+                    "
                   >
                     <header class="flex items-center justify-between border-b border-[#DCEDE5] px-5 py-4">
                       <div class="flex items-start gap-3">
@@ -1405,9 +1519,25 @@ onBeforeUnmount(() => {
                           <Shirt class="h-4.5 w-4.5" :stroke-width="2.1" />
                         </div>
                         <div>
-                          <p class="text-base font-black text-gray-900" style="font-weight: 600">{{ group.materialType }}</p>
+                          <div class="flex items-center gap-2">
+                            <span class="text-base font-black text-gray-900" style="font-weight: 600">
+                              {{ group.materialDetailLabel }}
+                            </span>
+                            <span
+                              class="inline-flex h-5 items-center rounded-full px-2 text-[10px] font-black"
+                              :class="
+                                group.status === 'error'
+                                  ? 'bg-rose-100 text-rose-700'
+                                  : group.status === 'completed'
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : 'bg-gray-100 text-gray-600'
+                              "
+                            >
+                              {{ group.status === 'error' ? '오류' : group.status === 'completed' ? '완료' : '미입력' }}
+                            </span>
+                          </div>
                           <p class="mt-1 text-sm font-bold text-gray-500">
-                            SKU {{ group.items.length }}종 ·
+                            {{ group.materialType }} · SKU {{ group.items.length }}종 ·
                             ₩{{ Number(group.items[0]?.defaultKgUnitPrice || 0).toLocaleString() }}/kg
                           </p>
                         </div>
@@ -1430,14 +1560,13 @@ onBeforeUnmount(() => {
                           >
                           <div class="inline-flex h-[45px] items-center gap-1 rounded-xl border-2 border-gray-300 bg-white px-3">
                             <input
-                              :value="groupRequestedKg[group.key] ?? ''"
-                              type="number"
-                              min="0"
-                              :max="group.totalAvailableKg"
-                              step="0.01"
+                              :value="groupRequestedInputText[group.key] ?? (groupRequestedKg[group.key] ?? '')"
+                              type="text"
+                              inputmode="decimal"
                               class="no-spin border-0 bg-transparent px-0 leading-none text-gray-900 outline-none"
                               style="font-weight: 700; width: 5rem; font-size: 25px;"
                               @input="distributeGroupRequestedKg(group.key, $event.target.value)"
+                              @blur="onGroupRequestedKgBlur(group.key)"
                             />
                             <span class="pt-1 text-sm font-bold text-gray-400">kg</span>
                           </div>
@@ -1754,9 +1883,16 @@ onBeforeUnmount(() => {
               <div class="flex items-center justify-between gap-4">
                 <p
                   v-if="step3FooterWarning"
-                  class="pl-2 text-[11px] font-bold leading-5 text-red-600"
+                  class="pl-2 text-[11px] font-bold leading-5"
+                  :class="step3CanRegisterNow ? 'text-emerald-700' : 'text-red-600'"
                 >
                   {{ step3FooterWarning }}
+                  <span
+                    v-if="step3UnfilledSkuCount > 0 || step3ErrorSkuCount > 0"
+                    class="ml-2 text-gray-500"
+                  >
+                    · 미입력 SKU {{ step3UnfilledSkuCount }}개 · 오류 SKU {{ step3ErrorSkuCount }}개
+                  </span>
                 </p>
                 <div v-else />
                 <div class="flex items-center gap-3">
@@ -1770,7 +1906,7 @@ onBeforeUnmount(() => {
                   <button
                     type="button"
                     class="h-10 cursor-pointer rounded-xl border border-[#004D3C] bg-[#004D3C] px-7 text-base font-black text-white transition-all duration-150 hover:border-[#00382c] hover:bg-[#00382c] hover:shadow-[0_8px_16px_-10px_rgba(0,77,60,0.55)] disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:shadow-none"
-                    :disabled="!canSubmit || step3HasOverLimit"
+                    :disabled="!step3CanRegisterNow"
                     @click="openFinalReviewModal"
                   >
                     최종 판매 등록서 확인
