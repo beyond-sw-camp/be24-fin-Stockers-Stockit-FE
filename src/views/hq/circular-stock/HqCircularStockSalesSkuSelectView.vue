@@ -40,7 +40,9 @@ const showReturnToWorkflowButton = computed(
       String(route.query.fromWorkflow || '') === '1'),
 )
 const selectedWarehouseCode = computed(() => String(circularStockStore.selectedWarehouseCode || ''))
-const selectedMaterialGroup = computed(() => String(circularStockStore.inventoryMaterialGroup || ''))
+const selectedMaterialGroup = computed(() =>
+  String(circularStockStore.inventoryMaterialGroup || ''),
+)
 
 function hasRequiredFilters() {
   const hasWarehouse = Array.isArray(circularStockStore.inventoryWarehouseCodes)
@@ -166,10 +168,13 @@ function handleSortChange({ sort }) {
 }
 
 function handleQueryChange(query) {
-  const nextWarehouseCode = Array.isArray(query.warehouseCodes) ? String(query.warehouseCodes[0] || '') : ''
+  const nextWarehouseCode = Array.isArray(query.warehouseCodes)
+    ? String(query.warehouseCodes[0] || '')
+    : ''
   const nextMaterialGroup = String(query.materialGroup || '').trim()
   const isConditionChanged =
-    nextWarehouseCode !== selectedWarehouseCode.value || nextMaterialGroup !== selectedMaterialGroup.value
+    nextWarehouseCode !== selectedWarehouseCode.value ||
+    nextMaterialGroup !== selectedMaterialGroup.value
 
   if (draftItems.value.length > 0 && isConditionChanged) {
     pendingQuery.value = query
@@ -345,11 +350,11 @@ onBeforeUnmount(() => {
         </button>
       </div>
 
-      <div
-        v-if="showSkuModal"
-        class="fixed inset-0 z-40 bg-black/45 backdrop-blur-sm"
-      >
-        <div class="flex h-full w-full items-center justify-center p-4" @click.self="showSkuModal = false">
+      <div v-if="showSkuModal" class="fixed inset-0 z-40 bg-black/45 backdrop-blur-sm">
+        <div
+          class="flex h-full w-full items-center justify-center p-4"
+          @click.self="showSkuModal = false"
+        >
           <section
             class="flex h-full max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden border border-gray-200 bg-white shadow-2xl"
           >
@@ -469,12 +474,11 @@ onBeforeUnmount(() => {
         class="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4"
       >
         <section class="w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-2xl">
-          <p class="text-base font-black text-gray-900">조건 변경 시 판매 등록 초기화</p>
-          <p class="mt-2 text-sm font-bold text-gray-600">
-            창고 또는 소재 구분을 변경하면 진행 중인 판매 등록 Draft가 전체 초기화됩니다.
+          <p class="text-base font-black text-gray-900" style="margin-bottom: 6px">
+            조건 변경 시 판매 등록 초기화
           </p>
-          <p class="mt-1 text-xs font-bold text-gray-500">
-            초기화 대상: SKU, 거래처, 메모, AI 추천 상태, 현재 Step
+          <p class="mt-2 text-sm font-bold text-gray-600" style="margin-bottom: 15px">
+            창고 또는 소재 구분을 변경하면 진행 중인 판매 등록이 전체 초기화됩니다.
           </p>
           <div class="mt-4 flex justify-end gap-2">
             <button

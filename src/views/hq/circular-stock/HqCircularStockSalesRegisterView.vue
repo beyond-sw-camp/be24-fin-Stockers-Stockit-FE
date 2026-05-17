@@ -1,7 +1,7 @@
 ﻿<script setup>
 import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { BadgeCheck, Bot, Info, Loader2, Package, Ruler, Shirt, Sprout, Tag } from 'lucide-vue-next'
+import { ArrowDown, BadgeCheck, Bot, Info, Loader2, Package, Ruler, Shirt, Sprout, Tag } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
 import { roleMenus } from '@/config/roleMenus.js'
@@ -63,6 +63,16 @@ const selectedWarehouseName = computed(() => String(circularStockStore.selectedW
 const outboundWarehouseLabel = computed(
   () => selectedWarehouseName.value || selectedWarehouseCode.value || '-',
 )
+const outboundWarehouseRegionLabel = computed(() => {
+  const label = outboundWarehouseLabel.value
+  if (!label || label === '-') return '-'
+  const normalized = String(label).trim().replace(/\s+/g, ' ')
+  const [first, second] = normalized.split(' ')
+  if (!first) return '-'
+  // 예: "서울 종로 물류창고" -> "서울 종로", "익산 1창고" -> "익산"
+  if (second && /(시|군|구)$/.test(second)) return `${first} ${second}`
+  return first
+})
 
 const canMoveStep2 = computed(
   () =>
@@ -1471,10 +1481,31 @@ onBeforeUnmount(() => {
                 </div>
 
                 <aside class="rounded-xl border border-gray-200 bg-[#F7F8F7] px-4 py-4">
-                  <div class="flex flex-col gap-4">
+                  <div class="flex flex-col gap-3">
                   <section>
-                    <p class="text-xs text-gray-500" style="font-weight: 600; margin-bottom: 6px">거래처</p>
+                    <p class="text-xs text-gray-500" style="font-weight: 600; margin-bottom: 6px">출고 창고</p>
                     <div class="mt-2 rounded-xl border border-gray-200 bg-white px-3 py-3.5">
+                      <div class="flex items-center gap-3">
+                        <span
+                          class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#ECF7F1] text-xs font-black tracking-tight text-[#2F6B4F]"
+                        >
+                          {{ outboundWarehouseRegionLabel }}
+                        </span>
+                        <div class="min-w-0">
+                          <p class="truncate text-base font-black text-gray-900">{{ outboundWarehouseLabel }}</p>
+                          <p class="mt-0.5 text-xs font-bold text-gray-500">출고지</p>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  <div class="flex justify-center py-0">
+                    <ArrowDown class="h-4 w-4 text-gray-400" :stroke-width="2.4" />
+                  </div>
+
+                  <section style="margin-top: -18px;">
+                    <p class="text-xs text-gray-500" style="font-weight: 600; margin-bottom: 6px">거래처</p>
+                    <div class="rounded-xl border border-gray-200 bg-white px-3 py-3.5">
                       <div class="flex items-center gap-3">
                         <span
                           class="inline-flex h-10 w-10 items-center justify-center rounded-xl text-xs font-black tracking-tight"
@@ -1492,17 +1523,13 @@ onBeforeUnmount(() => {
                     </div>
                   </section>
 
-                  <div class="h-px bg-gray-200" />
+                  <div class="py-2">
+                    <div class="h-px bg-gray-200" />
+                  </div>
 
                   <section>
                     <p class="text-xs text-gray-500" style="font-weight: 600; margin-bottom: 4px">판매 요약</p>
                     <div class="mt-2 divide-y divide-gray-200 text-xs">
-                      <div class="flex items-center justify-between py-2.5">
-                        <span class="font-bold text-gray-500">출고 창고</span>
-                        <span class="text-sm text-gray-900" style="font-weight: 600">
-                          {{ outboundWarehouseLabel }}
-                        </span>
-                      </div>
                       <div class="flex items-center justify-between py-2.5">
                         <span class="font-bold text-gray-500">소재 구분</span>
                         <span class="text-sm text-gray-900" style="font-weight: 600">{{ lockedMaterialType || '-' }}</span>
@@ -1540,7 +1567,9 @@ onBeforeUnmount(() => {
                     </p>
                   </section>
 
-                  <div class="h-px bg-gray-200" />
+                  <div class="py-2">
+                    <div class="h-px bg-gray-200" />
+                  </div>
 
                   <section>
                     <p class="text-xs text-gray-500" style="font-weight: 600; margin-bottom: 6px">판매 메모</p>
