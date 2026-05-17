@@ -482,6 +482,16 @@ function companyBadgeClass(index) {
   return classes[index % classes.length]
 }
 
+function step3BuyerBadgeClass() {
+  const selectedCode = String(selectedBuyer.value?.code || selectedBuyer.value?.id || '')
+  if (!selectedCode) return 'bg-gray-100 text-gray-500'
+  const aiIndex = topRecommendations.value.findIndex(
+    (rec) => String(rec?.code || rec?.id || '') === selectedCode,
+  )
+  if (aiIndex >= 0) return companyBadgeClass(aiIndex)
+  return 'bg-gray-100 text-gray-500'
+}
+
 function goToSkuList() {
   router.push({ name: 'hq-circular-inventory-sales-register', query: { fromWorkflow: '1' } })
 }
@@ -1237,9 +1247,21 @@ onBeforeUnmount(() => {
 
               <div
                 v-else
-                class="mt-0 grid w-full gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]"
+                class="mt-0 grid w-full gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]"
               >
                 <div class="min-w-0 space-y-4">
+                  <div
+                    class="flex items-start gap-2 rounded-lg border border-[#CFE0FF] bg-[#F5F9FF] px-4 py-2 text-xs font-bold text-[#2E4E8C]"
+                  >
+                    <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#4A74C9]" :stroke-width="2" />
+                    <span>
+                      거래처는 kg 단위로 요청합니다. 벌 수 환산 시 요청값과 실제 kg 합계가 다를 수
+                      있으며, 재고 한도 초과 수량/무게 판매는 제한됩니다.
+                    </span>
+                  </div>
+
+                  <div class="h-2" />
+
                   <article
                     v-for="group in step3GroupCards"
                     :key="group.key"
@@ -1418,69 +1440,86 @@ onBeforeUnmount(() => {
                     </footer>
                   </article>
 
-                  <div
-                    class="flex items-start gap-2 rounded-lg border border-[#F1E7CF] bg-[#FFFBF3] px-4 py-2 text-xs font-bold text-[#7D6432]"
-                  >
-                    <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#B38A3A]" :stroke-width="2" />
-                    <span>
-                      거래처는 kg 단위로 요청합니다. 자동 환산/올림으로 요청값과 실제 kg 합계가 다를 수 있으며,
-                      재고 한도 초과 수량/무게 판매는 금지됩니다.
-                    </span>
-                  </div>
                 </div>
 
-                <aside class="space-y-3">
-                  <section class="rounded-xl border border-gray-200 bg-white px-4 py-4">
-                    <p class="text-sm font-black text-gray-500">거래처</p>
-                    <div class="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-3">
-                      <p class="text-lg font-black text-gray-900">{{ selectedBuyer?.companyName || '-' }}</p>
-                      <p class="mt-1 text-sm font-bold text-gray-500">
-                        {{ selectedBuyer?.industryGroup || '-' }} 거래처
-                      </p>
+                <aside class="rounded-xl border border-gray-200 bg-[#F7F8F7] px-4 py-4">
+                  <div class="flex flex-col gap-4">
+                  <section>
+                    <p class="text-xs text-gray-500" style="font-weight: 600; margin-bottom: 6px">거래처</p>
+                    <div class="mt-2 rounded-xl border border-gray-200 bg-white px-3 py-3.5">
+                      <div class="flex items-center gap-3">
+                        <span
+                          class="inline-flex h-10 w-10 items-center justify-center rounded-xl text-xs font-black tracking-tight"
+                          :class="step3BuyerBadgeClass()"
+                        >
+                          {{ companyBadgeText(selectedBuyer?.companyName || '거래처') }}
+                        </span>
+                        <div class="min-w-0">
+                          <p class="truncate text-base font-black text-gray-900">{{ selectedBuyer?.companyName || '-' }}</p>
+                          <p class="mt-0.5 text-xs font-bold text-gray-500">
+                            {{ selectedBuyer?.industryGroup || '-' }} 거래처
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </section>
 
-                  <section class="rounded-xl border border-gray-200 bg-white px-4 py-4">
-                    <p class="text-sm font-black text-gray-500">판매 요약</p>
-                    <div class="mt-3 space-y-2 text-sm">
-                      <div class="flex items-center justify-between">
+                  <div class="h-px bg-gray-200" />
+
+                  <section>
+                    <p class="text-xs text-gray-500" style="font-weight: 600; margin-bottom: 4px">판매 요약</p>
+                    <div class="mt-2 divide-y divide-gray-200 text-xs">
+                      <div class="flex items-center justify-between py-2.5">
+                        <span class="font-bold text-gray-500">소재 구분</span>
+                        <span class="text-sm text-gray-900" style="font-weight: 600">{{ lockedMaterialType || '-' }}</span>
+                      </div>
+                      <div class="flex items-start justify-between gap-2 py-2.5">
+                        <span class="font-bold text-gray-500">포함 소재</span>
+                        <span class="text-right text-sm text-gray-900" style="font-weight: 600">
+                          {{ includedMaterialNames.join(', ') || '-' }}
+                        </span>
+                      </div>
+                      <div class="flex items-center justify-between py-2.5">
                         <span class="font-bold text-gray-500">담긴 SKU</span>
-                        <span class="text-base font-black text-gray-900">{{ step3Summary.totalSku }}종</span>
+                        <span class="text-sm text-gray-900" style="font-weight: 600">{{ step3Summary.totalSku }}종</span>
                       </div>
-                      <div class="flex items-center justify-between">
+                      <div class="flex items-center justify-between py-2.5">
                         <span class="font-bold text-gray-500">입력 완료</span>
-                        <span class="text-base font-black text-gray-900">{{ step3Summary.inputCompletedCount }} / {{ step3Summary.totalSku }}</span>
+                        <span class="text-sm text-[#7C5A18]" style="font-weight: 600">{{ step3Summary.inputCompletedCount }} / {{ step3Summary.totalSku }}</span>
                       </div>
-                      <div class="flex items-center justify-between">
+                      <div class="flex items-center justify-between py-2.5">
                         <span class="font-bold text-gray-500">총 판매 벌 수</span>
-                        <span class="text-base font-black text-gray-900">{{ step3Summary.totalActualQty }}벌</span>
+                        <span class="text-sm text-gray-900" style="font-weight: 600">{{ step3Summary.totalActualQty }}벌</span>
                       </div>
-                      <div class="flex items-center justify-between">
+                      <div class="flex items-center justify-between py-2.5">
                         <span class="font-bold text-gray-500">총 실제 무게</span>
-                        <span class="text-base font-black text-gray-900">{{ formatKg(step3Summary.totalActualKg) }}</span>
+                        <span class="text-sm text-gray-900" style="font-weight: 600">{{ formatKg(step3Summary.totalActualKg) }}</span>
                       </div>
                     </div>
                   </section>
 
-                  <section class="rounded-xl border border-[#1F4E43] bg-[#1F4E43] px-4 py-4 text-white">
-                    <p class="text-sm font-bold text-[#BED8CF]">예상 판매 금액</p>
-                    <p class="mt-2 text-2xl font-black">{{ formatCurrency(step3Summary.totalActualAmount) }}</p>
-                    <p class="mt-1 text-sm font-bold text-[#9EC3B8]">
-                      실제 반영 기준
+                  <section class="rounded-2xl border border-[#1F4E43] bg-[#1F4E43] px-4 py-4.5 text-white">
+                    <p class="text-xs font-bold text-[#BED8CF]">예상 판매 금액</p>
+                    <p class="mt-2 text-xl font-black">{{ formatCurrency(step3Summary.totalActualAmount) }}</p>
+                    <p class="mt-1 text-xs font-bold text-[#9EC3B8]">
+                      실제 무게 기준
                     </p>
                   </section>
 
-                  <section class="rounded-xl border border-gray-200 bg-white px-4 py-4">
-                    <p class="text-sm font-black text-gray-500">판매 메모</p>
+                  <div class="h-px bg-gray-200" />
+
+                  <section>
+                    <p class="text-xs text-gray-500" style="font-weight: 600; margin-bottom: 6px">판매 메모</p>
                     <textarea
                       :value="circularStockStore.draftMemo"
-                      rows="5"
+                      rows="4"
                       maxlength="500"
-                      class="mt-2 w-full resize-none rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
+                      class="mt-3 w-full resize-none rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#004D3C]"
                       placeholder="거래 조건, 출고 메모 등을 입력하세요."
                       @input="circularStockStore.setDraftMemo($event.target.value)"
                     />
                   </section>
+                  </div>
                 </aside>
               </div>
             </div>
