@@ -122,7 +122,7 @@ const includedMaterialBadges = computed(() => {
     @click.self="emit('close')"
   >
     <div class="flex h-full w-full items-center justify-center p-4">
-      <div class="flex h-full max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-md bg-white shadow-2xl">
+      <div class="flex h-full max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-md bg-white shadow-2xl">
         <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <div>
             <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Final Review</p>
@@ -309,7 +309,7 @@ const includedMaterialBadges = computed(() => {
                 :key="group.key"
                 class="overflow-hidden rounded-md border border-gray-300 bg-white"
               >
-                <div class="flex flex-wrap items-end justify-between gap-3 border-b border-gray-300 bg-[#F6F6F4] px-3 py-3">
+                <div class="flex flex-wrap items-end justify-between gap-3 border-b border-gray-300 bg-[#F6F6F4] pl-3 px-4 py-3">
                   <div class="flex items-center gap-2">
                     <span class="rounded-full bg-[#D9EFE7] px-3.5 py-1 text-[13px] !font-semibold text-[#1F7A63]">
                       {{ group.materialLabel }}
@@ -335,21 +335,21 @@ const includedMaterialBadges = computed(() => {
                 </div>
 
                 <div class="overflow-x-auto">
-                  <table class="min-w-[980px] w-full table-fixed border-collapse text-right text-sm">
+                  <table class="min-w-[700px] w-full table-fixed border-collapse text-right text-sm">
                     <colgroup>
                       <col class="w-[15%]" />
-                      <col class="w-[15%]" />
-                      <col class="w-[15%]" />
+                      <col class="w-[13%]" />
+                      <col class="w-[13%]" />
+                      <col class="w-[7%]" />
                       <col class="w-[10%]" />
-                      <col class="w-[15%]" />
-                      <col class="w-[15%]" />
-                      <col class="w-[15%]" />
+                      <col class="w-[13%]" />
+                      <col class="w-[13%]" />
                     </colgroup>
                     <thead class="border-b border-gray-200 text-[12px] text-gray-500">
                       <tr>
                         <th class="cell-head !text-left" style="text-align: left">SKU</th>
                         <th class="cell-head text-right">재고</th>
-                        <th class="cell-head text-right">배분 kg</th>
+                        <th class="cell-head text-right">요청 kg</th>
                         <th class="cell-head text-right"></th>
                         <th class="cell-head text-right">판매 벌 수</th>
                         <th class="cell-head text-right">실제 무게</th>
@@ -548,5 +548,15 @@ const includedMaterialBadges = computed(() => {
 .cell-body {
   padding: 0.5rem;
   text-align: inherit;
+}
+
+th.cell-head:first-child,
+td.cell-body:first-child {
+  padding-left: 1.2rem;
+}
+
+th.cell-head:last-child,
+td.cell-body:last-child {
+  padding-right: 1.2rem;
 }
 </style>
