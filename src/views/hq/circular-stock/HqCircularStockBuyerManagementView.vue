@@ -61,6 +61,8 @@ const panelCaption = computed(() => {
   return '선택한 거래처 정보를 읽기 전용으로 확인한 뒤, 필요할 때만 수정 모드로 전환합니다.'
 })
 
+const isCreatePanelActive = computed(() => panelMode.value === 'create')
+
 function resetForm() {
   form.value = emptyForm()
   productKeywordInput.value = ''
@@ -250,7 +252,9 @@ onMounted(() => {
 
           <button
             type="button"
-            class="h-11 self-end justify-self-end border border-[#d8e4df] bg-[#19352c] px-4 text-sm font-black text-white transition hover:bg-[#10261f]"
+            class="h-11 self-end justify-self-end border border-[#d8e4df] bg-[#19352c] px-4 text-sm font-black text-white transition hover:bg-[#10261f] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-[#10261f]"
+            :disabled="isCreatePanelActive"
+            :aria-disabled="isCreatePanelActive"
             @click="handleCreateNew"
           >
             + 새 거래처 등록
@@ -620,38 +624,43 @@ onMounted(() => {
                   }}</span>
                 </label>
 
-                <label v-if="panelMode === 'edit' && selectedBuyer" class="flex flex-col gap-1.5">
-                  <span class="text-[11px] font-bold text-gray-500">거래처 코드</span>
-                  <input
-                    :value="selectedBuyer.code"
-                    type="text"
-                    disabled
-                    class="h-11 cursor-not-allowed border border-gray-200 bg-gray-100 px-3 text-sm font-bold text-gray-500 outline-none"
-                  />
-                </label>
+                <div class="flex flex-col gap-4">
+                  <label class="flex flex-col gap-1.5">
+                    <span class="text-[11px] font-bold text-gray-500">산업군</span>
+                    <select
+                      v-model="form.industryGroup"
+                      class="h-11 border border-gray-300 bg-[#fafaf8] px-3 text-sm font-bold text-gray-900 outline-none focus:border-[#19352c] focus:bg-white"
+                    >
+                      <option value="">산업군 선택</option>
+                      <option
+                        v-for="industry in buyerStore.INDUSTRY_GROUP_OPTIONS"
+                        :key="industry"
+                        :value="industry"
+                      >
+                        {{ industry }}
+                      </option>
+                    </select>
+                    <span v-if="errors.industryGroup" class="text-[11px] font-bold text-red-500">{{
+                      errors.industryGroup
+                    }}</span>
+                  </label>
+
+                  <label
+                    v-if="panelMode === 'edit' && selectedBuyer"
+                    class="flex flex-col gap-1.5"
+                  >
+                    <span class="text-[11px] font-bold text-gray-500">거래처 코드</span>
+                    <input
+                      :value="selectedBuyer.code"
+                      type="text"
+                      disabled
+                      class="h-11 cursor-not-allowed border border-gray-200 bg-gray-100 px-3 text-sm font-bold text-gray-500 outline-none"
+                    />
+                  </label>
+                </div>
               </section>
 
               <section class="grid gap-4 md:grid-cols-2">
-                <label class="flex flex-col gap-1.5">
-                  <span class="text-[11px] font-bold text-gray-500">산업군</span>
-                  <select
-                    v-model="form.industryGroup"
-                    class="h-11 border border-gray-300 bg-[#fafaf8] px-3 text-sm font-bold text-gray-900 outline-none focus:border-[#19352c] focus:bg-white"
-                  >
-                    <option value="">산업군 선택</option>
-                    <option
-                      v-for="industry in buyerStore.INDUSTRY_GROUP_OPTIONS"
-                      :key="industry"
-                      :value="industry"
-                    >
-                      {{ industry }}
-                    </option>
-                  </select>
-                  <span v-if="errors.industryGroup" class="text-[11px] font-bold text-red-500">{{
-                    errors.industryGroup
-                  }}</span>
-                </label>
-
                 <label class="flex flex-col gap-1.5">
                   <span class="text-[11px] font-bold text-gray-500">대표 소재 적합도</span>
                   <select
@@ -673,9 +682,7 @@ onMounted(() => {
                     >{{ errors.primaryMaterialFit }}</span
                   >
                 </label>
-              </section>
 
-              <section class="grid gap-4 md:grid-cols-2">
                 <label class="flex flex-col gap-1.5">
                   <span class="text-[11px] font-bold text-gray-500">파트너 유형</span>
                   <select
