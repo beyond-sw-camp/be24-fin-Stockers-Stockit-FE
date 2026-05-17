@@ -1247,20 +1247,21 @@ onBeforeUnmount(() => {
 
               <div
                 v-else
-                class="mt-0 grid w-full gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]"
+                class="mt-0 space-y-4"
               >
-                <div class="min-w-0 space-y-4">
-                  <div
-                    class="flex items-start gap-2 rounded-lg border border-[#CFE0FF] bg-[#F5F9FF] px-4 py-2 text-xs font-bold text-[#2E4E8C]"
-                  >
-                    <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#4A74C9]" :stroke-width="2" />
-                    <span>
-                      거래처는 kg 단위로 요청합니다. 벌 수 환산 시 요청값과 실제 kg 합계가 다를 수
-                      있으며, 재고 한도 초과 수량/무게 판매는 제한됩니다.
-                    </span>
-                  </div>
+                <div
+                  class="flex items-start gap-2 rounded-lg border border-[#CFE0FF] bg-[#F5F9FF] px-4 py-2 text-xs font-bold text-[#2E4E8C]"
+                  style="margin-bottom: 1.4%;"
+                >
+                  <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#4A74C9]" :stroke-width="2" />
+                  <span>
+                    거래처는 kg 단위로 요청합니다. 벌 수 환산 시 요청값과 실제 kg 합계가 다를 수
+                    있으며, 재고 한도(수량/무게) 초과 판매는 제한됩니다.
+                  </span>
+                </div>
 
-                  <div class="h-2" />
+                <div class="grid w-full gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
+                <div class="min-w-0 space-y-4">
 
                   <article
                     v-for="group in step3GroupCards"
@@ -1521,6 +1522,7 @@ onBeforeUnmount(() => {
                   </section>
                   </div>
                 </aside>
+                </div>
               </div>
             </div>
             <div
