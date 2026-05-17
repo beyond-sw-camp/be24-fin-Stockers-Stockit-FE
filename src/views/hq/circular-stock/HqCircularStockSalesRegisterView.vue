@@ -3,7 +3,9 @@ import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowDown, ChevronDown, ChevronUp, BadgeCheck, Bot, Info, Loader2, Package, Ruler, Shirt, Sprout, Tag } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
-import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
+import SalesRegisterStepper from '@/components/hq/circular-stock/sales-register/SalesRegisterStepper.vue'
+import SalesRegisterStep1SkuTable from '@/components/hq/circular-stock/sales-register/SalesRegisterStep1SkuTable.vue'
+import SalesRegisterStepFooter from '@/components/hq/circular-stock/sales-register/SalesRegisterStepFooter.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useEsgStore } from '@/stores/esg.js'
@@ -55,7 +57,6 @@ const filteredBuyers = computed(() => circularStockStore.filteredBuyers(buyerSea
 const selectedBuyer = computed(() => circularStockStore.selectedBuyer)
 const drawerSummary = computed(() => circularStockStore.draftSummary)
 const draftItems = computed(() => circularStockStore.draftItems)
-const draftRowIds = computed(() => draftItems.value.map((item) => item.draftId))
 const submitValidation = computed(() => circularStockStore.validateCircularStockSaleDraft())
 const lockedMaterialType = computed(() => {
   const raw = unref(circularStockStore.lockedMaterialType)
@@ -85,8 +86,6 @@ const canMoveStep2 = computed(
 )
 const canMoveStep3 = computed(() => canMoveStep2.value && Boolean(selectedBuyer.value))
 const canSubmit = computed(() => submitValidation.value.success)
-const shouldRenderDrawer = computed(() => true)
-const browseSummaryText = computed(() => `담긴 SKU ${draftItems.value.length.toLocaleString()}건`)
 const includedMaterialNames = computed(() => [
   ...new Set(draftItems.value.flatMap((item) => item.materials.map((material) => material.name))),
 ])
@@ -982,190 +981,18 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="flex-1 overflow-y-auto p-7">
-              <div class="h-5" />
-              <div class="relative">
-                <div
-                  class="pointer-events-none absolute left-0 right-0 top-5 flex items-center px-[16.666%]"
-                >
-                  <span class="relative h-[2px] flex-1 rounded-full bg-gray-200">
-                    <span
-                      class="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-[#2F9E87] to-[#0F5C4D] transition-all duration-400 ease-out"
-                      :style="{ width: saleStep >= 2 ? '100%' : '0%' }"
-                    />
-                  </span>
-                  <span class="mx-2 h-[2px] w-8 rounded-full bg-transparent" />
-                  <span class="relative h-[2px] flex-1 rounded-full bg-gray-200">
-                    <span
-                      class="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-[#2F9E87] to-[#0F5C4D] transition-all duration-400 ease-out"
-                      :style="{ width: saleStep >= 3 ? '100%' : '0%' }"
-                    />
-                  </span>
-                </div>
+              <SalesRegisterStepper
+                :sale-step="saleStep"
+                @move-step="moveStep"
+              />
 
-                <div class="relative flex items-start">
-                  <button
-                    type="button"
-                    class="group flex min-w-0 flex-1 flex-col items-center gap-3 text-center"
-                    @click="moveStep(1)"
-                  >
-                    <span
-                      class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-black transition-all duration-200"
-                      :class="
-                        saleStep >= 1
-                          ? 'border-[#0F5C4D] bg-[#0F5C4D] text-white shadow-[0_6px_14px_-8px_rgba(15,92,77,0.75)] ring-2 ring-[#0F5C4D]/15'
-                          : 'border-gray-300 bg-white text-gray-500 shadow-sm'
-                      "
-                      >1</span
-                    >
-                    <span
-                      class="text-xs font-black"
-                      :class="saleStep === 1 ? 'text-[#0F5C4D]' : 'text-gray-600'"
-                      >선택한 SKU 확인</span
-                    >
-                  </button>
-
-                  <button
-                    type="button"
-                    class="group flex min-w-0 flex-1 flex-col items-center gap-3 text-center"
-                    @click="moveStep(2)"
-                  >
-                    <span
-                      class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-black transition-all duration-200"
-                      :class="
-                        saleStep >= 2
-                          ? 'border-[#0F5C4D] bg-[#0F5C4D] text-white shadow-[0_6px_14px_-8px_rgba(15,92,77,0.75)] ring-2 ring-[#0F5C4D]/15'
-                          : 'border-gray-300 bg-white text-gray-500 shadow-sm'
-                      "
-                      >2</span
-                    >
-                    <span
-                      class="text-xs font-black"
-                      :class="saleStep === 2 ? 'text-[#0F5C4D]' : 'text-gray-600'"
-                      >거래처 매칭</span
-                    >
-                  </button>
-
-                  <button
-                    type="button"
-                    class="group flex min-w-0 flex-1 flex-col items-center gap-3 text-center"
-                    @click="moveStep(3)"
-                  >
-                    <span
-                      class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-black transition-all duration-200"
-                      :class="
-                        saleStep >= 3
-                          ? 'border-[#0F5C4D] bg-[#0F5C4D] text-white shadow-[0_6px_14px_-8px_rgba(15,92,77,0.75)] ring-2 ring-[#0F5C4D]/15'
-                          : 'border-gray-300 bg-white text-gray-500 shadow-sm'
-                      "
-                      >3</span
-                    >
-                    <span
-                      class="text-xs font-black"
-                      :class="saleStep === 3 ? 'text-[#0F5C4D]' : 'text-gray-600'"
-                      >판매 조건 확정</span
-                    >
-                  </button>
-                </div>
-              </div>
-
-              <div class="h-14" />
-
-              <div v-if="saleStep === 1" class="mt-0">
-                <div class="mb-0 pl-2 flex items-center justify-between gap-3">
-                  <div>
-                    <p class="text-sm font-black text-gray-900">선택한 SKU 확인</p>
-                  </div>
-                  <div class="flex items-center gap-3">
-                    <span class="text-xs font-black text-gray-500">
-                      출고 창고: <span class="text-gray-900">{{ outboundWarehouseLabel }}</span>
-                    </span>
-                    <button
-                      type="button"
-                      class="pr-4 cursor-pointer text-[11px] font-black text-gray-500 hover:text-gray-900"
-                      @click="clearDraftPanel"
-                    >
-                      전체 비우기
-                    </button>
-                  </div>
-                </div>
-                <div class="h-2.5" />
-                <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-                  <table class="w-full border-collapse text-left text-xs">
-                    <thead
-                      class="sticky top-0 bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500"
-                    >
-                      <tr>
-                        <th class="px-3 py-3 font-black">SKU</th>
-                        <th class="px-3 py-3 font-black">품목</th>
-                        <th class="px-3 py-3 font-black">소재 구분</th>
-                        <th class="px-3 py-3 font-black">소재 상세</th>
-                        <th class="px-3 py-3 text-center font-black">재고 수량</th>
-                        <th class="px-3 py-3 text-right font-black">kg당 단가</th>
-                        <th class="px-3 py-3 text-right font-black">환산 금액</th>
-                        <th class="px-3 py-3 text-right font-black">총 무게</th>
-                        <th class="px-3 py-3 text-right font-black">개당 무게</th>
-                        <th class="px-3 py-3 text-center font-black">제거</th>
-                      </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100">
-                      <tr v-for="item in draftItems" :key="item.draftId">
-                        <td class="px-3 py-3 font-mono font-bold text-gray-600">
-                          {{ item.skuCode }}
-                        </td>
-                        <td class="px-3 py-3 font-black text-gray-900">{{ item.itemName }}</td>
-                        <td class="px-3 py-3 font-black text-gray-700">{{ item.materialType }}</td>
-                        <td class="px-3 py-3 font-bold text-gray-700">
-                          {{ formatMaterials(item.materials) }}
-                        </td>
-                        <td class="px-3 py-3 text-center font-black text-gray-900">
-                          {{ item.availableQuantity.toLocaleString() }}벌
-                        </td>
-                        <td class="px-3 py-3 text-right font-black text-gray-900">
-                          ₩{{ Number(item.defaultKgUnitPrice || 0).toLocaleString() }}
-                        </td>
-                        <td class="px-3 py-3 text-right font-black text-gray-900">
-                          ₩{{
-                            Math.round(
-                              Number(item.availableWeightKg || 0) *
-                                Number(item.defaultKgUnitPrice || 0),
-                            ).toLocaleString()
-                          }}
-                        </td>
-                        <td class="px-3 py-3 text-right font-black text-gray-900">
-                          {{ Number(item.availableWeightKg || 0).toFixed(2) }}kg
-                        </td>
-                        <td class="px-3 py-3 text-right font-black text-gray-900">
-                          {{ Number(item.unitWeightKg || 0).toFixed(3) }}kg
-                        </td>
-                        <td class="px-3 py-3 text-center">
-                          <button
-                            type="button"
-                            class="h-8 rounded-lg border border-gray-200 bg-white px-3 text-[11px] font-black text-gray-500 transition hover:bg-gray-50 hover:text-gray-700"
-                            @click="removeDraftItem(item.draftId)"
-                          >
-                            삭제
-                          </button>
-                        </td>
-                      </tr>
-                      <tr v-if="draftItems.length === 0">
-                        <td
-                          colspan="10"
-                          class="px-3 py-8 text-center text-xs font-bold text-gray-400"
-                        >
-                          선택된 SKU가 없습니다.
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div class="h-3" />
-                <div
-                  class="flex items-start gap-2 rounded-lg border border-[#F1E7CF] bg-[#FFFBF3] px-4 py-2 text-xs font-bold text-[#7D6432]"
-                >
-                  <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#B38A3A]" :stroke-width="2" />
-                  <span>한 건의 판매에서는 같은 소재 구분의 SKU만 함께 선택할 수 있습니다.</span>
-                </div>
-              </div>
+              <SalesRegisterStep1SkuTable
+                v-if="saleStep === 1"
+                :draft-items="draftItems"
+                :outbound-warehouse-label="outboundWarehouseLabel"
+                @remove-item="removeDraftItem"
+                @clear-all="clearDraftPanel"
+              />
 
               <template v-else-if="saleStep === 2">
               <div class="mt-0">
@@ -1858,112 +1685,19 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </div>
-            <div
-              v-if="saleStep === 1"
-              class="border-t border-gray-200 bg-gray-50 px-6 py-4"
-            >
-              <div class="flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  class="h-10 cursor-pointer rounded-xl border border-[#004D3C] bg-[#004D3C] px-7 text-base font-black text-white transition-all duration-150 hover:border-[#00382c] hover:bg-[#00382c] hover:shadow-[0_8px_16px_-10px_rgba(0,77,60,0.55)] disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:shadow-none"
-                  :disabled="!canMoveStep2"
-                  @click="moveStep(2)"
-                >
-                  거래처 매칭 →
-                </button>
-              </div>
-            </div>
-            <div
-              v-if="saleStep === 2"
-              class="border-t border-gray-200 bg-gray-50 px-6 py-4"
-            >
-              <div class="relative flex items-center justify-end gap-3">
-                <div v-if="selectedBuyer" class="absolute left-2 right-[26rem] min-w-0">
-                  <div class="flex min-w-0 items-center gap-2">
-                    <span
-                      class="inline-flex h-6 items-center rounded-full bg-[#0F5C4D] px-2.5 text-[11px] font-black text-white"
-                    >
-                      선택됨
-                    </span>
-                    <span class="truncate text-base font-black text-gray-900">
-                      {{ selectedBuyer?.companyName || '-' }}
-                    </span>
-                    <span class="pt-[1px] text-sm font-bold leading-none text-gray-500">
-                      {{ selectedBuyer?.code || '-' }}
-                    </span>
-                    <span
-                      class="rounded-full border border-[#BFDCCF] bg-[#ECF7F1] px-2 py-0.5 text-[11px] font-black text-[#2F6B4F]"
-                    >
-                      {{ materialFitLabel(selectedBuyer?.primaryMaterialFit) || '-' }}
-                    </span>
-                  </div>
-                  <div class="h-1" />
-                  <p class="pl-[3.7rem] text-sm font-bold text-gray-500">
-                    {{ selectedBuyer?.industryGroup || '-' }} · 담당자
-                    {{ selectedBuyer?.managerName || '-' }} · {{ selectedBuyer?.phone || '-' }}
-                  </p>
-                </div>
-                <div class="flex items-center gap-3">
-                  <button
-                    type="button"
-                    class="h-10 cursor-pointer rounded-xl border border-gray-300 bg-white px-6 text-base font-black text-gray-700 transition-all duration-150 hover:bg-gray-50 hover:shadow-sm"
-                    @click="moveStep(1)"
-                  >
-                    ← 선택한 SKU 목록으로
-                  </button>
-                  <button
-                    type="button"
-                    class="h-10 cursor-pointer rounded-xl border px-7 text-base font-black text-white transition-all duration-150"
-                    :class="
-                      canMoveStep3
-                        ? 'border-[#004D3C] bg-[#004D3C] hover:border-[#00382c] hover:bg-[#00382c] hover:shadow-[0_8px_16px_-10px_rgba(0,77,60,0.55)]'
-                        : 'border-gray-300 bg-gray-400 text-white hover:bg-gray-500'
-                    "
-                    @click="moveStep(3)"
-                  >
-                    판매 조건 확정으로 →
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div
-              v-if="saleStep === 3"
-              class="border-t border-gray-200 bg-gray-50 px-6 py-4"
-            >
-              <div class="flex items-center justify-between gap-4">
-                <p
-                  v-if="step3FooterWarning"
-                  class="pl-2 text-[11px] font-bold leading-5"
-                  :class="step3CanRegisterNow ? 'text-emerald-700' : 'text-red-600'"
-                >
-                  {{ step3FooterWarning }}
-                  <span
-                    v-if="step3UnfilledSkuCount > 0 || step3ErrorSkuCount > 0"
-                    class="ml-2 text-gray-500"
-                  >
-                    · 미입력 SKU {{ step3UnfilledSkuCount }}개 · 오류 SKU {{ step3ErrorSkuCount }}개
-                  </span>
-                </p>
-                <div v-else />
-                <div class="flex items-center gap-3">
-                  <button
-                    type="button"
-                    class="h-10 cursor-pointer rounded-xl border border-gray-300 bg-white px-6 text-base font-black text-gray-700 transition-all duration-150 hover:bg-gray-50 hover:shadow-sm"
-                    @click="moveStep(2)"
-                  >
-                    ← 거래처 매칭으로
-                  </button>
-                  <button
-                    type="button"
-                    class="h-10 cursor-pointer rounded-xl border border-[#004D3C] bg-[#004D3C] px-7 text-base font-black text-white transition-all duration-150 hover:border-[#00382c] hover:bg-[#00382c] hover:shadow-[0_8px_16px_-10px_rgba(0,77,60,0.55)] disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:shadow-none"
-                    :disabled="!step3CanRegisterNow"
-                    @click="openFinalReviewModal"
-                  >
-                    최종 판매 등록서 확인
-                  </button>
-                </div>
-              </div>
-            </div>
+            <SalesRegisterStepFooter
+              :sale-step="saleStep"
+              :can-move-step2="canMoveStep2"
+              :can-move-step3="canMoveStep3"
+              :selected-buyer="selectedBuyer"
+              :step3-footer-warning="step3FooterWarning"
+              :step3-can-register-now="step3CanRegisterNow"
+              :step3-unfilled-sku-count="step3UnfilledSkuCount"
+              :step3-error-sku-count="step3ErrorSkuCount"
+              :material-fit-label="materialFitLabel"
+              @move-step="moveStep"
+              @open-final-review="openFinalReviewModal"
+            />
           </div>
         </div>
       </div>
