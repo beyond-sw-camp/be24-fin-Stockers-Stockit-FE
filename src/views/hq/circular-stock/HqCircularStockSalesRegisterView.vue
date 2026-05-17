@@ -1,7 +1,7 @@
 ﻿<script setup>
 import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowDown, BadgeCheck, Bot, Info, Loader2, Package, Ruler, Shirt, Sprout, Tag } from 'lucide-vue-next'
+import { ArrowDown, ChevronDown, ChevronUp, BadgeCheck, Bot, Info, Loader2, Package, Ruler, Shirt, Sprout, Tag } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
 import { roleMenus } from '@/config/roleMenus.js'
@@ -29,6 +29,7 @@ const isDrawerOpen = ref(false)
 const showFinalReviewModal = ref(false)
 const priceEditModes = ref({})
 const expandedStep3Rows = ref({})
+const expandedStep3Groups = ref({})
 const groupRequestedKg = ref({})
 const groupRequestedInputText = ref({})
 const manualAdjustedKgBySku = ref({})
@@ -115,7 +116,9 @@ const finalReviewSummary = computed(() => ({
     0,
   ),
 }))
-const submitDisabledReason = computed(() => (canSubmit.value ? '' : submitValidation.value.message))
+const submitDisabledReason = computed(
+  () => (canSubmit.value ? '' : submitValidation.value.primaryMessage || submitValidation.value.message || ''),
+)
 const topRecommendations = computed(() => circularStockStore.recommendations.slice(0, 5))
 const recommendationKey = computed(() =>
   draftItems.value
@@ -213,6 +216,17 @@ function isStep3DetailOpen(draftId) {
   return Boolean(expandedStep3Rows.value[draftId])
 }
 
+function toggleStep3Group(groupKey) {
+  expandedStep3Groups.value = {
+    ...expandedStep3Groups.value,
+    [groupKey]: !expandedStep3Groups.value[groupKey],
+  }
+}
+
+function isStep3GroupExpanded(groupKey) {
+  return expandedStep3Groups.value[groupKey] !== false
+}
+
 function normalizeMaterialDetailCompositions(materials = []) {
   return (Array.isArray(materials) ? materials : [])
     .map((material) => ({
@@ -232,7 +246,9 @@ function buildMaterialDetailKey(materials = []) {
 function buildMaterialDetailLabel(materials = []) {
   const normalized = normalizeMaterialDetailCompositions(materials)
   if (normalized.length === 0) return '기타'
-  return normalized.map((material) => `${material.name} ${material.ratio}%`).join(' · ')
+  return normalized
+    .map((material) => `${material.name} ${material.ratio}%`)
+    .join(normalized.length >= 2 ? ' + ' : ' · ')
 }
 
 const step3GroupCards = computed(() => {
@@ -302,33 +318,33 @@ const step3Summary = computed(() => {
 })
 
 const step3HasOverLimit = computed(() => step3GroupCards.value.some((group) => group.hasOverLimit))
-const step3UnfilledSkuCount = computed(() =>
-  draftItems.value.filter((item) => Number(item.requestedWeightKg) <= 0).length,
-)
-const step3ErrorSkuCount = computed(() =>
-  draftItems.value.filter((item) => {
-    const requested = Number(item.requestedWeightKg) || 0
-    const actual = Number(item.actualWeightKg) || 0
-    const qty = Number(item.deductedQuantity) || 0
-    const availableKg = Number(item.availableWeightKg) || 0
-    const availableQty = Number(item.availableQuantity) || 0
-    if (requested <= 0) return false
-    if (!Number.isFinite(requested) || !Number.isFinite(actual) || !Number.isFinite(qty)) return true
-    if (actual > availableKg + 0.0001) return true
-    if (qty > availableQty) return true
-    return false
-  }).length,
-)
-const step3CanRegisterNow = computed(
-  () => canSubmit.value && !step3HasOverLimit.value && step3UnfilledSkuCount.value === 0 && step3ErrorSkuCount.value === 0,
-)
-const step3FooterWarning = computed(() => {
-  if (step3ErrorSkuCount.value > 0) return `오류 SKU ${step3ErrorSkuCount.value}개를 수정해 주세요.`
-  if (step3UnfilledSkuCount.value > 0) return `미입력 SKU ${step3UnfilledSkuCount.value}개가 있습니다.`
-  if (step3HasOverLimit.value) return '재고 가능 kg를 초과한 배분이 있습니다. 값을 조정해주세요.'
-  if (step3CanRegisterNow.value) return '등록 가능'
-  return submitDisabledReason.value || ''
+const step3ValidationCounts = computed(() => {
+  const counts = submitValidation.value?.counts || {}
+  return {
+    unfilledSkuCount: Number(counts.unfilledSkuCount || 0),
+    errorSkuCount: Number(counts.errorSkuCount || 0),
+    overLimitSkuCount: Number(counts.overLimitSkuCount || 0),
+  }
 })
+const step3UnfilledSkuCount = computed(() => step3ValidationCounts.value.unfilledSkuCount)
+const step3ErrorSkuCount = computed(() => step3ValidationCounts.value.errorSkuCount)
+const step3CanRegisterNow = computed(() => submitValidation.value.success)
+const step3FooterWarning = computed(() => {
+  if (step3CanRegisterNow.value) return '등록 가능'
+  return submitValidation.value.primaryMessage || submitDisabledReason.value || '입력값을 확인해 주세요.'
+})
+
+watch(
+  step3GroupCards,
+  (groups) => {
+    const next = {}
+    for (const group of groups) {
+      next[group.key] = expandedStep3Groups.value[group.key] ?? true
+    }
+    expandedStep3Groups.value = next
+  },
+  { immediate: true },
+)
 
 function distributeGroupRequestedKg(groupKey, requestedValue) {
   const group = step3GroupCards.value.find((entry) => entry.key === groupKey)
@@ -798,7 +814,7 @@ function closePriceEditMode(draftId) {
 
 function openFinalReviewModal() {
   if (!submitValidation.value.success) {
-    showToast(submitValidation.value.message, 'error')
+    showToast(submitValidation.value.primaryMessage || submitValidation.value.message, 'error')
     return
   }
   showFinalReviewModal.value = true
@@ -1542,17 +1558,19 @@ onBeforeUnmount(() => {
                           </p>
                         </div>
                       </div>
-                      <p class="inline-flex items-center gap-1.5 text-sm font-bold text-gray-600">
-                        <Package class="h-3.5 w-3.5 text-gray-500" :stroke-width="2.1" />
-                        총 재고 <span class="text-gray-900" style="font-weight: 600">{{ group.totalAvailableQty }}벌</span>
-                        · 최대
-                        <span class="text-gray-900" style="font-weight: 600">{{ formatKg(group.totalAvailableKg) }}</span>
-                      </p>
+                      <div class="flex items-center gap-3">
+                        <p class="inline-flex items-center gap-1.5 text-sm font-bold text-gray-600">
+                          <Package class="h-3.5 w-3.5 text-gray-500" :stroke-width="2.1" />
+                          총 재고 <span class="text-gray-900" style="font-weight: 600">{{ group.totalAvailableQty }}벌</span>
+                          · 최대
+                          <span class="text-gray-900" style="font-weight: 600">{{ formatKg(group.totalAvailableKg) }}</span>
+                        </p>
+                      </div>
                     </header>
 
                     <div class="border-b border-[#E6F1EC] px-5 py-4">
                       <div class="flex flex-col gap-1">
-                        <div class="flex flex-wrap items-center gap-3">
+                        <div class="flex flex-wrap items-center gap-3 w-full">
                           <span
                             class="inline-flex h-[46px] items-center -translate-y-[1px] text-sm leading-none text-gray-900"
                             style="font-weight: 600"
@@ -1578,6 +1596,24 @@ onBeforeUnmount(() => {
                             <span>&nbsp;재고 많은 순으로&nbsp;</span>
                             <span class="font-black text-[#6E4BB8]">자동 배분</span>
                           </div>
+                          <button
+                            type="button"
+                            class="inline-flex h-7 items-center gap-1 rounded-full border border-gray-200 bg-white px-2.5 text-[11px] font-black text-gray-600 hover:bg-gray-50"
+                            style="margin-left: auto;"
+                            @click="toggleStep3Group(group.key)"
+                          >
+                            <span>{{ isStep3GroupExpanded(group.key) ? '접기' : '펼치기' }}</span>
+                            <ChevronUp
+                              v-if="isStep3GroupExpanded(group.key)"
+                              class="h-3.5 w-3.5"
+                              :stroke-width="2.2"
+                            />
+                            <ChevronDown
+                              v-else
+                              class="h-3.5 w-3.5"
+                              :stroke-width="2.2"
+                            />
+                          </button>
                         </div>
                         <div class="text-xs font-bold text-gray-400" style="padding-left: 5.8rem; margin-top: 1px;">
                           재고 최대 {{ Number(group.totalAvailableKg || 0).toFixed(2) }}kg
@@ -1585,6 +1621,7 @@ onBeforeUnmount(() => {
                       </div>
                     </div>
 
+                    <template v-if="isStep3GroupExpanded(group.key)">
                     <div class="overflow-x-auto">
                       <table class="min-w-[800px] w-full border-collapse text-left">
                         <colgroup>
@@ -1678,6 +1715,7 @@ onBeforeUnmount(() => {
                       </table>
                     </div>
 
+                    </template>
                     <footer class="flex items-center justify-between bg-[#E7F3EC] px-5 py-3 text-sm font-medium text-[#2A5B46]">
                       <div class="flex items-center gap-5">
                         <span class="inline-flex items-center gap-1.5">

@@ -924,29 +924,63 @@ export const useCircularStockStore = defineStore('circularStock', () => {
   }
 
   function validateCircularStockSaleDraft() {
+    const buildCounts = () => {
+      let unfilledSkuCount = 0
+      let errorSkuCount = 0
+      let overLimitSkuCount = 0
+      for (const item of draftItems.value) {
+        const requested = Number(item.requestedWeightKg)
+        const actual = Number(item.actualWeightKg)
+        const qty = Number(item.deductedQuantity)
+        const availableKg = Number(item.availableWeightKg) || 0
+        const availableQty = Number(item.availableQuantity) || 0
+        if (!Number.isFinite(requested) || requested <= 0) {
+          unfilledSkuCount += 1
+          continue
+        }
+        const invalid = !Number.isFinite(actual) || !Number.isFinite(qty) || actual <= 0 || qty <= 0
+        const overLimit = actual > availableKg + 0.0001 || qty > availableQty
+        if (invalid || overLimit) {
+          errorSkuCount += 1
+          if (overLimit) overLimitSkuCount += 1
+        }
+      }
+      return { unfilledSkuCount, errorSkuCount, overLimitSkuCount }
+    }
+
+    const fail = (message, code, firstBlockingSku = null) => ({
+      success: false,
+      message,
+      primaryMessage: message,
+      codes: code ? [code] : [],
+      counts: buildCounts(),
+      firstBlockingSku,
+      buyer: null,
+    })
+
     if (draftItems.value.length === 0) {
-      return { success: false, message: 'Step 1?먯꽌 ?먮ℓ??SKU瑜?1嫄??댁긽 ?좏깮?댁＜?몄슂.' }
+      return fail('Step 1에서 판매할 SKU를 1건 이상 선택해 주세요.', 'NO_SKU')
     }
     if (!draftBuyerId.value) {
-      return { success: false, message: 'Step 2?먯꽌 嫄곕옒泥섎? ?좏깮?댁＜?몄슂.' }
+      return fail('Step 2에서 거래처를 선택해 주세요.', 'NO_BUYER')
     }
     if (!lockedMaterialType.value) {
-      return { success: false, message: '?붿껌???뚯옱 援щ텇???뺤젙?섏? ?딆븯?듬땲?? Step 1 ?좏깮 ?곹깭瑜??ㅼ떆 ?뺤씤?댁＜?몄슂.' }
+      return fail('요청 소재 구분이 확정되지 않았습니다. Step 1 선택 상태를 다시 확인해 주세요.', 'MATERIAL_TYPE_MISSING')
     }
     if (!selectedWarehouseCode.value) {
-      return { success: false, message: '異쒓퀬 李쎄퀬瑜?癒쇱? ?좏깮?댁＜?몄슂.' }
+      return fail('출고 창고를 먼저 선택해 주세요.', 'WAREHOUSE_MISSING')
     }
 
     const buyer = buyerStore.getBuyerById(draftBuyerId.value)
     if (!buyer) {
-      return { success: false, message: '?좏깮??嫄곕옒泥??뺣낫瑜?李얠쓣 ???놁뒿?덈떎. Step 2?먯꽌 ?ㅼ떆 ?좏깮?댁＜?몄슂.' }
+      return fail('선택한 거래처 정보를 찾을 수 없습니다. Step 2에서 다시 선택해 주세요.', 'BUYER_NOT_FOUND')
     }
     const expectedBuyerFit = buyerMaterialFitValue(lockedMaterialType.value)
     if (buyer.primaryMaterialFit !== expectedBuyerFit) {
-      return {
-        success: false,
-        message: `?좏깮??嫄곕옒泥섏쓽 ????뚯옱 ?곹빀??${buyerStore.materialFitLabel(buyer.primaryMaterialFit)})媛 ?붿껌 ?뚯옱 援щ텇(${lockedMaterialType.value})怨?留욎? ?딆뒿?덈떎.`,
-      }
+      return fail(
+        `선택한 거래처의 대표 소재 적합도(${buyerStore.materialFitLabel(buyer.primaryMaterialFit)})가 요청 소재 구분(${lockedMaterialType.value})과 맞지 않습니다.`,
+        'BUYER_MATERIAL_MISMATCH',
+      )
     }
 
     const inventoryAggregate = new Map()
@@ -955,37 +989,35 @@ export const useCircularStockStore = defineStore('circularStock', () => {
       const actualWeightKg = Number(item.actualWeightKg)
       const unitPrice = Number(item.unitPrice)
       const inventory = getInventoryById(item.inventoryId)
+      const skuLabel = `${item.itemName}(${item.skuCode || item.itemCode})`
 
       if (!inventory) {
-        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) 재고를 찾을 수 없습니다.` }
+        return fail(`${skuLabel} 재고를 찾을 수 없습니다.`, 'INVENTORY_NOT_FOUND', item.draftId)
       }
       if (Number.isNaN(requestedWeightKg) || requestedWeightKg <= 0) {
-        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) ?먮ℓ kg???낅젰?댁＜?몄슂.` }
+        return fail(`${skuLabel} 판매 kg를 입력해 주세요.`, 'REQUESTED_KG_MISSING', item.draftId)
       }
       if (Number.isNaN(unitPrice) || unitPrice <= 0) {
-        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) kg???④?瑜??낅젰?댁＜?몄슂.` }
+        return fail(`${skuLabel} kg당 단가를 입력해 주세요.`, 'UNIT_PRICE_MISSING', item.draftId)
       }
       if (item.deductedQuantity <= 0) {
-        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) ?ㅼ감媛??섎웾??怨꾩궛?????놁뒿?덈떎. ?먮ℓ kg怨??⑥쐞以묐웾???뺤씤?댁＜?몄슂.` }
+        return fail(`${skuLabel} 차감 수량이 계산되지 않았습니다. 판매 kg와 단위중량을 확인해 주세요.`, 'DEDUCTED_QTY_INVALID', item.draftId)
       }
       if (actualWeightKg <= 0) {
-        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) ?ㅼ젣 諛섏쁺 kg??怨꾩궛?????놁뒿?덈떎.` }
+        return fail(`${skuLabel} 실제 반영 kg가 계산되지 않았습니다.`, 'ACTUAL_KG_INVALID', item.draftId)
       }
       if (actualWeightKg > item.availableWeightKg) {
-        return {
-          success: false,
-          message: `${item.itemName}(${item.skuCode || item.itemCode}) ?붿껌媛믪? 媛?ν븯吏留??щ┝ 李④컧 ???ㅼ젣 諛섏쁺 kg??SKU ?ш퀬 kg??珥덇낵?⑸땲??`,
-        }
+        return fail(`${skuLabel} 실제 반영 kg가 SKU 재고 kg를 초과합니다.`, 'SKU_WEIGHT_OVER_LIMIT', item.draftId)
       }
       if (item.deductedQuantity > item.availableQuantity) {
-        return { success: false, message: `${item.itemName}(${item.skuCode || item.itemCode}) SKU ?ш퀬 ?섎웾??珥덇낵?????놁뒿?덈떎.` }
+        return fail(`${skuLabel} 차감 수량이 SKU 재고 수량을 초과합니다.`, 'SKU_QTY_OVER_LIMIT', item.draftId)
       }
       if (item.materialType !== lockedMaterialType.value) {
-        return { success: false, message: '?붿껌????SKU???뚯옱 援щ텇???쇱튂?섏? ?딆뒿?덈떎. Step 1?먯꽌 媛숈? ?뚯옱 援щ텇留??④꺼二쇱꽭??' }
+        return fail('요청 내 SKU의 소재 구분이 일치하지 않습니다. Step 1에서 같은 소재 구분만 선택해 주세요.', 'MATERIAL_TYPE_MISMATCH', item.draftId)
       }
       const itemWarehouseCode = String(inventory.warehouseCode ?? item.warehouseCode ?? '')
       if (itemWarehouseCode !== selectedWarehouseCode.value) {
-        return { success: false, message: '?붿껌????SKU??異쒓퀬 李쎄퀬媛 ?쇱튂?섏? ?딆뒿?덈떎. 媛숈? 李쎄퀬 SKU留??좏깮?댁＜?몄슂.' }
+        return fail('요청 내 SKU의 출고 창고가 일치하지 않습니다. 같은 창고 SKU만 선택해 주세요.', 'WAREHOUSE_MISMATCH', item.draftId)
       }
 
       const aggregate = inventoryAggregate.get(item.inventoryId) ?? { actualWeightKg: 0, deductedQuantity: 0 }
@@ -998,14 +1030,22 @@ export const useCircularStockStore = defineStore('circularStock', () => {
       const inventory = getInventoryById(inventoryId)
       if (!inventory) continue
       if (aggregate.actualWeightKg > inventory.weightKg) {
-        return { success: false, message: `${inventory.itemName} ?덈ぉ? ?붿껌媛믪? 媛?ν븯吏留??щ┝ 李④컧 ???ㅼ젣 諛섏쁺 kg ?⑷퀎媛 ?ш퀬 kg??珥덇낵?⑸땲??` }
+        return fail(`${inventory.itemName} 항목의 실제 반영 kg 합계가 재고 kg를 초과합니다.`, 'AGG_WEIGHT_OVER_LIMIT')
       }
       if (aggregate.deductedQuantity > inventory.quantity) {
-        return { success: false, message: `${inventory.itemName} ?덈ぉ 珥?李④컧 ?섎웾???ш퀬 ?섎웾??珥덇낵?????놁뒿?덈떎.` }
+        return fail(`${inventory.itemName} 항목의 차감 수량 합계가 재고 수량을 초과합니다.`, 'AGG_QTY_OVER_LIMIT')
       }
     }
 
-    return { success: true, buyer }
+    return {
+      success: true,
+      message: '',
+      primaryMessage: '',
+      codes: [],
+      counts: buildCounts(),
+      firstBlockingSku: null,
+      buyer,
+    }
   }
 
   function submitCircularStockSale(soldBy = '蹂몄궗 愿由ъ옄') {
