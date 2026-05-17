@@ -346,7 +346,9 @@ watch(
   { immediate: true },
 )
 
-function distributeGroupRequestedKg(groupKey, requestedValue) {
+function distributeGroupRequestedKg(groupKey, requestedValue, options = {}) {
+  const preserveDraftId = options?.preserveDraftId ?? null
+  const preserveDraftText = options?.preserveDraftText ?? null
   const group = step3GroupCards.value.find((entry) => entry.key === groupKey)
   if (!group) return
 
@@ -388,7 +390,9 @@ function distributeGroupRequestedKg(groupKey, requestedValue) {
     if (Number.isFinite(manual)) {
       const clamped = Math.min(Math.max(Number(manual) || 0, 0), Number(item.availableWeightKg) || 0)
       remain = Math.max(0, remain - clamped)
-      nextInputText[item.draftId] = Number(clamped).toFixed(2)
+      if (item.draftId !== preserveDraftId) {
+        nextInputText[item.draftId] = Number(clamped).toFixed(2)
+      }
       updateDraftItemField(item.draftId, 'requestedWeightKg', clamped)
     }
   }
@@ -404,10 +408,15 @@ function distributeGroupRequestedKg(groupKey, requestedValue) {
     }
     const clamped = Math.min(Math.max(allocated, 0), available)
     nextAuto[item.draftId] = clamped
-    nextInputText[item.draftId] = Number(clamped).toFixed(2)
+    if (item.draftId !== preserveDraftId) {
+      nextInputText[item.draftId] = Number(clamped).toFixed(2)
+    }
     updateDraftItemField(item.draftId, 'requestedWeightKg', clamped)
   }
 
+  if (preserveDraftId && preserveDraftText !== null) {
+    nextInputText[preserveDraftId] = preserveDraftText
+  }
   autoAllocatedKgBySku.value = nextAuto
   step3SkuInputText.value = nextInputText
 }
@@ -485,7 +494,10 @@ function onStep3SkuKgInput(groupKey, draftId, rawValue) {
 
   const currentGroupRequested = Number(groupRequestedKg.value[groupKey] || 0)
   if (currentGroupRequested > 0) {
-    distributeGroupRequestedKg(groupKey, currentGroupRequested)
+    distributeGroupRequestedKg(groupKey, currentGroupRequested, {
+      preserveDraftId: draftId,
+      preserveDraftText: clampedText,
+    })
   }
 }
 
