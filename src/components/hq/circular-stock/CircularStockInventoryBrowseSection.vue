@@ -520,7 +520,7 @@ function goToPage(pageNumber) {
   <div class="flex flex-col gap-4">
     <section class="border border-gray-200 bg-white p-4 shadow-sm">
       <div class="grid items-end gap-3 xl:grid-cols-[minmax(12rem,1fr)_minmax(12rem,1fr)_minmax(14rem,1fr)_minmax(16rem,1fr)_auto]">
-        <div ref="materialGroupDropdownRef" class="relative flex flex-col gap-1.5">
+        <div ref="materialGroupDropdownRef" class="relative order-2 flex flex-col gap-1.5">
           <span class="text-[11px] font-bold text-gray-500">소재 구분</span>
           <button
             type="button"
@@ -558,7 +558,7 @@ function goToPage(pageNumber) {
           </div>
         </div>
 
-        <div ref="materialDetailDropdownRef" class="relative flex flex-col gap-1.5">
+        <div ref="materialDetailDropdownRef" class="relative order-3 flex flex-col gap-1.5">
           <span class="text-[11px] font-bold text-gray-500">소재 상세</span>
           <button
             type="button"
@@ -600,7 +600,7 @@ function goToPage(pageNumber) {
           </div>
         </div>
 
-        <div ref="warehouseDropdownRef" class="relative flex flex-col gap-1.5">
+        <div ref="warehouseDropdownRef" class="relative order-1 flex flex-col gap-1.5">
           <span class="text-[11px] font-bold text-gray-500">창고</span>
           <button
             type="button"
@@ -641,7 +641,7 @@ function goToPage(pageNumber) {
           </div>
         </div>
 
-        <label class="flex flex-col gap-1.5">
+        <label class="order-4 flex flex-col gap-1.5">
           <span class="text-[11px] font-bold text-gray-500">검색</span>
           <input
             v-model="searchTerm"
@@ -655,7 +655,7 @@ function goToPage(pageNumber) {
 
         <button
           type="button"
-          class="h-9 border border-gray-300 bg-white px-4 text-xs font-black text-gray-700 hover:bg-gray-50"
+          class="order-5 h-9 border border-gray-300 bg-white px-4 text-xs font-black text-gray-700 hover:bg-gray-50"
           @click="resetFilters"
         >
           초기화
