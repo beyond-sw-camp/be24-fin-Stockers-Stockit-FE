@@ -1,9 +1,13 @@
 ﻿<script setup>
 import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowDown, ChevronDown, ChevronUp, BadgeCheck, Bot, Info, Loader2, Package, Ruler, Shirt, Sprout, Tag } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
-import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
+import SalesRegisterStepper from '@/components/hq/circular-stock/sales-register/SalesRegisterStepper.vue'
+import SalesRegisterStep1SkuTable from '@/components/hq/circular-stock/sales-register/SalesRegisterStep1SkuTable.vue'
+import SalesRegisterStep2BuyerSection from '@/components/hq/circular-stock/sales-register/SalesRegisterStep2BuyerSection.vue'
+import SalesRegisterStep3ConditionsSection from '@/components/hq/circular-stock/sales-register/SalesRegisterStep3ConditionsSection.vue'
+import SalesRegisterStepFooter from '@/components/hq/circular-stock/sales-register/SalesRegisterStepFooter.vue'
+import SalesRegisterFinalReviewModal from '@/components/hq/circular-stock/sales-register/SalesRegisterFinalReviewModal.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useEsgStore } from '@/stores/esg.js'
@@ -24,11 +28,9 @@ const activeTopMenu = computed(() => '순환 재고 관리')
 const activeSideMenu = ref('순환 재고 판매 등록')
 
 const buyerSearchTerm = ref('')
-const buyerDropdownRef = ref(null)
 const isDrawerOpen = ref(false)
 const showFinalReviewModal = ref(false)
 const priceEditModes = ref({})
-const expandedStep3Rows = ref({})
 const expandedStep3Groups = ref({})
 const groupRequestedKg = ref({})
 const groupRequestedInputText = ref({})
@@ -55,7 +57,6 @@ const filteredBuyers = computed(() => circularStockStore.filteredBuyers(buyerSea
 const selectedBuyer = computed(() => circularStockStore.selectedBuyer)
 const drawerSummary = computed(() => circularStockStore.draftSummary)
 const draftItems = computed(() => circularStockStore.draftItems)
-const draftRowIds = computed(() => draftItems.value.map((item) => item.draftId))
 const submitValidation = computed(() => circularStockStore.validateCircularStockSaleDraft())
 const lockedMaterialType = computed(() => {
   const raw = unref(circularStockStore.lockedMaterialType)
@@ -85,8 +86,6 @@ const canMoveStep2 = computed(
 )
 const canMoveStep3 = computed(() => canMoveStep2.value && Boolean(selectedBuyer.value))
 const canSubmit = computed(() => submitValidation.value.success)
-const shouldRenderDrawer = computed(() => true)
-const browseSummaryText = computed(() => `담긴 SKU ${draftItems.value.length.toLocaleString()}건`)
 const includedMaterialNames = computed(() => [
   ...new Set(draftItems.value.flatMap((item) => item.materials.map((material) => material.name))),
 ])
@@ -205,17 +204,6 @@ const matchingContextSummary = computed(() => {
   }
 })
 
-function toggleStep3Detail(draftId) {
-  expandedStep3Rows.value = {
-    ...expandedStep3Rows.value,
-    [draftId]: !expandedStep3Rows.value[draftId],
-  }
-}
-
-function isStep3DetailOpen(draftId) {
-  return Boolean(expandedStep3Rows.value[draftId])
-}
-
 function toggleStep3Group(groupKey) {
   expandedStep3Groups.value = {
     ...expandedStep3Groups.value,
@@ -317,7 +305,6 @@ const step3Summary = computed(() => {
   return { totalSku, inputCompletedCount, totalActualQty, totalActualKg, totalActualAmount }
 })
 
-const step3HasOverLimit = computed(() => step3GroupCards.value.some((group) => group.hasOverLimit))
 const step3ValidationCounts = computed(() => {
   const counts = submitValidation.value?.counts || {}
   return {
@@ -860,11 +847,6 @@ function showToast(message, tone = 'success') {
   toastTone.value = tone
 }
 
-function handleDocumentClick(event) {
-  if (!buyerDropdownRef.value?.contains(event.target)) {
-  }
-}
-
 function materialFitLabel(value) {
   return buyerStore.materialFitLabel(value)
 }
@@ -909,7 +891,6 @@ onMounted(() => {
     Object.entries(groupRequestedKg.value).map(([key, value]) => [key, Number(value || 0).toFixed(2)]),
   )
   window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
-  document.addEventListener('mousedown', handleDocumentClick)
   loadCircularInventoryRows()
   circularStockStore.markWorkflowStarted()
   isDrawerOpen.value = true
@@ -920,7 +901,6 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  document.removeEventListener('mousedown', handleDocumentClick)
   if (toastTimer) clearTimeout(toastTimer)
   clearRationaleTimers()
 })
@@ -982,1276 +962,116 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="flex-1 overflow-y-auto p-7">
-              <div class="h-5" />
-              <div class="relative">
-                <div
-                  class="pointer-events-none absolute left-0 right-0 top-5 flex items-center px-[16.666%]"
-                >
-                  <span class="relative h-[2px] flex-1 rounded-full bg-gray-200">
-                    <span
-                      class="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-[#2F9E87] to-[#0F5C4D] transition-all duration-400 ease-out"
-                      :style="{ width: saleStep >= 2 ? '100%' : '0%' }"
-                    />
-                  </span>
-                  <span class="mx-2 h-[2px] w-8 rounded-full bg-transparent" />
-                  <span class="relative h-[2px] flex-1 rounded-full bg-gray-200">
-                    <span
-                      class="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-[#2F9E87] to-[#0F5C4D] transition-all duration-400 ease-out"
-                      :style="{ width: saleStep >= 3 ? '100%' : '0%' }"
-                    />
-                  </span>
-                </div>
+              <SalesRegisterStepper
+                :sale-step="saleStep"
+                @move-step="moveStep"
+              />
 
-                <div class="relative flex items-start">
-                  <button
-                    type="button"
-                    class="group flex min-w-0 flex-1 flex-col items-center gap-3 text-center"
-                    @click="moveStep(1)"
-                  >
-                    <span
-                      class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-black transition-all duration-200"
-                      :class="
-                        saleStep >= 1
-                          ? 'border-[#0F5C4D] bg-[#0F5C4D] text-white shadow-[0_6px_14px_-8px_rgba(15,92,77,0.75)] ring-2 ring-[#0F5C4D]/15'
-                          : 'border-gray-300 bg-white text-gray-500 shadow-sm'
-                      "
-                      >1</span
-                    >
-                    <span
-                      class="text-xs font-black"
-                      :class="saleStep === 1 ? 'text-[#0F5C4D]' : 'text-gray-600'"
-                      >선택한 SKU 확인</span
-                    >
-                  </button>
+              <SalesRegisterStep1SkuTable
+                v-if="saleStep === 1"
+                :draft-items="draftItems"
+                :outbound-warehouse-label="outboundWarehouseLabel"
+                @remove-item="removeDraftItem"
+                @clear-all="clearDraftPanel"
+              />
 
-                  <button
-                    type="button"
-                    class="group flex min-w-0 flex-1 flex-col items-center gap-3 text-center"
-                    @click="moveStep(2)"
-                  >
-                    <span
-                      class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-black transition-all duration-200"
-                      :class="
-                        saleStep >= 2
-                          ? 'border-[#0F5C4D] bg-[#0F5C4D] text-white shadow-[0_6px_14px_-8px_rgba(15,92,77,0.75)] ring-2 ring-[#0F5C4D]/15'
-                          : 'border-gray-300 bg-white text-gray-500 shadow-sm'
-                      "
-                      >2</span
-                    >
-                    <span
-                      class="text-xs font-black"
-                      :class="saleStep === 2 ? 'text-[#0F5C4D]' : 'text-gray-600'"
-                      >거래처 매칭</span
-                    >
-                  </button>
+              <SalesRegisterStep2BuyerSection
+                v-else-if="saleStep === 2"
+                :buyer-panel-mode="buyerPanelMode"
+                :buyer-search-term="buyerSearchTerm"
+                :outbound-warehouse-label="outboundWarehouseLabel"
+                :locked-material-type="lockedMaterialType"
+                :selected-buyer="selectedBuyer"
+                :filtered-buyers="filteredBuyers"
+                :top-recommendations="topRecommendations"
+                :is-recommendation-loading="circularStockStore.isRecommendationLoading"
+                :recommendation-error="circularStockStore.recommendationError"
+                :recommendation-total-count="circularStockStore.recommendations.length"
+                :expanded-recommendation-code="expandedRecommendationCode"
+                :visible-rationale-codes="visibleRationaleCodes"
+                :material-fit-label="materialFitLabel"
+                :recommendation-product-label="recommendationProductLabel"
+                :recommendation-manager-label="recommendationManagerLabel"
+                :recommendation-phone-label="recommendationPhoneLabel"
+                :recommendation-location-label="recommendationLocationLabel"
+                :company-badge-text="companyBadgeText"
+                :company-badge-class="companyBadgeClass"
+                :is-social-enterprise="isSocialEnterprise"
+                :is-local-small-partner="isLocalSmallPartner"
+                :is-new-partner="isNewPartner"
+                :recommendation-bonus-reason="recommendationBonusReason"
+                @update:buyer-panel-mode="buyerPanelMode = $event"
+                @update:buyer-search-term="buyerSearchTerm = $event"
+                @toggle-recommendation-detail="toggleRecommendationDetail"
+                @select-recommendation="onRecommendationSelect"
+                @select-buyer="selectBuyer"
+              />
 
-                  <button
-                    type="button"
-                    class="group flex min-w-0 flex-1 flex-col items-center gap-3 text-center"
-                    @click="moveStep(3)"
-                  >
-                    <span
-                      class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-black transition-all duration-200"
-                      :class="
-                        saleStep >= 3
-                          ? 'border-[#0F5C4D] bg-[#0F5C4D] text-white shadow-[0_6px_14px_-8px_rgba(15,92,77,0.75)] ring-2 ring-[#0F5C4D]/15'
-                          : 'border-gray-300 bg-white text-gray-500 shadow-sm'
-                      "
-                      >3</span
-                    >
-                    <span
-                      class="text-xs font-black"
-                      :class="saleStep === 3 ? 'text-[#0F5C4D]' : 'text-gray-600'"
-                      >판매 조건 확정</span
-                    >
-                  </button>
-                </div>
-              </div>
-
-              <div class="h-14" />
-
-              <div v-if="saleStep === 1" class="mt-0">
-                <div class="mb-0 pl-2 flex items-center justify-between gap-3">
-                  <div>
-                    <p class="text-sm font-black text-gray-900">선택한 SKU 확인</p>
-                  </div>
-                  <div class="flex items-center gap-3">
-                    <span class="text-xs font-black text-gray-500">
-                      출고 창고: <span class="text-gray-900">{{ outboundWarehouseLabel }}</span>
-                    </span>
-                    <button
-                      type="button"
-                      class="pr-4 cursor-pointer text-[11px] font-black text-gray-500 hover:text-gray-900"
-                      @click="clearDraftPanel"
-                    >
-                      전체 비우기
-                    </button>
-                  </div>
-                </div>
-                <div class="h-2.5" />
-                <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-                  <table class="w-full border-collapse text-left text-xs">
-                    <thead
-                      class="sticky top-0 bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500"
-                    >
-                      <tr>
-                        <th class="px-3 py-3 font-black">SKU</th>
-                        <th class="px-3 py-3 font-black">품목</th>
-                        <th class="px-3 py-3 font-black">소재 구분</th>
-                        <th class="px-3 py-3 font-black">소재 상세</th>
-                        <th class="px-3 py-3 text-center font-black">재고 수량</th>
-                        <th class="px-3 py-3 text-right font-black">kg당 단가</th>
-                        <th class="px-3 py-3 text-right font-black">환산 금액</th>
-                        <th class="px-3 py-3 text-right font-black">총 무게</th>
-                        <th class="px-3 py-3 text-right font-black">개당 무게</th>
-                        <th class="px-3 py-3 text-center font-black">제거</th>
-                      </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100">
-                      <tr v-for="item in draftItems" :key="item.draftId">
-                        <td class="px-3 py-3 font-mono font-bold text-gray-600">
-                          {{ item.skuCode }}
-                        </td>
-                        <td class="px-3 py-3 font-black text-gray-900">{{ item.itemName }}</td>
-                        <td class="px-3 py-3 font-black text-gray-700">{{ item.materialType }}</td>
-                        <td class="px-3 py-3 font-bold text-gray-700">
-                          {{ formatMaterials(item.materials) }}
-                        </td>
-                        <td class="px-3 py-3 text-center font-black text-gray-900">
-                          {{ item.availableQuantity.toLocaleString() }}벌
-                        </td>
-                        <td class="px-3 py-3 text-right font-black text-gray-900">
-                          ₩{{ Number(item.defaultKgUnitPrice || 0).toLocaleString() }}
-                        </td>
-                        <td class="px-3 py-3 text-right font-black text-gray-900">
-                          ₩{{
-                            Math.round(
-                              Number(item.availableWeightKg || 0) *
-                                Number(item.defaultKgUnitPrice || 0),
-                            ).toLocaleString()
-                          }}
-                        </td>
-                        <td class="px-3 py-3 text-right font-black text-gray-900">
-                          {{ Number(item.availableWeightKg || 0).toFixed(2) }}kg
-                        </td>
-                        <td class="px-3 py-3 text-right font-black text-gray-900">
-                          {{ Number(item.unitWeightKg || 0).toFixed(3) }}kg
-                        </td>
-                        <td class="px-3 py-3 text-center">
-                          <button
-                            type="button"
-                            class="h-8 rounded-lg border border-gray-200 bg-white px-3 text-[11px] font-black text-gray-500 transition hover:bg-gray-50 hover:text-gray-700"
-                            @click="removeDraftItem(item.draftId)"
-                          >
-                            삭제
-                          </button>
-                        </td>
-                      </tr>
-                      <tr v-if="draftItems.length === 0">
-                        <td
-                          colspan="10"
-                          class="px-3 py-8 text-center text-xs font-bold text-gray-400"
-                        >
-                          선택된 SKU가 없습니다.
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <div class="h-3" />
-                <div
-                  class="flex items-start gap-2 rounded-lg border border-[#F1E7CF] bg-[#FFFBF3] px-4 py-2 text-xs font-bold text-[#7D6432]"
-                >
-                  <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#B38A3A]" :stroke-width="2" />
-                  <span>한 건의 판매에서는 같은 소재 구분의 SKU만 함께 선택할 수 있습니다.</span>
-                </div>
-              </div>
-
-              <template v-else-if="saleStep === 2">
-              <div class="mt-0">
-                <section ref="buyerDropdownRef">
-                  <!-- 모드 토글 — AI 추천 (default) / 수동 검색 -->
-                  <div class="border-b border-gray-200">
-                    <div class="flex items-end gap-0">
-                      <button
-                        type="button"
-                        class="inline-flex h-11 items-center gap-2 border-b-2 px-8 text-sm font-black transition"
-                        :class="
-                          buyerPanelMode === 'ai'
-                            ? 'border-[#2D5B35] text-[#1F2937]'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
-                        "
-                        @click="buyerPanelMode = 'ai'"
-                      >
-                        <Bot class="h-3.5 w-3.5 text-[#7A5A2D]" :stroke-width="2.2" />
-                        <span class="text-sm font-black leading-none">AI 추천</span>
-                        <span
-                          v-if="!circularStockStore.isRecommendationLoading"
-                          class="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#D4E8D2] px-1.5 text-[11px] font-black text-[#2D5B35]"
-                        >
-                          {{ circularStockStore.recommendations.length }}
-                        </span>
-                      </button>
-
-                      <button
-                        type="button"
-                        class="inline-flex h-11 items-center gap-2 border-b-2 px-8 text-sm font-black leading-none transition"
-                        :class="
-                          buyerPanelMode === 'manual'
-                            ? 'border-[#2D5B35] text-[#1F2937]'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
-                        "
-                        @click="buyerPanelMode = 'manual'"
-                      >
-                        <span>수동 선택</span>
-                        <span class="text-[11px] font-bold text-gray-500">전체</span>
-                      </button>
-                    </div>
-                  </div>
-                  <div class="h-4" />
-                  <div
-                    v-if="buyerPanelMode === 'ai'"
-                    class="flex items-start gap-2 rounded-lg border border-[#F1E7CF] bg-[#FFFBF3] px-4 py-2 text-xs font-bold text-[#7D6432]"
-                  >
-                    <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#B38A3A]" :stroke-width="2" />
-                    <span>
-                      출고 창고 {{ outboundWarehouseLabel }} 기준,
-                      선택된 소재 정보를 기반으로 DB에서 가장 적합한 거래처 5곳을 AI가 분석했습니다.
-                      각 거래처를 클릭해 AI 거래처 매칭 추천 상세 이유를 확인하세요
-                    </span>
-                  </div>
-                  <div v-if="buyerPanelMode === 'ai'" class="h-3" />
-
-                  <!-- AI 추천 모드 -->
-                  <div v-if="buyerPanelMode === 'ai'" class="space-y-5">
-                    <div
-                      v-if="
-                        circularStockStore.isRecommendationLoading &&
-                        topRecommendations.length === 0
-                      "
-                    >
-                      <div
-                        class="mb-2 flex items-center gap-2 pl-2 text-sm text-gray-700"
-                        style="font-weight: 700; margin-bottom: 8px"
-                      >
-                        <Loader2 class="h-4 w-4 animate-spin text-[#2E5734]" :stroke-width="2.2" />
-                        <span>AI가 거래처 추천 이유를 분석중입니다.</span>
-                      </div>
-                      <template v-for="n in 5" :key="`rec-skeleton-${n}`">
-                        <div
-                          class="overflow-hidden rounded-xl border border-gray-200 bg-white px-4 py-4"
-                        >
-                          <div
-                            class="grid grid-cols-[28px_40px_minmax(0,1fr)_auto] items-start gap-3"
-                          >
-                            <div class="mt-1 h-7 w-7 animate-pulse rounded-full bg-gray-200" />
-                            <div class="h-10 w-10 animate-pulse rounded-xl bg-gray-200" />
-                            <div>
-                              <div class="h-4 w-56 animate-pulse rounded bg-gray-200" />
-                              <div
-                                class="h-4 w-72 animate-pulse rounded bg-gray-200"
-                                style="margin-top: 8px"
-                              />
-                              <div
-                                class="h-4 w-80 animate-pulse rounded bg-gray-200"
-                                style="margin-top: 8px"
-                              />
-                            </div>
-                            <div class="h-9 w-20 animate-pulse rounded-lg bg-gray-200" />
-                          </div>
-                        </div>
-                        <div v-if="n < 5" class="h-3" />
-                      </template>
-                    </div>
-                    <div
-                      v-else-if="circularStockStore.recommendationError"
-                      class="rounded-md border border-red-200 bg-red-50 px-3 py-4 text-xs font-bold text-red-700"
-                    >
-                      {{ circularStockStore.recommendationError }}
-                    </div>
-                    <div
-                      v-else-if="topRecommendations.length === 0"
-                      class="rounded-md border border-gray-200 bg-gray-50 px-3 py-4 text-xs font-bold text-gray-500"
-                    >
-                      추천 결과가 없습니다. 수동 검색으로 거래처를 선택하세요.
-                    </div>
-                    <article
-                      v-for="(rec, index) in topRecommendations"
-                      :key="rec.code"
-                      class="overflow-hidden rounded-xl border border-gray-200 bg-white transition-all duration-200 hover:border-[#9DBCAF] hover:shadow-[0_10px_24px_-14px_rgba(15,92,77,0.45)]"
-                      :class="
-                        selectedBuyer?.id === rec.code ||
-                        selectedBuyer?.code === rec.code ||
-                        expandedRecommendationCode === rec.code
-                          ? 'bg-[#F9FCFB]'
-                          : ''
-                      "
-                      :style="{
-                        marginBottom: index === topRecommendations.length - 1 ? '0px' : '20px',
-                        borderColor:
-                          selectedBuyer?.id === rec.code ||
-                          selectedBuyer?.code === rec.code ||
-                          expandedRecommendationCode === rec.code
-                            ? '#6EA08F'
-                            : undefined,
-                        boxShadow:
-                          selectedBuyer?.id === rec.code ||
-                          selectedBuyer?.code === rec.code ||
-                          expandedRecommendationCode === rec.code
-                            ? '0 10px 24px -14px rgba(15,92,77,0.35)'
-                            : undefined,
-                      }"
-                    >
-                      <div
-                        class="grid cursor-pointer grid-cols-[28px_40px_minmax(0,1fr)_auto] items-start gap-3 px-4 py-3"
-                        @click="toggleRecommendationDetail(rec.code)"
-                      >
-                        <span
-                          class="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black leading-none"
-                          :class="
-                            selectedBuyer?.id === rec.code || selectedBuyer?.code === rec.code
-                              ? 'bg-[#234D31] text-white'
-                              : 'bg-gray-100 text-gray-500'
-                          "
-                        >
-                          {{ index + 1 }}
-                        </span>
-                        <span
-                          class="inline-flex h-10 w-10 items-center justify-center rounded-xl text-sm font-black tracking-tight"
-                          :class="companyBadgeClass(index)"
-                          style="font-weight: 700"
-                        >
-                          {{ companyBadgeText(rec.companyName) }}
-                        </span>
-                        <div class="min-w-0">
-                          <div class="flex min-h-10 flex-wrap items-center gap-2">
-                            <p
-                              class="text-base font-black leading-none text-gray-900"
-                              style="font-weight: 600"
-                            >
-                              {{ rec.companyName }}
-                            </p>
-                            <span class="pt-[1px] text-xs font-bold leading-none text-gray-400">{{
-                              rec.code
-                            }}</span>
-                            <span
-                              class="rounded-full border border-[#BFDFFF] bg-[#EAF6FF] px-2.5 py-1.5 text-[11px] font-black leading-none text-[#1F6FAE]"
-                            >
-                              소재 적합도 상
-                            </span>
-                            <span
-                              v-if="isSocialEnterprise(rec)"
-                              class="rounded-full border border-[#D9C6F7] bg-[#F1EAFE] px-2.5 py-1.5 text-[11px] font-black leading-none text-[#6C3FB4]"
-                            >
-                              사회적기업
-                            </span>
-                            <span
-                              v-if="isLocalSmallPartner(rec)"
-                              class="rounded-full border border-[#F3C8D1] bg-[#FCECEF] px-2.5 py-1.5 text-[11px] font-black leading-none text-[#B24563]"
-                            >
-                              소규모 기업
-                            </span>
-                            <span
-                              v-if="isNewPartner(rec, index)"
-                              class="rounded-full border border-[#F2DE9C] bg-[#FFF8DC] px-2.5 py-1.5 text-[11px] font-black leading-none text-[#9A6A00]"
-                            >
-                              신규 거래처
-                            </span>
-                          </div>
-                          <p class="mt-1 text-sm font-bold text-gray-500">
-                            {{ lockedMaterialType || '-' }} ·
-                            {{ rec.industryGroup || '재생원사' }} ·
-                            {{ recommendationProductLabel(rec, index) }}
-                          </p>
-                          <p class="mt-1 text-sm font-bold text-gray-500">
-                            담당자 {{ recommendationManagerLabel(rec, index) }} ·
-                            {{ recommendationPhoneLabel(rec, index) }} ·
-                            {{ recommendationLocationLabel(rec) }}
-                          </p>
-                        </div>
-                        <div class="flex shrink-0 flex-col items-end gap-3">
-                          <button
-                            type="button"
-                            class="inline-flex h-9 items-center rounded-xl px-4 text-sm font-extrabold tracking-[0.01em] transition-all duration-200 active:scale-[0.98]"
-                            :class="
-                              selectedBuyer?.id === rec.code || selectedBuyer?.code === rec.code
-                                ? 'border border-[#7FA28A] bg-[#F3FAF4] text-[#285734] font-black shadow-[0_3px_10px_-8px_rgba(34,84,52,0.45)]'
-                                : 'border border-[#315E3B] bg-[#315E3B] text-white shadow-[0_8px_16px_-10px_rgba(26,64,41,0.55)] hover:border-[#2A5032] hover:bg-[#2A5032]'
-                            "
-                            @click.stop="onRecommendationSelect(rec.code)"
-                          >
-                            <template
-                              v-if="
-                                selectedBuyer?.id === rec.code || selectedBuyer?.code === rec.code
-                              "
-                            >
-                              <span class="inline-flex items-center gap-1">
-                                <BadgeCheck class="h-4 w-4" :stroke-width="2.2" />
-                                <span>선택됨</span>
-                              </span>
-                            </template>
-                            <template v-else>선택</template>
-                          </button>
-                        </div>
-                      </div>
-                      <div
-                        v-if="expandedRecommendationCode === rec.code"
-                        class="border-t border-[#E5EEEA] bg-[#F8FBFA] px-4 py-3 text-xs"
-                      >
-                        <div class="pl-[calc(28px+40px+0.75rem)] pr-20">
-                          <p
-                            class="font-black text-[#0F5C4D]"
-                            style="font-weight: 700; margin-top: 5px; margin-bottom: 5px"
-                          >
-                            AI 추천 이유
-                          </p>
-                          <div v-if="!visibleRationaleCodes[rec.code]" class="mt-2 space-y-1.5">
-                            <div class="h-3 w-[92%] animate-pulse rounded bg-gray-200" />
-                            <div class="h-3 w-[86%] animate-pulse rounded bg-gray-200" />
-                            <div class="h-3 w-[74%] animate-pulse rounded bg-gray-200" />
-                          </div>
-                          <p
-                            v-else
-                            class="mt-2 whitespace-pre-line font-bold leading-5 text-gray-700"
-                          >
-                            {{ rec.rationale || '추천 근거 데이터가 없습니다.' }}
-                          </p>
-                        </div>
-                      </div>
-                      <div
-                        v-if="
-                          isSocialEnterprise(rec) ||
-                          isLocalSmallPartner(rec) ||
-                          isNewPartner(rec, index)
-                        "
-                        class="border-t border-[#D4E4D6] bg-[#EAF2EC] px-4 py-2 text-sm font-semibold text-[#2C5131]"
-                      >
-                        <div class="flex items-center gap-2 pl-[calc(28px+40px+0.75rem)] pr-4">
-                          <Sprout class="h-4 w-4 shrink-0 text-[#2E5734]" :stroke-width="2" />
-                          <span>
-                            이 거래처와 거래하면
-                            <span class="font-black">ESG 나무 +150점</span> 추가 적립
-                            <span class="text-xs font-bold text-[#4E6D54]">
-                              ({{ recommendationBonusReason(rec, index) }})
-                            </span>
-                          </span>
-                        </div>
-                      </div>
-                    </article>
-                  </div>
-
-                  <div v-else class="mt-4">
-                    <div class="flex items-center gap-6">
-                      <input
-                        v-model="buyerSearchTerm"
-                        type="search"
-                        class="h-10 w-full rounded-xl border border-gray-300 bg-white px-4 text-sm font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#004D3C]"
-                        placeholder="거래처명, 거래처 코드, 담당자명, 연락처, 처리 소재, 지역으로 검색..."
-                      />
-                      <button
-                        type="button"
-                        class="h-10 min-w-[80px] rounded-xl bg-[#2D5B35] px-5 text-sm font-black text-white transition hover:bg-[#244B2B]"
-                      >
-                        검색
-                      </button>
-                    </div>
-
-                    <div class="h-4" />
-                    <div class="min-h-[240px] rounded-xl border border-gray-200 bg-[#FBFCFB] px-2 py-2">
-                      <div
-                        v-if="filteredBuyers.length > 0"
-                        class="max-h-[24rem] space-y-1.5 overflow-y-auto pr-1"
-                      >
-                        <button
-                          v-for="buyer in filteredBuyers"
-                          :key="buyer.id"
-                          type="button"
-                          class="flex w-full flex-col items-start rounded-lg border border-gray-200 px-3 py-2 text-left transition hover:border-[#CFE2DA] hover:bg-[#F6FBF9]"
-                          @click="selectBuyer(buyer)"
-                        >
-                          <div class="flex items-center gap-2">
-                            <span class="text-sm font-black leading-none text-gray-900">{{ buyer.companyName }}</span>
-                            <span class="pt-[1px] text-xs font-bold leading-none text-gray-500">{{ buyer.code }}</span>
-                          </div>
-                          <div class="h-1.5" />
-                          <span class="block text-xs font-bold text-gray-400">
-                            {{ materialFitLabel(buyer.primaryMaterialFit) }} ·
-                            {{ buyer.industryGroup || '-' }} ·
-                            {{ buyer.productNote || '-' }}
-                          </span>
-                          <div class="h-1.5" />
-                          <span class="block text-xs font-bold text-gray-500">
-                            담당자 {{ buyer.managerName || '-' }} · {{ buyer.phone || '-' }} ·
-                            {{ recommendationLocationLabel(buyer) }}
-                          </span>
-                        </button>
-                      </div>
-                      <div
-                        v-else
-                        class="flex min-h-[140px] flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 text-center"
-                      >
-                        <p class="text-[28px] leading-none text-gray-300">⌕</p>
-                        <p class="mt-2 text-lg font-bold text-gray-500">
-                          검색어를 입력하면 전체 거래처 DB에서 조회합니다.
-                        </p>
-                        <p class="mt-1 text-base font-semibold text-gray-400">
-                          AI 추천 거래처는 매칭 적합도와 추천 근거가 자동 제공됩니다.
-                        </p>
-                      </div>
-                    </div>
-                    <div class="pt-3">
-                      <p class="text-right text-xs font-bold text-gray-500">
-                        현재 선택된 소재 구분(천연 단일 섬유/합성 섬유/혼방)에 맞는 거래처만
-                        표시됩니다.
-                      </p>
-                    </div>
-                  </div>
-                </section>
-              </div>
-
-              </template>
-
-              <div
+              <SalesRegisterStep3ConditionsSection
                 v-else
-                class="mt-0 space-y-4"
-              >
-                <div
-                  class="flex items-start gap-2 rounded-lg border border-[#CFE0FF] bg-[#F5F9FF] px-4 py-2 text-xs font-bold text-[#2E4E8C]"
-                  style="margin-bottom: 1.4%;"
-                >
-                  <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#4A74C9]" :stroke-width="2" />
-                  <span>
-                    거래처는 kg 단위로 요청합니다. 벌 수 환산 시 요청값과 실제 kg 합계가 다를 수
-                    있으며, 재고 한도(수량/무게) 초과 판매는 제한됩니다.
-                  </span>
-                </div>
-
-                <div class="grid w-full gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
-                <div class="min-w-0" style="display: flex; flex-direction: column; row-gap: 24px;">
-
-                  <article
-                    v-for="group in step3GroupCards"
-                    :key="group.key"
-                    class="overflow-hidden rounded-2xl border-[1.5px] transition-shadow duration-200"
-                    :class="
-                      group.status === 'error'
-                        ? 'border-rose-300 bg-white shadow-[0_12px_26px_-12px_rgba(15,23,42,0.34)]'
-                        : group.status === 'completed'
-                          ? 'border-emerald-400 bg-white shadow-[0_12px_26px_-12px_rgba(15,23,42,0.34)]'
-                          : 'border-gray-200 bg-white shadow-[0_10px_22px_-14px_rgba(15,23,42,0.32)]'
-                    "
-                  >
-                    <header class="flex items-center justify-between border-b border-[#DCEDE5] px-5 py-4">
-                      <div class="flex items-start gap-3">
-                        <div class="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#EAF5EF] text-[#2F6B4F]">
-                          <Shirt class="h-4.5 w-4.5" :stroke-width="2.1" />
-                        </div>
-                        <div>
-                          <div class="flex items-center gap-2">
-                            <span class="text-base font-black text-gray-900" style="font-weight: 600">
-                              {{ group.materialDetailLabel }}
-                            </span>
-                            <span
-                              class="inline-flex h-5 items-center rounded-full px-2 text-[10px] font-black"
-                              :class="
-                                group.status === 'error'
-                                  ? 'bg-rose-100 text-rose-700'
-                                  : group.status === 'completed'
-                                    ? 'bg-emerald-100 text-emerald-700'
-                                    : 'bg-gray-100 text-gray-600'
-                              "
-                            >
-                              {{ group.status === 'error' ? '오류' : group.status === 'completed' ? '완료' : '미입력' }}
-                            </span>
-                          </div>
-                          <p class="mt-1 text-sm font-bold text-gray-500">
-                            {{ group.materialType }} · SKU {{ group.items.length }}종 ·
-                            ₩{{ Number(group.items[0]?.defaultKgUnitPrice || 0).toLocaleString() }}/kg
-                          </p>
-                        </div>
-                      </div>
-                      <div class="flex items-center gap-3">
-                        <p class="inline-flex items-center gap-1.5 text-sm font-bold text-gray-600">
-                          <Package class="h-3.5 w-3.5 text-gray-500" :stroke-width="2.1" />
-                          총 재고 <span class="text-gray-900" style="font-weight: 600">{{ group.totalAvailableQty }}벌</span>
-                          · 최대
-                          <span class="text-gray-900" style="font-weight: 600">{{ formatKg(group.totalAvailableKg) }}</span>
-                        </p>
-                      </div>
-                    </header>
-
-                    <div class="border-b border-[#E6F1EC] px-5 py-4">
-                      <div class="flex flex-col gap-1">
-                        <div class="flex flex-wrap items-center gap-3 w-full">
-                          <span
-                            class="inline-flex h-[46px] items-center -translate-y-[1px] text-sm leading-none text-gray-900"
-                            style="font-weight: 600"
-                            >거래처 요청</span
-                          >
-                          <div class="inline-flex h-[45px] items-center gap-1 rounded-xl border-2 border-gray-300 bg-white px-3">
-                            <input
-                              :value="groupRequestedInputText[group.key] ?? (groupRequestedKg[group.key] ?? '')"
-                              type="text"
-                              inputmode="decimal"
-                              class="no-spin border-0 bg-transparent px-0 leading-none text-gray-900 outline-none"
-                              style="font-weight: 700; width: 5rem; font-size: 25px;"
-                              @input="distributeGroupRequestedKg(group.key, $event.target.value)"
-                              @blur="onGroupRequestedKgBlur(group.key)"
-                            />
-                            <span class="pt-1 text-sm font-bold text-gray-400">kg</span>
-                          </div>
-                          <span class="inline-flex h-[46px] items-center -translate-y-[1px] text-base leading-none text-gray-300">→</span>
-                          <div
-                            class="inline-flex items-center self-center -translate-y-[1px] rounded-lg border border-[#D9CCF5] bg-[#F6F1FF] px-3 py-1.5 text-xs font-bold leading-none text-[#5B4A7A]"
-                          >
-                            <span class="font-black text-[#6E4BB8]">kg 입력 시</span>
-                            <span>&nbsp;재고 많은 순으로&nbsp;</span>
-                            <span class="font-black text-[#6E4BB8]">자동 배분</span>
-                          </div>
-                          <button
-                            type="button"
-                            class="inline-flex h-7 items-center gap-1 rounded-full border border-gray-200 bg-white px-2.5 text-[11px] font-black text-gray-600 hover:bg-gray-50"
-                            style="margin-left: auto;"
-                            @click="toggleStep3Group(group.key)"
-                          >
-                            <span>{{ isStep3GroupExpanded(group.key) ? '접기' : '펼치기' }}</span>
-                            <ChevronUp
-                              v-if="isStep3GroupExpanded(group.key)"
-                              class="h-3.5 w-3.5"
-                              :stroke-width="2.2"
-                            />
-                            <ChevronDown
-                              v-else
-                              class="h-3.5 w-3.5"
-                              :stroke-width="2.2"
-                            />
-                          </button>
-                        </div>
-                        <div class="text-xs font-bold text-gray-400" style="padding-left: 5.8rem; margin-top: 1px;">
-                          재고 최대 {{ Number(group.totalAvailableKg || 0).toFixed(2) }}kg
-                        </div>
-                      </div>
-                    </div>
-
-                    <template v-if="isStep3GroupExpanded(group.key)">
-                    <div class="overflow-x-auto">
-                      <table class="min-w-[800px] w-full border-collapse text-left">
-                        <colgroup>
-                          <col style="width: 20%" />
-                          <col style="width: 12%" />
-                          <col style="width: 16%" />
-                          <col style="width: 4%" />
-                          <col style="width: 12%" />
-                          <col style="width: 4%" />
-                          <col style="width: 12%" />
-                          <col style="width: 13%" />
-                        </colgroup>
-                        <thead class="bg-[#FCFDFC] text-xs font-black text-gray-500">
-                          <tr>
-                            <th class="px-5 py-3">SKU</th>
-                            <th class="px-3 py-3 text-center">재고</th>
-                            <th class="px-3 py-3 text-center">kg</th>
-                            <th class="px-1 py-3"></th>
-                            <th class="px-3 py-3 text-center">판매 벌 수</th>
-                            <th class="px-1 py-3"></th>
-                            <th class="px-3 py-3 text-center">실제 무게</th>
-                            <th class="px-5 py-3 text-right">금액</th>
-                          </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100 text-sm">
-                          <tr v-for="item in group.items" :key="item.draftId">
-                            <td class="px-5 py-4">
-                              <p class="text-sm font-black text-gray-900">{{ item.itemName }}</p>
-                              <p class="mt-1 font-mono text-xs font-bold text-gray-400">{{ item.skuCode }}</p>
-                            </td>
-                            <td class="px-3 py-4 text-center">
-                              <p class="text-base font-black text-gray-900">{{ item.availableQuantity }}벌</p>
-                              <p class="mt-1 text-sm font-bold text-gray-500">{{ formatKg(item.availableWeightKg) }}</p>
-                            </td>
-                            <td class="px-3 py-4 text-center">
-                              <div class="inline-flex items-center gap-2 rounded-xl border border-gray-300 px-3 py-1.5">
-                                <input
-                                  :value="step3SkuInputText[item.draftId] ?? Number(item.requestedWeightKg || 0).toFixed(2)"
-                                  type="text"
-                                  inputmode="decimal"
-                                  class="no-spin w-10 border-0 bg-transparent text-right text-[20px] leading-none text-gray-900 outline-none"
-                                  style="font-weight: 500"
-                                  @input="onStep3SkuKgInput(group.key, item.draftId, $event.target.value)"
-                                  @blur="onStep3SkuKgBlur(item.draftId)"
-                                />
-                                <span class="text-xs font-bold text-gray-500">kg</span>
-                              </div>
-                              <div class="mt-1 text-xs font-bold text-gray-400">
-                                <button
-                                  v-if="isManualAdjusted(item.draftId)"
-                                  type="button"
-                                  class="ml-2 text-[#0F5C4D] underline"
-                                  @click="resetStep3SkuToAuto(group.key, item.draftId)"
-                                >
-                                  자동으로 되돌리기
-                                </button>
-                              </div>
-                              <p class="mt-0.5 text-[11px] font-bold text-gray-400">
-                                1벌당 {{ Number(item.unitWeightKg || 0).toFixed(2) }}kg
-                              </p>
-                            </td>
-                            <td class="px-1 py-4 text-center text-lg font-black text-gray-300">→</td>
-                            <td class="px-3 py-4 text-center">
-                              <p class="text-lg font-black text-gray-900">{{ item.deductedQuantity }}벌</p>
-                              <p
-                                v-if="roundedUpQuantityLabel(item)"
-                                class="mt-0.5 text-[11px] font-bold text-gray-400"
-                              >
-                                {{ roundedUpQuantityLabel(item) }}
-                              </p>
-                            </td>
-                            <td class="px-1 py-4 text-center text-lg font-black text-gray-300">→</td>
-                            <td class="px-3 py-4 text-center text-lg font-black text-gray-900">
-                              {{ formatKg(item.actualWeightKg) }}
-                            </td>
-                            <td class="px-5 py-4 text-right text-lg text-[#2F8F6A]" style="font-weight: 500">
-                              {{ formatCurrency(item.actualAmount) }}
-                            </td>
-                          </tr>
-                          <tr class="bg-[#F7FAF8] text-sm font-black text-gray-700">
-                            <td class="px-5 py-3">합계</td>
-                            <td />
-                            <td />
-                            <td />
-                            <td class="px-3 py-3 text-center text-base text-gray-900">{{ group.totalActualQty }}벌</td>
-                            <td />
-                            <td class="px-3 py-3 text-center text-base text-gray-900">{{ formatKg(group.totalActualKg) }}</td>
-                            <td class="px-5 py-3 text-right text-base text-[#2F8F6A]" style="font-weight: 500">{{ formatCurrency(group.totalActualAmount) }}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-
-                    </template>
-                    <footer class="flex items-center justify-between bg-[#E7F3EC] px-5 py-3 text-sm font-medium text-[#2A5B46]">
-                      <div class="flex items-center gap-5">
-                        <span class="inline-flex items-center gap-1.5">
-                          <Package class="h-3.5 w-3.5" :stroke-width="2.1" />
-                          <span class="text-[#1E4B39]" style="font-weight: 600">{{ group.totalActualQty }}벌</span>
-                          <span>출고</span>
-                        </span>
-                        <span class="inline-flex items-center gap-1.5">
-                          <Ruler class="h-3.5 w-3.5" :stroke-width="2.1" />
-                          <span>실제</span>
-                          <span class="text-[#1E4B39]" style="font-weight: 600">{{ formatKg(group.totalActualKg) }}</span>
-                        </span>
-                        <span class="inline-flex items-center gap-1.5">
-                          <Tag class="h-3.5 w-3.5" :stroke-width="2.1" />
-                          단가 ₩{{ Number(group.items[0]?.unitPrice || group.items[0]?.defaultKgUnitPrice || 0).toLocaleString() }}/kg
-                        </span>
-                      </div>
-                      <span class="text-sm" style="font-weight: 600">{{ formatCurrency(group.totalActualAmount) }}</span>
-                    </footer>
-                  </article>
-
-                </div>
-
-                <aside class="rounded-xl border border-gray-200 bg-[#F7F8F7] px-4 py-4">
-                  <div class="flex flex-col gap-3">
-                  <section>
-                    <p class="text-xs text-gray-500" style="font-weight: 600; margin-bottom: 6px">출고 창고</p>
-                    <div class="mt-2 rounded-xl border border-gray-200 bg-white px-3 py-3.5">
-                      <div class="flex items-center gap-3">
-                        <span
-                          class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#ECF7F1] text-xs font-black tracking-tight text-[#2F6B4F]"
-                        >
-                          {{ outboundWarehouseRegionLabel }}
-                        </span>
-                        <div class="min-w-0">
-                          <p class="truncate text-base font-black text-gray-900">{{ outboundWarehouseLabel }}</p>
-                          <p class="mt-0.5 text-xs font-bold text-gray-500">출고지</p>
-                        </div>
-                      </div>
-                    </div>
-                  </section>
-
-                  <div class="flex justify-center py-0">
-                    <ArrowDown class="h-4 w-4 text-gray-400" :stroke-width="2.4" />
-                  </div>
-
-                  <section style="margin-top: -18px;">
-                    <p class="text-xs text-gray-500" style="font-weight: 600; margin-bottom: 6px">거래처</p>
-                    <div class="rounded-xl border border-gray-200 bg-white px-3 py-3.5">
-                      <div class="flex items-center gap-3">
-                        <span
-                          class="inline-flex h-10 w-10 items-center justify-center rounded-xl text-xs font-black tracking-tight"
-                          :class="step3BuyerBadgeClass()"
-                        >
-                          {{ companyBadgeText(selectedBuyer?.companyName || '거래처') }}
-                        </span>
-                        <div class="min-w-0">
-                          <p class="truncate text-base font-black text-gray-900">{{ selectedBuyer?.companyName || '-' }}</p>
-                          <p class="mt-0.5 text-xs font-bold text-gray-500">
-                            {{ selectedBuyer?.industryGroup || '-' }} 거래처
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </section>
-
-                  <div class="py-2">
-                    <div class="h-px bg-gray-200" />
-                  </div>
-
-                  <section>
-                    <p class="text-xs text-gray-500" style="font-weight: 600; margin-bottom: 4px">판매 요약</p>
-                    <div class="mt-2 divide-y divide-gray-200 text-xs">
-                      <div class="flex items-center justify-between py-2.5">
-                        <span class="font-bold text-gray-500">소재 구분</span>
-                        <span class="text-sm text-gray-900" style="font-weight: 600">{{ lockedMaterialType || '-' }}</span>
-                      </div>
-                      <div class="flex items-start justify-between gap-2 py-2.5">
-                        <span class="font-bold text-gray-500">포함 소재</span>
-                        <span class="text-right text-sm text-gray-900" style="font-weight: 600">
-                          {{ includedMaterialNames.join(', ') || '-' }}
-                        </span>
-                      </div>
-                      <div class="flex items-center justify-between py-2.5">
-                        <span class="font-bold text-gray-500">담긴 SKU</span>
-                        <span class="text-sm text-gray-900" style="font-weight: 600">{{ step3Summary.totalSku }}종</span>
-                      </div>
-                      <div class="flex items-center justify-between py-2.5">
-                        <span class="font-bold text-gray-500">입력 완료</span>
-                        <span class="text-sm text-[#7C5A18]" style="font-weight: 600">{{ step3Summary.inputCompletedCount }} / {{ step3Summary.totalSku }}</span>
-                      </div>
-                      <div class="flex items-center justify-between py-2.5">
-                        <span class="font-bold text-gray-500">총 판매 벌 수</span>
-                        <span class="text-sm text-gray-900" style="font-weight: 600">{{ step3Summary.totalActualQty }}벌</span>
-                      </div>
-                      <div class="flex items-center justify-between py-2.5">
-                        <span class="font-bold text-gray-500">총 실제 무게</span>
-                        <span class="text-sm text-gray-900" style="font-weight: 600">{{ formatKg(step3Summary.totalActualKg) }}</span>
-                      </div>
-                    </div>
-                  </section>
-
-                  <section class="rounded-2xl border border-[#1F4E43] bg-[#1F4E43] px-4 py-4.5 text-white">
-                    <p class="text-xs font-bold text-[#BED8CF]">예상 판매 금액</p>
-                    <p class="mt-2 text-xl font-black">{{ formatCurrency(step3Summary.totalActualAmount) }}</p>
-                    <p class="mt-1 text-xs font-bold text-[#9EC3B8]">
-                      실제 무게 기준
-                    </p>
-                  </section>
-
-                  <div class="py-2">
-                    <div class="h-px bg-gray-200" />
-                  </div>
-
-                  <section>
-                    <p class="text-xs text-gray-500" style="font-weight: 600; margin-bottom: 6px">판매 메모</p>
-                    <textarea
-                      :value="circularStockStore.draftMemo"
-                      rows="4"
-                      maxlength="500"
-                      class="mt-3 w-full resize-none rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#004D3C]"
-                      placeholder="거래 조건, 출고 메모 등을 입력하세요."
-                      @input="circularStockStore.setDraftMemo($event.target.value)"
-                    />
-                  </section>
-                  </div>
-                </aside>
-                </div>
-              </div>
+                :step3-group-cards="step3GroupCards"
+                :group-requested-kg="groupRequestedKg"
+                :group-requested-input-text="groupRequestedInputText"
+                :step3-sku-input-text="step3SkuInputText"
+                :step3-summary="step3Summary"
+                :included-material-names="includedMaterialNames"
+                :selected-buyer="selectedBuyer"
+                :locked-material-type="lockedMaterialType"
+                :outbound-warehouse-label="outboundWarehouseLabel"
+                :outbound-warehouse-region-label="outboundWarehouseRegionLabel"
+                :draft-memo="circularStockStore.draftMemo"
+                :is-step3-group-expanded="isStep3GroupExpanded"
+                :is-manual-adjusted="isManualAdjusted"
+                :step3-buyer-badge-class="step3BuyerBadgeClass"
+                :company-badge-text="companyBadgeText"
+                :format-kg="formatKg"
+                :format-currency="formatCurrency"
+                :rounded-up-quantity-label="roundedUpQuantityLabel"
+                @group-requested-input="distributeGroupRequestedKg"
+                @group-requested-blur="onGroupRequestedKgBlur"
+                @toggle-group="toggleStep3Group"
+                @sku-kg-input="onStep3SkuKgInput"
+                @sku-kg-blur="onStep3SkuKgBlur"
+                @reset-sku-auto="resetStep3SkuToAuto"
+                @update-draft-memo="circularStockStore.setDraftMemo"
+              />
             </div>
-            <div
-              v-if="saleStep === 1"
-              class="border-t border-gray-200 bg-gray-50 px-6 py-4"
-            >
-              <div class="flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  class="h-10 cursor-pointer rounded-xl border border-[#004D3C] bg-[#004D3C] px-7 text-base font-black text-white transition-all duration-150 hover:border-[#00382c] hover:bg-[#00382c] hover:shadow-[0_8px_16px_-10px_rgba(0,77,60,0.55)] disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:shadow-none"
-                  :disabled="!canMoveStep2"
-                  @click="moveStep(2)"
-                >
-                  거래처 매칭 →
-                </button>
-              </div>
-            </div>
-            <div
-              v-if="saleStep === 2"
-              class="border-t border-gray-200 bg-gray-50 px-6 py-4"
-            >
-              <div class="relative flex items-center justify-end gap-3">
-                <div v-if="selectedBuyer" class="absolute left-2 right-[26rem] min-w-0">
-                  <div class="flex min-w-0 items-center gap-2">
-                    <span
-                      class="inline-flex h-6 items-center rounded-full bg-[#0F5C4D] px-2.5 text-[11px] font-black text-white"
-                    >
-                      선택됨
-                    </span>
-                    <span class="truncate text-base font-black text-gray-900">
-                      {{ selectedBuyer?.companyName || '-' }}
-                    </span>
-                    <span class="pt-[1px] text-sm font-bold leading-none text-gray-500">
-                      {{ selectedBuyer?.code || '-' }}
-                    </span>
-                    <span
-                      class="rounded-full border border-[#BFDCCF] bg-[#ECF7F1] px-2 py-0.5 text-[11px] font-black text-[#2F6B4F]"
-                    >
-                      {{ materialFitLabel(selectedBuyer?.primaryMaterialFit) || '-' }}
-                    </span>
-                  </div>
-                  <div class="h-1" />
-                  <p class="pl-[3.7rem] text-sm font-bold text-gray-500">
-                    {{ selectedBuyer?.industryGroup || '-' }} · 담당자
-                    {{ selectedBuyer?.managerName || '-' }} · {{ selectedBuyer?.phone || '-' }}
-                  </p>
-                </div>
-                <div class="flex items-center gap-3">
-                  <button
-                    type="button"
-                    class="h-10 cursor-pointer rounded-xl border border-gray-300 bg-white px-6 text-base font-black text-gray-700 transition-all duration-150 hover:bg-gray-50 hover:shadow-sm"
-                    @click="moveStep(1)"
-                  >
-                    ← 선택한 SKU 목록으로
-                  </button>
-                  <button
-                    type="button"
-                    class="h-10 cursor-pointer rounded-xl border px-7 text-base font-black text-white transition-all duration-150"
-                    :class="
-                      canMoveStep3
-                        ? 'border-[#004D3C] bg-[#004D3C] hover:border-[#00382c] hover:bg-[#00382c] hover:shadow-[0_8px_16px_-10px_rgba(0,77,60,0.55)]'
-                        : 'border-gray-300 bg-gray-400 text-white hover:bg-gray-500'
-                    "
-                    @click="moveStep(3)"
-                  >
-                    판매 조건 확정으로 →
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div
-              v-if="saleStep === 3"
-              class="border-t border-gray-200 bg-gray-50 px-6 py-4"
-            >
-              <div class="flex items-center justify-between gap-4">
-                <p
-                  v-if="step3FooterWarning"
-                  class="pl-2 text-[11px] font-bold leading-5"
-                  :class="step3CanRegisterNow ? 'text-emerald-700' : 'text-red-600'"
-                >
-                  {{ step3FooterWarning }}
-                  <span
-                    v-if="step3UnfilledSkuCount > 0 || step3ErrorSkuCount > 0"
-                    class="ml-2 text-gray-500"
-                  >
-                    · 미입력 SKU {{ step3UnfilledSkuCount }}개 · 오류 SKU {{ step3ErrorSkuCount }}개
-                  </span>
-                </p>
-                <div v-else />
-                <div class="flex items-center gap-3">
-                  <button
-                    type="button"
-                    class="h-10 cursor-pointer rounded-xl border border-gray-300 bg-white px-6 text-base font-black text-gray-700 transition-all duration-150 hover:bg-gray-50 hover:shadow-sm"
-                    @click="moveStep(2)"
-                  >
-                    ← 거래처 매칭으로
-                  </button>
-                  <button
-                    type="button"
-                    class="h-10 cursor-pointer rounded-xl border border-[#004D3C] bg-[#004D3C] px-7 text-base font-black text-white transition-all duration-150 hover:border-[#00382c] hover:bg-[#00382c] hover:shadow-[0_8px_16px_-10px_rgba(0,77,60,0.55)] disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:shadow-none"
-                    :disabled="!step3CanRegisterNow"
-                    @click="openFinalReviewModal"
-                  >
-                    최종 판매 등록서 확인
-                  </button>
-                </div>
-              </div>
-            </div>
+            <SalesRegisterStepFooter
+              :sale-step="saleStep"
+              :can-move-step2="canMoveStep2"
+              :can-move-step3="canMoveStep3"
+              :selected-buyer="selectedBuyer"
+              :step3-footer-warning="step3FooterWarning"
+              :step3-can-register-now="step3CanRegisterNow"
+              :step3-unfilled-sku-count="step3UnfilledSkuCount"
+              :step3-error-sku-count="step3ErrorSkuCount"
+              :material-fit-label="materialFitLabel"
+              @move-step="moveStep"
+              @open-final-review="openFinalReviewModal"
+            />
           </div>
         </div>
       </div>
 
-      <div
-        v-if="showFinalReviewModal"
-        class="fixed inset-0 z-50 bg-black/45 backdrop-blur-sm"
-        @click.self="showFinalReviewModal = false"
-      >
-        <div class="flex h-full w-full items-center justify-center p-4">
-          <div
-            class="flex h-full max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-md bg-white shadow-2xl"
-          >
-            <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-              <div>
-                <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">
-                  Final Review
-                </p>
-                <h2 class="mt-1 text-lg font-black text-gray-900">최종 판매 등록서 확인</h2>
-              </div>
-              <button
-                type="button"
-                class="border border-gray-300 bg-white px-3 py-2 text-xs font-black text-gray-700 hover:bg-gray-50"
-                @click="showFinalReviewModal = false"
-              >
-                닫기
-              </button>
-            </div>
-            <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-              <section class="border border-gray-200 bg-white">
-                <div
-                  class="grid gap-4 px-4 py-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(21rem,0.65fr)]"
-                >
-                  <div>
-                    <div class="flex flex-wrap items-start justify-between gap-3 pb-3">
-                      <div>
-                        <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">
-                          거래 요약
-                        </p>
-                        <p class="mt-1 text-base font-black text-gray-900">
-                          {{ selectedBuyer?.companyName ?? '-' }}
-                        </p>
-                        <p class="mt-1 text-xs font-bold text-gray-500">
-                          소재 구분 {{ lockedMaterialType || '-' }} · 담긴 SKU
-                          {{ formatQuantity(drawerSummary.totalItems) }}건
-                        </p>
-                      </div>
-                      <div
-                        class="rounded-full bg-[#EAF4F0] px-3 py-1 text-[10px] font-black text-[#255F52]"
-                      >
-                        {{ materialFitLabel(selectedBuyer?.primaryMaterialFit) || '-' }}
-                      </div>
-                    </div>
-
-                    <div class="mt-2 grid gap-3 pb-4 md:grid-cols-2 xl:grid-cols-4">
-                      <div class="rounded-md border border-gray-200 bg-gray-50 px-3 py-3">
-                        <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">
-                          요청 / 실제 KG
-                        </p>
-                        <p class="mt-1 text-sm font-black text-gray-900">
-                          {{ formatKg(finalReviewSummary.totalRequestedWeightKg) }}
-                        </p>
-                        <p class="mt-1 text-sm font-black text-[#0F5C4D]">
-                          {{ formatKg(finalReviewSummary.totalActualWeightKg) }}
-                        </p>
-                      </div>
-                      <div class="rounded-md border border-gray-200 bg-gray-50 px-3 py-3">
-                        <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">
-                          환산 / 실차감
-                        </p>
-                        <p class="mt-1 text-sm font-black text-gray-900">
-                          {{ Number(finalReviewSummary.totalEstimatedQuantity).toFixed(2) }}벌
-                        </p>
-                        <p class="mt-1 text-sm font-black text-amber-700">
-                          {{ formatQuantity(finalReviewSummary.totalDeductedQuantity) }}벌
-                        </p>
-                      </div>
-                      <div class="rounded-md border border-gray-200 bg-gray-50 px-3 py-3">
-                        <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">
-                          예상 / 실제 금액
-                        </p>
-                        <p class="mt-1 text-sm font-black text-gray-900">
-                          {{ formatCurrency(finalReviewSummary.totalRequestedAmount) }}
-                        </p>
-                        <p class="mt-1 text-sm font-black text-[#0F5C4D]">
-                          {{ formatCurrency(finalReviewSummary.totalActualAmount) }}
-                        </p>
-                      </div>
-                      <div class="rounded-md border border-gray-200 bg-gray-50 px-3 py-3">
-                        <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">
-                          포함 소재
-                        </p>
-                        <p class="mt-1 text-sm font-black leading-5 text-gray-900">
-                          {{ includedMaterialNames.join(', ') || '-' }}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div
-                      v-if="
-                        Math.abs(
-                          finalReviewSummary.totalActualWeightKg -
-                            finalReviewSummary.totalRequestedWeightKg,
-                        ) >= 0.01
-                      "
-                      class="rounded-md border border-[#D7E9E3] bg-[#F3FAF8] px-3 py-3"
-                    >
-                      <p class="text-xs font-black text-[#0F5C4D]">
-                        요청 {{ formatKg(finalReviewSummary.totalRequestedWeightKg) }} → 실재고 차감
-                        기준 {{ formatKg(finalReviewSummary.totalActualWeightKg) }} 반영
-                      </p>
-                    </div>
-                  </div>
-
-                  <aside class="border border-gray-200 bg-gray-50 px-4 py-4">
-                    <div class="flex items-start justify-between gap-3 pb-3">
-                      <div>
-                        <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">
-                          거래처 정보
-                        </p>
-                        <div class="mt-1 flex flex-wrap items-center gap-2">
-                          <p class="text-sm font-black text-gray-900">
-                            {{ selectedBuyer?.companyName ?? '-' }}
-                          </p>
-                          <p class="font-mono text-[11px] font-black text-gray-500">
-                            {{ selectedBuyer?.code ?? '-' }}
-                          </p>
-                        </div>
-                      </div>
-                      <span class="text-[11px] font-black text-gray-500">{{
-                        selectedBuyer?.industryGroup ?? '-'
-                      }}</span>
-                    </div>
-
-                    <div class="mt-2 grid grid-cols-2 gap-3">
-                      <div>
-                        <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">
-                          담당자
-                        </p>
-                        <p class="mt-1 text-xs font-black text-gray-800">
-                          {{ selectedBuyer?.managerName ?? '-' }}
-                        </p>
-                      </div>
-                      <div>
-                        <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">
-                          연락처
-                        </p>
-                        <p class="mt-1 text-xs font-black text-gray-800">
-                          {{ selectedBuyer?.phone ?? '-' }}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div class="mt-4 border-t border-gray-200 pt-3">
-                      <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">
-                        취급제품 / 생산품
-                      </p>
-                      <p class="mt-1 text-xs font-bold leading-5 text-gray-700">
-                        {{
-                          selectedBuyer?.productTypes?.join(', ') ||
-                          selectedBuyer?.productNote ||
-                          '-'
-                        }}
-                      </p>
-                    </div>
-
-                    <div class="mt-4 border-t border-gray-200 pt-3">
-                      <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">
-                        거래처 설명
-                      </p>
-                      <p class="mt-1 text-xs font-bold leading-5 text-gray-700">
-                        {{ selectedBuyer?.description || '설명 없음' }}
-                      </p>
-                    </div>
-
-                    <div class="mt-4 border-t border-gray-200 pt-3">
-                      <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">
-                        판매 메모
-                      </p>
-                      <p class="mt-1 text-xs font-bold leading-5 text-gray-700">
-                        {{ circularStockStore.draftMemo?.trim() || '입력된 메모 없음' }}
-                      </p>
-                    </div>
-                  </aside>
-                </div>
-              </section>
-
-              <section class="mt-4 min-w-0 border border-gray-200 bg-white">
-                <div class="border-b border-gray-100 px-3 py-3">
-                  <h3 class="text-sm font-black text-gray-900">판매 SKU 상세</h3>
-                </div>
-                <div class="overflow-x-auto">
-                  <table class="min-w-[1450px] w-full border-collapse text-left text-xs">
-                    <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
-                      <tr>
-                        <th class="px-3 py-3 font-black">SKU 코드</th>
-                        <th class="pl-0.5 pr-3 py-3 text-left font-black">품목명</th>
-                        <th class="px-3 py-3 text-left font-black">소재 구분</th>
-                        <th class="px-3 py-3 font-black">소재 상세</th>
-                        <th class="px-3 py-3 text-left font-black">현재 재고</th>
-                        <th class="px-3 py-3 text-left font-black">요청 kg</th>
-                        <th class="px-3 py-3 text-left font-black">환산 수량</th>
-                        <th class="px-3 py-3 text-left font-black">실차감 재고</th>
-                        <th class="px-3 py-3 text-left font-black">실제 반영 kg</th>
-                        <th class="px-3 py-3 text-left font-black">kg당 단가</th>
-                        <th class="px-3 py-3 text-left font-black">예상 금액</th>
-                        <th class="px-3 py-3 text-left font-black">실제 금액</th>
-                      </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100">
-                      <tr v-for="item in draftItems" :key="item.draftId">
-                        <td class="pl-3 pr-0 py-3 font-mono font-bold text-gray-500">
-                          {{ item.skuCode }}
-                        </td>
-                        <td class="pl-0.5 pr-3 py-3 font-black text-gray-900">
-                          {{ item.itemName }}
-                        </td>
-                        <td class="px-3 py-3 text-left font-black text-gray-900">
-                          {{ item.materialType }}
-                        </td>
-                        <td class="px-3 py-3 font-bold text-gray-700">
-                          {{ formatMaterials(item.materials) }}
-                        </td>
-                        <td class="px-3 py-3 text-left font-black text-gray-600">
-                          {{ formatQuantity(item.availableQuantity) }}벌 /
-                          {{ formatKg(item.availableWeightKg) }}
-                        </td>
-                        <td class="px-3 py-3 text-left font-black text-gray-900">
-                          {{ formatKg(item.requestedWeightKg) }}
-                        </td>
-                        <td class="px-3 py-3 text-left font-black text-gray-700">
-                          {{ Number(item.estimatedQuantity || 0).toFixed(2) }}벌
-                        </td>
-                        <td class="px-3 py-3 text-left font-black text-amber-700">
-                          {{ formatQuantity(item.deductedQuantity) }}벌
-                        </td>
-                        <td
-                          class="px-3 py-3 text-left font-black"
-                          :class="hasWeightAdjustment(item) ? 'text-[#0F5C4D]' : 'text-gray-900'"
-                        >
-                          {{ formatKg(item.actualWeightKg) }}
-                        </td>
-                        <td class="px-3 py-3 text-left font-black text-gray-900">
-                          {{ formatCurrency(item.unitPrice) }}
-                        </td>
-                        <td class="px-3 py-3 text-left font-black text-gray-900">
-                          {{ formatCurrency(item.requestedAmount) }}
-                        </td>
-                        <td
-                          class="px-3 py-3 text-left font-black"
-                          :class="hasWeightAdjustment(item) ? 'text-[#0F5C4D]' : 'text-gray-900'"
-                        >
-                          {{ formatCurrency(item.actualAmount) }}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            </div>
-            <div
-              class="flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-6 py-4"
-            >
-              <button
-                type="button"
-                class="border border-gray-300 bg-white px-4 py-2 text-xs font-black text-gray-700 hover:bg-gray-100"
-                @click="showFinalReviewModal = false"
-              >
-                검토 종료
-              </button>
-              <button
-                type="button"
-                class="border border-gray-300 bg-white px-4 py-2 text-xs font-black text-gray-700 hover:bg-gray-100"
-                @click="returnToDrawerEdit"
-              >
-                패널로 돌아가 수정
-              </button>
-              <button
-                type="button"
-                class="border border-[#004D3C] bg-[#004D3C] px-4 py-2 text-xs font-black text-white hover:bg-[#00382c]"
-                @click="submitSale"
-              >
-                이 내용으로 최종 등록
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <SalesRegisterFinalReviewModal
+        :open="showFinalReviewModal"
+        :selected-buyer="selectedBuyer"
+        :locked-material-type="lockedMaterialType"
+        :drawer-summary="drawerSummary"
+        :final-review-summary="finalReviewSummary"
+        :included-material-names="includedMaterialNames"
+        :draft-items="draftItems"
+        :draft-memo="circularStockStore.draftMemo"
+        :format-materials="formatMaterials"
+        :format-kg="formatKg"
+        :format-currency="formatCurrency"
+        :format-quantity="formatQuantity"
+        :has-weight-adjustment="hasWeightAdjustment"
+        :material-fit-label="materialFitLabel"
+        @close="showFinalReviewModal = false"
+        @return-edit="returnToDrawerEdit"
+        @submit="submitSale"
+      />
 
       <p
         v-if="toastMessage"
