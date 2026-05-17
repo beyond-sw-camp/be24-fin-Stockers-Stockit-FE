@@ -1057,6 +1057,8 @@ onBeforeUnmount(() => {
         :open="showFinalReviewModal"
         :selected-buyer="selectedBuyer"
         :locked-material-type="lockedMaterialType"
+        :outbound-warehouse-label="outboundWarehouseLabel"
+        :outbound-warehouse-region-label="outboundWarehouseRegionLabel"
         :drawer-summary="drawerSummary"
         :final-review-summary="finalReviewSummary"
         :included-material-names="includedMaterialNames"
@@ -1087,15 +1089,3 @@ onBeforeUnmount(() => {
     </div>
   </AppLayout>
 </template>
-
-<style scoped>
-.no-spin::-webkit-outer-spin-button,
-.no-spin::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.no-spin {
-  -moz-appearance: textfield;
-}
-</style>
