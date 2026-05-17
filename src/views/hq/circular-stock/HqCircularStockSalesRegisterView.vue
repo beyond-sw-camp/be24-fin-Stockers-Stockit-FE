@@ -28,6 +28,10 @@ const buyerDropdownRef = ref(null)
 const isDrawerOpen = ref(false)
 const showFinalReviewModal = ref(false)
 const priceEditModes = ref({})
+const expandedStep3Rows = ref({})
+const groupRequestedKg = ref({})
+const manualAdjustedKgBySku = ref({})
+const autoAllocatedKgBySku = ref({})
 const toastMessage = ref('')
 const toastTone = ref('success')
 const inventoryLoadError = ref('')
@@ -177,6 +181,131 @@ const matchingContextSummary = computed(() => {
     carbonCreditValue,
   }
 })
+
+function toggleStep3Detail(draftId) {
+  expandedStep3Rows.value = {
+    ...expandedStep3Rows.value,
+    [draftId]: !expandedStep3Rows.value[draftId],
+  }
+}
+
+function isStep3DetailOpen(draftId) {
+  return Boolean(expandedStep3Rows.value[draftId])
+}
+
+const step3GroupCards = computed(() => {
+  const groups = new Map()
+  for (const item of draftItems.value) {
+    const key = String(item.materialType || '기타')
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        materialType: key,
+        items: [],
+        requestedKg: Number(groupRequestedKg.value[key] || 0),
+      })
+    }
+    groups.get(key).items.push(item)
+  }
+  return Array.from(groups.values()).map((group) => {
+    const totalAvailableQty = group.items.reduce((sum, item) => sum + (Number(item.availableQuantity) || 0), 0)
+    const totalAvailableKg = group.items.reduce((sum, item) => sum + (Number(item.availableWeightKg) || 0), 0)
+    const totalActualQty = group.items.reduce((sum, item) => sum + (Number(item.deductedQuantity) || 0), 0)
+    const totalActualKg = group.items.reduce((sum, item) => sum + (Number(item.actualWeightKg) || 0), 0)
+    const totalActualAmount = group.items.reduce((sum, item) => sum + (Number(item.actualAmount) || 0), 0)
+    const completedCount = group.items.filter((item) => Number(item.requestedWeightKg) > 0).length
+
+    return {
+      ...group,
+      totalAvailableQty,
+      totalAvailableKg,
+      totalActualQty,
+      totalActualKg,
+      totalActualAmount,
+      completedCount,
+      hasOverLimit: totalActualKg > totalAvailableKg + 0.0001,
+    }
+  })
+})
+
+const step3Summary = computed(() => {
+  const totalSku = draftItems.value.length
+  const inputCompletedCount = draftItems.value.filter((item) => Number(item.requestedWeightKg) > 0).length
+  const totalActualQty = draftItems.value.reduce((sum, item) => sum + (Number(item.deductedQuantity) || 0), 0)
+  const totalActualKg = draftItems.value.reduce((sum, item) => sum + (Number(item.actualWeightKg) || 0), 0)
+  const totalActualAmount = draftItems.value.reduce((sum, item) => sum + (Number(item.actualAmount) || 0), 0)
+  return { totalSku, inputCompletedCount, totalActualQty, totalActualKg, totalActualAmount }
+})
+
+const step3HasOverLimit = computed(() => step3GroupCards.value.some((group) => group.hasOverLimit))
+const step3FooterWarning = computed(() => {
+  if (step3HasOverLimit.value) return '재고 가능 kg를 초과한 배분이 있습니다. 값을 조정해주세요.'
+  return submitDisabledReason.value || ''
+})
+
+function distributeGroupRequestedKg(groupKey, requestedValue) {
+  const group = step3GroupCards.value.find((entry) => entry.key === groupKey)
+  if (!group) return
+
+  const requestedKg = Math.max(0, Number(requestedValue) || 0)
+  groupRequestedKg.value = { ...groupRequestedKg.value, [groupKey]: requestedKg }
+
+  const totalAvailable = group.items.reduce((sum, item) => sum + (Number(item.availableWeightKg) || 0), 0)
+  let remain = Math.min(requestedKg, totalAvailable)
+
+  const nextAuto = { ...autoAllocatedKgBySku.value }
+  const nextManual = { ...manualAdjustedKgBySku.value }
+
+  for (const item of group.items) {
+    const manual = nextManual[item.draftId]
+    if (Number.isFinite(manual)) {
+      const clamped = Math.min(Math.max(Number(manual) || 0, 0), Number(item.availableWeightKg) || 0)
+      remain = Math.max(0, remain - clamped)
+      updateDraftItemField(item.draftId, 'requestedWeightKg', clamped)
+    }
+  }
+
+  const autoTargets = group.items.filter((item) => !Number.isFinite(nextManual[item.draftId]))
+  const autoTotalAvailable = autoTargets.reduce((sum, item) => sum + (Number(item.availableWeightKg) || 0), 0)
+
+  for (const item of autoTargets) {
+    const available = Number(item.availableWeightKg) || 0
+    let allocated = 0
+    if (autoTotalAvailable > 0 && remain > 0) {
+      allocated = (available / autoTotalAvailable) * remain
+    }
+    const clamped = Math.min(Math.max(allocated, 0), available)
+    nextAuto[item.draftId] = clamped
+    updateDraftItemField(item.draftId, 'requestedWeightKg', clamped)
+  }
+
+  autoAllocatedKgBySku.value = nextAuto
+}
+
+function onStep3SkuKgInput(groupKey, draftId, rawValue) {
+  const numeric = Math.max(0, Number(rawValue) || 0)
+  manualAdjustedKgBySku.value = {
+    ...manualAdjustedKgBySku.value,
+    [draftId]: numeric,
+  }
+  updateDraftItemField(draftId, 'requestedWeightKg', numeric)
+
+  const currentGroupRequested = Number(groupRequestedKg.value[groupKey] || 0)
+  if (currentGroupRequested > 0) {
+    distributeGroupRequestedKg(groupKey, currentGroupRequested)
+  }
+}
+
+function resetStep3SkuToAuto(groupKey, draftId) {
+  const nextManual = { ...manualAdjustedKgBySku.value }
+  delete nextManual[draftId]
+  manualAdjustedKgBySku.value = nextManual
+  distributeGroupRequestedKg(groupKey, Number(groupRequestedKg.value[groupKey] || 0))
+}
+
+function isManualAdjusted(draftId) {
+  return Number.isFinite(manualAdjustedKgBySku.value[draftId])
+}
 
 function formatMaterials(materials) {
   return materials.map((material) => `${material.name} ${material.ratio}%`).join(', ')
@@ -372,8 +501,17 @@ function updateDraftItemField(draftId, field, value) {
 function removeDraftItem(draftId) {
   circularStockStore.removeSaleDraftItem(draftId)
   delete priceEditModes.value[draftId]
+  const nextManual = { ...manualAdjustedKgBySku.value }
+  const nextAuto = { ...autoAllocatedKgBySku.value }
+  delete nextManual[draftId]
+  delete nextAuto[draftId]
+  manualAdjustedKgBySku.value = nextManual
+  autoAllocatedKgBySku.value = nextAuto
   if (draftItems.value.length === 0) {
     isDrawerOpen.value = false
+    groupRequestedKg.value = {}
+    manualAdjustedKgBySku.value = {}
+    autoAllocatedKgBySku.value = {}
   }
 }
 
@@ -386,6 +524,9 @@ function clearDraftPanel() {
   circularStockStore.clearDraft()
   priceEditModes.value = {}
   buyerSearchTerm.value = ''
+  groupRequestedKg.value = {}
+  manualAdjustedKgBySku.value = {}
+  autoAllocatedKgBySku.value = {}
   saleStep.value = 1
 }
 
@@ -676,7 +817,7 @@ onBeforeUnmount(() => {
                         <th class="px-3 py-3 text-center font-black">재고 수량</th>
                         <th class="px-3 py-3 text-right font-black">kg당 단가</th>
                         <th class="px-3 py-3 text-right font-black">환산 금액</th>
-                        <th class="px-3 py-3 text-right font-black">무게</th>
+                        <th class="px-3 py-3 text-right font-black">총 무게</th>
                         <th class="px-3 py-3 text-right font-black">개당 무게</th>
                         <th class="px-3 py-3 text-center font-black">제거</th>
                       </tr>
@@ -1086,229 +1227,223 @@ onBeforeUnmount(() => {
 
               <div
                 v-else
-                class="mt-0 grid w-full gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(16rem,18rem)]"
+                class="mt-0 grid w-full gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]"
               >
-                <div class="min-w-0">
-                  <div class="mb-3 flex items-center justify-between gap-3">
-                    <div>
-                      <p class="text-sm font-black text-gray-900">판매 조건 입력</p>
-                    </div>
-                    <div class="flex items-center gap-3">
-                      <p class="text-[11px] font-bold text-gray-500">
-                        판매 kg 기준 입력이며, 차감 벌 수량은 항상 올림 처리됩니다.
-                      </p>
-                      <button
-                        type="button"
-                        class="text-[11px] font-black text-gray-500 hover:text-gray-900"
-                        @click="clearDraftPanel"
-                      >
-                        전체 비우기
-                      </button>
-                    </div>
+                <div class="min-w-0 space-y-4">
+                  <div class="mb-1 flex items-center justify-between gap-3">
+                    <p class="pl-2 text-sm font-black text-gray-900">판매 조건 입력</p>
+                    <button
+                      type="button"
+                      class="pr-2 text-[11px] font-black text-gray-500 transition hover:text-gray-900"
+                      @click="clearDraftPanel"
+                    >
+                      전체 비우기
+                    </button>
                   </div>
-                  <div class="max-h-[22rem] overflow-y-auto border border-gray-200">
-                    <table class="min-w-[980px] w-full border-collapse text-left text-xs">
-                      <thead
-                        class="sticky top-0 bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500"
-                      >
-                        <tr>
-                          <th class="pl-3 pr-1 py-3 font-black">품목</th>
-                          <th class="pl-1 pr-2 py-3 text-center font-black">소재 구분</th>
-                          <th class="px-3 py-3 text-center font-black">소재 상세</th>
-                          <th class="px-3 py-3 text-center font-black">현재 재고</th>
-                          <th class="px-3 py-3 text-center font-black">재고 총 kg</th>
-                          <th class="px-3 py-3 text-center font-black">요청 kg</th>
-                          <th class="px-3 py-3 text-center font-black">환산 수량</th>
-                          <th class="px-3 py-3 text-center font-black">실차감 수량</th>
-                          <th class="px-3 py-3 text-center font-black">실제 반영 kg</th>
-                          <th class="px-3 py-3 text-center font-black">kg당 단가</th>
-                          <th class="px-3 py-3 text-center font-black">예상 금액</th>
-                          <th class="px-3 py-3 text-center font-black">실제 금액</th>
-                          <th class="px-3 py-3 text-center font-black">삭제</th>
-                        </tr>
-                      </thead>
-                      <tbody class="divide-y divide-gray-100">
-                        <tr v-for="item in draftItems" :key="item.draftId">
-                          <td class="pl-3 pr-1 py-3 align-top">
-                            <p class="font-mono text-[11px] font-black text-gray-400">
-                              {{ item.skuCode || '-' }}
-                            </p>
-                            <p class="font-black text-gray-900">{{ item.itemName }}</p>
-                            <p class="mt-1 text-[11px] font-bold text-gray-500">
-                              {{ item.mainCategory }} &gt; {{ item.subCategory }} ·
-                              {{ item.color }}/{{ item.size }}
-                            </p>
-                          </td>
-                          <td class="pl-1 pr-2 py-3 align-top text-center font-black text-gray-700">
-                            {{ item.materialType || '-' }}
-                          </td>
-                          <td class="px-3 py-3 align-top text-center font-bold text-gray-500">
-                            {{ formatMaterials(item.materials) }}
-                          </td>
-                          <td class="px-3 py-3 align-top text-center font-black text-gray-900">
-                            {{ item.availableQuantity.toLocaleString() }}벌
-                          </td>
-                          <td class="px-3 py-3 align-top text-center font-black text-gray-900">
-                            {{ circularStockStore.formatWeight(item.availableWeightKg) }}
-                          </td>
-                          <td class="px-3 py-3 align-top text-center">
-                            <div class="mx-auto inline-flex items-center gap-1">
-                              <input
-                                :value="item.requestedWeightKg"
-                                type="number"
-                                min="0"
-                                :max="item.availableWeightKg"
-                                step="0.01"
-                                class="no-spin h-8 w-16 border border-gray-300 bg-white px-2 text-center text-[11px] font-black text-gray-900 outline-none focus:border-[#004D3C]"
-                                @input="
-                                  updateDraftItemField(
-                                    item.draftId,
-                                    'requestedWeightKg',
-                                    $event.target.value,
-                                  )
-                                "
-                              />
-                              <span class="text-[11px] font-black text-gray-500">kg</span>
-                            </div>
-                          </td>
-                          <td class="px-3 py-3 align-top text-center font-black text-gray-900">
-                            {{ item.estimatedQuantity.toFixed(2) }}벌
-                          </td>
-                          <td class="px-3 py-3 align-top text-center font-black text-amber-700">
-                            {{ item.deductedQuantity }}벌
-                          </td>
-                          <td
-                            class="px-3 py-3 align-top text-center font-black"
-                            :class="hasWeightAdjustment(item) ? 'text-[#0F5C4D]' : 'text-gray-900'"
+
+                  <article
+                    v-for="group in step3GroupCards"
+                    :key="group.key"
+                    class="overflow-hidden rounded-2xl border border-[#B8DAC8] bg-white"
+                  >
+                    <header class="flex items-center justify-between border-b border-[#DCEDE5] px-5 py-4">
+                      <div class="flex items-start gap-3">
+                        <div class="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#EAF5EF] text-[#2F6B4F]">
+                          ☐
+                        </div>
+                        <div>
+                          <p class="text-base font-black text-gray-900">{{ group.materialType }}</p>
+                          <p class="mt-1 text-sm font-bold text-gray-500">
+                            SKU {{ group.items.length }}종 ·
+                            ₩{{ Number(group.items[0]?.defaultKgUnitPrice || 0).toLocaleString() }}/kg
+                          </p>
+                        </div>
+                      </div>
+                      <p class="text-sm font-bold text-gray-600">
+                        총 재고 <span class="font-black text-gray-900">{{ group.totalAvailableQty }}벌</span>
+                        · 최대
+                        <span class="font-black text-gray-900">{{ formatKg(group.totalAvailableKg) }}</span>
+                      </p>
+                    </header>
+
+                    <div class="border-b border-[#E6F1EC] px-5 py-4">
+                      <div class="flex flex-col gap-1">
+                        <div class="flex flex-wrap items-center gap-3">
+                          <span
+                            class="inline-flex h-[46px] items-center -translate-y-[1px] text-sm leading-none text-gray-900"
+                            style="font-weight: 700"
+                            >거래처 요청</span
                           >
-                            {{ formatKg(item.actualWeightKg) }}
-                          </td>
-                          <td class="px-3 py-3 align-top text-center">
-                            <div
-                              v-if="!isPriceEditMode(item.draftId)"
-                              class="mx-auto inline-flex h-8 min-w-[6.5rem] items-center justify-center gap-0.5 border border-gray-200 bg-gray-50 pl-2 pr-1 text-[11px] font-black text-gray-900"
-                            >
-                              <span>₩{{ Number(item.unitPrice || 0).toLocaleString() }}</span>
-                              <button
-                                type="button"
-                                class="inline-flex h-5 w-5 items-center justify-center text-gray-500 transition hover:text-gray-900"
-                                title="kg당 단가 수정"
-                                @click="openPriceEditMode(item.draftId)"
-                              >
-                                ✎
-                              </button>
-                            </div>
+                          <div class="inline-flex h-[46px] items-center gap-2 rounded-xl border-2 border-gray-300 bg-white px-5">
                             <input
-                              v-else
-                              :value="item.unitPrice"
+                              :value="groupRequestedKg[group.key] ?? ''"
                               type="number"
                               min="0"
-                              step="100"
-                              class="no-spin mx-auto h-8 w-24 border border-gray-300 bg-white px-2 text-center text-[11px] font-black text-gray-900 outline-none focus:border-[#004D3C]"
-                              @input="
-                                updateDraftItemField(item.draftId, 'unitPrice', $event.target.value)
-                              "
-                              @blur="closePriceEditMode(item.draftId)"
-                              @keydown.enter="closePriceEditMode(item.draftId)"
+                              :max="group.totalAvailableKg"
+                              step="0.01"
+                              class="no-spin w-14 border-0 bg-transparent text-[28px] font-black leading-none text-gray-900 outline-none"
+                              @input="distributeGroupRequestedKg(group.key, $event.target.value)"
                             />
-                            <p class="mt-1 text-center text-[10px] font-bold text-gray-400">
-                              기본 {{ Number(item.defaultKgUnitPrice || 0).toLocaleString() }}
-                            </p>
-                          </td>
-                          <td class="px-3 py-3 align-top text-center font-black text-gray-900">
-                            {{ formatCurrency(item.requestedAmount) }}
-                          </td>
-                          <td
-                            class="px-3 py-3 align-top text-center font-black"
-                            :class="hasWeightAdjustment(item) ? 'text-[#0F5C4D]' : 'text-gray-900'"
+                            <span class="pt-1 text-sm font-bold text-gray-400">kg</span>
+                          </div>
+                          <span class="inline-flex h-[46px] items-center -translate-y-[1px] text-base leading-none text-gray-300">→</span>
+                          <div
+                            class="inline-flex items-center self-center -translate-y-[1px] rounded-lg border border-[#D9CCF5] bg-[#F6F1FF] px-3 py-1.5 text-xs font-bold leading-none text-[#5B4A7A]"
                           >
-                            {{ formatCurrency(item.actualAmount) }}
-                          </td>
-                          <td class="px-3 py-3 align-top text-center">
-                            <button
-                              type="button"
-                              class="h-7 border border-gray-200 px-2 text-[11px] font-black text-gray-500 hover:bg-gray-50 hover:text-black"
-                              @click="removeDraftItem(item.draftId)"
-                            >
-                              삭제
-                            </button>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
+                            <span class="font-black text-[#6E4BB8]">kg 입력 시</span>
+                            <span>&nbsp;재고 많은 순으로&nbsp;</span>
+                            <span class="font-black text-[#6E4BB8]">자동 배분</span>
+                          </div>
+                        </div>
+                        <div class="text-xs font-bold text-gray-400" style="padding-left: 5.8rem; margin-top: 1px;">
+                          재고 최대 {{ Number(group.totalAvailableKg || 0).toFixed(2) }}kg
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                      <table class="min-w-[920px] w-full border-collapse text-left">
+                        <thead class="bg-[#FCFDFC] text-xs font-black text-gray-500">
+                          <tr>
+                            <th class="px-5 py-3">SKU</th>
+                            <th class="px-3 py-3 text-center">재고</th>
+                            <th class="px-3 py-3 text-center">배분 kg</th>
+                            <th class="px-3 py-3 text-center">판매 벌 수</th>
+                            <th class="px-3 py-3 text-center">실제 무게</th>
+                            <th class="px-5 py-3 text-right">금액</th>
+                          </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 text-sm">
+                          <tr v-for="item in group.items" :key="item.draftId">
+                            <td class="px-5 py-4">
+                              <p class="text-sm font-black text-gray-900">{{ item.itemName }}</p>
+                              <p class="mt-1 font-mono text-xs font-bold text-gray-400">{{ item.skuCode }}</p>
+                            </td>
+                            <td class="px-3 py-4 text-center">
+                              <p class="text-base font-black text-gray-900">{{ item.availableQuantity }}벌</p>
+                              <p class="mt-1 text-sm font-bold text-gray-500">{{ formatKg(item.availableWeightKg) }}</p>
+                            </td>
+                            <td class="px-3 py-4 text-center">
+                              <div class="inline-flex items-center gap-2 rounded-xl border border-gray-300 px-3 py-2">
+                                <input
+                                  :value="item.requestedWeightKg"
+                                  type="number"
+                                  min="0"
+                                  :max="item.availableWeightKg"
+                                  step="0.01"
+                                  class="no-spin w-14 border-0 bg-transparent text-right text-base font-black text-gray-900 outline-none"
+                                  @input="onStep3SkuKgInput(group.key, item.draftId, $event.target.value)"
+                                />
+                                <span class="text-lg font-bold text-gray-500">kg</span>
+                              </div>
+                              <div class="mt-1 text-xs font-bold text-gray-400">
+                                <span v-if="isManualAdjusted(item.draftId)">수동 조정</span>
+                                <span v-else>자동 배분</span>
+                                <button
+                                  v-if="isManualAdjusted(item.draftId)"
+                                  type="button"
+                                  class="ml-2 text-[#0F5C4D] underline"
+                                  @click="resetStep3SkuToAuto(group.key, item.draftId)"
+                                >
+                                  자동으로 되돌리기
+                                </button>
+                              </div>
+                            </td>
+                            <td class="px-3 py-4 text-center text-lg font-black text-gray-900">
+                              {{ item.deductedQuantity }}벌
+                            </td>
+                            <td class="px-3 py-4 text-center text-lg font-black text-gray-900">
+                              {{ formatKg(item.actualWeightKg) }}
+                            </td>
+                            <td class="px-5 py-4 text-right text-lg font-black text-[#1B6354]">
+                              {{ formatCurrency(item.actualAmount) }}
+                            </td>
+                          </tr>
+                          <tr class="bg-[#F7FAF8] text-sm font-black text-gray-700">
+                            <td class="px-5 py-3">합계</td>
+                            <td />
+                            <td />
+                            <td class="px-3 py-3 text-center text-base text-gray-900">{{ group.totalActualQty }}벌</td>
+                            <td class="px-3 py-3 text-center text-base text-gray-900">{{ formatKg(group.totalActualKg) }}</td>
+                            <td class="px-5 py-3 text-right text-base text-[#1B6354]">{{ formatCurrency(group.totalActualAmount) }}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <footer class="flex items-center justify-between bg-[#E7F3EC] px-5 py-3 text-base font-black text-[#2A5B46]">
+                      <div class="flex items-center gap-5">
+                        <span>{{ group.totalActualQty }}벌 출고</span>
+                        <span>실제 {{ formatKg(group.totalActualKg) }}</span>
+                      </div>
+                      <span class="text-base">{{ formatCurrency(group.totalActualAmount) }}</span>
+                    </footer>
+                  </article>
+
+                  <div
+                    class="flex items-start gap-2 rounded-lg border border-[#F1E7CF] bg-[#FFFBF3] px-4 py-2 text-xs font-bold text-[#7D6432]"
+                  >
+                    <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#B38A3A]" :stroke-width="2" />
+                    <span>
+                      거래처는 kg 단위로 요청합니다. 자동 환산/올림으로 요청값과 합계가 다를 수 있으며,
+                      재고 한도 초과만 금지됩니다.
+                    </span>
                   </div>
                 </div>
-                <div class="flex w-full min-w-0 flex-col gap-3">
-                  <section class="w-full border border-gray-200 bg-gray-50 px-3 py-3">
-                    <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">
-                      판매 메모
+
+                <aside class="space-y-3">
+                  <section class="rounded-xl border border-gray-200 bg-white px-4 py-4">
+                    <p class="text-sm font-black text-gray-500">거래처</p>
+                    <div class="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-3">
+                      <p class="text-lg font-black text-gray-900">{{ selectedBuyer?.companyName || '-' }}</p>
+                      <p class="mt-1 text-sm font-bold text-gray-500">
+                        {{ selectedBuyer?.industryGroup || '-' }} 거래처
+                      </p>
+                    </div>
+                  </section>
+
+                  <section class="rounded-xl border border-gray-200 bg-white px-4 py-4">
+                    <p class="text-sm font-black text-gray-500">판매 요약</p>
+                    <div class="mt-3 space-y-2 text-sm">
+                      <div class="flex items-center justify-between">
+                        <span class="font-bold text-gray-500">담긴 SKU</span>
+                        <span class="text-base font-black text-gray-900">{{ step3Summary.totalSku }}종</span>
+                      </div>
+                      <div class="flex items-center justify-between">
+                        <span class="font-bold text-gray-500">입력 완료</span>
+                        <span class="text-base font-black text-gray-900">{{ step3Summary.inputCompletedCount }} / {{ step3Summary.totalSku }}</span>
+                      </div>
+                      <div class="flex items-center justify-between">
+                        <span class="font-bold text-gray-500">총 판매 벌 수</span>
+                        <span class="text-base font-black text-gray-900">{{ step3Summary.totalActualQty }}벌</span>
+                      </div>
+                      <div class="flex items-center justify-between">
+                        <span class="font-bold text-gray-500">총 실제 무게</span>
+                        <span class="text-base font-black text-gray-900">{{ formatKg(step3Summary.totalActualKg) }}</span>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section class="rounded-xl border border-[#1F4E43] bg-[#1F4E43] px-4 py-4 text-white">
+                    <p class="text-sm font-bold text-[#BED8CF]">예상 판매 금액</p>
+                    <p class="mt-2 text-2xl font-black">{{ formatCurrency(step3Summary.totalActualAmount) }}</p>
+                    <p class="mt-1 text-sm font-bold text-[#9EC3B8]">
+                      실제 반영 기준
                     </p>
+                  </section>
+
+                  <section class="rounded-xl border border-gray-200 bg-white px-4 py-4">
+                    <p class="text-sm font-black text-gray-500">판매 메모</p>
                     <textarea
                       :value="circularStockStore.draftMemo"
                       rows="5"
                       maxlength="500"
-                      class="mt-2 w-full resize-none border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
+                      class="mt-2 w-full resize-none rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
                       placeholder="거래 조건, 출고 메모 등을 입력하세요."
                       @input="circularStockStore.setDraftMemo($event.target.value)"
                     />
                   </section>
-
-                  <section class="w-full border border-gray-200 bg-white px-3 py-3">
-                    <div class="flex items-center justify-between text-xs">
-                      <span class="font-bold text-gray-500">소재 구분</span
-                      ><span class="font-black text-gray-900">{{ lockedMaterialType || '-' }}</span>
-                    </div>
-                    <div class="mt-3 flex items-center justify-between text-xs">
-                      <span class="font-bold text-gray-500">거래처</span
-                      ><span class="font-black text-gray-900">{{
-                        selectedBuyer?.companyName ?? '-'
-                      }}</span>
-                    </div>
-                    <div class="mt-3 flex items-center justify-between text-xs">
-                      <span class="font-bold text-gray-500">담긴 SKU</span
-                      ><span class="font-black text-gray-900"
-                        >{{ drawerSummary.totalItems }}건</span
-                      >
-                    </div>
-                    <div class="mt-3 flex items-start justify-between gap-3 text-xs">
-                      <span class="font-bold text-gray-500">포함 소재</span>
-                      <span class="text-right font-black text-gray-900">
-                        {{ includedMaterialNames.join(', ') || '-' }}
-                      </span>
-                    </div>
-                    <div class="mt-3 flex items-center justify-between text-xs">
-                      <span class="font-bold text-gray-500">요청 KG</span
-                      ><span class="font-black text-gray-900">{{
-                        formatKg(drawerSummary.totalRequestedWeightKg)
-                      }}</span>
-                    </div>
-                    <div class="mt-3 flex items-center justify-between text-xs">
-                      <span class="font-bold text-gray-500">실제 반영 KG</span
-                      ><span class="font-black text-[#0F5C4D]">{{
-                        formatKg(drawerSummary.totalActualWeightKg)
-                      }}</span>
-                    </div>
-                    <div class="mt-3 flex items-center justify-between text-xs">
-                      <span class="font-bold text-gray-500">예상 금액</span
-                      ><span class="font-black text-gray-900">{{
-                        formatCurrency(drawerSummary.totalRequestedAmount)
-                      }}</span>
-                    </div>
-                    <div class="mt-3 flex items-center justify-between text-xs">
-                      <span class="font-bold text-gray-500">실제 금액</span
-                      ><span class="font-black text-[#0F5C4D]">{{
-                        formatCurrency(drawerSummary.totalActualAmount)
-                      }}</span>
-                    </div>
-                    <div class="mt-3 flex items-center justify-between text-xs">
-                      <span class="font-bold text-gray-500">실차감 수량</span
-                      ><span class="font-black text-amber-700"
-                        >{{ formatQuantity(drawerSummary.totalDeductedQuantity) }}벌</span
-                      >
-                    </div>
-                  </section>
-
-                </div>
+                </aside>
               </div>
             </div>
             <div
@@ -1381,10 +1516,10 @@ onBeforeUnmount(() => {
             >
               <div class="flex items-center justify-between gap-4">
                 <p
-                  v-if="submitDisabledReason"
+                  v-if="step3FooterWarning"
                   class="pl-2 text-[11px] font-bold leading-5 text-red-600"
                 >
-                  {{ submitDisabledReason }}
+                  {{ step3FooterWarning }}
                 </p>
                 <div v-else />
                 <div class="flex items-center gap-3">
@@ -1398,7 +1533,7 @@ onBeforeUnmount(() => {
                   <button
                     type="button"
                     class="h-10 cursor-pointer rounded-xl border border-[#004D3C] bg-[#004D3C] px-7 text-base font-black text-white transition-all duration-150 hover:border-[#00382c] hover:bg-[#00382c] hover:shadow-[0_8px_16px_-10px_rgba(0,77,60,0.55)] disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:shadow-none"
-                    :disabled="!canSubmit"
+                    :disabled="!canSubmit || step3HasOverLimit"
                     @click="openFinalReviewModal"
                   >
                     최종 판매 등록서 확인
