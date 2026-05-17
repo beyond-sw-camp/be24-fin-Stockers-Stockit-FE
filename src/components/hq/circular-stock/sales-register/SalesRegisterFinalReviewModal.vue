@@ -1,6 +1,6 @@
 ﻿<script setup>
 import { computed } from 'vue'
-import { Building2, CircleDollarSign, Info, Scale, Settings2, Shirt, Tag, Truck } from 'lucide-vue-next'
+import { Building2, CircleDollarSign, Info, Lock, Scale, Settings2, Shirt, Tag, Truck, X } from 'lucide-vue-next'
 
 const props = defineProps({
   open: {
@@ -119,10 +119,9 @@ const includedMaterialBadges = computed(() => {
   <div
     v-if="open"
     class="fixed inset-0 z-50 bg-black/45 backdrop-blur-sm"
-    @click.self="emit('close')"
   >
-    <div class="flex h-full w-full items-center justify-center p-4">
-      <div class="flex h-full max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-md bg-white shadow-2xl">
+    <div class="flex h-full w-full items-center justify-center p-4" @click="emit('close')">
+      <div class="flex h-full max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-md bg-white shadow-2xl" @click.stop>
         <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <div>
             <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Final Review</p>
@@ -130,10 +129,11 @@ const includedMaterialBadges = computed(() => {
           </div>
           <button
             type="button"
-            class="border border-gray-300 bg-white px-3 py-2 text-xs font-black text-gray-700 hover:bg-gray-50"
+            class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 transition-colors hover:bg-gray-50"
+            aria-label="닫기"
             @click="emit('close')"
           >
-            닫기
+            <X :size="16" />
           </button>
         </div>
 
@@ -401,18 +401,21 @@ const includedMaterialBadges = computed(() => {
         </div>
 
         <div class="flex items-center justify-between gap-2 border-t border-gray-200 bg-gray-50 px-6 py-4">
-          <p class="text-xs font-bold text-gray-500">등록 후에는 수정이 불가합니다</p>
+          <p class="inline-flex items-center gap-1.5 text-xs font-bold text-gray-500">
+            <Lock :size="12" class="shrink-0" />
+            등록 후에는 수정이 불가합니다
+          </p>
           <div class="flex items-center gap-2">
             <button
               type="button"
-              class="border border-gray-300 bg-white px-4 py-2 text-xs font-black text-gray-700 hover:bg-gray-50"
+              class="h-10 cursor-pointer rounded-xl border border-gray-300 bg-white px-6 text-base font-black text-gray-700 transition-all duration-150 hover:bg-gray-50 hover:shadow-sm"
               @click="emit('return-edit')"
             >
               페이지로 돌아가 수정
             </button>
             <button
               type="button"
-              class="border border-[#004D3C] bg-[#004D3C] px-4 py-2 text-xs font-black text-white hover:bg-[#00382c]"
+              class="h-10 cursor-pointer rounded-xl border border-[#004D3C] bg-[#004D3C] px-7 text-base font-black text-white transition-all duration-150 hover:border-[#00382c] hover:bg-[#00382c] hover:shadow-[0_8px_16px_-10px_rgba(0,77,60,0.55)]"
               @click="emit('submit')"
             >
               이 내용으로 최종 등록

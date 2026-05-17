@@ -268,7 +268,7 @@ const emit = defineEmits([
         </article>
       </div>
 
-      <aside class="rounded-xl border border-gray-200 bg-[#F7F8F7] px-4 py-4">
+      <aside class="h-fit self-start rounded-xl border border-gray-200 bg-[#F7F8F7] px-4 py-4">
         <div class="flex flex-col gap-3">
           <section>
             <p class="text-xs text-gray-500" style="font-weight: 600; margin-bottom: 6px">출고 창고</p>
