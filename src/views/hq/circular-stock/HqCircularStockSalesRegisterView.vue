@@ -32,6 +32,7 @@ const expandedStep3Rows = ref({})
 const groupRequestedKg = ref({})
 const manualAdjustedKgBySku = ref({})
 const autoAllocatedKgBySku = ref({})
+const step3SkuInputText = ref({})
 const toastMessage = ref('')
 const toastTone = ref('success')
 const inventoryLoadError = ref('')
@@ -268,18 +269,21 @@ function distributeGroupRequestedKg(groupKey, requestedValue) {
   const maxGroupKg = Math.max(0, Number(group.totalAvailableKg) || 0)
   const requestedKg = Math.min(Math.max(0, Number(requestedValue) || 0), maxGroupKg)
   groupRequestedKg.value = { ...groupRequestedKg.value, [groupKey]: requestedKg }
+  circularStockStore.step3GroupRequestedKg = { ...groupRequestedKg.value }
 
   const totalAvailable = group.items.reduce((sum, item) => sum + (Number(item.availableWeightKg) || 0), 0)
   let remain = Math.min(requestedKg, totalAvailable)
 
   const nextAuto = { ...autoAllocatedKgBySku.value }
   const nextManual = { ...manualAdjustedKgBySku.value }
+  const nextInputText = { ...step3SkuInputText.value }
 
   for (const item of group.items) {
     const manual = nextManual[item.draftId]
     if (Number.isFinite(manual)) {
       const clamped = Math.min(Math.max(Number(manual) || 0, 0), Number(item.availableWeightKg) || 0)
       remain = Math.max(0, remain - clamped)
+      nextInputText[item.draftId] = Number(clamped).toFixed(2)
       updateDraftItemField(item.draftId, 'requestedWeightKg', clamped)
     }
   }
@@ -295,14 +299,66 @@ function distributeGroupRequestedKg(groupKey, requestedValue) {
     }
     const clamped = Math.min(Math.max(allocated, 0), available)
     nextAuto[item.draftId] = clamped
+    nextInputText[item.draftId] = Number(clamped).toFixed(2)
     updateDraftItemField(item.draftId, 'requestedWeightKg', clamped)
   }
 
   autoAllocatedKgBySku.value = nextAuto
+  step3SkuInputText.value = nextInputText
 }
 
 function onStep3SkuKgInput(groupKey, draftId, rawValue) {
-  const numeric = Math.max(0, Number(rawValue) || 0)
+  const item = draftItems.value.find((entry) => entry.draftId === draftId)
+  const maxKg = Math.max(0, Number(item?.availableWeightKg) || 0)
+  const normalizedRaw = String(rawValue ?? '').replace(/[^0-9.]/g, '')
+  if (normalizedRaw === '') {
+    step3SkuInputText.value = {
+      ...step3SkuInputText.value,
+      [draftId]: '',
+    }
+    manualAdjustedKgBySku.value = {
+      ...manualAdjustedKgBySku.value,
+      [draftId]: 0,
+    }
+    updateDraftItemField(draftId, 'requestedWeightKg', 0)
+    return
+  }
+  const firstDotIndex = normalizedRaw.indexOf('.')
+  const merged = firstDotIndex === -1
+    ? normalizedRaw
+    : `${normalizedRaw.slice(0, firstDotIndex + 1)}${normalizedRaw.slice(firstDotIndex + 1).replace(/\./g, '')}`
+  if (merged === '.') {
+    step3SkuInputText.value = {
+      ...step3SkuInputText.value,
+      [draftId]: '0.',
+    }
+    manualAdjustedKgBySku.value = {
+      ...manualAdjustedKgBySku.value,
+      [draftId]: 0,
+    }
+    updateDraftItemField(draftId, 'requestedWeightKg', 0)
+    return
+  }
+  const [wholePartRaw = '', decimalRaw = ''] = merged.split('.')
+  const wholePart = wholePartRaw.replace(/^0+(?=\d)/, '') || '0'
+  const decimalPart = decimalRaw.slice(0, 2)
+  const hasDot = merged.includes('.')
+  const candidateText = hasDot ? `${wholePart}.${decimalPart}` : wholePart
+  const rawNumeric = Number(candidateText)
+  let numeric = rawNumeric
+  if (!Number.isFinite(numeric)) numeric = 0
+  numeric = Math.min(Math.max(numeric, 0), maxKg)
+  const isOverMax = Number.isFinite(rawNumeric) && rawNumeric > maxKg
+  const clampedText = isOverMax
+    ? Number(maxKg).toFixed(2)
+    : (hasDot
+      ? `${Number(numeric).toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}${merged.endsWith('.') ? '.' : ''}`
+      : String(Math.trunc(numeric)))
+
+  step3SkuInputText.value = {
+    ...step3SkuInputText.value,
+    [draftId]: clampedText,
+  }
   manualAdjustedKgBySku.value = {
     ...manualAdjustedKgBySku.value,
     [draftId]: numeric,
@@ -315,6 +371,17 @@ function onStep3SkuKgInput(groupKey, draftId, rawValue) {
   }
 }
 
+function onStep3SkuKgBlur(draftId) {
+  const item = draftItems.value.find((entry) => entry.draftId === draftId)
+  if (!item) return
+  const value = Math.min(Math.max(Number(item.requestedWeightKg) || 0, 0), Number(item.availableWeightKg) || 0)
+  updateDraftItemField(draftId, 'requestedWeightKg', value)
+  step3SkuInputText.value = {
+    ...step3SkuInputText.value,
+    [draftId]: Number(value).toFixed(2),
+  }
+}
+
 function resetStep3SkuToAuto(groupKey, draftId) {
   const nextManual = { ...manualAdjustedKgBySku.value }
   delete nextManual[draftId]
@@ -324,6 +391,27 @@ function resetStep3SkuToAuto(groupKey, draftId) {
 
 function isManualAdjusted(draftId) {
   return Number.isFinite(manualAdjustedKgBySku.value[draftId])
+}
+
+function syncStep3ZeroWhenNoGroupRequest() {
+  const nextAuto = { ...autoAllocatedKgBySku.value }
+  const nextManual = { ...manualAdjustedKgBySku.value }
+  const nextInputText = { ...step3SkuInputText.value }
+
+  for (const group of step3GroupCards.value) {
+    const requested = Number(groupRequestedKg.value[group.key] || 0)
+    if (requested > 0) continue
+    for (const item of group.items) {
+      delete nextAuto[item.draftId]
+      delete nextManual[item.draftId]
+      nextInputText[item.draftId] = '0'
+      updateDraftItemField(item.draftId, 'requestedWeightKg', 0)
+    }
+  }
+
+  autoAllocatedKgBySku.value = nextAuto
+  manualAdjustedKgBySku.value = nextManual
+  step3SkuInputText.value = nextInputText
 }
 
 function roundedUpQuantityLabel(item) {
@@ -383,6 +471,9 @@ function moveStep(step) {
     return
   }
   saleStep.value = step
+  if (step === 3) {
+    syncStep3ZeroWhenNoGroupRequest()
+  }
   // ADR-021 — Step 2 진입 시 AI 추천 호출
   if (step === 2) {
     ensureRecommendationsUpToDate()
@@ -561,6 +652,7 @@ function removeDraftItem(draftId) {
   if (draftItems.value.length === 0) {
     isDrawerOpen.value = false
     groupRequestedKg.value = {}
+    circularStockStore.step3GroupRequestedKg = {}
     manualAdjustedKgBySku.value = {}
     autoAllocatedKgBySku.value = {}
   }
@@ -576,6 +668,7 @@ function clearDraftPanel() {
   priceEditModes.value = {}
   buyerSearchTerm.value = ''
   groupRequestedKg.value = {}
+  circularStockStore.step3GroupRequestedKg = {}
   manualAdjustedKgBySku.value = {}
   autoAllocatedKgBySku.value = {}
   saleStep.value = 1
@@ -679,6 +772,7 @@ watch(
 // 탭 전환만으로는 이미 표시된 AI 추천 이유를 다시 스켈레톤으로 되돌리지 않는다.
 
 onMounted(() => {
+  groupRequestedKg.value = { ...(circularStockStore.step3GroupRequestedKg || {}) }
   window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   document.addEventListener('mousedown', handleDocumentClick)
   loadCircularInventoryRows()
@@ -1399,19 +1493,17 @@ onBeforeUnmount(() => {
                             <td class="px-3 py-4 text-center">
                               <div class="inline-flex items-center gap-2 rounded-xl border border-gray-300 px-3 py-1.5">
                                 <input
-                                  :value="Number(item.requestedWeightKg || 0).toFixed(2)"
-                                  type="number"
-                                  min="0"
-                                  :max="item.availableWeightKg"
-                                  step="0.01"
+                                  :value="step3SkuInputText[item.draftId] ?? Number(item.requestedWeightKg || 0).toFixed(2)"
+                                  type="text"
+                                  inputmode="decimal"
                                   class="no-spin w-10 border-0 bg-transparent text-right text-[20px] leading-none text-gray-900 outline-none"
                                   style="font-weight: 500"
                                   @input="onStep3SkuKgInput(group.key, item.draftId, $event.target.value)"
+                                  @blur="onStep3SkuKgBlur(item.draftId)"
                                 />
                                 <span class="text-xs font-bold text-gray-500">kg</span>
                               </div>
                               <div class="mt-1 text-xs font-bold text-gray-400">
-                                <span v-if="isManualAdjusted(item.draftId)">수동 조정</span>
                                 <button
                                   v-if="isManualAdjusted(item.draftId)"
                                   type="button"

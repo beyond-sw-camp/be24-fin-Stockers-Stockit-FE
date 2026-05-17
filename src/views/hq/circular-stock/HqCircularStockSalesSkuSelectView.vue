@@ -1,7 +1,7 @@
 ﻿<script setup>
 import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { X } from 'lucide-vue-next'
+import { Info, X } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
 import { roleMenus } from '@/config/roleMenus.js'
@@ -261,6 +261,12 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
+      <div
+        class="flex items-start gap-2 rounded-lg border border-[#CFE0FF] bg-[#F5F9FF] px-4 py-2 text-xs font-bold text-[#2E4C86]"
+      >
+        <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#4F78C6]" :stroke-width="2" />
+        <span>한 건의 판매에서는 같은 소재 구분의 SKU만 함께 선택할 수 있습니다. 판매 등록을 시작하려면 창고를 먼저 선택해 주세요.</span>
+      </div>
       <CircularStockInventoryBrowseSection
         title="판매 대상 순환 재고 리스트"
         :description="

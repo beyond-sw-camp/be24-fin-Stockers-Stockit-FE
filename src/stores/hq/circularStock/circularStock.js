@@ -454,6 +454,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
   const draftBuyerId = ref('')
   const draftMemo = ref('')
   const draftItems = ref([])
+  const step3GroupRequestedKg = ref({})
   const saleStep = ref(1)
   const hasStartedWorkflow = ref(false)
   const lockedMaterialType = ref('')
@@ -858,6 +859,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
       selectedWarehouseCode.value = ''
       selectedWarehouseName.value = ''
       draftBuyerId.value = ''
+      step3GroupRequestedKg.value = {}
       saleStep.value = 1
       hasStartedWorkflow.value = false
       recommendations.value = []
@@ -871,6 +873,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     draftBuyerId.value = ''
     draftMemo.value = ''
     draftItems.value = []
+    step3GroupRequestedKg.value = {}
     lockedMaterialType.value = ''
     selectedWarehouseCode.value = ''
     selectedWarehouseName.value = ''
@@ -1111,6 +1114,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     draftBuyerId,
     draftMemo,
     draftItems,
+    step3GroupRequestedKg,
     saleStep,
     hasStartedWorkflow,
     lockedMaterialType,
