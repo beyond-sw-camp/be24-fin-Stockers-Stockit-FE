@@ -1,7 +1,7 @@
 ﻿<script setup>
 import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { BadgeCheck, Bot, Info, Loader2, Sprout } from 'lucide-vue-next'
+import { BadgeCheck, Bot, Info, Loader2, Package, Ruler, Shirt, Sprout, Tag } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
 import { roleMenus } from '@/config/roleMenus.js'
@@ -247,7 +247,8 @@ function distributeGroupRequestedKg(groupKey, requestedValue) {
   const group = step3GroupCards.value.find((entry) => entry.key === groupKey)
   if (!group) return
 
-  const requestedKg = Math.max(0, Number(requestedValue) || 0)
+  const maxGroupKg = Math.max(0, Number(group.totalAvailableKg) || 0)
+  const requestedKg = Math.min(Math.max(0, Number(requestedValue) || 0), maxGroupKg)
   groupRequestedKg.value = { ...groupRequestedKg.value, [groupKey]: requestedKg }
 
   const totalAvailable = group.items.reduce((sum, item) => sum + (Number(item.availableWeightKg) || 0), 0)
@@ -305,6 +306,15 @@ function resetStep3SkuToAuto(groupKey, draftId) {
 
 function isManualAdjusted(draftId) {
   return Number.isFinite(manualAdjustedKgBySku.value[draftId])
+}
+
+function roundedUpQuantityLabel(item) {
+  const estimated = Number(item?.estimatedQuantity || 0)
+  const deducted = Number(item?.deductedQuantity || 0)
+  if (!Number.isFinite(estimated) || !Number.isFinite(deducted)) return ''
+  const diff = deducted - estimated
+  if (diff <= 0.0001) return ''
+  return `${estimated.toFixed(2)}벌 → 올림`
 }
 
 function formatMaterials(materials) {
@@ -786,7 +796,7 @@ onBeforeUnmount(() => {
                 </div>
               </div>
 
-              <div class="h-10" />
+              <div class="h-14" />
 
               <div v-if="saleStep === 1" class="mt-0">
                 <div class="mb-0 pl-2 flex items-center justify-between gap-3">
@@ -1230,17 +1240,6 @@ onBeforeUnmount(() => {
                 class="mt-0 grid w-full gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]"
               >
                 <div class="min-w-0 space-y-4">
-                  <div class="mb-1 flex items-center justify-between gap-3">
-                    <p class="pl-2 text-sm font-black text-gray-900">판매 조건 입력</p>
-                    <button
-                      type="button"
-                      class="pr-2 text-[11px] font-black text-gray-500 transition hover:text-gray-900"
-                      @click="clearDraftPanel"
-                    >
-                      전체 비우기
-                    </button>
-                  </div>
-
                   <article
                     v-for="group in step3GroupCards"
                     :key="group.key"
@@ -1249,20 +1248,21 @@ onBeforeUnmount(() => {
                     <header class="flex items-center justify-between border-b border-[#DCEDE5] px-5 py-4">
                       <div class="flex items-start gap-3">
                         <div class="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[#EAF5EF] text-[#2F6B4F]">
-                          ☐
+                          <Shirt class="h-4.5 w-4.5" :stroke-width="2.1" />
                         </div>
                         <div>
-                          <p class="text-base font-black text-gray-900">{{ group.materialType }}</p>
+                          <p class="text-base font-black text-gray-900" style="font-weight: 600">{{ group.materialType }}</p>
                           <p class="mt-1 text-sm font-bold text-gray-500">
                             SKU {{ group.items.length }}종 ·
                             ₩{{ Number(group.items[0]?.defaultKgUnitPrice || 0).toLocaleString() }}/kg
                           </p>
                         </div>
                       </div>
-                      <p class="text-sm font-bold text-gray-600">
-                        총 재고 <span class="font-black text-gray-900">{{ group.totalAvailableQty }}벌</span>
+                      <p class="inline-flex items-center gap-1.5 text-sm font-bold text-gray-600">
+                        <Package class="h-3.5 w-3.5 text-gray-500" :stroke-width="2.1" />
+                        총 재고 <span class="text-gray-900" style="font-weight: 600">{{ group.totalAvailableQty }}벌</span>
                         · 최대
-                        <span class="font-black text-gray-900">{{ formatKg(group.totalAvailableKg) }}</span>
+                        <span class="text-gray-900" style="font-weight: 600">{{ formatKg(group.totalAvailableKg) }}</span>
                       </p>
                     </header>
 
@@ -1271,17 +1271,18 @@ onBeforeUnmount(() => {
                         <div class="flex flex-wrap items-center gap-3">
                           <span
                             class="inline-flex h-[46px] items-center -translate-y-[1px] text-sm leading-none text-gray-900"
-                            style="font-weight: 700"
+                            style="font-weight: 600"
                             >거래처 요청</span
                           >
-                          <div class="inline-flex h-[46px] items-center gap-2 rounded-xl border-2 border-gray-300 bg-white px-5">
+                          <div class="inline-flex h-[45px] items-center gap-1 rounded-xl border-2 border-gray-300 bg-white px-3">
                             <input
                               :value="groupRequestedKg[group.key] ?? ''"
                               type="number"
                               min="0"
                               :max="group.totalAvailableKg"
                               step="0.01"
-                              class="no-spin w-14 border-0 bg-transparent text-[28px] font-black leading-none text-gray-900 outline-none"
+                              class="no-spin border-0 bg-transparent px-0 leading-none text-gray-900 outline-none"
+                              style="font-weight: 700; width: 5rem; font-size: 25px;"
                               @input="distributeGroupRequestedKg(group.key, $event.target.value)"
                             />
                             <span class="pt-1 text-sm font-bold text-gray-400">kg</span>
@@ -1302,13 +1303,25 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div class="overflow-x-auto">
-                      <table class="min-w-[920px] w-full border-collapse text-left">
+                      <table class="min-w-[800px] w-full border-collapse text-left">
+                        <colgroup>
+                          <col style="width: 20%" />
+                          <col style="width: 12%" />
+                          <col style="width: 16%" />
+                          <col style="width: 4%" />
+                          <col style="width: 12%" />
+                          <col style="width: 4%" />
+                          <col style="width: 12%" />
+                          <col style="width: 13%" />
+                        </colgroup>
                         <thead class="bg-[#FCFDFC] text-xs font-black text-gray-500">
                           <tr>
                             <th class="px-5 py-3">SKU</th>
                             <th class="px-3 py-3 text-center">재고</th>
-                            <th class="px-3 py-3 text-center">배분 kg</th>
+                            <th class="px-3 py-3 text-center">kg</th>
+                            <th class="px-1 py-3"></th>
                             <th class="px-3 py-3 text-center">판매 벌 수</th>
+                            <th class="px-1 py-3"></th>
                             <th class="px-3 py-3 text-center">실제 무게</th>
                             <th class="px-5 py-3 text-right">금액</th>
                           </tr>
@@ -1324,21 +1337,21 @@ onBeforeUnmount(() => {
                               <p class="mt-1 text-sm font-bold text-gray-500">{{ formatKg(item.availableWeightKg) }}</p>
                             </td>
                             <td class="px-3 py-4 text-center">
-                              <div class="inline-flex items-center gap-2 rounded-xl border border-gray-300 px-3 py-2">
+                              <div class="inline-flex items-center gap-2 rounded-xl border border-gray-300 px-3 py-1.5">
                                 <input
-                                  :value="item.requestedWeightKg"
+                                  :value="Number(item.requestedWeightKg || 0).toFixed(2)"
                                   type="number"
                                   min="0"
                                   :max="item.availableWeightKg"
                                   step="0.01"
-                                  class="no-spin w-14 border-0 bg-transparent text-right text-base font-black text-gray-900 outline-none"
+                                  class="no-spin w-10 border-0 bg-transparent text-right text-[20px] leading-none text-gray-900 outline-none"
+                                  style="font-weight: 500"
                                   @input="onStep3SkuKgInput(group.key, item.draftId, $event.target.value)"
                                 />
-                                <span class="text-lg font-bold text-gray-500">kg</span>
+                                <span class="text-xs font-bold text-gray-500">kg</span>
                               </div>
                               <div class="mt-1 text-xs font-bold text-gray-400">
                                 <span v-if="isManualAdjusted(item.draftId)">수동 조정</span>
-                                <span v-else>자동 배분</span>
                                 <button
                                   v-if="isManualAdjusted(item.draftId)"
                                   type="button"
@@ -1348,14 +1361,25 @@ onBeforeUnmount(() => {
                                   자동으로 되돌리기
                                 </button>
                               </div>
+                              <p class="mt-0.5 text-[11px] font-bold text-gray-400">
+                                1벌당 {{ Number(item.unitWeightKg || 0).toFixed(2) }}kg
+                              </p>
                             </td>
-                            <td class="px-3 py-4 text-center text-lg font-black text-gray-900">
-                              {{ item.deductedQuantity }}벌
+                            <td class="px-1 py-4 text-center text-lg font-black text-gray-300">→</td>
+                            <td class="px-3 py-4 text-center">
+                              <p class="text-lg font-black text-gray-900">{{ item.deductedQuantity }}벌</p>
+                              <p
+                                v-if="roundedUpQuantityLabel(item)"
+                                class="mt-0.5 text-[11px] font-bold text-gray-400"
+                              >
+                                {{ roundedUpQuantityLabel(item) }}
+                              </p>
                             </td>
+                            <td class="px-1 py-4 text-center text-lg font-black text-gray-300">→</td>
                             <td class="px-3 py-4 text-center text-lg font-black text-gray-900">
                               {{ formatKg(item.actualWeightKg) }}
                             </td>
-                            <td class="px-5 py-4 text-right text-lg font-black text-[#1B6354]">
+                            <td class="px-5 py-4 text-right text-lg text-[#2F8F6A]" style="font-weight: 500">
                               {{ formatCurrency(item.actualAmount) }}
                             </td>
                           </tr>
@@ -1363,20 +1387,34 @@ onBeforeUnmount(() => {
                             <td class="px-5 py-3">합계</td>
                             <td />
                             <td />
+                            <td />
                             <td class="px-3 py-3 text-center text-base text-gray-900">{{ group.totalActualQty }}벌</td>
+                            <td />
                             <td class="px-3 py-3 text-center text-base text-gray-900">{{ formatKg(group.totalActualKg) }}</td>
-                            <td class="px-5 py-3 text-right text-base text-[#1B6354]">{{ formatCurrency(group.totalActualAmount) }}</td>
+                            <td class="px-5 py-3 text-right text-base text-[#2F8F6A]" style="font-weight: 500">{{ formatCurrency(group.totalActualAmount) }}</td>
                           </tr>
                         </tbody>
                       </table>
                     </div>
 
-                    <footer class="flex items-center justify-between bg-[#E7F3EC] px-5 py-3 text-base font-black text-[#2A5B46]">
+                    <footer class="flex items-center justify-between bg-[#E7F3EC] px-5 py-3 text-sm font-medium text-[#2A5B46]">
                       <div class="flex items-center gap-5">
-                        <span>{{ group.totalActualQty }}벌 출고</span>
-                        <span>실제 {{ formatKg(group.totalActualKg) }}</span>
+                        <span class="inline-flex items-center gap-1.5">
+                          <Package class="h-3.5 w-3.5" :stroke-width="2.1" />
+                          <span class="text-[#1E4B39]" style="font-weight: 600">{{ group.totalActualQty }}벌</span>
+                          <span>출고</span>
+                        </span>
+                        <span class="inline-flex items-center gap-1.5">
+                          <Ruler class="h-3.5 w-3.5" :stroke-width="2.1" />
+                          <span>실제</span>
+                          <span class="text-[#1E4B39]" style="font-weight: 600">{{ formatKg(group.totalActualKg) }}</span>
+                        </span>
+                        <span class="inline-flex items-center gap-1.5">
+                          <Tag class="h-3.5 w-3.5" :stroke-width="2.1" />
+                          단가 ₩{{ Number(group.items[0]?.unitPrice || group.items[0]?.defaultKgUnitPrice || 0).toLocaleString() }}/kg
+                        </span>
                       </div>
-                      <span class="text-base">{{ formatCurrency(group.totalActualAmount) }}</span>
+                      <span class="text-sm" style="font-weight: 600">{{ formatCurrency(group.totalActualAmount) }}</span>
                     </footer>
                   </article>
 
@@ -1385,8 +1423,8 @@ onBeforeUnmount(() => {
                   >
                     <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#B38A3A]" :stroke-width="2" />
                     <span>
-                      거래처는 kg 단위로 요청합니다. 자동 환산/올림으로 요청값과 합계가 다를 수 있으며,
-                      재고 한도 초과만 금지됩니다.
+                      거래처는 kg 단위로 요청합니다. 자동 환산/올림으로 요청값과 실제 kg 합계가 다를 수 있으며,
+                      재고 한도 초과 수량/무게 판매는 금지됩니다.
                     </span>
                   </div>
                 </div>
