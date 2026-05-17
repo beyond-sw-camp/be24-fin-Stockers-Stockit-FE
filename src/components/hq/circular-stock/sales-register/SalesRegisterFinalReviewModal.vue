@@ -138,7 +138,7 @@ const includedMaterialBadges = computed(() => {
         </div>
 
         <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-          <section class="border border-gray-200 bg-white p-4">
+          <section class="bg-white p-4 pr-6 pl-6">
             <div class="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p class="text-base !font-semibold uppercase tracking-[0.1em] text-gray-500">거래 요약</p>
@@ -237,8 +237,11 @@ const includedMaterialBadges = computed(() => {
             </div>
           </section>
 
-          <section class="mt-4 border border-gray-200 bg-white p-4">
-            <div class="grid gap-6 lg:grid-cols-2">
+          <div class="mx-6 py-6">
+            <div class="border-t border-gray-300"></div>
+          </div>
+          <section class="px-5 bg-white">
+            <div class="grid gap-8 px-1 lg:grid-cols-2">
               <article>
                 <h3 class="info-header">
                   <Building2 :size="13" />
@@ -298,12 +301,15 @@ const includedMaterialBadges = computed(() => {
             </div>
           </section>
 
-          <section class="mt-4 min-w-0 border border-gray-200 bg-white">
-            <div class="border-b border-gray-100 px-4 py-3">
-              <h3 class="text-sm font-black text-gray-900">소재별 판매 상세</h3>
+          <div class="mx-6 py-6">
+            <div class="border-t border-gray-300"></div>
+          </div>
+          <section class="min-w-0 bg-white">
+            <div class="px-6">
+              <h3 class="text-sm !font-semibold text-gray-500">소재별 판매 상세</h3>
             </div>
 
-            <div class="space-y-3 p-3">
+            <div class="space-y-3 p-3 pr-5 pl-5">
               <article
                 v-for="group in groupedDraftItems"
                 :key="group.key"
@@ -480,7 +486,7 @@ const includedMaterialBadges = computed(() => {
   align-items: center;
   gap: 0.375rem;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   color: #374151;
 }
 
