@@ -1,6 +1,7 @@
 ﻿import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { circularBuyerApi } from '@/api/hq/circularBuyer.js'
+import { extractErrorMessage } from '@/api/axios.js'
 import { getCircularInventories } from '@/api/hq/inventory.js'
 import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
 import { useEsgStore } from '@/stores/esg.js'
@@ -546,7 +547,14 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     const totalKg = items.reduce((sum, item) => sum + (Number(item.availableWeightKg) || 0), 0)
     const totalQty = items.reduce((sum, item) => sum + (Number(item.availableQuantity) || 0), 0)
     const quantityHint = `약 ${totalKg.toFixed(1)}kg / ${totalQty}벌`
-    return { materialFit, productName, description, quantityHint, productCode: head.itemCode ?? null }
+    return {
+      materialFit,
+      productName,
+      description,
+      quantityHint,
+      productCode: head.itemCode ?? null,
+      warehouseCode: selectedWarehouseCode.value || head.warehouseCode || null,
+    }
   })
 
   const recommendationBasisKey = computed(() => {
@@ -822,6 +830,8 @@ export const useCircularStockStore = defineStore('circularStock', () => {
       itemName: inventory.itemName,
       mainCategory: inventory.parentCategory,
       subCategory: inventory.childCategory,
+      warehouseCode: currentWarehouseCode,
+      warehouseName: currentWarehouseName,
       materials: inventory.materials,
       availableQuantity,
       availableWeightKg,
@@ -908,7 +918,14 @@ export const useCircularStockStore = defineStore('circularStock', () => {
       lastRecommendationBasisKey.value = recommendationBasisKey.value
       recommendationDirty.value = false
     } catch (err) {
-      recommendationError.value = err?.message ?? 'AI 異붿쿇??遺덈윭?ㅼ? 紐삵뻽?듬땲??'
+      const message = String(err?.message || '')
+      const isTimeout =
+        err?.code === 'ECONNABORTED'
+        || message.includes('timeout')
+        || message.includes('exceeded')
+      recommendationError.value = isTimeout
+        ? 'AI 추천 응답 시간이 길어져 요청이 만료되었습니다. 잠시 후 다시 시도해 주세요.'
+        : extractErrorMessage(err, 'AI 추천을 불러오지 못했습니다.')
       recommendations.value = []
     } finally {
       isRecommendationLoading.value = false
@@ -1194,5 +1211,3 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     submitCircularStockSale,
   }
 })
-
-
