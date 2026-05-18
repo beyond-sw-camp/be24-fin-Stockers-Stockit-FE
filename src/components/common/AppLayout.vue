@@ -1,7 +1,8 @@
 ﻿<script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.js'
+import { useNotificationStore } from '@/stores/notification.js'
 import { useLogout } from '@/composables/useLogout.js'
 import EsgTreeWidget from '@/components/common/EsgTreeWidget.vue'
 import {
@@ -309,6 +310,80 @@ const onSubmenuAfterLeave = (el) => {
   el.style.transition = ''
 }
 
+// ───────────────────── 알림 (상단 종 아이콘 + 미니 드롭다운) ─────────────────────
+// BE 연동 — useNotificationStore (전역). 로그인 직후 init() 에서 초기 로드 + SSE 구독.
+const notifStore = useNotificationStore()
+const unreadCount = computed(() => notifStore.unreadCount)
+const recentNotifications = computed(() => notifStore.recent)
+
+const showNotifPanel = ref(false)
+const notifPanelRef = ref(null)
+const notifButtonRef = ref(null)
+
+const notificationPagePath = computed(() => {
+  switch (auth.user?.role) {
+    case 'hq':        return '/hq/notifications'
+    case 'store':     return '/store/notifications'
+    case 'warehouse': return '/warehouse/notifications'
+    default:          return null
+  }
+})
+
+const toggleNotifPanel = () => { showNotifPanel.value = !showNotifPanel.value }
+const closeNotifPanel = () => { showNotifPanel.value = false }
+
+const goToNotificationsPage = () => {
+  closeNotifPanel()
+  if (notificationPagePath.value) router.push(notificationPagePath.value)
+}
+
+const markAllNotifRead = async () => {
+  try { await notifStore.markAllAsRead() } catch { /* 에러는 store 가 콘솔 로깅 */ }
+}
+
+const handleNotifClick = async (n) => {
+  // 단건 클릭 → 읽음 처리(BE 호출) + 알림 페이지 이동
+  try { if (!n.read) await notifStore.markAsRead(n.id) } catch { /* ignore */ }
+  goToNotificationsPage()
+}
+
+const notifSeverityBadgeCls = (severity) => {
+  switch (severity) {
+    case 'CRITICAL': return 'bg-red-100 text-red-700 border-red-300'
+    case 'WARNING':  return 'bg-amber-100 text-amber-700 border-amber-300'
+    default:         return 'bg-sky-100 text-sky-700 border-sky-300'
+  }
+}
+
+const notifSeverityLabel = (severity) => {
+  switch (severity) {
+    case 'CRITICAL': return '긴급'
+    case 'WARNING':  return '주의'
+    default:         return '정보'
+  }
+}
+
+const handleClickOutsideNotif = (event) => {
+  if (!showNotifPanel.value) return
+  const panel = notifPanelRef.value
+  const btn = notifButtonRef.value
+  if (panel && panel.contains(event.target)) return
+  if (btn && btn.contains(event.target)) return
+  closeNotifPanel()
+}
+
+onMounted(() => {
+  if (typeof window !== 'undefined') {
+    window.addEventListener('mousedown', handleClickOutsideNotif)
+  }
+})
+
+onBeforeUnmount(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('mousedown', handleClickOutsideNotif)
+  }
+})
+
 const iconMap = {
   layout: LayoutDashboard,
   warehouse: Warehouse,
@@ -336,6 +411,7 @@ const iconMap = {
   user: Users,
   inbound: PackagePlus,
   outbound: Truck,
+  bell: Bell,
 }
 </script>
 
@@ -367,9 +443,83 @@ const iconMap = {
             <Sprout :size="14" />
             <span>ESG 대시보드</span>
           </button>
-          <button type="button" class="p-1.5 text-white/80 transition-colors hover:bg-white/10">
-            <Bell :size="16" />
-          </button>
+          <div class="relative">
+            <button
+              ref="notifButtonRef"
+              type="button"
+              class="relative p-1.5 text-white/80 transition-colors hover:bg-white/10"
+              title="알림"
+              @click="toggleNotifPanel"
+            >
+              <Bell :size="16" />
+              <span
+                v-if="unreadCount > 0"
+                class="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold leading-none text-white ring-1 ring-[#004D3C]"
+              >
+                {{ unreadCount > 99 ? '99+' : unreadCount }}
+              </span>
+            </button>
+
+            <div
+              v-if="showNotifPanel"
+              ref="notifPanelRef"
+              class="absolute right-0 top-full z-30 mt-1 w-80 overflow-hidden rounded-lg border border-gray-200 bg-white text-gray-900 shadow-lg"
+            >
+              <div class="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-3 py-2">
+                <div class="flex items-center gap-1.5">
+                  <Bell :size="14" class="text-emerald-700" />
+                  <span class="text-xs font-bold">알림</span>
+                  <span v-if="unreadCount > 0" class="rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-bold text-red-700">
+                    {{ unreadCount }}
+                  </span>
+                </div>
+                <button
+                  v-if="unreadCount > 0"
+                  type="button"
+                  class="text-[10px] font-semibold text-emerald-700 hover:underline"
+                  @click="markAllNotifRead"
+                >
+                  모두 읽음
+                </button>
+              </div>
+
+              <ul v-if="recentNotifications.length > 0" class="max-h-72 divide-y divide-gray-100 overflow-y-auto">
+                <li
+                  v-for="n in recentNotifications"
+                  :key="n.id"
+                  class="cursor-pointer px-3 py-2 transition-colors hover:bg-gray-50"
+                  :class="{ 'bg-emerald-50/40': !n.read }"
+                  @click="handleNotifClick(n)"
+                >
+                  <div class="flex items-start gap-2">
+                    <span
+                      class="mt-0.5 shrink-0 rounded border px-1.5 py-0.5 text-[9px] font-bold"
+                      :class="notifSeverityBadgeCls(n.severity)"
+                    >
+                      {{ notifSeverityLabel(n.severity) }}
+                    </span>
+                    <div class="min-w-0 flex-1">
+                      <p class="truncate text-[11px] font-semibold">{{ n.title }}</p>
+                      <p class="mt-0.5 truncate text-[10px] text-gray-500">{{ n.message }}</p>
+                    </div>
+                  </div>
+                </li>
+              </ul>
+
+              <div v-else class="flex flex-col items-center gap-1 px-3 py-6 text-center">
+                <Bell :size="20" class="text-gray-300" />
+                <p class="text-[11px] text-gray-500">새 알림이 없습니다.</p>
+              </div>
+
+              <button
+                type="button"
+                class="block w-full border-t border-gray-100 bg-gray-50 px-3 py-2 text-center text-[11px] font-semibold text-emerald-700 transition-colors hover:bg-gray-100"
+                @click="goToNotificationsPage"
+              >
+                전체 보기
+              </button>
+            </div>
+          </div>
           <button
             type="button"
             class="ml-2 flex items-center gap-2 p-1 transition-colors hover:bg-white/10"

@@ -57,6 +57,9 @@ import HqAnalyticsOrderStatsView from '@/views/hq/analytics/HqAnalyticsOrderStat
 import HqAnalyticsTurnoverView from '@/views/hq/analytics/HqAnalyticsTurnoverView.vue'
 import HqAnalyticsSalesView from '@/views/hq/analytics/HqAnalyticsSalesView.vue'
 import HqAnalyticsVendorView from '@/views/hq/analytics/HqAnalyticsVendorView.vue'
+import HqNotificationView from '@/views/hq/notification/HqNotificationView.vue'
+import StoreNotificationView from '@/views/store/notification/StoreNotificationView.vue'
+import WarehouseNotificationView from '@/views/warehouse/notification/WarehouseNotificationView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -162,6 +165,7 @@ const router = createRouter({
     { path: '/hq/esg', name: 'hq-esg', component: EsgDashBoardView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/esg/tree-score', name: 'hq-esg-tree-score', component: EsgTreeScoreView, meta: { requiresAuth: true, role: 'hq' } },
     { path: '/hq/esg/carbon-price', name: 'hq-esg-carbon-price', component: EsgCarbonPriceView, meta: { requiresAuth: true, role: 'hq' } },
+    { path: '/hq/notifications', name: 'hq-notifications', component: HqNotificationView, meta: { requiresAuth: true, role: 'hq' } },
 
     { path: '/store/dashboard', name: 'store-dashboard', component: StoreDashboardView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/dashboard2', name: 'store-dashboard2', component: StoreDashboardView2, meta: { requiresAuth: true, role: 'store' } },
@@ -179,6 +183,7 @@ const router = createRouter({
     { path: '/store/inbound/list/:id', name: 'store-inbound-detail', component: StoreInboundDetailView, meta: { requiresAuth: true, role: 'store' } },
     { path: '/store/inbound/history', redirect: { name: 'store-inbound-list' } },
     { path: '/store/inbound/history/:id', redirect: (to) => ({ name: 'store-inbound-detail', params: { id: to.params.id } }) },
+    { path: '/store/notifications', name: 'store-notifications', component: StoreNotificationView, meta: { requiresAuth: true, role: 'store' } },
 
     {
       path: '/warehouse/dashboard',
@@ -208,6 +213,12 @@ const router = createRouter({
       path: '/warehouse/outbound/:id',
       name: 'wh-outbound-detail',
       component: WarehouseOutboundDetailView,
+      meta: { requiresAuth: true, role: 'warehouse' },
+    },
+    {
+      path: '/warehouse/notifications',
+      name: 'wh-notifications',
+      component: WarehouseNotificationView,
       meta: { requiresAuth: true, role: 'warehouse' },
     },
 

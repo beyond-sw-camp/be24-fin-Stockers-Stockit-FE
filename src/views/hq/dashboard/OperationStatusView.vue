@@ -35,7 +35,36 @@ const dateLabel = computed(() =>
 // ───────── 운영현황 상태 ─────────
 const isLoading = ref(false)
 const loadError = ref('')
-const kpiOps = ref([])
+// KPI 카드 — 카드 슬롯을 항상 보장하기 위해 ref 분리 + computed 로 구성.
+// 'loading' 상태에서도 카드 자리는 즉시 그려지고, 각 API 응답 도착 시 카드별로 독립 갱신됨.
+const activeStoreCount = ref(0)
+const storeCardState = ref('loading')          // 'loading' | 'ok' | 'error'
+const inTransitTransferCount = ref(0)
+const transferCardState = ref('loading')
+const kpiOps = computed(() => [
+  {
+    label: '운영 매장 수',
+    value: storeCardState.value === 'ok' ? `${activeStoreCount.value}` : '–',
+    unit: '곳',
+    caption: storeCardState.value === 'ok'
+      ? '상태 ACTIVE 매장'
+      : (storeCardState.value === 'error' ? '불러오기 실패' : '불러오는 중…'),
+    tone: 'green',
+    route: '/hq/infrastructure',
+    hoverCls: 'hover:border-emerald-400',
+  },
+  {
+    label: '재고이동 진행',
+    value: transferCardState.value === 'ok' ? `${inTransitTransferCount.value}` : '–',
+    unit: '건',
+    caption: transferCardState.value === 'ok'
+      ? '실시간 · 출고 준비중 + 배송중'
+      : (transferCardState.value === 'error' ? '불러오기 실패' : '불러오는 중…'),
+    tone: 'blue',
+    route: '/hq/inventory/warehouse-comparison',
+    hoverCls: 'hover:border-blue-400',
+  },
+])
 const inventoryRisks = ref([])
 const purchaseStatusBreakdown = ref([])
 
@@ -87,18 +116,42 @@ const statusByAvailableAndSafety = (available, safety) => {
 const fetchOperationData = async () => {
   isLoading.value = true
   loadError.value = ''
+  storeCardState.value = 'loading'
+  transferCardState.value = 'loading'
 
   const { fromDate, toDate } = getDefaultDateRange(30)
   // 재고이동 진행은 실시간(현재 시점 진행 중) 기준으로 표시 — 기간 필터 우회용 넓은 범위
   const TRANSFER_FROM = '2020-01-01'
   const TRANSFER_TO = '2099-12-31'
-  // Promise.allSettled — 부분 실패해도 나머지 KPI는 표시
-  const results = await Promise.allSettled([
-    getCompanyWideInventories(),
-    purchaseOrderApi.list({ from: fromDate, to: toDate }),
-    getWarehouseTransfers({ fromDate: TRANSFER_FROM, toDate: TRANSFER_TO }),
-    getInfrastructures({ type: 'STORE', status: 'ACTIVE' }),
-  ])
+
+  // 4개 API — 한 번씩만 호출 (Promise 객체 재사용)
+  const companyWideP = getCompanyWideInventories()
+  const purchaseP = purchaseOrderApi.list({ from: fromDate, to: toDate })
+  const transferP = getWarehouseTransfers({ fromDate: TRANSFER_FROM, toDate: TRANSFER_TO })
+  const storeP = getInfrastructures({ type: 'STORE', status: 'ACTIVE' })
+
+  // 운영 매장 수 카드 — 매장 API 응답 도착 즉시 갱신 (다른 API 와 무관)
+  storeP
+    .then((r) => {
+      const stores = Array.isArray(r) ? r : (r?.content || [])
+      activeStoreCount.value = stores.length
+      storeCardState.value = 'ok'
+    })
+    .catch(() => { storeCardState.value = 'error' })
+
+  // 재고이동 진행 카드 — 이동 API 응답 도착 즉시 갱신
+  transferP
+    .then((r) => {
+      const transfers = Array.isArray(r) ? r : (r?.content || [])
+      inTransitTransferCount.value = transfers.filter(
+        (row) => String(row.status || '').toUpperCase() !== 'ARRIVED',
+      ).length
+      transferCardState.value = 'ok'
+    })
+    .catch(() => { transferCardState.value = 'error' })
+
+  // 4개 모두 끝나면 나머지 영역 집계 + 에러 라벨
+  const results = await Promise.allSettled([companyWideP, purchaseP, transferP, storeP])
   const [companyWideRes, purchaseOrdersRes, transfersRes, storesRes] = results
 
   const companyWide = companyWideRes.status === 'fulfilled' ? companyWideRes.value : null
@@ -107,12 +160,6 @@ const fetchOperationData = async () => {
   const purchaseOrders = Array.isArray(purchaseOrdersRaw)
     ? purchaseOrdersRaw
     : (Array.isArray(purchaseOrdersRaw?.content) ? purchaseOrdersRaw.content : [])
-  const transfers = transfersRes.status === 'fulfilled'
-    ? (Array.isArray(transfersRes.value) ? transfersRes.value : (transfersRes.value?.content || []))
-    : []
-  const stores = storesRes.status === 'fulfilled'
-    ? (Array.isArray(storesRes.value) ? storesRes.value : (storesRes.value?.content || []))
-    : []
 
   const failedLabels = []
   if (companyWideRes.status === 'rejected') failedLabels.push('전사 재고')
@@ -122,8 +169,6 @@ const fetchOperationData = async () => {
   loadError.value = failedLabels.length
     ? `일부 데이터를 불러오지 못했습니다 (${failedLabels.join(', ')}). 네트워크 상태나 BE 상태를 확인해주세요.`
     : ''
-
-  const activeStoreCount = Array.isArray(stores) ? stores.length : 0
 
   const items = Array.isArray(companyWide?.items) ? companyWide.items : []
   const shortages = items
@@ -155,31 +200,7 @@ const fetchOperationData = async () => {
     count: statusCountMap[s.code] || 0,
   }))
 
-  const inTransitTransferCount = (transfers || []).filter(
-    (row) => String(row.status || '').toUpperCase() !== 'ARRIVED',
-  ).length
-
-  kpiOps.value = [
-    {
-      label: '운영 매장 수',
-      value: `${activeStoreCount}`,
-      unit: '곳',
-      caption: storesRes.status === 'fulfilled' ? '상태 ACTIVE 매장' : '불러오기 실패',
-      tone: 'green',
-      route: '/hq/infrastructure',
-      hoverCls: 'hover:border-emerald-400',
-    },
-    {
-      label: '재고이동 진행',
-      value: `${inTransitTransferCount}`,
-      unit: '건',
-      caption: transfersRes.status === 'fulfilled' ? '실시간 · 출고 준비중 + 배송중' : '불러오기 실패',
-      tone: 'blue',
-      route: '/hq/inventory/warehouse-comparison',
-      hoverCls: 'hover:border-blue-400',
-    },
-  ]
-
+  // kpiOps 는 computed 라 별도 할당 불필요 — 각 카드 ref/state 가 이미 갱신됨
   isLoading.value = false
 }
 
