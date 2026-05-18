@@ -122,7 +122,7 @@ async function handleSubmit() {
             <div class="flex h-8 w-8 shrink-0 items-center justify-center border border-white/40 bg-white text-[16px] font-black text-[#004D3C]">
               V
             </div>
-            <p class="text-[10px] font-semibold text-white/60">v1.0</p>
+            <p class="text-[10px] font-semibold text-white/60">v2.0</p>
           </div>
         </div>
       </div>
