@@ -9,12 +9,10 @@ import SalesRegisterStep3ConditionsSection from '@/components/hq/circular-stock/
 import SalesRegisterStepFooter from '@/components/hq/circular-stock/sales-register/SalesRegisterStepFooter.vue'
 import SalesRegisterFinalReviewModal from '@/components/hq/circular-stock/sales-register/SalesRegisterFinalReviewModal.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
 import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
 import { useCircularStockStore } from '@/stores/hq/circularStock/circularStock.js'
 
 const router = useRouter()
-const auth = useAuthStore()
 const buyerStore = useCircularStockBuyerStore()
 const circularStockStore = useCircularStockStore()
 
@@ -699,10 +697,10 @@ function returnToDrawerEdit() {
   showFinalReviewModal.value = false
 }
 
-function submitSale() {
-  const result = circularStockStore.submitCircularStockSale(auth.user?.name ?? '본사 관리자')
+async function submitSale() {
+  const result = await circularStockStore.submitCircularStockSale()
   toastMessage.value = result.success
-    ? `${result.sale.saleId} 판매 등록을 완료했습니다.`
+    ? `${result.sale.saleNo} 판매 등록을 완료했습니다.`
     : result.message
   toastTone.value = result.success ? 'success' : 'error'
 

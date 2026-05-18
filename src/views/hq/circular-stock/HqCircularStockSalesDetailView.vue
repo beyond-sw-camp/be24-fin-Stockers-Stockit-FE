@@ -3,13 +3,12 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
 import { useCircularStockStore } from '@/stores/hq/circularStock/circularStock.js'
 import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
+import { circularBuyerApi } from '@/api/hq/circularBuyer.js'
 
 const route = useRoute()
 const router = useRouter()
-const auth = useAuthStore()
 const circularStockStore = useCircularStockStore()
 const buyerStore = useCircularStockBuyerStore()
 
@@ -27,7 +26,7 @@ const activeTab = ref('sales')
 const saleId = computed(() => String(route.params.saleId ?? ''))
 const sale = computed(() => circularStockStore.getSaleById(saleId.value))
 const saleEsgSnapshot = computed(() => circularStockStore.getSaleEsgSnapshot(sale.value))
-const linkedBuyer = computed(() => null)
+const linkedBuyer = ref(null)
 
 const includedMaterialNames = computed(() => {
   const names = sale.value?.items?.flatMap((item) => item.materials?.map((material) => material.name) ?? []) ?? []
@@ -219,7 +218,16 @@ function industryGroupLabel() {
   return sale.value?.buyerIndustryGroup || linkedBuyer.value?.industryGroup || '-'
 }
 
-onMounted(() => {
+onMounted(async () => {
+  if (!saleId.value) return
+  await circularStockStore.fetchCircularSaleDetail(saleId.value)
+  if (sale.value?.buyerCode) {
+    try {
+      linkedBuyer.value = await circularBuyerApi.detail(sale.value.buyerCode)
+    } catch {
+      linkedBuyer.value = null
+    }
+  }
 })
 
 function factoryProductLabel() {

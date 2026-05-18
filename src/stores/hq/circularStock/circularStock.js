@@ -3,16 +3,14 @@ import { computed, ref } from 'vue'
 import { circularBuyerApi } from '@/api/hq/circularBuyer.js'
 import { extractErrorMessage } from '@/api/axios.js'
 import { getCircularInventories } from '@/api/hq/inventory.js'
+import { createCircularSale as createCircularSaleApi, getCircularSaleDetail as getCircularSaleDetailApi, getCircularSales as getCircularSalesApi } from '@/api/hq/circularSale.js'
 import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
 import { useEsgStore } from '@/stores/esg.js'
 
 const INVENTORY_STORAGE_KEY = 'stockit_circular_inventory_inventory_v2'
-const SALES_STORAGE_KEY = 'stockit_circular_inventory_sales_v1'
 const RETIRED_SALE_DATES = new Set(['2026-04-26', '2026-04-28'])
 
 const RAW_INITIAL_INVENTORY = []
-
-const INITIAL_SALES = []
 
 function roundTo(value, digits = 2) {
   const factor = 10 ** digits
@@ -67,17 +65,6 @@ function loadJson(key, fallback) {
 
 function saveJson(key, value) {
   localStorage.setItem(key, JSON.stringify(value))
-}
-
-function pad(value) {
-  return String(value).padStart(2, '0')
-}
-
-function generateSaleId(list) {
-  const now = new Date()
-  const prefix = `CIS-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`
-  const count = list.filter(sale => sale.saleId.startsWith(prefix)).length + 1
-  return `${prefix}-${String(count).padStart(3, '0')}`
 }
 
 function deriveRequestedWeightKg(item) {
@@ -453,7 +440,17 @@ export const useCircularStockStore = defineStore('circularStock', () => {
   const buyerStore = useCircularStockBuyerStore()
   const esgStore = useEsgStore()
   const inventoryItems = ref(loadJson(INVENTORY_STORAGE_KEY, INITIAL_INVENTORY).map(enrichInventoryItem))
-  const sales = ref(filterRetiredSales(loadJson(SALES_STORAGE_KEY, INITIAL_SALES)).map(normalizeSaleRecord))
+  const sales = ref([])
+  const salesPage = ref({
+    page: 0,
+    size: 20,
+    totalPages: 0,
+    totalElements: 0,
+    hasNext: false,
+    hasPrevious: false,
+    content: [],
+  })
+  const salesDetailById = ref({})
   const draftBuyerId = ref('')
   const draftMemo = ref('')
   const draftItems = ref([])
@@ -499,9 +496,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     buyerStore.getBuyerById(draftBuyerId.value) ?? null,
   )
 
-  const sortedSales = computed(() =>
-    [...sales.value].sort((a, b) => new Date(b.soldAt) - new Date(a.soldAt)),
-  )
+  const sortedSales = computed(() => [...salesPage.value.content])
 
   const draftSummary = computed(() => ({
     totalItems: draftItems.value.length,
@@ -570,10 +565,10 @@ export const useCircularStockStore = defineStore('circularStock', () => {
   })
 
   const salesSummary = computed(() => ({
-    totalSalesCount: sales.value.length,
-    totalWeightKg: roundTo(sales.value.reduce((sum, sale) => sum + sale.totalActualWeightKg, 0)),
-    totalAmount: sales.value.reduce((sum, sale) => sum + sale.totalActualAmount, 0),
-    totalBuyerCount: new Set(sales.value.map(sale => sale.buyerId)).size,
+    totalSalesCount: sortedSales.value.length,
+    totalWeightKg: roundTo(sortedSales.value.reduce((sum, sale) => sum + (Number(sale.totalActualWeightKg) || 0), 0)),
+    totalAmount: sortedSales.value.reduce((sum, sale) => sum + (Number(sale.totalAmount) || 0), 0),
+    totalBuyerCount: new Set(sortedSales.value.map(sale => sale.buyerCode)).size,
   }))
 
   const salesAnalytics = computed(() => {
@@ -581,7 +576,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     const buyerMap = new Map()
     const materialMap = new Map()
 
-    for (const sale of sales.value) {
+    for (const sale of sortedSales.value) {
       const buyerEntry = buyerMap.get(sale.buyerId) ?? {
         buyerId: sale.buyerId,
         buyerName: sale.buyerName,
@@ -623,10 +618,6 @@ export const useCircularStockStore = defineStore('circularStock', () => {
 
   function persistInventory() {
     saveJson(INVENTORY_STORAGE_KEY, inventoryItems.value)
-  }
-
-  function persistSales() {
-    saveJson(SALES_STORAGE_KEY, sales.value)
   }
 
   function getInventoryById(inventoryId) {
@@ -721,8 +712,138 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     }
   }
 
+  function mapSaleListFromApi(row = {}) {
+    return {
+      saleId: Number(row.saleId),
+      saleNo: String(row.saleNo || ''),
+      status: String(row.status || ''),
+      outboundNo: row.outboundNo ?? null,
+      outboundStatus: row.outboundStatus ?? null,
+      soldAt: row.soldAt ?? null,
+      completedAt: row.completedAt ?? null,
+      buyerCode: row.buyerCode ?? null,
+      buyerName: row.buyerName ?? null,
+      materialType: row.materialType ?? null,
+      totalSkuCount: Number(row.totalSkuCount || 0),
+      totalActualWeightKg: Number(row.totalActualWeightKg || 0),
+      totalSoldQuantity: Number(row.totalSoldQuantity || 0),
+      totalAmount: Number(row.totalAmount || 0),
+      headline: String(row.headline || ''),
+    }
+  }
+
+  function mapSaleDetailFromApi(detail = {}) {
+    const items = Array.isArray(detail.items)
+      ? detail.items.map((item) => ({
+        itemId: Number(item.itemId),
+        inventoryId: String(item.inventoryId ?? ''),
+        skuCode: String(item.skuCode ?? ''),
+        productCode: String(item.productCode ?? ''),
+        productName: String(item.productName ?? ''),
+        itemName: String(item.productName ?? ''),
+        mainCategory: String(item.mainCategory ?? ''),
+        subCategory: String(item.subCategory ?? ''),
+        color: String(item.color ?? ''),
+        size: String(item.size ?? ''),
+        materialType: String(item.materialType ?? ''),
+        requestedWeightKg: Number(item.requestedWeightKg || 0),
+        actualWeightKg: Number(item.actualWeightKg || 0),
+        estimatedQuantity: Number(item.estimatedQuantity || 0),
+        soldQuantity: Number(item.soldQuantity || 0),
+        deductedQuantity: Number(item.soldQuantity || 0),
+        unitPrice: Number(item.unitPrice || 0),
+        lineAmount: Number(item.lineAmount || 0),
+        memo: item.memo ?? null,
+        materials: Array.isArray(item.materials)
+          ? item.materials.map((mat) => ({
+            code: mat.materialCode,
+            name: mat.materialName,
+            ratio: Number(mat.ratio || 0),
+            sortOrder: Number(mat.sortOrder || 0),
+          }))
+          : [],
+      }))
+      : []
+
+    return {
+      saleId: Number(detail.saleId),
+      saleNo: String(detail.saleNo || ''),
+      status: String(detail.status || ''),
+      outboundNo: detail.outboundNo ?? null,
+      outboundStatus: detail.outboundStatus ?? null,
+      soldAt: detail.soldAt ?? null,
+      completedAt: detail.completedAt ?? null,
+      soldByMemberId: detail.soldByMemberId ?? null,
+      soldByName: detail.soldByName ?? null,
+      outboundHeaderId: detail.outboundHeaderId ?? null,
+      buyerCode: detail.buyerCode ?? null,
+      buyerName: detail.buyerName ?? null,
+      buyerIndustryGroup: detail.buyerIndustryGroup ?? null,
+      materialType: detail.materialType ?? null,
+      totalSkuCount: Number(detail.totalSkuCount || 0),
+      totalItems: Number(detail.totalSkuCount || 0),
+      totalRequestedWeightKg: Number(detail.totalRequestedWeightKg || 0),
+      totalActualWeightKg: Number(detail.totalActualWeightKg || 0),
+      totalSoldQuantity: Number(detail.totalSoldQuantity || 0),
+      totalDeductedQuantity: Number(detail.totalSoldQuantity || 0),
+      totalAmount: Number(detail.totalAmount || 0),
+      totalActualAmount: Number(detail.totalAmount || 0),
+      totalRequestedAmount: Number(detail.totalAmount || 0),
+      memo: detail.memo ?? null,
+      items,
+      statusHistory: Array.isArray(detail.statusHistory) ? detail.statusHistory : [],
+    }
+  }
+
+  function mapCreatePayloadToApi() {
+    return {
+      buyerCode: String(draftBuyerId.value || ''),
+      materialType: String(lockedMaterialType.value || ''),
+      memo: String(draftMemo.value || '').trim(),
+      items: draftItems.value.map((item) => ({
+        inventoryId: Number(item.inventoryId),
+        skuCode: String(item.skuCode || ''),
+        requestedWeightKg: Number(Number(item.requestedWeightKg || 0).toFixed(3)),
+        soldQuantity: Number(item.deductedQuantity || 0),
+        actualWeightKg: Number(Number(item.actualWeightKg || 0).toFixed(3)),
+        estimatedQuantity: Number(Number(item.estimatedQuantity || 0).toFixed(3)),
+        unitPrice: Number(item.unitPrice || 0),
+        lineAmount: Number(item.requestedAmount || item.lineAmount || 0),
+        memo: item.memo ?? null,
+      })),
+    }
+  }
+
+  async function fetchCircularSalesPage(filters = {}) {
+    const response = await getCircularSalesApi(filters)
+    const content = Array.isArray(response?.content) ? response.content.map(mapSaleListFromApi) : []
+    salesPage.value = {
+      page: Number(response?.page ?? 0),
+      size: Number(response?.size ?? 20),
+      totalPages: Number(response?.totalPages ?? 0),
+      totalElements: Number(response?.totalElements ?? 0),
+      hasNext: Boolean(response?.hasNext),
+      hasPrevious: Boolean(response?.hasPrevious),
+      content,
+    }
+    sales.value = content
+    return salesPage.value
+  }
+
+  async function fetchCircularSaleDetail(saleId) {
+    const response = await getCircularSaleDetailApi(saleId)
+    const mapped = mapSaleDetailFromApi(response)
+    salesDetailById.value = {
+      ...salesDetailById.value,
+      [String(saleId)]: mapped,
+    }
+    return mapped
+  }
+
   function getSaleById(saleId) {
-    return sales.value.find(sale => sale.saleId === saleId) ?? null
+    return salesDetailById.value[String(saleId)]
+      ?? sortedSales.value.find(sale => String(sale.saleId) === String(saleId))
+      ?? null
   }
 
   function getSaleEsgSnapshot(saleInput) {
@@ -1065,94 +1186,30 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     }
   }
 
-  function submitCircularStockSale(soldBy = '蹂몄궗 愿由ъ옄') {
+  async function submitCircularStockSale() {
     const validation = validateCircularStockSaleDraft()
     if (!validation.success) {
       return validation
     }
-
-    const { buyer } = validation
-
-    const saleId = generateSaleId(sales.value)
-    const soldAt = new Date().toISOString()
-
-    const saleItems = draftItems.value.map(item => ({
-      saleId,
-      draftId: item.draftId,
-      skuCode: item.skuCode,
-      color: item.color,
-      size: item.size,
-      materialType: item.materialType,
-      inventoryId: item.inventoryId,
-      itemCode: item.itemCode,
-      itemName: item.itemName,
-      mainCategory: item.mainCategory,
-      subCategory: item.subCategory,
-      materials: item.materials,
-      availableQuantity: item.availableQuantity,
-      availableWeightKg: item.availableWeightKg,
-      unitWeightKg: item.unitWeightKg,
-      requestedWeightKg: roundTo(Number(item.requestedWeightKg)),
-      estimatedQuantity: item.estimatedQuantity,
-      deductedQuantity: item.deductedQuantity,
-      requestedAmount: item.requestedAmount,
-      actualWeightKg: roundTo(Number(item.actualWeightKg)),
-      unitPrice: Number(item.unitPrice),
-      actualAmount: item.actualAmount,
-      soldWeightKg: roundTo(Number(item.requestedWeightKg)),
-      lineAmount: item.requestedAmount,
-    }))
-
-    const esgSnapshot = buildSaleEsgSnapshot(
-      {
-        totalActualAmount: saleItems.reduce((sum, item) => sum + item.actualAmount, 0),
-        items: saleItems,
-      },
-      buyer,
-      esgStore.kauPrice,
-    )
-
-    for (const item of saleItems) {
-      const inventory = getInventoryById(item.inventoryId)
-      inventory.quantity -= item.deductedQuantity
-      inventory.weightKg = roundTo(Math.max(0, inventory.weightKg - item.actualWeightKg))
+    try {
+      const created = await createCircularSaleApi(mapCreatePayloadToApi())
+      const sale = {
+        saleId: Number(created.saleId),
+        saleNo: created.saleNo,
+        status: created.status,
+        outboundNo: created.outboundNo ?? null,
+        outboundStatus: created.outboundStatus ?? null,
+      }
+      clearDraft()
+      return { success: true, sale }
+    } catch (err) {
+      return {
+        success: false,
+        message: extractErrorMessage(err, '판매 생성에 실패했습니다.'),
+        primaryMessage: extractErrorMessage(err, '판매 생성에 실패했습니다.'),
+        codes: [],
+      }
     }
-
-    inventoryItems.value = inventoryItems.value.map(enrichInventoryItem)
-    persistInventory()
-
-    const sale = {
-      saleId,
-      buyerId: buyer.id,
-      buyerName: buyer.companyName,
-      buyerCode: buyer.code,
-      buyerIndustryGroup: buyer.industryGroup,
-      buyerProductTypes: buyer.productTypes,
-      buyerProductNote: buyer.productNote,
-      buyerManagerName: buyer.managerName,
-      buyerPhone: buyer.phone,
-      buyerDescription: buyer.description,
-      buyerPrimaryMaterialFit: buyer.primaryMaterialFit,
-      soldAt,
-      soldBy,
-      totalItems: saleItems.length,
-      totalEstimatedQuantity: roundTo(saleItems.reduce((sum, item) => sum + item.estimatedQuantity, 0)),
-      totalDeductedQuantity: saleItems.reduce((sum, item) => sum + item.deductedQuantity, 0),
-      totalRequestedWeightKg: roundTo(saleItems.reduce((sum, item) => sum + item.requestedWeightKg, 0)),
-      totalRequestedAmount: saleItems.reduce((sum, item) => sum + item.requestedAmount, 0),
-      totalActualWeightKg: roundTo(saleItems.reduce((sum, item) => sum + item.actualWeightKg, 0)),
-      totalActualAmount: saleItems.reduce((sum, item) => sum + item.actualAmount, 0),
-      totalWeightKg: roundTo(saleItems.reduce((sum, item) => sum + item.actualWeightKg, 0)),
-      totalAmount: saleItems.reduce((sum, item) => sum + item.actualAmount, 0),
-      memo: draftMemo.value.trim(),
-      items: saleItems,
-      ...esgSnapshot,
-    }
-
-    sales.value = [normalizeSaleRecord(sale), ...sales.value]
-    persistSales()
-    clearDraft()
-    return { success: true, sale }
   }
 
   return {
@@ -1169,6 +1226,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     inventoryMaterialGroup,
     inventoryMaterialName,
     inventoryMaterialNames,
+    salesPage,
     sortedSales,
     draftBuyerId,
     draftMemo,
@@ -1191,10 +1249,10 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     recommendationBasisKey,
     lastRecommendationBasisKey,
     recommendationDirty,
-    formatWeight,
     filteredBuyers,
-    getInventoryById,
     loadCircularInventoryRows,
+    fetchCircularSalesPage,
+    fetchCircularSaleDetail,
     getSaleById,
     getSaleEsgSnapshot,
     getDraftItem,

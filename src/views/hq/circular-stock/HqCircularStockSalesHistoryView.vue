@@ -1,16 +1,12 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
 import { useCircularStockStore } from '@/stores/hq/circularStock/circularStock.js'
-import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
 
 const router = useRouter()
-const auth = useAuthStore()
 const circularStockStore = useCircularStockStore()
-const buyerStore = useCircularStockBuyerStore()
 
 const hqMenus = roleMenus.hq
 const circularStockMenus = roleMenus.hq.find((menu) => menu.label === '순환 재고 관리')?.children ?? []
@@ -26,10 +22,7 @@ const activeSideMenu = ref('순환 재고 판매 내역')
 const searchTerm = ref('')
 const activePeriod = ref('all')
 
-const referenceDate = computed(() => {
-  const latestSale = circularStockStore.sortedSales[0]
-  return latestSale?.soldAt ? new Date(latestSale.soldAt) : new Date()
-})
+const referenceDate = ref(new Date())
 
 const periodRange = computed(() => {
   const base = new Date(referenceDate.value)
@@ -72,12 +65,7 @@ const periodRange = computed(() => {
   }
 })
 
-const periodFilteredSales = computed(() =>
-  circularStockStore.sortedSales.filter((sale) => {
-    const soldAt = new Date(sale.soldAt)
-    return soldAt >= periodRange.value.start && soldAt <= periodRange.value.end
-  }),
-)
+const periodFilteredSales = computed(() => circularStockStore.sortedSales)
 
 const filteredSales = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase()
@@ -90,17 +78,17 @@ const filteredSales = computed(() => {
       : sale.items[0]?.itemName ?? ''
 
     return [
-      sale.saleId,
+      sale.saleNo,
       sale.buyerName,
       headline,
-      ...sale.items.map((item) => [item.itemCode, item.itemName, item.mainCategory, item.subCategory].join(' ')),
+      sale.materialType,
     ].join(' ').toLowerCase().includes(keyword)
   })
 })
 
 const filteredSummary = computed(() => ({
-  totalSalesAmount: filteredSales.value.reduce((sum, sale) => sum + (Number(sale.totalActualAmount) || 0), 0),
-  totalDeductedQuantity: filteredSales.value.reduce((sum, sale) => sum + (Number(sale.totalDeductedQuantity) || 0), 0),
+  totalSalesAmount: filteredSales.value.reduce((sum, sale) => sum + (Number(sale.totalAmount) || 0), 0),
+  totalDeductedQuantity: filteredSales.value.reduce((sum, sale) => sum + (Number(sale.totalSoldQuantity) || 0), 0),
   totalActualWeightKg: filteredSales.value.reduce((sum, sale) => sum + (Number(sale.totalActualWeightKg) || 0), 0),
   totalSalesCount: filteredSales.value.length,
 }))
@@ -110,22 +98,15 @@ function setPeriod(periodKey) {
 }
 
 function headlineLabel(sale) {
-  if (!sale || sale.items.length === 0) return '-'
-  return sale.items.length > 1 ? `${sale.items[0].itemName} 외 ${sale.items.length - 1}건` : sale.items[0].itemName
+  return sale?.headline || '-'
 }
 
 function materialTypeLabel(sale) {
-  const itemMaterialType = sale?.items?.[0]?.materialType
-  if (itemMaterialType) return itemMaterialType
-
-  if (sale?.buyerPrimaryMaterialFit === 'natural-single') return '천연 단일 섬유'
-  if (sale?.buyerPrimaryMaterialFit === 'synthetic') return '합성 섬유'
-  if (sale?.buyerPrimaryMaterialFit === 'blended') return '혼방'
-  return '-'
+  return sale?.materialType || '-'
 }
 
 function industryGroupLabel(sale) {
-  return sale?.buyerIndustryGroup ?? '-'
+  return sale?.status ?? '-'
 }
 
 function formatDateTime(iso) {
@@ -165,7 +146,33 @@ function openSaleDetail(saleId) {
   })
 }
 
+function toDateParam(date) {
+  const pad = (value) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+async function loadSales() {
+  const range = periodRange.value
+  await circularStockStore.fetchCircularSalesPage({
+    page: 0,
+    size: 50,
+    sort: 'soldAt,desc',
+    from: activePeriod.value === 'all' ? undefined : toDateParam(range.start),
+    to: activePeriod.value === 'all' ? undefined : toDateParam(range.end),
+    keyword: searchTerm.value?.trim() || undefined,
+  })
+  const latest = circularStockStore.sortedSales[0]
+  if (latest?.soldAt) {
+    referenceDate.value = new Date(latest.soldAt)
+  }
+}
+
+watch([activePeriod, searchTerm], () => {
+  loadSales()
+})
+
 onMounted(() => {
+  loadSales()
 })
 
 
@@ -272,14 +279,14 @@ onMounted(() => {
                 @click="openSaleDetail(sale.saleId)"
               >
                 <td class="px-4 py-3 font-bold text-gray-600">{{ formatDateTime(sale.soldAt) }}</td>
-                <td class="px-4 py-3 font-mono font-black text-gray-800">{{ sale.saleId }}</td>
+                <td class="px-4 py-3 font-mono font-black text-gray-800">{{ sale.saleNo }}</td>
                 <td class="px-4 py-3 font-black text-gray-900">{{ sale.buyerName }}</td>
                 <td class="px-4 py-3 font-bold text-gray-700">{{ industryGroupLabel(sale) }}</td>
                 <td class="px-4 py-3 font-black text-gray-700">{{ materialTypeLabel(sale) }}</td>
                 <td class="px-4 py-3 font-black text-gray-900">{{ headlineLabel(sale) }}</td>
                 <td class="px-4 py-3 text-right font-black text-gray-700">{{ formatKg(sale.totalActualWeightKg) }}</td>
-                <td class="px-4 py-3 text-right font-black text-gray-700">{{ formatQuantity(sale.totalDeductedQuantity) }}</td>
-                <td class="px-4 py-3 text-right font-black text-gray-900">{{ formatCurrency(sale.totalActualAmount) }}</td>
+                <td class="px-4 py-3 text-right font-black text-gray-700">{{ formatQuantity(sale.totalSoldQuantity) }}</td>
+                <td class="px-4 py-3 text-right font-black text-gray-900">{{ formatCurrency(sale.totalAmount) }}</td>
               </tr>
               <tr v-if="filteredSales.length === 0">
                 <td colspan="9" class="px-4 py-12 text-center text-gray-400">조회 가능한 판매 이력이 없습니다.</td>
