@@ -66,8 +66,9 @@ export const purchaseOrderApi = {
 
   /**
    * SYS-001 강제 트리거 — 시연·QA·장애 대응용.
-   * 30분 대기 조건을 무시하고 PENDING/APPROVED 모두 즉시 다음 단계로 자동 전환.
-   * @returns {Promise<{approved: number, shipping: number}>}
+   * 시간 조건(wait-minutes) 무시하고 거래처 책임 4단계(REQUESTED/APPROVED/READY_TO_SHIP/IN_TRANSIT)
+   * 모두 즉시 다음 단계로 자동 전환.
+   * @returns {Promise<{approved: number, readyToShip: number, inTransit: number, arrived: number}>}
    */
   runBatch: () => apiClient.post(`${BASE}/batch/run`).then(unwrap),
 

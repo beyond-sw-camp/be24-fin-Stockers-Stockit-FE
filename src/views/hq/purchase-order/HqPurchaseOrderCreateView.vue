@@ -421,6 +421,9 @@ async function confirmSubmitOrder() {
       cart.value = []
       cartStore.clearAll()
       clearDraftStorage()
+      // BE 응답(DetailRes[]) 을 직접 store 에 ingest — items/statusHistory 포함이라
+      // 라우팅 후 마운트 fetchOrders 와의 race 없이 상세 패널 즉시 정상 표시.
+      poStore.ingestOrders?.(res?.orders ?? [])
       const firstCode = res?.orders?.[0]?.code
       if (firstCode) poStore.selectOrder?.(firstCode)
       const orderCount = res?.orders?.length ?? 0

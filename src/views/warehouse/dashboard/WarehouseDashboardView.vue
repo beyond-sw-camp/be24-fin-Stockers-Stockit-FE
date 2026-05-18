@@ -83,8 +83,9 @@ const rangeParams = computed(() => {
 
 onMounted(() => {
   dashStore.fetchInboundProgress(rangeParams.value)
-  // 안전재고 미달 KPI 산출용 — vendor_product 카탈로그 fetch (이미 있으면 no-op)
+  // 안전재고 미달 KPI 산출용 — vendor_product 카탈로그 + 자기 창고 재고 캐시 fetch.
   vendorStore.fetchAllVendorProducts('ACTIVE').catch(() => {})
+  stockStore.loadProductStocks().catch(() => {})
 })
 
 watch(range, () => {
