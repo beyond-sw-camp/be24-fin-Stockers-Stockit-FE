@@ -29,7 +29,6 @@ const emit = defineEmits(['add-sku-to-cart', 'add-group-to-cart', 'scroll-to-car
 
 const poStore = usePurchaseOrderStore()
 const {
-  stockStore,
   rowStock,
   rowStockLevel,
   rowSuggested,
@@ -121,10 +120,10 @@ const skuRows = computed(() => catalogRows.value)
 
 const matchedSkuCount = computed(() => poStore.catalogTotalElements)
 
+// 카탈로그 응답에 safetyStock 미포함 — 품절(availableQty === 0) row 개수만 카운트.
 const shortageCount = computed(() => {
   if (!props.selectedWarehouseCode) return 0
-  const skuCodes = catalogRows.value.map((r) => r.skuCode)
-  return stockStore.getSkuShortageCount(props.selectedWarehouseCode, skuCodes)
+  return catalogRows.value.filter((r) => Number(r.availableQty ?? 0) === 0).length
 })
 
 function isInCart(skuCode) {
@@ -364,14 +363,9 @@ void emit
               <td
                 class="px-2 py-2 text-right align-middle font-bold"
                 :class="stockLevelClass(rowStockLevel(row.skuCode))"
-                :title="
-                  rowStock(row.skuCode)
-                    ? `실재고 ${rowStock(row.skuCode).onHand} · 안전 ${rowStock(row.skuCode).safetyStock}`
-                    : `BE 가용 ${row.availableQty}`
-                "
+                :title="`가용재고 ${row.availableQty}`"
               >
-                <template v-if="rowStock(row.skuCode)">{{ rowStock(row.skuCode).available }}</template>
-                <template v-else>{{ row.availableQty }}</template>
+                {{ row.availableQty }}
               </td>
               <td class="px-2 py-2 text-right align-middle">
                 <template v-if="rowStock(row.skuCode)">

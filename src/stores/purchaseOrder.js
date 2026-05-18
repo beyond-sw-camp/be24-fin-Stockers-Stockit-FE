@@ -254,12 +254,19 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
       // BE 가 Page<ListRes> (po-list-pagination-be) 또는 List 둘 다 대응.
       // 페이지네이션 UI 도입은 별 phase 책임 — 일단 첫 페이지 데이터만 표시.
       const list = Array.isArray(res) ? res : (res?.content ?? [])
-      // ListRes 는 items/statusHistory 미포함 — 빈 배열로 채워둠
-      purchaseOrders.value = list.map((o) => ({
-        ...toFeOrder(o),
-        items: [],
-        statusHistory: [],
-      }))
+      // detail fetch 로 이미 채워진 items/statusHistory 는 list 응답에 미포함 →
+      // 통째 reassign 시 덮어쓰지 않도록 prev 캐시 merge. 신규 발주 직후 selectOrder →
+      // fetchDetail prepend 와 View 마운트 fetchOrders 의 race 보호.
+      const prevMap = new Map(purchaseOrders.value.map((o) => [o.id, o]))
+      purchaseOrders.value = list.map((o) => {
+        const fe = toFeOrder(o)
+        const prev = prevMap.get(fe.id)
+        return {
+          ...fe,
+          items: prev?.items?.length ? prev.items : [],
+          statusHistory: prev?.statusHistory?.length ? prev.statusHistory : [],
+        }
+      })
     } catch (e) {
       error.value = e?.message ?? '발주 목록을 불러오지 못했습니다.'
       console.error('[purchaseOrder] fetchOrders 실패', e)
@@ -292,15 +299,30 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
 
   function selectOrder(id) {
     selectedOrderId.value = id
-    if (id) {
-      // 상세 정보(items/statusHistory) 가 비어있으면 fetch
-      const order = purchaseOrders.value.find((o) => o.id === id)
-      if (order && (order.items.length === 0 || order.statusHistory.length === 0)) {
-        fetchDetail(id).catch(() => {
-          // fetchDetail 안에서 이미 처리
-        })
-      }
+    if (!id) return
+    // 상세 fetch 조건:
+    //   1) store 에 order 가 아직 없음 (신규 batch 생성 직후 — cartStore.createBatch 는 poStore push 안 함)
+    //   2) order 는 있지만 list 응답이라 items/statusHistory 깡통
+    // fetchDetail 은 idx < 0 일 때 prepend 로 push 하므로 두 경우 모두 안전.
+    const order = purchaseOrders.value.find((o) => o.id === id)
+    if (!order || order.items.length === 0 || order.statusHistory.length === 0) {
+      fetchDetail(id).catch(() => {
+        // fetchDetail 안에서 이미 처리
+      })
     }
+  }
+
+  /**
+   * BE batch 응답(DetailRes[]) 을 store 에 직접 흡수.
+   * createBatch 응답은 items + statusHistory 까지 완전 — 별도 fetchDetail 불필요.
+   * 같은 id 가 이미 있으면 교체, 없으면 prepend. 정렬은 filteredOrders 가 담당.
+   */
+  function ingestOrders(beOrders) {
+    if (!Array.isArray(beOrders) || beOrders.length === 0) return
+    const incoming = beOrders.map(toFeOrder).filter(Boolean)
+    const incomingIds = new Set(incoming.map((o) => o.id))
+    const kept = purchaseOrders.value.filter((o) => !incomingIds.has(o.id))
+    purchaseOrders.value = [...incoming, ...kept]
   }
 
   async function createOrder(payload) {
@@ -343,7 +365,11 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
   async function runBatch() {
     try {
       const result = await purchaseOrderApi.runBatch()
-      const changed = (result?.approved ?? 0) + (result?.shipping ?? 0)
+      const changed =
+        (result?.approved ?? 0) +
+        (result?.readyToShip ?? 0) +
+        (result?.inTransit ?? 0) +
+        (result?.arrived ?? 0)
       if (changed > 0) {
         await fetchOrders()
         if (selectedOrderId.value) {
@@ -414,6 +440,7 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     selectOrder,
     fetchOrders,
     fetchDetail,
+    ingestOrders,
     fetchWarehouses,
     createOrder,
     updateOrder,

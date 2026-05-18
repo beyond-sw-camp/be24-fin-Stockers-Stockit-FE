@@ -51,14 +51,16 @@ const inboundPreview = computed(() => {
 
 const previewHasShortage = computed(() => inboundPreview.value.some((row) => row.shortageAfter))
 
-// 우측 상세 품목 표 — 행마다 현재 실재고/안전재고 표시용 캐시
+// 우측 상세 품목 표 — 행마다 현재 실재고/안전재고 표시용 캐시.
+// 발주 라인 = 단일 SKU 이므로 SKU 단위 lookup (master 합산값과 혼동 방지 —
+// 창고재고조회 화면이 SKU 단위로 보여주는 것과 정합).
 const itemStocks = computed(() => {
   const order = inbound.selectedOrder
   if (!order || !order.warehouseId) return new Map()
   const map = new Map()
   for (const item of order.items ?? []) {
-    if (!item.productCode) continue
-    map.set(item.id, stockStore.getStock(order.warehouseId, item.productCode))
+    if (!item.skuCode) continue
+    map.set(item.id, stockStore.getSkuStock(order.warehouseId, item.skuCode))
   }
   return map
 })
@@ -75,6 +77,9 @@ async function confirmInbound() {
   showConfirmInbound.value = false
   try {
     await inbound.confirmInbound(id)
+    // 입고 확정 직후 재고 캐시 무효화 + 즉시 재로딩 — onHand 변화 반영.
+    stockStore.invalidate()
+    await stockStore.loadProductStocks().catch(() => {})
     triggerToast('입고가 확정되었습니다')
   } catch (e) {
     triggerToast(e?.message ?? '입고 확정에 실패했습니다')
@@ -89,9 +94,13 @@ function handleKeydown(e) {
 }
 
 // 화면 진입 시 입고 목록 강제 fetch — 다른 화면에서 status 변경됐을 수 있으므로 stale 방지.
+// stockStore SKU + master 둘 다 트리거 — itemStocks 는 SKU 단위, inboundPreview 도 SKU 단위.
+// master 캐시는 다른 화면 호환 위해 같이 채워둠 (no-op if already loaded).
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
   inbound.fetchAll().catch(() => {})
+  stockStore.loadProductStocks().catch(() => {})
+  stockStore.loadSkuStocks().catch(() => {})
 })
 onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
 </script>
