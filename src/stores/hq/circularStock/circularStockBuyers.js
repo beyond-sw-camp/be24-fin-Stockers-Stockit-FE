@@ -164,12 +164,20 @@ export const useCircularStockBuyerStore = defineStore('circularStockBuyers', () 
 
     return sortedBuyers.value.filter((buyer) => {
       const matchesMaterialFit = !materialFit || buyer.primaryMaterialFit === materialFit
+      const searchableText = [
+        buyer.code,
+        buyer.companyName,
+        buyer.managerName,
+        buyer.phone,
+        buyer.productNote,
+        ...(Array.isArray(buyer.productTypes) ? buyer.productTypes : []),
+        buyer.address,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
       const matchesKeyword =
-        !normalized ||
-        [buyer.code, buyer.companyName, buyer.managerName]
-          .join(' ')
-          .toLowerCase()
-          .includes(normalized)
+        !normalized || searchableText.includes(normalized)
 
       return matchesMaterialFit && matchesKeyword
     })
