@@ -151,6 +151,9 @@ spec:
             sh """
               kubectl patch svc front-service -p '{"metadata":{"labels":{"version":"${targetColor}"}}, "spec":{"selector":{"version":"${targetColor}"}}}'
             """
+
+            // Ingress timeout annotations are part of the runtime contract for slow AI-backed APIs.
+            sh "kubectl apply -f CICD/k8s/ingress.yml"
           }
         }
       }
