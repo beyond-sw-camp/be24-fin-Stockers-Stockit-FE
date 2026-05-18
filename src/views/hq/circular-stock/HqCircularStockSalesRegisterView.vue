@@ -597,11 +597,16 @@ function moveStep(step) {
   }
 }
 
-function onRecommendationSelect(code) {
+async function onRecommendationSelect(code) {
   const rec = circularStockStore.recommendations.find((r) => r.code === code)
   if (!rec) return
   if (selectedBuyer.value?.id === code || selectedBuyer.value?.code === code) {
     circularStockStore.selectBuyer('')
+    return
+  }
+  const hydrated = await buyerStore.ensureBuyerByCode(code)
+  if (!hydrated) {
+    showToast('추천 거래처 상세 정보를 불러오지 못해 선택할 수 없습니다.', 'error')
     return
   }
   circularStockStore.selectBuyer(code)
@@ -655,19 +660,16 @@ function recommendationBonusReason(rec, index) {
   return ''
 }
 
-function recommendationProductLabel(rec, index = 0) {
-  const mockProducts = [
-    '가방, 지갑, 혼방',
-    '가죽 재가공, 소가죽, 양가죽',
-    '거즈, 면 수건, 재생',
-    '건설 단열재, 보온재, 재생 합성',
-    '건축 마감재, 혼방, 재활용',
-    '토목 자재, 건설 부직포, 재생 합성',
-  ]
-  if (Array.isArray(rec?.productTypes) && rec.productTypes.length > 0) {
-    return rec.productTypes.join(', ')
+function recommendationProductLabel(rec) {
+  const products = Array.isArray(rec?.factoryProduct)
+    ? rec.factoryProduct
+    : Array.isArray(rec?.productTypes)
+      ? rec.productTypes
+      : []
+  if (products.length > 0) {
+    return products.join(', ')
   }
-  return rec?.productNote || mockProducts[index % mockProducts.length]
+  return String(rec?.productNote || '').trim() || '-'
 }
 
 function isSocialEnterprise(rec) {
@@ -682,26 +684,25 @@ function isLocalSmallPartner(rec) {
   return partnerType === 'local_small' || /소규모|지역 소규모/.test(industry)
 }
 
-function isNewPartner(rec, index) {
+function isNewPartner(rec) {
   const historyCount = Number(rec?.tradeHistoryCount ?? rec?.transactionCount ?? rec?.tradeCount)
   if (Number.isFinite(historyCount)) return historyCount <= 0
-  return index === 0
+  return false
 }
 
 function recommendationLocationLabel(rec) {
   const address = String(rec?.address || '').trim()
-  if (!address) return '서울 종로구'
+  if (!address) return '-'
   const parts = address.split(/\s+/).filter(Boolean)
   return parts.length >= 2 ? `${parts[0]} ${parts[1]}` : parts[0]
 }
 
-function recommendationManagerLabel(rec, index) {
-  const mockManagers = ['김재호', '한도훈', '정유민', '이재훈', '조유석', '김윤석']
-  return String(rec?.managerName || '').trim() || mockManagers[index % mockManagers.length]
+function recommendationManagerLabel(rec) {
+  return String(rec?.managerName || '').trim() || '-'
 }
 
-function recommendationPhoneLabel(rec, index) {
-  return String(rec?.phone || '').trim() || `02-000${index}-000${index}`
+function recommendationPhoneLabel(rec) {
+  return String(rec?.phone || '').trim() || '-'
 }
 
 function companyBadgeText(name) {

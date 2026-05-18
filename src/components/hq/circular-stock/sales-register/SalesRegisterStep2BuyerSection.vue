@@ -207,7 +207,7 @@ const emit = defineEmits([
               </div>
               <p class="mt-1 text-sm font-bold text-gray-500">
                 {{ lockedMaterialType || '-' }} ·
-                {{ rec.industryGroup || '재생원사' }} ·
+                {{ rec.industryGroup || '-' }} ·
                 {{ recommendationProductLabel(rec, index) }}
               </p>
               <p class="mt-1 text-sm font-bold text-gray-500">
