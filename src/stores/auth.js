@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { roleHomeMap } from '@/config/roleMenus.js'
 import { authApi } from '@/api/user/auth.js'
 import { extractErrorMessage } from '@/api/axios.js'
+import { useNotificationStore } from '@/stores/notification.js'
 
 // HttpOnly Cookie 방식이라 토큰은 JS에서 접근 불가.
 // localStorage 에는 사용자 정보(UI 표시용)만 저장.
@@ -43,6 +44,13 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(user.value))
       sessionStorage.removeItem('stockit:openTopMenus')
 
+      // 알림 store — 로그인 직후 초기 로드 + SSE 구독
+      try {
+        await useNotificationStore().init()
+      } catch (e) {
+        console.warn('[auth.login] notification init failed:', e)
+      }
+
       return { success: true, redirectTo: roleHomeMap[role] ?? '/dev-login' }
     } catch (err) {
       return {
@@ -66,6 +74,12 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = null
       localStorage.removeItem(STORAGE_KEY)
       sessionStorage.removeItem('stockit:openTopMenus')
+      // 알림 store — SSE close + 상태 비우기
+      try {
+        useNotificationStore().dispose()
+      } catch (e) {
+        console.warn('[auth.logout] notification dispose failed:', e)
+      }
     }
   }
 

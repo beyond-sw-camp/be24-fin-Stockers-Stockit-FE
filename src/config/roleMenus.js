@@ -69,6 +69,11 @@
       path: '/hq/accounts',
       icon: 'user',
     },
+    {
+      label: '알림',
+      path: '/hq/notifications',
+      icon: 'bell',
+    },
   ],
   store: [
     {
@@ -104,6 +109,11 @@
       path: '/store/inbound/list',
       icon: 'check',
     },
+    {
+      label: '알림',
+      path: '/store/notifications',
+      icon: 'bell',
+    },
   ],
   warehouse: [
     {
@@ -125,6 +135,11 @@
       label: '출고 관리',
       path: '/warehouse/outbound',
       icon: 'outbound',
+    },
+    {
+      label: '알림',
+      path: '/warehouse/notifications',
+      icon: 'bell',
     },
   ],
 }
