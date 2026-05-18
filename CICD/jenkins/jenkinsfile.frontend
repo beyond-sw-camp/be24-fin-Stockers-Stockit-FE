@@ -184,6 +184,10 @@ spec:
               kubectl patch svc front-service \
                 -p '{"spec":{"selector":{"app":"frontend","version":"${newColor}"}}}'
             """
+
+            // Ingress timeout annotations are part of the runtime contract for slow AI-backed APIs.
+            sh "kubectl apply -f CICD/k8s/ingress.yml"
+
             echo "트래픽 전환 완료: ${currentColor} → ${newColor}"
 
             // 이전 색상 스케일 다운 (다음 배포의 대기 슬롯으로 확보)
