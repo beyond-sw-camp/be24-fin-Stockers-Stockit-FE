@@ -1,9 +1,10 @@
 ﻿<script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import AppLayout from '@/components/common/AppLayout.vue'
+import PaginationNav from '@/components/common/PaginationNav.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
+import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
 const auth = useAuthStore()
 const buyerStore = useCircularStockBuyerStore()
 
@@ -16,6 +17,7 @@ const activeSideMenu = ref('순환 재고 거래처 관리')
 
 const searchKeyword = ref('')
 const materialFitFilter = ref('')
+const partnerTypeFilter = ref('')
 const selectedBuyerId = ref('')
 const panelMode = ref('create')
 const browseMode = ref('card')
@@ -27,21 +29,19 @@ const emptyForm = () => buyerStore.createEmptyBuyerForm()
 const form = ref(emptyForm())
 const errors = ref({})
 
-const displayedBuyers = computed(() =>
-  buyerStore.filteredBuyers(searchKeyword.value, {
-    primaryMaterialFit: materialFitFilter.value,
-  }),
-)
+const displayedBuyers = computed(() => buyerStore.sortedBuyers)
 
 const selectedBuyer = computed(() => buyerStore.getBuyerById(selectedBuyerId.value) ?? null)
 
 const buyerStats = computed(() => {
-  const buyers = buyerStore.sortedBuyers
+  const natural = buyerStore.materialFitCounts['natural-single'] ?? 0
+  const synthetic = buyerStore.materialFitCounts['synthetic'] ?? 0
+  const blended = buyerStore.materialFitCounts['blended'] ?? 0
   return {
-    total: buyers.length,
-    natural: buyers.filter((buyer) => buyer.primaryMaterialFit === 'natural-single').length,
-    synthetic: buyers.filter((buyer) => buyer.primaryMaterialFit === 'synthetic').length,
-    blended: buyers.filter((buyer) => buyer.primaryMaterialFit === 'blended').length,
+    total: natural + synthetic + blended,
+    natural,
+    synthetic,
+    blended,
   }
 })
 
@@ -56,10 +56,12 @@ const panelCaption = computed(() => {
     return '소재 적합도와 산업군을 기준으로 순환 재고 판매 대상 거래처를 등록합니다.'
   }
   if (panelMode.value === 'edit') {
-    return '거래처 정보와 생산품 키워드, 생산품 메모를 수정해 판매 등록 화면에서 바로 사용할 수 있게 정리합니다.'
+    return '거래처 정보와 생산품 키워드, 주소를 수정해 판매 등록 화면에서 바로 사용할 수 있게 정리합니다.'
   }
   return '선택한 거래처 정보를 읽기 전용으로 확인한 뒤, 필요할 때만 수정 모드로 전환합니다.'
 })
+
+const isCreatePanelActive = computed(() => panelMode.value === 'create')
 
 function resetForm() {
   form.value = emptyForm()
@@ -71,8 +73,8 @@ function fillFormFromBuyer(buyer) {
   form.value = {
     companyName: buyer.companyName,
     industryGroup: buyer.industryGroup,
-    productTypes: [...(buyer.productTypes ?? [])],
-    productNote: buyer.productNote ?? '',
+    factoryProduct: [...(buyer.factoryProduct ?? [])],
+    address: buyer.address ?? '',
     description: buyer.description,
     primaryMaterialFit: buyer.primaryMaterialFit,
     managerName: buyer.managerName,
@@ -85,20 +87,30 @@ function fillFormFromBuyer(buyer) {
 function addProductKeyword() {
   const nextKeyword = productKeywordInput.value.trim()
   if (!nextKeyword) return
-  if (!form.value.productTypes.includes(nextKeyword)) {
-    form.value.productTypes = [...form.value.productTypes, nextKeyword]
+  if (!form.value.factoryProduct.includes(nextKeyword)) {
+    form.value.factoryProduct = [...form.value.factoryProduct, nextKeyword]
   }
   productKeywordInput.value = ''
 }
 
 function removeProductKeyword(keyword) {
-  form.value.productTypes = form.value.productTypes.filter((item) => item !== keyword)
+  form.value.factoryProduct = form.value.factoryProduct.filter((item) => item !== keyword)
 }
 
 function handleCreateNew() {
   panelMode.value = 'create'
   selectedBuyerId.value = ''
   resetForm()
+}
+
+async function fetchBuyerPage(overrides = {}) {
+  await buyerStore.fetchPage({
+    page: overrides.page ?? buyerStore.page,
+    size: overrides.size ?? buyerStore.size,
+    keyword: searchKeyword.value.trim() || undefined,
+    materialFit: materialFitFilter.value || undefined,
+    partnerType: partnerTypeFilter.value || undefined,
+  })
 }
 
 function handleSelectBuyer(id) {
@@ -153,6 +165,10 @@ async function submitForm() {
   if (isCreate) {
     searchKeyword.value = ''
     materialFitFilter.value = ''
+    partnerTypeFilter.value = ''
+    await fetchBuyerPage({ page: 0 })
+  } else {
+    await fetchBuyerPage()
   }
   handleSelectBuyer(result.buyer.id)
 }
@@ -170,7 +186,14 @@ function partnerTypeBadgeClass(value) {
   return 'bg-gray-100 text-gray-500'
 }
 
+watch([searchKeyword, materialFitFilter, partnerTypeFilter], () => {
+  fetchBuyerPage({ page: 0 }).catch(() => {})
+})
 
+onMounted(() => {
+  fetchBuyerPage({ page: 0, size: buyerStore.size || 20 }).catch(() => {})
+  buyerStore.fetchStats().catch(() => {})
+})
 </script>
 
 <template>
@@ -190,9 +213,9 @@ function partnerTypeBadgeClass(value) {
               Circular Buyer Studio
             </p>
             <h1 class="mt-2 text-2xl font-black text-[#19352c]">순환재고 거래처 관리</h1>
-            <p class="mt-2 max-w-2xl text-sm font-bold leading-6 text-[#5d6f67]">
-              소재 성향과 산업군을 기준으로 순환재고 판매 거래처를 정리하고, 판매 등록
-              화면에서 바로 연결할 수 있는 전용 거래처 정보를 관리합니다.
+            <p class="mt-2 max-w-3xl break-keep text-sm font-bold leading-6 text-[#5d6f67]">
+              소재 성향과 산업군을 기준으로 순환재고 판매 거래처를 정리하고, 판매 등록 화면에서 바로
+              연결할 수 있는 전용 거래처 정보를 관리합니다.
             </p>
 
             <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -227,30 +250,15 @@ function partnerTypeBadgeClass(value) {
             </div>
           </div>
 
-          <div
-            class="flex flex-col justify-between border border-[#d7e3dd] bg-white/75 p-4 backdrop-blur"
+          <button
+            type="button"
+            class="h-11 self-end justify-self-end border border-[#d8e4df] bg-[#19352c] px-4 text-sm font-black text-white transition hover:bg-[#10261f] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-[#10261f]"
+            :disabled="isCreatePanelActive"
+            :aria-disabled="isCreatePanelActive"
+            @click="handleCreateNew"
           >
-            <div>
-              <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[#7c8d84]">
-                Working Rule
-              </p>
-              <p class="mt-2 text-sm font-black text-[#19352c]">
-                AI 추천은 아직 포함하지 않습니다.
-              </p>
-              <p class="mt-2 text-xs font-bold leading-5 text-[#65776d]">
-                이번 단계에서는 거래처 자체 정보를 먼저 정돈하고, 이후 순환재고 품목 선택
-                시 어떤 거래처와 잘 맞는지 추천하는 기능으로 확장할 수 있게 기반만 맞춥니다.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              class="mt-5 h-11 border border-[#d8e4df] bg-[#19352c] px-4 text-sm font-black text-white transition hover:bg-[#10261f]"
-              @click="handleCreateNew"
-            >
-              + 새 거래처 등록 시작
-            </button>
-          </div>
+            + 새 거래처 등록
+          </button>
         </div>
       </section>
 
@@ -264,8 +272,7 @@ function partnerTypeBadgeClass(value) {
                 </p>
                 <h2 class="mt-1 text-lg font-black text-gray-900">거래처 목록</h2>
                 <p class="mt-1 text-xs font-bold text-gray-500">
-                  업체명, 담당자, 거래처 코드로 빠르게 찾고 소재 적합도에 따라 정리할 수
-                  있습니다.
+                  업체명, 담당자, 거래처 코드로 빠르게 찾고 소재 적합도에 따라 정리할 수 있습니다.
                 </p>
               </div>
               <div class="flex items-center gap-2 text-[11px] font-bold text-gray-500">
@@ -276,7 +283,7 @@ function partnerTypeBadgeClass(value) {
               </div>
             </div>
 
-            <div class="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_14rem_auto]">
+            <div class="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_12rem_12rem_auto]">
               <input
                 v-model="searchKeyword"
                 type="search"
@@ -296,6 +303,16 @@ function partnerTypeBadgeClass(value) {
                 >
                   {{ option.label }}
                 </option>
+              </select>
+
+              <select
+                v-model="partnerTypeFilter"
+                class="h-11 border border-gray-300 bg-[#fafaf8] px-3 text-sm font-bold text-gray-900 outline-none focus:border-[#19352c] focus:bg-white"
+              >
+                <option value="">전체 거래처 분류</option>
+                <option value="general">일반</option>
+                <option value="local_small">지역 소규모</option>
+                <option value="social_enterprise">사회적기업</option>
               </select>
 
               <div class="flex overflow-hidden border border-gray-300 bg-white">
@@ -337,76 +354,93 @@ function partnerTypeBadgeClass(value) {
             </div>
           </div>
 
-          <div v-if="browseMode === 'card'" class="grid gap-4 p-5 md:grid-cols-2">
-            <button
-              v-for="buyer in displayedBuyers"
-              :key="buyer.id"
-              type="button"
-              class="group border p-4 text-left transition-all duration-150"
-              :class="
-                selectedBuyerId === buyer.id
-                  ? ['border-[#19352c]', 'bg-[#f6fbf8]', 'shadow-[0_12px_28px_rgba(25,53,44,0.08)]']
-                  : [
-                      'border-gray-200',
-                      'bg-white',
-                      'hover:-translate-y-[1px]',
-                      'hover:border-[#cfd9d4]',
-                      'hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)]',
-                    ]
-              "
-              @click="handleSelectBuyer(buyer.id)"
-            >
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <p class="truncate text-[12px] font-black tracking-[0.08em] text-gray-400">
-                    {{ buyer.code }}
-                  </p>
-                  <h3 class="mt-2 text-base font-black text-gray-900">{{ buyer.companyName }}</h3>
+          <div v-if="browseMode === 'card'" class="flex flex-col">
+            <div class="grid gap-4 p-5 md:grid-cols-2">
+              <button
+                v-for="buyer in displayedBuyers"
+                :key="buyer.id"
+                type="button"
+                class="group border p-4 text-left transition-all duration-150"
+                :class="
+                  selectedBuyerId === buyer.id
+                    ? [
+                        'border-[#19352c]',
+                        'bg-[#f6fbf8]',
+                        'shadow-[0_12px_28px_rgba(25,53,44,0.08)]',
+                      ]
+                    : [
+                        'border-gray-200',
+                        'bg-white',
+                        'hover:-translate-y-[1px]',
+                        'hover:border-[#cfd9d4]',
+                        'hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)]',
+                      ]
+                "
+                @click="handleSelectBuyer(buyer.id)"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <p class="truncate text-[12px] font-black tracking-[0.08em] text-gray-400">
+                      {{ buyer.code }}
+                    </p>
+                    <h3 class="mt-2 text-base font-black text-gray-900">{{ buyer.companyName }}</h3>
+                    <span
+                      class="mt-2 inline-flex px-2.5 py-1 text-[10px] font-black"
+                      :class="partnerTypeBadgeClass(buyer.partnerType)"
+                    >
+                      {{ buyerStore.partnerTypeLabel(buyer.partnerType) }}
+                    </span>
+                  </div>
+                  <span
+                    class="shrink-0 px-2.5 py-1 text-[10px] font-black"
+                    :class="materialFitBadgeClass(buyer.primaryMaterialFit)"
+                  >
+                    {{ buyerStore.materialFitLabel(buyer.primaryMaterialFit) }}
+                  </span>
                 </div>
-                <span
-                  class="shrink-0 px-2.5 py-1 text-[10px] font-black"
-                  :class="materialFitBadgeClass(buyer.primaryMaterialFit)"
-                >
-                  {{ buyerStore.materialFitLabel(buyer.primaryMaterialFit) }}
-                </span>
+
+                <p class="mt-3 text-[12px] font-bold text-gray-600">{{ buyer.industryGroup }}</p>
+                <p class="mt-2 line-clamp-2 text-[12px] font-bold leading-5 text-gray-500">
+                  {{ buyer.description }}
+                </p>
+
+                <div class="mt-4 flex flex-wrap gap-2">
+                  <span
+                    v-for="product in buyer.factoryProduct.slice(0, 3)"
+                    :key="product"
+                    class="rounded-full bg-[#f3f5f3] px-2.5 py-1 text-[10px] font-black text-gray-600"
+                  >
+                    {{ product }}
+                  </span>
+                  <span
+                    v-if="buyer.factoryProduct.length > 3"
+                    class="rounded-full bg-[#f3f5f3] px-2.5 py-1 text-[10px] font-black text-gray-500"
+                  >
+                    +{{ buyer.factoryProduct.length - 3 }}
+                  </span>
+                </div>
+              </button>
+
+              <div
+                v-if="displayedBuyers.length === 0"
+                class="border border-dashed border-gray-200 bg-[#fafaf8] px-6 py-16 text-center md:col-span-2"
+              >
+                <p class="text-sm font-black text-gray-900">조건에 맞는 거래처가 없습니다.</p>
+                <p class="mt-2 text-xs font-bold text-gray-400">
+                  검색어를 바꾸거나 새 거래처를 등록해보세요.
+                </p>
               </div>
-
-              <p class="mt-3 text-[12px] font-bold text-gray-600">{{ buyer.industryGroup }}</p>
-              <p class="mt-2 line-clamp-2 text-[12px] font-bold leading-5 text-gray-500">
-                {{ buyer.description }}
-              </p>
-
-              <div class="mt-4 flex flex-wrap gap-2">
-                <span
-                  v-for="product in buyer.productTypes.slice(0, 3)"
-                  :key="product"
-                  class="rounded-full bg-[#f3f5f3] px-2.5 py-1 text-[10px] font-black text-gray-600"
-                >
-                  {{ product }}
-                </span>
-                <span
-                  v-if="buyer.productTypes.length > 3"
-                  class="rounded-full bg-[#f3f5f3] px-2.5 py-1 text-[10px] font-black text-gray-500"
-                >
-                  +{{ buyer.productTypes.length - 3 }}
-                </span>
-              </div>
-
-              <div class="mt-5 flex items-center justify-between text-[11px]">
-                <span class="font-bold text-gray-500">{{ buyer.managerName }}</span>
-                <span class="font-black text-gray-700">{{ buyer.phone }}</span>
-              </div>
-            </button>
-
-            <div
-              v-if="displayedBuyers.length === 0"
-              class="border border-dashed border-gray-200 bg-[#fafaf8] px-6 py-16 text-center md:col-span-2"
-            >
-              <p class="text-sm font-black text-gray-900">조건에 맞는 거래처가 없습니다.</p>
-              <p class="mt-2 text-xs font-bold text-gray-400">
-                검색어를 바꾸거나 새 거래처를 등록해보세요.
-              </p>
             </div>
+            <PaginationNav
+              :page="buyerStore.page"
+              :size="buyerStore.size"
+              :total-pages="buyerStore.totalPages"
+              :total-elements="buyerStore.totalElements"
+              :has-previous="buyerStore.hasPrevious"
+              :has-next="buyerStore.hasNext"
+              @update:page="fetchBuyerPage({ page: $event })"
+              @update:size="fetchBuyerPage({ page: 0, size: $event })"
+            />
           </div>
 
           <div v-else class="p-5">
@@ -453,6 +487,16 @@ function partnerTypeBadgeClass(value) {
                 </tbody>
               </table>
             </div>
+            <PaginationNav
+              :page="buyerStore.page"
+              :size="buyerStore.size"
+              :total-pages="buyerStore.totalPages"
+              :total-elements="buyerStore.totalElements"
+              :has-previous="buyerStore.hasPrevious"
+              :has-next="buyerStore.hasNext"
+              @update:page="fetchBuyerPage({ page: $event })"
+              @update:size="fetchBuyerPage({ page: 0, size: $event })"
+            />
           </div>
         </section>
 
@@ -529,14 +573,14 @@ function partnerTypeBadgeClass(value) {
                   </p>
                   <div class="flex flex-wrap gap-2">
                     <span
-                      v-for="product in selectedBuyer.productTypes"
+                      v-for="product in selectedBuyer.factoryProduct"
                       :key="product"
                       class="bg-[#f3f5f3] px-2.5 py-1 text-[10px] font-black text-gray-700"
                     >
                       {{ product }}
                     </span>
                     <span
-                      v-if="selectedBuyer.productTypes.length === 0"
+                      v-if="selectedBuyer.factoryProduct.length === 0"
                       class="text-xs font-bold text-gray-400"
                     >
                       등록된 생산품 정보가 없습니다.
@@ -555,10 +599,10 @@ function partnerTypeBadgeClass(value) {
               </div>
 
               <div class="flex flex-col gap-2">
-                <p class="text-[11px] font-black tracking-[0.12em] text-gray-400">생산품 메모</p>
+                <p class="text-[11px] font-black tracking-[0.12em] text-gray-400">주소</p>
                 <div class="border border-[#ecefed] bg-[#fafaf8] px-4 py-3">
                   <p class="text-sm font-bold leading-6 text-gray-700">
-                    {{ selectedBuyer.productNote || '메모 없음' }}
+                    {{ selectedBuyer.address || '주소 없음' }}
                   </p>
                 </div>
               </div>
@@ -580,38 +624,43 @@ function partnerTypeBadgeClass(value) {
                   }}</span>
                 </label>
 
-                <label v-if="panelMode === 'edit' && selectedBuyer" class="flex flex-col gap-1.5">
-                  <span class="text-[11px] font-bold text-gray-500">거래처 코드</span>
-                  <input
-                    :value="selectedBuyer.code"
-                    type="text"
-                    disabled
-                    class="h-11 cursor-not-allowed border border-gray-200 bg-gray-100 px-3 text-sm font-bold text-gray-500 outline-none"
-                  />
-                </label>
+                <div class="flex flex-col gap-4">
+                  <label class="flex flex-col gap-1.5">
+                    <span class="text-[11px] font-bold text-gray-500">산업군</span>
+                    <select
+                      v-model="form.industryGroup"
+                      class="h-11 border border-gray-300 bg-[#fafaf8] px-3 text-sm font-bold text-gray-900 outline-none focus:border-[#19352c] focus:bg-white"
+                    >
+                      <option value="">산업군 선택</option>
+                      <option
+                        v-for="industry in buyerStore.INDUSTRY_GROUP_OPTIONS"
+                        :key="industry"
+                        :value="industry"
+                      >
+                        {{ industry }}
+                      </option>
+                    </select>
+                    <span v-if="errors.industryGroup" class="text-[11px] font-bold text-red-500">{{
+                      errors.industryGroup
+                    }}</span>
+                  </label>
+
+                  <label
+                    v-if="panelMode === 'edit' && selectedBuyer"
+                    class="flex flex-col gap-1.5"
+                  >
+                    <span class="text-[11px] font-bold text-gray-500">거래처 코드</span>
+                    <input
+                      :value="selectedBuyer.code"
+                      type="text"
+                      disabled
+                      class="h-11 cursor-not-allowed border border-gray-200 bg-gray-100 px-3 text-sm font-bold text-gray-500 outline-none"
+                    />
+                  </label>
+                </div>
               </section>
 
               <section class="grid gap-4 md:grid-cols-2">
-                <label class="flex flex-col gap-1.5">
-                  <span class="text-[11px] font-bold text-gray-500">산업군</span>
-                  <select
-                    v-model="form.industryGroup"
-                    class="h-11 border border-gray-300 bg-[#fafaf8] px-3 text-sm font-bold text-gray-900 outline-none focus:border-[#19352c] focus:bg-white"
-                  >
-                    <option value="">산업군 선택</option>
-                    <option
-                      v-for="industry in buyerStore.INDUSTRY_GROUP_OPTIONS"
-                      :key="industry"
-                      :value="industry"
-                    >
-                      {{ industry }}
-                    </option>
-                  </select>
-                  <span v-if="errors.industryGroup" class="text-[11px] font-bold text-red-500">{{
-                    errors.industryGroup
-                  }}</span>
-                </label>
-
                 <label class="flex flex-col gap-1.5">
                   <span class="text-[11px] font-bold text-gray-500">대표 소재 적합도</span>
                   <select
@@ -633,9 +682,7 @@ function partnerTypeBadgeClass(value) {
                     >{{ errors.primaryMaterialFit }}</span
                   >
                 </label>
-              </section>
 
-              <section class="grid gap-4 md:grid-cols-2">
                 <label class="flex flex-col gap-1.5">
                   <span class="text-[11px] font-bold text-gray-500">파트너 유형</span>
                   <select
@@ -676,7 +723,7 @@ function partnerTypeBadgeClass(value) {
                 </div>
                 <div class="flex flex-wrap gap-2">
                   <button
-                    v-for="product in form.productTypes"
+                    v-for="product in form.factoryProduct"
                     :key="product"
                     type="button"
                     class="inline-flex items-center gap-2 rounded-full bg-[#f4faf7] px-3 py-1.5 text-[11px] font-black text-[#19352c]"
@@ -686,7 +733,7 @@ function partnerTypeBadgeClass(value) {
                     <span class="text-[10px]">X</span>
                   </button>
                   <span
-                    v-if="form.productTypes.length === 0"
+                    v-if="form.factoryProduct.length === 0"
                     class="text-[11px] font-bold text-gray-400"
                   >
                     아직 추가된 키워드가 없습니다.
@@ -695,13 +742,16 @@ function partnerTypeBadgeClass(value) {
               </div>
 
               <label class="flex flex-col gap-1.5">
-                <span class="text-[11px] font-bold text-gray-500">생산품 메모</span>
+                <span class="text-[11px] font-bold text-gray-500">주소</span>
                 <textarea
-                  v-model="form.productNote"
+                  v-model="form.address"
                   rows="4"
                   class="border border-gray-300 bg-[#fafaf8] px-3 py-3 text-sm font-bold text-gray-900 outline-none focus:border-[#19352c] focus:bg-white"
-                  placeholder="주요 생산 방식, 주력 생산품, 사용 방향 등을 메모해두세요."
+                  placeholder="거래처 주소를 입력하세요."
                 />
+                <span v-if="errors.address" class="text-[11px] font-bold text-red-500">{{
+                  errors.address
+                }}</span>
               </label>
 
               <label class="flex flex-col gap-1.5">

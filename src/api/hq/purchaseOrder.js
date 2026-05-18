@@ -9,6 +9,8 @@
  *   POST   /api/hq/purchase-orders/{code}/complete                   (SHIPPING → COMPLETED, 창고 WHS-007)
  *   POST   /api/hq/purchase-orders/{code}/cancel                     (CEN-038 PENDING → REJECTED, with cancelReason)
  *   POST   /api/hq/purchase-orders/batch/run                         (SYS-001 강제 트리거, 시연·QA용)
+ *   GET    /api/hq/purchase-orders/catalog?...&page&size&sort        (새 발주 카탈로그 페이지)
+ *   GET    /api/hq/purchase-orders/catalog/facets?vendorCode=&keyword= (색상/사이즈 facet)
  *
  * SYS-001 자동화: PENDING → APPROVED, APPROVED → SHIPPING 두 단계는 5분 주기 배치가
  *   30분 경과한 발주를 자동 전환. 본사는 작성·취소만, 단건 수동 트리거 엔드포인트 없음.
@@ -44,6 +46,15 @@ export const purchaseOrderApi = {
   create: (req) => apiClient.post(BASE, req).then(unwrap),
 
   /**
+   * 멀티 공급처 장바구니 → 공급처별 자동 분할 발주 N건 생성 (atomic).
+   * BE 가 vendorProductCode → Vendor 자동 매핑으로 vendor 그룹핑 → 단일 트랜잭션 안에 PO N건 생성.
+   * 1건이라도 실패하면 N건 모두 롤백, FE 카트는 보존.
+   * @param {{warehouseCode, memberId?, memberName?, items: [{vendorProductCode, skuCode, quantity}]}} req
+   * @returns {Promise<{orders: object[], vendorCount: number, itemCount: number, totalAmount: number}>}
+   */
+  createBatch: (req) => apiClient.post(`${BASE}/batch`, req).then(unwrap),
+
+  /**
    * 수정 (CEN-037, PENDING 만)
    * @param {string} code
    * @param {{warehouseId?, warehouseName?, items: [{vendorProductCode, quantity}]}} req
@@ -55,8 +66,9 @@ export const purchaseOrderApi = {
 
   /**
    * SYS-001 강제 트리거 — 시연·QA·장애 대응용.
-   * 30분 대기 조건을 무시하고 PENDING/APPROVED 모두 즉시 다음 단계로 자동 전환.
-   * @returns {Promise<{approved: number, shipping: number}>}
+   * 시간 조건(wait-minutes) 무시하고 거래처 책임 4단계(REQUESTED/APPROVED/READY_TO_SHIP/IN_TRANSIT)
+   * 모두 즉시 다음 단계로 자동 전환.
+   * @returns {Promise<{approved: number, readyToShip: number, inTransit: number, arrived: number}>}
    */
   runBatch: () => apiClient.post(`${BASE}/batch/run`).then(unwrap),
 
@@ -69,21 +81,39 @@ export const purchaseOrderApi = {
     apiClient.post(`${BASE}/${code}/cancel`, { cancelReason }).then(unwrap),
 
   /**
-   * 새 발주 페이지 카탈로그 — vendor_product → ProductMaster → ProductSku 묶음 응답.
-   * GET /api/hq/purchase-orders/catalog?vendorCode=&warehouseId=
+   * 새 발주 페이지 카탈로그 — BE Page<SkuRowRes> 평탄 row.
+   * GET /api/hq/purchase-orders/catalog?page&size&sort&vendorCode&keyword&color&skuSize&shortageOnly&warehouseId
    *
-   * vendorCode 미지정: 모든 ACTIVE 공급처 펼침. 지정 시 그 공급처만.
-   * warehouseCode 는 본 사이클 BE 가 사용하지 않음 (인벤토리 합류 후 stock 필터링용).
-   * 응답: { masters: [{ vendorCode, vendorName, vendorProductCode, productCode, productName,
-   *                     contractUnitPrice, minSkuUnitPrice, maxSkuUnitPrice,
-   *                     skus: [{ skuCode, color, size, displayOption, unitPrice }] }],
-   *         optionFacets: [{ name, values: [string] }] }
+   * 응답: Page<{ vendorCode, vendorName, vendorProductCode, productCode, productName,
+   *              skuCode, color, size, displayOption, unitPrice, contractUnitPrice, availableQty }>
+   *
+   * @param {{page?, size?, sort?, vendorCode?, keyword?, color?, skuSize?, shortageOnly?, warehouseId?}} params
+   *   - sort: "vendorName,asc" / "productName,asc" / "unitPrice,asc|desc" / "availableQty,asc" / "id,asc"
+   *   - SKU 사이즈 필터 키는 page size 와 충돌 회피 위해 caller/server 모두 `skuSize`.
    */
-  getCatalog: ({ vendorCode = '', warehouseCode = '' } = {}) => {
+  getCatalog: (params = {}) => {
+    const query = {}
+    if (params.page !== undefined && params.page !== null) query.page = params.page
+    if (params.size !== undefined && params.size !== null) query.size = params.size
+    if (params.sort) query.sort = params.sort
+    if (params.vendorCode) query.vendorCode = params.vendorCode
+    if (params.keyword) query.keyword = params.keyword
+    if (params.color) query.color = params.color
+    if (params.skuSize) query.skuSize = params.skuSize
+    if (params.shortageOnly) query.shortageOnly = params.shortageOnly
+    if (params.warehouseId) query.warehouseId = params.warehouseId
+    return apiClient.get(`${BASE}/catalog`, { params: query }).then(unwrap)
+  },
+
+  /**
+   * 새 발주 카탈로그 facet — 같은 필터 조건의 색상/사이즈 distinct 옵션.
+   * GET /api/hq/purchase-orders/catalog/facets?vendorCode=&keyword=
+   * 응답: { colors: [string], sizes: [string] }
+   */
+  getCatalogFacets: ({ vendorCode = '', keyword = '' } = {}) => {
     const query = {}
     if (vendorCode) query.vendorCode = vendorCode
-    // warehouseCode 는 BE 가 warehouseId(Long) 로 받지만 본 사이클은 placeholder — 보내지 않음
-    void warehouseCode
-    return apiClient.get(`${BASE}/catalog`, { params: query }).then(unwrap)
+    if (keyword) query.keyword = keyword
+    return apiClient.get(`${BASE}/catalog/facets`, { params: query }).then(unwrap)
   },
 }

@@ -41,10 +41,9 @@ const COLOR_OPTIONS = [
   { code: 'BLK', label: '검정' },
   { code: 'WHT', label: '흰색' },
   { code: 'NVY', label: '네이비' },
-  { code: 'GRY', label: '그레이' },
 ]
 const COLOR_LABEL_BY_CODE = Object.fromEntries(COLOR_OPTIONS.map((color) => [color.code, color.label]))
-const SIZE_OPTIONS = ['XS', 'S', 'M', 'L', 'XL']
+const SIZE_OPTIONS = ['S', 'M', 'L']
 const MATERIAL_TYPE_OPTIONS = [
   { label: '천연 단일 섬유', value: 'NATURAL_SINGLE' },
   { label: '합성 섬유', value: 'SYNTHETIC' },
@@ -234,8 +233,18 @@ function removeBlendComposition(index) {
 async function loadSkus() {
   if (!isEditMode.value) return
   currentSkus.value = await getProductSkus(productCode.value)
-  selectedColors.value = [...new Set(currentSkus.value.map((s) => s.color).filter(Boolean))]
-  selectedSizes.value = [...new Set(currentSkus.value.map((s) => s.size).filter(Boolean))]
+  const allowedColorCodes = new Set(COLOR_OPTIONS.map((color) => color.code))
+  const allowedSizes = new Set(SIZE_OPTIONS)
+  selectedColors.value = [...new Set(
+    currentSkus.value
+      .map((s) => s.color)
+      .filter((color) => color && allowedColorCodes.has(color)),
+  )]
+  selectedSizes.value = [...new Set(
+    currentSkus.value
+      .map((s) => s.size)
+      .filter((size) => size && allowedSizes.has(size)),
+  )]
 }
 
 async function toggleColor(color) {

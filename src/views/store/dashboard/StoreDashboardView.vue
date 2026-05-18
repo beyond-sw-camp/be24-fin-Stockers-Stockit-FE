@@ -1,277 +1,422 @@
-<script setup>
-import { computed, ref } from 'vue'
+﻿<script setup>
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
+import LineChart from '@/components/common/charts/LineChart.vue'
+import { getStoreInventories } from '@/api/store/inventory.js'
+import { getStoreOrders } from '@/api/store/orders.js'
+import { getSales } from '@/api/store/sales.js'
+import { getStoreInboundList } from '@/api/store/inbound.js'
+
 const router = useRouter()
-const auth = useAuthStore()
 const storeMenus = roleMenus.store
-const sideMenus = roleMenus.store.find((menu) => menu.label === '대시보드')?.children ?? []
-const activeSideMenu = ref('대시보드')
+const activeTopMenu = computed(() => '매장 대시보드')
 
-const kpiStats = [
-  { label: '오늘 매출', value: '4,821,500', unit: '원', change: '+12.3%', status: 'up' },
-  { label: '오늘 판매량', value: '138', unit: '건', change: '+8건', status: 'up' },
-  { label: '재고 품목 수', value: '312', unit: '품목', change: '-5', status: 'down' },
-  { label: '입고 예정', value: '4', unit: '건', change: '내일 2건 포함', status: 'neutral' },
-  { label: '발주 건수', value: '9', unit: '건', change: '이번 주 총계', status: 'neutral' },
-  { label: '처리 중 발주', value: '3', unit: '건', change: '승인대기 1건', status: 'neutral' },
+const loading = ref(false)
+const inventoryError = ref(false)
+const salesError = ref(false)
+const dailySalesError = ref(false)
+const storeOrdersError = ref(false)
+
+const inventories = ref([])
+const todaySalesAmount = ref(0)
+const todaySalesCount = ref(0)
+
+// 발주 현황 (입고 현황 패턴 — 2 카드)
+const storeOrderSummary = ref({ pending: 0, todayRequested: 0 })
+
+// 입고 현황 (PENDING_RECEIPT / RECEIVED 카운트)
+const inboundStatus = ref({ pending: 0, receivedToday: 0 })
+const inboundError = ref(false)
+
+// 일별 매출 추이 (최근 7일)
+const dailySales = ref([]) // [{ date: 'MM/DD', amount: number }, ...]
+
+// 매장 발주 상태별 카운트
+const STORE_ORDER_STATUS_META = [
+  { code: 'REQUESTED', label: '승인 대기', barCls: 'bg-amber-500' },
+  { code: 'APPROVED',  label: '승인 완료', barCls: 'bg-sky-500' },
+  { code: 'COMPLETED', label: '입고 완료', barCls: 'bg-emerald-500' },
+  { code: 'CANCELLED', label: '취소',     barCls: 'bg-gray-400' },
 ]
-
-const chartHeights = [48, 63, 55, 72, 58, 85, 78]
-
-const recentSales = [
-  { id: 'S-041', item: '오버사이즈 코튼 티셔츠 (화이트 / M)', qty: 2, price: 59800, status: '완료', time: '16:52:10' },
-  { id: 'S-040', item: '슬림 데님 팬츠 (인디고 / 30)', qty: 1, price: 89000, status: '완료', time: '16:44:33' },
-  { id: 'S-039', item: '린넨 블렌드 셔츠 (베이지 / L)', qty: 1, price: 72000, status: '완료', time: '16:31:05' },
-  { id: 'S-038', item: '울 혼방 니트 가디건 (네이비 / S)', qty: 1, price: 118000, status: '완료', time: '16:18:47' },
-  { id: 'S-037', item: '코튼 캔버스 토트백 (블랙)', qty: 3, price: 54000, status: '완료', time: '15:55:20' },
-]
-
-const stockAlerts = [
-  { item: '슬림 데님 팬츠 — 28사이즈', stock: 2, threshold: 10, level: 'danger' },
-  { item: '오버사이즈 코튼 티셔츠 — XS', stock: 5, threshold: 15, level: 'warning' },
-  { item: '울 혼방 니트 가디건 — M', stock: 8, threshold: 20, level: 'warning' },
-]
-
-const orderStatuses = [
-  { id: 'PO-2024-091', item: '오버사이즈 코튼 티셔츠 (S/M/L 각 30장)', qty: 90, status: '승인완료', date: '2024-04-16' },
-  { id: 'PO-2024-090', item: '슬림 데님 팬츠 (28~34 혼합)', qty: 60, status: '입고대기', date: '2024-04-15' },
-  { id: 'PO-2024-089', item: '린넨 블렌드 셔츠 (화이트/베이지 각 20장)', qty: 40, status: '검수중', date: '2024-04-15' },
-]
-
-const dateLabel = computed(() =>
-  new Intl.DateTimeFormat('ko-KR', {
-    year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(new Date()),
+const storeOrderStatusBreakdown = ref([])
+const maxStoreOrderStatusCount = computed(() =>
+  Math.max(...storeOrderStatusBreakdown.value.map((s) => s.count), 1),
 )
+const storeOrderBarWidth = (count) =>
+  Math.max(2, Math.round((count / maxStoreOrderStatusCount.value) * 100))
 
 
+const safeInventories = computed(() => (Array.isArray(inventories.value) ? inventories.value : []))
+const totalItems = computed(() => safeInventories.value.length)
+const lowStockCount = computed(() => safeInventories.value.filter((row) => Number(row.availableStock ?? 0) > 0 && Number(row.availableStock ?? 0) <= Number(row.safetyStock ?? 0)).length)
+const outOfStockCount = computed(() => safeInventories.value.filter((row) => Number(row.availableStock ?? 0) <= 0).length)
+const riskItems = computed(() => safeInventories.value.filter((row) => Number(row.availableStock ?? 0) <= Number(row.safetyStock ?? 0)))
+
+// 재고 리스크 미니 리스트 — 품절 우선, 그 다음 부족(부족분 큰 순) — TOP 6
+const topRiskItems = computed(() =>
+  [...riskItems.value]
+    .map((row) => {
+      const available = Number(row.availableStock ?? 0)
+      const safety = Number(row.safetyStock ?? 0)
+      const isOutOfStock = available <= 0
+      return {
+        ...row,
+        available,
+        safety,
+        gap: Math.max(0, safety - available),
+        urgency: isOutOfStock ? 0 : 1,
+        statusLabel: isOutOfStock ? '품절' : '부족',
+      }
+    })
+    .sort((a, b) => a.urgency - b.urgency || b.gap - a.gap)
+    .slice(0, 6),
+)
+const riskRatio = computed(() => {
+  if (!totalItems.value) return 0
+  return Math.round((riskItems.value.length / totalItems.value) * 1000) / 10
+})
+
+const statusDistribution = computed(() => {
+  const normal = safeInventories.value.filter((row) => Number(row.availableStock ?? 0) > Number(row.safetyStock ?? 0)).length
+  const low = lowStockCount.value
+  const out = outOfStockCount.value
+  const sum = Math.max(normal + low + out, 1)
+  return [
+    { label: '정상', count: normal, ratio: Math.round((normal / sum) * 100) },
+    { label: '부족', count: low, ratio: Math.round((low / sum) * 100) },
+    { label: '품절', count: out, ratio: Math.round((out / sum) * 100) },
+  ]
+})
+
+function statusClass(status) {
+  if (status === '품절') return 'bg-red-50 text-red-700'
+  if (status === '부족') return 'bg-amber-50 text-amber-700'
+  return 'bg-emerald-50 text-emerald-700'
+}
+
+function todayDateStr() {
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+function dateStr(d) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+// 일별 매출 추이 차트 데이터
+const dailySalesChartData = computed(() => ({
+  labels: dailySales.value.map((p) => p.date),
+  datasets: [
+    {
+      label: '매출',
+      data: dailySales.value.map((p) => p.amount),
+      borderColor: '#0E7A60',
+      backgroundColor: 'rgba(14, 122, 96, 0.12)',
+      borderWidth: 2,
+      pointRadius: 3,
+      pointHoverRadius: 5,
+      pointBackgroundColor: '#fff',
+      pointBorderColor: '#0E7A60',
+      pointBorderWidth: 2,
+      tension: 0.35,
+      fill: true,
+    },
+  ],
+}))
+const dailySalesChartOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: 'rgba(17, 24, 39, 0.95)',
+      titleColor: '#6ee7b7',
+      bodyColor: '#fff',
+      padding: 10,
+      cornerRadius: 6,
+      displayColors: false,
+      callbacks: { label: (ctx) => `₩${Number(ctx.parsed.y).toLocaleString()}` },
+    },
+  },
+  scales: {
+    x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+    y: {
+      beginAtZero: true,
+      grid: { color: '#f3f4f6' },
+      ticks: { font: { size: 10 }, callback: (v) => `₩${Number(v).toLocaleString()}` },
+    },
+  },
+  interaction: { mode: 'index', intersect: false },
+}
+
+async function fetchStats() {
+  loading.value = true
+  inventoryError.value = false
+  salesError.value = false
+
+  try {
+    const inventoryRes = await getStoreInventories()
+    inventories.value = Array.isArray(inventoryRes) ? inventoryRes : []
+  } catch {
+    inventories.value = []
+    inventoryError.value = true
+  }
+
+  try {
+    const today = todayDateStr()
+    const salesList = await getSales({ from: today, to: today })
+    const list = Array.isArray(salesList) ? salesList : []
+    todaySalesAmount.value = list.reduce((sum, s) => sum + Number(s?.totalAmount ?? 0), 0)
+    todaySalesCount.value = list.length
+  } catch {
+    todaySalesAmount.value = 0
+    todaySalesCount.value = 0
+    salesError.value = true
+  }
+
+  // 일별 매출 추이 (최근 7일) + 베스트셀러 TOP 5
+  try {
+    const now = new Date()
+    const from = new Date(now)
+    from.setDate(from.getDate() - 6)
+    const salesList = await getSales({ from: dateStr(from), to: dateStr(now) })
+    const list = Array.isArray(salesList) ? salesList : []
+
+    const bucket = {}
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(from)
+      d.setDate(from.getDate() + i)
+      const key = dateStr(d)
+      const mm = String(d.getMonth() + 1).padStart(2, '0')
+      const dd = String(d.getDate()).padStart(2, '0')
+      bucket[key] = { date: `${mm}/${dd}`, amount: 0 }
+    }
+    for (const sale of list) {
+      const soldAt = sale?.soldAt ? new Date(sale.soldAt) : null
+      if (soldAt && !Number.isNaN(soldAt.getTime())) {
+        const key = dateStr(soldAt)
+        if (bucket[key]) bucket[key].amount += Number(sale?.totalAmount ?? 0)
+      }
+    }
+    dailySales.value = Object.keys(bucket)
+      .sort()
+      .map((k) => bucket[k])
+  } catch {
+    dailySales.value = []
+    dailySalesError.value = true
+  }
+
+  // 입고 현황
+  try {
+    const inbList = await getStoreInboundList()
+    const list = Array.isArray(inbList) ? inbList : []
+    const today = todayDateStr()
+    let pending = 0
+    let receivedToday = 0
+    for (const row of list) {
+      const status = String(row?.status || '').toUpperCase()
+      if (status === 'PENDING_RECEIPT') pending++
+      else if (status === 'RECEIVED') {
+        const confirmedAt = row?.confirmedAt || row?.updatedAt || row?.receivedAt
+        if (confirmedAt && String(confirmedAt).startsWith(today)) receivedToday++
+      }
+    }
+    inboundStatus.value = { pending, receivedToday }
+  } catch {
+    inboundStatus.value = { pending: 0, receivedToday: 0 }
+    inboundError.value = true
+  }
+
+  // 매장 발주 상태별 카운트 + 발주 현황 요약
+  try {
+    const orders = await getStoreOrders()
+    const list = Array.isArray(orders) ? orders : []
+    const map = {}
+    const today = todayDateStr()
+    let todayRequested = 0
+    for (const o of list) {
+      const code = String(o?.status || '').toUpperCase()
+      map[code] = (map[code] || 0) + 1
+      const reqAt = String(o?.requestedAt || '').slice(0, 10)
+      if (reqAt === today) todayRequested++
+    }
+    storeOrderStatusBreakdown.value = STORE_ORDER_STATUS_META.map((s) => ({
+      ...s,
+      count: map[s.code] || 0,
+    }))
+    storeOrderSummary.value = {
+      pending: map.REQUESTED || 0,
+      todayRequested,
+    }
+  } catch {
+    storeOrderStatusBreakdown.value = STORE_ORDER_STATUS_META.map((s) => ({ ...s, count: 0 }))
+    storeOrderSummary.value = { pending: 0, todayRequested: 0 }
+    storeOrdersError.value = true
+  }
+
+  loading.value = false
+}
+
+onMounted(fetchStats)
 </script>
 
 <template>
   <AppLayout
-    active-top-menu="대시보드"
+    :active-top-menu="activeTopMenu"
     :top-menus="storeMenus"
-    :side-menus="sideMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
   >
-    <div class="flex flex-col gap-3">
-
-      <!-- 헤더 -->
-      <section class="flex flex-wrap items-center justify-between gap-3 border border-gray-300 bg-white px-3 py-2.5 shadow-sm">
-        <div class="flex items-center gap-3">
-          <h2 class="inline-flex items-center gap-2 text-[15px] font-semibold text-gray-900">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="14" width="7" height="7"/>
-            </svg>
-            대시보드
-          </h2>
-          <div class="flex gap-2">
-            <span class="border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] font-medium text-gray-500">기준: {{ dateLabel }}</span>
-            <span class="inline-flex items-center gap-1 border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              실시간
-            </span>
-          </div>
-        </div>
+    <div class="flex flex-col gap-4">
+      <section class="border border-gray-300 bg-white p-4 shadow-sm">
+        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Store Operation Dashboard</p>
+        <h1 class="mt-1 text-lg font-black text-gray-900">매장 대시보드</h1>
+        <p class="mt-1 text-xs font-bold text-gray-500">금일 매출, 재고 위험, 발주 진행 현황을 한 화면에서 확인합니다.</p>
       </section>
 
-      <!-- KPI 카드 -->
-      <section class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <article
-          v-for="stat in kpiStats"
-          :key="stat.label"
-          class="flex h-[80px] flex-col justify-between border border-gray-300 bg-white px-3 py-3 shadow-sm"
-        >
-          <p class="text-[11px] font-medium leading-tight text-gray-500">{{ stat.label }}</p>
-          <div class="flex items-end justify-between gap-1">
-            <div class="min-w-0 leading-none">
-              <span class="text-[20px] font-bold tracking-tight text-gray-950">{{ stat.value }}</span>
-              <span v-if="stat.unit" class="ml-0.5 text-[11px] text-gray-400">{{ stat.unit }}</span>
-            </div>
-            <span
-              class="shrink-0 text-[11px] font-bold"
-              :class="{
-                'text-emerald-600': stat.status === 'up',
-                'text-red-600': stat.status === 'down',
-                'text-gray-400': stat.status === 'neutral',
-              }"
-            >{{ stat.change }}</span>
-          </div>
-        </article>
+      <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <article class="border border-gray-300 bg-white p-3 shadow-sm"><p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">금일 매출</p><p class="mt-2 text-2xl font-black text-gray-900">₩{{ todaySalesAmount.toLocaleString() }}</p><p v-if="salesError" class="mt-1 text-[10px] font-bold text-red-500">불러오기 실패</p></article>
+        <article class="border border-gray-300 bg-white p-3 shadow-sm"><p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">금일 판매 건수</p><p class="mt-2 text-2xl font-black text-gray-900">{{ todaySalesCount.toLocaleString() }}<span class="ml-1 text-sm font-black text-gray-400">건</span></p></article>
+        <article class="border border-gray-300 bg-white p-3 shadow-sm"><p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">품절 SKU 수</p><p class="mt-2 text-2xl font-black text-red-700">{{ outOfStockCount.toLocaleString() }}<span class="ml-1 text-sm font-black text-gray-400">개</span></p><p class="mt-1 text-[10px] font-bold text-gray-400">가용 재고 0 이하</p></article>
+        <article class="border border-gray-300 bg-white p-3 shadow-sm"><p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">부족 SKU 수</p><p class="mt-2 text-2xl font-black text-amber-700">{{ lowStockCount.toLocaleString() }}<span class="ml-1 text-sm font-black text-gray-400">개</span></p><p class="mt-1 text-[10px] font-bold text-gray-400">안전재고 이하 (0 초과)</p></article>
       </section>
 
-      <!-- 차트 + 재고 알림 -->
-      <section class="grid gap-3 xl:grid-cols-[minmax(0,3fr)_minmax(280px,1fr)]">
-
-        <!-- 판매 트렌드 차트 -->
-        <article class="border border-gray-300 bg-white shadow-sm">
-          <div class="flex items-center justify-between border-b border-gray-200 px-3 py-2.5">
-            <h3 class="flex items-center gap-2 text-sm font-medium text-gray-800">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M3 20h18M7 16V8M12 16V4M17 16v-6"/>
-              </svg>
-              일별 판매 트렌드
-            </h3>
-            <div class="flex gap-3 text-[10px] font-medium text-gray-400">
-              <span class="flex items-center gap-1"><i class="inline-block h-2 w-2 bg-[#004D3C]" />판매량</span>
-              <span class="flex items-center gap-1"><i class="inline-block h-2 w-2 bg-gray-200" />매출</span>
-            </div>
-          </div>
-          <div class="px-3 py-3">
-            <div class="flex gap-2">
-              <div class="flex h-[200px] w-8 shrink-0 flex-col justify-between pb-4 pt-2 text-right text-[10px] font-medium text-gray-400">
-                <span>100</span>
-                <span>75</span>
-                <span>50</span>
-                <span>25</span>
-                <span>0</span>
-              </div>
-              <div
-                class="flex flex-1 items-end border-b border-l border-gray-200"
-                style="height: 200px; padding: 10px 6px 16px 4px;"
-              >
-                <div
-                  v-for="(height, index) in chartHeights"
-                  :key="index"
-                  class="flex h-full flex-1 flex-col items-center justify-end gap-2"
-                >
-                  <div class="flex h-full w-full items-end justify-center gap-1">
-                    <div class="w-4 rounded-sm bg-[#004D3C]" :style="{ height: `${height}%` }" />
-                    <div class="w-4 rounded-sm bg-gray-200" :style="{ height: `${height * 0.65}%` }" />
-                  </div>
-                  <span class="text-[11px] font-medium text-gray-400">{{ 21 + index }}일</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </article>
-
-        <!-- 재고 부족 알림 -->
+      <section class="grid gap-3 xl:grid-cols-2">
         <article class="flex flex-col border border-gray-300 bg-white shadow-sm">
-          <div class="border-b border-gray-200 px-3 py-2.5">
-            <h3 class="flex items-center gap-2 text-sm font-medium text-gray-800">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-red-500" aria-hidden="true">
-                <circle cx="12" cy="12" r="10"/><path d="M12 8v5"/><path d="M12 16h.01"/>
-              </svg>
-              재고 부족 알림
-            </h3>
+          <div class="border-b border-gray-200 px-4 py-3">
+            <h2 class="text-sm font-black text-gray-900">일별 매출 추이</h2>
+            <p class="mt-0.5 text-[10px] text-gray-400">최근 7일 일별 매출 합계</p>
           </div>
-          <div class="flex-1 divide-y divide-gray-100">
-            <div
-              v-for="alert in stockAlerts"
-              :key="alert.item"
-              class="px-3 py-3"
-            >
-              <span class="block text-[13px] font-semibold text-gray-800">{{ alert.item }}</span>
-              <div class="mt-1.5 flex items-center gap-2">
-                <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-100">
-                  <div
-                    class="h-1.5 rounded-full transition-all"
-                    :class="alert.level === 'danger' ? 'bg-red-500' : 'bg-orange-400'"
-                    :style="{ width: `${Math.min((alert.stock / alert.threshold) * 100, 100)}%` }"
-                  />
-                </div>
-                <span
-                  class="shrink-0 text-[11px] font-bold"
-                  :class="alert.level === 'danger' ? 'text-red-600' : 'text-orange-500'"
-                >
-                  {{ alert.stock }} / {{ alert.threshold }}
-                </span>
+          <div class="flex-1 p-4" style="min-height: 220px;">
+            <LineChart :data="dailySalesChartData" :options="dailySalesChartOptions" />
+            <p v-if="dailySalesError" class="mt-2 text-xs font-bold text-red-500">매출 데이터를 불러오지 못해 0값으로 표시했습니다.</p>
+          </div>
+        </article>
+
+        <article class="flex flex-col border border-gray-300 bg-white shadow-sm">
+          <div class="border-b border-gray-200 px-4 py-3">
+            <h2 class="text-sm font-black text-gray-900">발주 상태별 진행</h2>
+            <p class="mt-0.5 text-[10px] text-gray-400">매장 → 본사 발주 단계별 건수</p>
+          </div>
+          <div class="flex flex-1 flex-col justify-center gap-3 px-4 py-4">
+            <div v-for="s in storeOrderStatusBreakdown" :key="s.code">
+              <div class="mb-1 flex items-center justify-between text-[11px]">
+                <span class="font-bold text-gray-600">{{ s.label }}</span>
+                <span class="font-black text-gray-900">{{ s.count }}건</span>
+              </div>
+              <div class="h-2 overflow-hidden rounded-full bg-gray-100">
+                <div :class="['h-full rounded-full', s.barCls]" :style="{ width: `${storeOrderBarWidth(s.count)}%` }"></div>
               </div>
             </div>
-            <div v-if="stockAlerts.length === 0" class="flex h-20 items-center justify-center">
-              <p class="text-[11px] text-gray-400">부족 재고 없음</p>
-            </div>
+            <p
+              v-if="!storeOrderStatusBreakdown.some((s) => s.count > 0)"
+              class="py-6 text-center text-[11px] font-bold text-gray-400"
+            >
+              발주 데이터가 없습니다.
+            </p>
+            <p v-if="storeOrdersError" class="text-xs font-bold text-red-500">발주 데이터를 불러오지 못해 0값으로 표시했습니다.</p>
           </div>
-          <button type="button" class="border-t border-gray-200 py-2.5 text-[12px] font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-800" @click="$router.push('/store/inventory')">
-            재고 관리 바로가기
-          </button>
         </article>
       </section>
 
-      <!-- 최근 판매 내역 -->
-      <section class="border border-gray-300 bg-white shadow-sm">
-        <div class="flex items-center justify-between border-b border-gray-200 px-3 py-2.5">
-          <div class="flex items-center gap-2">
-            <h3 class="text-sm font-medium text-gray-800">최근 판매 내역</h3>
-            <span class="bg-black px-1.5 py-0.5 text-[9px] font-bold text-white">LIVE</span>
+      <!-- 재고 리스크 (좌, 2행 span) + 입고 현황 (우상) + 발주 현황 (우하) -->
+      <section class="grid gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <article class="border border-gray-300 bg-white shadow-sm xl:row-span-2">
+          <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+            <h2 class="text-sm font-black text-gray-900">재고 리스크 목록</h2>
+            <button
+              type="button"
+              class="text-xs font-black text-[#0E7A60] hover:underline"
+              @click="router.push('/store/inventory')"
+            >
+              재고 조회 →
+            </button>
           </div>
-          <button type="button" class="text-xs font-semibold text-[#004D3C] hover:underline" @click="$router.push('/store/sales/register')">
-            POS 바로가기
-          </button>
-        </div>
-        <div class="overflow-auto">
-          <table class="w-full min-w-[640px] text-[13px]">
-            <thead class="bg-gray-50 text-[11px] uppercase text-gray-500">
-              <tr>
-                <th class="px-3 py-2.5 text-left font-bold">ID</th>
-                <th class="px-3 py-2.5 text-left font-bold">품목</th>
-                <th class="px-3 py-2.5 text-right font-bold">수량</th>
-                <th class="px-3 py-2.5 text-right font-bold">금액</th>
-                <th class="px-3 py-2.5 text-left font-bold">상태</th>
-                <th class="px-3 py-2.5 text-left font-bold">시각</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100 border-t border-gray-200">
-              <tr v-for="row in recentSales" :key="row.id" class="hover:bg-gray-50/50">
-                <td class="px-3 py-2.5 font-mono text-gray-400">{{ row.id }}</td>
-                <td class="px-3 py-2.5 font-semibold text-gray-800">{{ row.item }}</td>
-                <td class="px-3 py-2.5 text-right text-gray-700">{{ row.qty }}</td>
-                <td class="px-3 py-2.5 text-right font-bold text-gray-800">₩{{ row.price.toLocaleString() }}</td>
-                <td class="px-3 py-2.5">
-                  <span class="bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700">{{ row.status }}</span>
-                </td>
-                <td class="px-3 py-2.5 text-gray-400">{{ row.time }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+          <ul class="divide-y divide-gray-100">
+            <li
+              v-for="row in topRiskItems"
+              :key="row.itemCode"
+              class="flex items-center gap-3 px-4 py-2.5"
+            >
+              <span class="min-w-0 flex-1 truncate text-xs font-bold text-gray-900">{{ row.itemName }}</span>
+              <span class="shrink-0 font-mono text-[11px] font-black text-gray-600">{{ row.available }} / {{ row.safety }}</span>
+              <span
+                class="shrink-0 px-2 py-0.5 text-[10px] font-black"
+                :class="statusClass(row.statusLabel)"
+              >{{ row.statusLabel }}</span>
+            </li>
+            <li v-if="!topRiskItems.length" class="px-4 py-8 text-center text-xs font-bold text-gray-400">
+              안전재고 이하 SKU가 없습니다.
+            </li>
+          </ul>
+          <p
+            v-if="riskItems.length > topRiskItems.length"
+            class="border-t border-gray-100 px-4 py-2 text-center text-[11px] font-bold text-gray-400"
+          >
+            +{{ riskItems.length - topRiskItems.length }}건 더 — 전체는 재고 조회에서 확인
+          </p>
+        </article>
+
+        <article class="border border-gray-300 bg-white shadow-sm xl:self-start">
+          <div class="flex items-center justify-between border-b border-gray-200 px-4 py-2.5">
+            <h2 class="text-sm font-black text-gray-900">입고 현황</h2>
+            <button
+              type="button"
+              class="text-xs font-black text-[#0E7A60] hover:underline"
+              @click="router.push('/store/inbound/list')"
+            >
+              입고 관리 →
+            </button>
+          </div>
+          <div class="grid grid-cols-2 gap-2 p-3">
+            <div class="border border-amber-200 bg-amber-50 px-3 py-2">
+              <p class="text-[10px] font-black uppercase tracking-[0.12em] text-amber-700">입고 대기</p>
+              <p class="mt-1 text-xl font-black text-amber-900">{{ inboundStatus.pending.toLocaleString() }}<span class="ml-1 text-xs font-black text-amber-500">건</span></p>
+              <p class="mt-0.5 text-[10px] font-bold text-amber-600">확정 처리 필요</p>
+            </div>
+            <div class="border border-emerald-200 bg-emerald-50 px-3 py-2">
+              <p class="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700">오늘 확정</p>
+              <p class="mt-1 text-xl font-black text-emerald-900">{{ inboundStatus.receivedToday.toLocaleString() }}<span class="ml-1 text-xs font-black text-emerald-500">건</span></p>
+              <p class="mt-0.5 text-[10px] font-bold text-emerald-600">금일 입고 완료</p>
+            </div>
+          </div>
+          <p v-if="inboundError" class="px-3 pb-2 text-xs font-bold text-red-500">입고 데이터를 불러오지 못했습니다.</p>
+        </article>
+
+        <article class="border border-gray-300 bg-white shadow-sm xl:self-start">
+          <div class="flex items-center justify-between border-b border-gray-200 px-4 py-2.5">
+            <h2 class="text-sm font-black text-gray-900">발주 현황</h2>
+            <button
+              type="button"
+              class="text-xs font-black text-[#0E7A60] hover:underline"
+              @click="router.push('/store/orders/history')"
+            >
+              발주 내역 →
+            </button>
+          </div>
+          <div class="grid grid-cols-2 gap-2 p-3">
+            <div class="border border-amber-200 bg-amber-50 px-3 py-2">
+              <p class="text-[10px] font-black uppercase tracking-[0.12em] text-amber-700">승인 대기</p>
+              <p class="mt-1 text-xl font-black text-amber-900">{{ storeOrderSummary.pending.toLocaleString() }}<span class="ml-1 text-xs font-black text-amber-500">건</span></p>
+              <p class="mt-0.5 text-[10px] font-bold text-amber-600">본사 승인 대기 중</p>
+            </div>
+            <div class="border border-emerald-200 bg-emerald-50 px-3 py-2">
+              <p class="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700">오늘 발주</p>
+              <p class="mt-1 text-xl font-black text-emerald-900">{{ storeOrderSummary.todayRequested.toLocaleString() }}<span class="ml-1 text-xs font-black text-emerald-500">건</span></p>
+              <p class="mt-0.5 text-[10px] font-bold text-emerald-600">금일 신규 발주</p>
+            </div>
+          </div>
+          <p v-if="storeOrdersError" class="px-3 pb-2 text-xs font-bold text-red-500">발주 데이터를 불러오지 못했습니다.</p>
+        </article>
       </section>
 
-      <!-- 발주 현황 -->
-      <section class="border border-gray-300 bg-white shadow-sm">
-        <div class="flex items-center justify-between border-b border-gray-200 px-3 py-2.5">
-          <h3 class="text-sm font-medium text-gray-800">발주 현황</h3>
-          <button type="button" class="text-xs font-semibold text-[#004D3C] hover:underline" @click="$router.push('/store/orders/request')">
-            발주 관리 바로가기
-          </button>
-        </div>
-        <div class="overflow-auto">
-          <table class="w-full min-w-[560px] text-[13px]">
-            <thead class="bg-gray-50 text-[11px] uppercase text-gray-500">
-              <tr>
-                <th class="px-3 py-2.5 text-left font-bold">발주번호</th>
-                <th class="px-3 py-2.5 text-left font-bold">품목</th>
-                <th class="px-3 py-2.5 text-right font-bold">수량</th>
-                <th class="px-3 py-2.5 text-left font-bold">상태</th>
-                <th class="px-3 py-2.5 text-left font-bold">발주일</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-gray-100 border-t border-gray-200">
-              <tr v-for="row in orderStatuses" :key="row.id" class="hover:bg-gray-50/50">
-                <td class="px-3 py-2.5 font-mono text-gray-400">{{ row.id }}</td>
-                <td class="px-3 py-2.5 font-semibold text-gray-800">{{ row.item }}</td>
-                <td class="px-3 py-2.5 text-right text-gray-700">{{ row.qty.toLocaleString() }}</td>
-                <td class="px-3 py-2.5">
-                  <span
-                    class="px-2 py-0.5 text-[11px] font-bold"
-                    :class="{
-                      'bg-emerald-100 text-emerald-700': row.status === '승인완료',
-                      'bg-blue-100 text-blue-700': row.status === '입고대기',
-                      'bg-orange-100 text-orange-700': row.status === '검수중',
-                    }"
-                  >{{ row.status }}</span>
-                </td>
-                <td class="px-3 py-2.5 text-gray-400">{{ row.date }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
+      <p v-if="loading" class="text-xs font-bold text-gray-500">데이터를 불러오는 중입니다.</p>
     </div>
   </AppLayout>
 </template>

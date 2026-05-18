@@ -26,10 +26,9 @@ export function getDefaultDateRange(days = 30) {
 }
 
 export function toUiTransferStatus(status) {
-  if (status === 'IN_PROGRESS') return '출고 준비중'
-  if (status === 'COMPLETED') return '완료'
-  if (status === 'CANCELED') return '취소'
-  if (status === 'REQUESTED') return '요청'
+  if (status === 'READY_TO_SHIP') return '출고 준비중'
+  if (status === 'IN_TRANSIT') return '배송중'
+  if (status === 'ARRIVED') return '배송완료'
   return status || '-'
 }
 

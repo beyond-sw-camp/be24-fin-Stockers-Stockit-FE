@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
@@ -11,9 +11,7 @@ const auth = useAuthStore()
 const storeOrders = useStoreInboundStore()
 
 const storeMenus = roleMenus.store
-const inboundMenus = roleMenus.store.find((menu) => menu.label === '입고 관리')?.children ?? []
 const activeTopMenu = computed(() => '입고 관리')
-const activeSideMenu = ref('입고 내역')
 
 storeOrders.activateHistoryMode()
 
@@ -28,8 +26,7 @@ function headlineLabel(order) {
   <AppLayout
     :active-top-menu="activeTopMenu"
     :top-menus="storeMenus"
-    :side-menus="inboundMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-300 bg-white p-4 shadow-sm">

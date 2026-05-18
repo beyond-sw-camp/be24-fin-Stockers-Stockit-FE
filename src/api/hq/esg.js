@@ -39,24 +39,26 @@ export const carbonPriceApi = {
 }
 
 /**
- * 탄소중립 관리 (할당량 + YTD 실효 배출 + 경고 임계)
+ * 탄소중립 관리 (할당량 + 12개월 실효 배출 + 경고 임계)
  *
  * 응답 형태(Response):
  *   {
  *     fiscalYear:         number,
  *     yearlyAllocation:   number,
- *     ytdEmissionsManual: number | null,   // null = 미입력 상태
+ *     monthlyEmissions:   (number|null)[12],   // 1월~12월, null = 미입력
+ *     quarterlyEmissions: number[4],           // Q1~Q4 자동 합계
+ *     ytdEmissions:       number,              // 12개월 합계 (자동)
  *     warnThresholdPct:   number,
- *     remaining:          number,          // 잔여 한도 = allocation - ytd
- *     utilizationPct:     number,          // 사용률 % = ytd / allocation × 100
- *     warning:            boolean,         // utilizationPct ≥ warnThresholdPct
+ *     remaining:          number,              // 잔여 한도 = allocation - ytd
+ *     utilizationPct:     number,              // 사용률 % = ytd / allocation × 100
+ *     warning:            boolean,             // utilizationPct ≥ warnThresholdPct
  *     updatedBy:          string | null,
- *     updatedAt:          string           // ISO-8601
+ *     updatedAt:          string               // ISO-8601
  *   }
  */
 export const emissionQuotaApi = {
   /**
-   * 회계연도별 할당량/YTD/경고 임계 조회.
+   * 회계연도별 할당량/월별 실적/경고 임계 조회.
    * BE 가 row 없으면 자동으로 기본값(0/null/75) 으로 새 row 생성 후 응답.
    * @param {number} [year] — 미지정 시 BE 가 현재 연도 자동 사용
    */
@@ -68,10 +70,58 @@ export const emissionQuotaApi = {
   /**
    * 본사 관리자 수기 입력 — 수정 버튼 → 저장.
    * @param {number} [year]
-   * @param {{ yearlyAllocation: number, ytdEmissionsManual: number|null, warnThresholdPct: number }} payload
+   * @param {{ yearlyAllocation: number, monthlyEmissions: (number|null)[], warnThresholdPct: number }} payload
    */
   update: (year, payload) =>
     apiClient
       .put('/api/hq/esg/quota', payload, { params: year ? { year } : {} })
+      .then(unwrap),
+}
+
+/**
+ * 순환재고 월별 판매 수익 — ESG 대시보드 "월별 판매 수익" 카드.
+ *
+ * 응답 형태:
+ *   {
+ *     year: 2026,
+ *     monthly: [{ month, revenue, count }, ...12],
+ *     totalRevenue: number,
+ *     totalCount: number,
+ *     monthsWithData: number,
+ *     avgMonthly: number
+ *   }
+ */
+export const circularRevenueApi = {
+  /**
+   * 지정 연도의 12개월 수익/거래 건수 집계 조회.
+   * @param {number} [year] — 미지정 시 BE 가 현재 연도 사용
+   */
+  get: (year) =>
+    apiClient
+      .get('/api/hq/esg/circular-revenue', { params: year ? { year } : {} })
+      .then(unwrap),
+}
+
+/**
+ * 친환경 나무 키우기 점수 — 연간 sale 거래 이벤트.
+ *
+ * 응답 형태:
+ *   {
+ *     year: 2026,
+ *     events: [
+ *       { id, date: 'yyyy-MM-dd', type: 'sale', buyer, material, weightKg,
+ *         isNewBuyer, isLocalPartner }, ...
+ *     ]
+ *   }
+ *
+ * 기부 이벤트는 BE 에 도메인 없으므로 FE 에서 mock 으로 머지.
+ */
+export const scoreEventsApi = {
+  /**
+   * @param {number} [year] — 미지정 시 BE 가 현재 연도 사용
+   */
+  get: (year) =>
+    apiClient
+      .get('/api/hq/esg/score-events', { params: year ? { year } : {} })
       .then(unwrap),
 }

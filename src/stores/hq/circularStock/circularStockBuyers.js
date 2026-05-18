@@ -24,34 +24,14 @@ export const PARTNER_TYPE_OPTIONS = [
 const PARTNER_TYPE_SET = new Set(PARTNER_TYPE_OPTIONS.map((o) => o.value))
 
 export const INDUSTRY_GROUP_OPTIONS = [
-  '재생원사',
-  '홈텍스타일',
-  '반려동물 용품',
-  '패션 잡화',
-  '의료/위생',
-  '인테리어',
-  '음향 기기',
-  '농업',
-  '뷰티/화학',
-  '교육/공예',
-  '단체복/워크웨어',
-  '아웃도어 잡화',
-  '물류 자재',
-  '해양/수산',
-  '구호 용품',
-  '가구 제조',
-  '자동차 부품',
-  '레저/기어',
-  '화학 사출',
-  '생활 잡화',
-  '의류/워크웨어',
-  '유니폼',
-  '건설 자재',
-  '자동차 흡음',
-  '산업 소모품',
-  '가구 자재',
-  '에너지',
-  '물류 패키징',
+  '섬유 제품 제조업',
+  '의복 제조업',
+  '가죽/가방/신발 제조업',
+  '플라스틱 제조업',
+  '건축자제 제조업',
+  '자동차 부품 제조업',
+  '가구 제조업',
+  '기타',
 ]
 
 // ─── BE 응답 → FE 모델 매핑 ─────────────────────────────────────────────
@@ -62,12 +42,14 @@ function fromApi(v) {
     code: v.code,
     companyName: v.companyName,
     industryGroup: v.industryGroup,
-    productTypes: Array.isArray(v.productTypes) ? v.productTypes : [],
-    productNote: v.productNote ?? '',
+    factoryProduct: Array.isArray(v.factoryProduct ?? v.productTypes)
+      ? (v.factoryProduct ?? v.productTypes)
+      : [],
     description: v.description ?? '',
     primaryMaterialFit: v.primaryMaterialFit,
     managerName: v.managerName,
     phone: v.phone,
+    address: v.address ?? '',
     partnerType: v.partnerType ?? 'general',
     createdAt: v.createdAt,
     updatedAt: v.updatedAt,
@@ -78,21 +60,21 @@ function createEmptyBuyerForm() {
   return {
     companyName: '',
     industryGroup: '',
-    productTypes: [],
-    productNote: '',
+    factoryProduct: [],
     description: '',
     primaryMaterialFit: '',
     managerName: '',
     phone: '',
+    address: '',
     partnerType: 'general',
   }
 }
 
-function normalizeProductTypes(productTypes) {
-  if (Array.isArray(productTypes)) {
+function normalizeFactoryProduct(factoryProduct) {
+  if (Array.isArray(factoryProduct)) {
     return [
       ...new Set(
-        productTypes
+        factoryProduct
           .map((item) => String(item ?? '').trim())
           .filter(Boolean),
       ),
@@ -100,8 +82,8 @@ function normalizeProductTypes(productTypes) {
   }
 
   return [
-    ...new Set(
-      String(productTypes ?? '')
+      ...new Set(
+      String(factoryProduct ?? '')
         .split('\n')
         .flatMap((line) => line.split(','))
         .map((item) => item.trim())
@@ -123,12 +105,12 @@ function normalizeBuyerPayload(payload) {
   return {
     companyName: String(payload.companyName ?? '').trim(),
     industryGroup: String(payload.industryGroup ?? '').trim(),
-    productTypes: normalizeProductTypes(payload.productTypes),
-    productNote: String(payload.productNote ?? '').trim(),
+    factoryProduct: normalizeFactoryProduct(payload.factoryProduct),
     description: String(payload.description ?? '').trim(),
     primaryMaterialFit: String(payload.primaryMaterialFit ?? '').trim(),
     managerName: String(payload.managerName ?? '').trim(),
     phone: String(payload.phone ?? '').trim(),
+    address: String(payload.address ?? '').trim(),
     partnerType: partnerTypeRaw || 'general',
   }
 }
@@ -142,6 +124,7 @@ function validateBuyerPayload(payload) {
   if (!payload.primaryMaterialFit) errors.primaryMaterialFit = '대표 소재 적합도를 선택해주세요.'
   if (!payload.managerName) errors.managerName = '담당자명을 입력해주세요.'
   if (!payload.phone) errors.phone = '연락처를 입력해주세요.'
+  if (!payload.address) errors.address = '주소를 입력해주세요.'
   if (!PARTNER_TYPE_SET.has(payload.partnerType)) {
     errors.partnerType = '파트너 유형을 선택해주세요.'
   }
@@ -154,6 +137,13 @@ export const useCircularStockBuyerStore = defineStore('circularStockBuyers', () 
   const buyers = ref([])
   const loading = ref(false)
   const error = ref(null)
+  const page = ref(0)
+  const size = ref(20)
+  const totalPages = ref(0)
+  const totalElements = ref(0)
+  const hasNext = ref(false)
+  const hasPrevious = ref(false)
+  const materialFitCounts = ref({ 'natural-single': 0, synthetic: 0, blended: 0 })
 
   // --- getters ---
   const sortedBuyers = computed(() =>
@@ -174,12 +164,20 @@ export const useCircularStockBuyerStore = defineStore('circularStockBuyers', () 
 
     return sortedBuyers.value.filter((buyer) => {
       const matchesMaterialFit = !materialFit || buyer.primaryMaterialFit === materialFit
+      const searchableText = [
+        buyer.code,
+        buyer.companyName,
+        buyer.managerName,
+        buyer.phone,
+        buyer.productNote,
+        ...(Array.isArray(buyer.productTypes) ? buyer.productTypes : []),
+        buyer.address,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
       const matchesKeyword =
-        !normalized ||
-        [buyer.code, buyer.companyName, buyer.managerName]
-          .join(' ')
-          .toLowerCase()
-          .includes(normalized)
+        !normalized || searchableText.includes(normalized)
 
       return matchesMaterialFit && matchesKeyword
     })
@@ -187,12 +185,49 @@ export const useCircularStockBuyerStore = defineStore('circularStockBuyers', () 
 
   // --- actions ---
 
+  async function fetchStats() {
+    try {
+      const counts = await circularBuyerApi.stats()
+      materialFitCounts.value = counts ?? {}
+    } catch {
+      // stats 실패는 목록 동작에 영향 없으므로 무시
+    }
+  }
+
   async function fetchAll(opts = {}) {
     loading.value = true
     error.value = null
     try {
       const list = await circularBuyerApi.list(opts)
       buyers.value = (list ?? []).map(fromApi)
+    } catch (e) {
+      error.value = e?.message ?? '거래처 목록을 불러오지 못했습니다.'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function fetchPage(opts = {}) {
+    loading.value = true
+    error.value = null
+    try {
+      const res = await circularBuyerApi.listPage({
+        page: opts.page ?? page.value,
+        size: opts.size ?? size.value,
+        keyword: opts.keyword,
+        materialFit: opts.materialFit,
+        partnerType: opts.partnerType,
+      })
+      const list = Array.isArray(res?.content) ? res.content : []
+      buyers.value = list.map(fromApi)
+      page.value = Number(res?.page ?? 0)
+      size.value = Number(res?.size ?? (opts.size ?? size.value))
+      totalPages.value = Number(res?.totalPages ?? 0)
+      totalElements.value = Number(res?.totalElements ?? 0)
+      hasNext.value = Boolean(res?.hasNext)
+      hasPrevious.value = Boolean(res?.hasPrevious)
+      return res
     } catch (e) {
       error.value = e?.message ?? '거래처 목록을 불러오지 못했습니다.'
       throw e
@@ -254,16 +289,18 @@ export const useCircularStockBuyerStore = defineStore('circularStockBuyers', () 
     }
   }
 
-  // 마운트 자동 fetch — vendor store 패턴 일관.
-  fetchAll().catch((err) => {
-    console.error('[circularInventoryBuyers] fetchAll 실패', err)
-  })
-
   return {
     buyers,
     sortedBuyers,
     loading,
     error,
+    page,
+    size,
+    totalPages,
+    totalElements,
+    hasNext,
+    hasPrevious,
+    materialFitCounts,
     MATERIAL_FIT_OPTIONS,
     INDUSTRY_GROUP_OPTIONS,
     PARTNER_TYPE_OPTIONS,
@@ -273,6 +310,8 @@ export const useCircularStockBuyerStore = defineStore('circularStockBuyers', () 
     getBuyerById,
     filteredBuyers,
     fetchAll,
+    fetchPage,
+    fetchStats,
     createBuyer,
     updateBuyer,
   }

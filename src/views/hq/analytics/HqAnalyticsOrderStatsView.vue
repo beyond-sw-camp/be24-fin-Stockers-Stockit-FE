@@ -17,6 +17,7 @@ const activeSideMenu = ref('발주량 통계')
 
 const categoryFilter = ref('전체')
 const detailViewMode = ref('item') // 'item' | 'product'
+const orderDetailExpanded = ref(false) // 발주 통계 상세 테이블 접힘 (기본 접힘)
 const productTypeFilter = ref('전체') // 상품별 모드 전용 품목 필터
 
 // ─── 기간 단위별 dateRange 헬퍼 (판매량 통계와 동일 패턴) ──────────────
@@ -725,32 +726,41 @@ const monthlyTrendChartOptions = {
           <h3 class="text-sm font-medium text-gray-800">
             {{ detailViewMode === 'product' ? '상품별' : '품목별' }} 발주 통계 상세
           </h3>
-          <div class="inline-flex border border-gray-300 bg-white">
+          <div class="flex items-center gap-2">
+            <div class="inline-flex border border-gray-300 bg-white">
+              <button
+                type="button"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold transition-colors"
+                :class="detailViewMode === 'item'
+                  ? 'bg-[#004D3C] text-white'
+                  : 'text-gray-600 hover:bg-gray-50'"
+                @click="detailViewMode = 'item'"
+              >
+                <Package :size="12" />
+                품목별 발주 통계 상세
+              </button>
+              <button
+                type="button"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold transition-colors"
+                :class="detailViewMode === 'product'
+                  ? 'bg-[#004D3C] text-white'
+                  : 'text-gray-600 hover:bg-gray-50'"
+                @click="detailViewMode = 'product'"
+              >
+                <Tag :size="12" />
+                상품별 발주 통계 상세
+              </button>
+            </div>
             <button
               type="button"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold transition-colors"
-              :class="detailViewMode === 'item'
-                ? 'bg-[#004D3C] text-white'
-                : 'text-gray-600 hover:bg-gray-50'"
-              @click="detailViewMode = 'item'"
+              class="inline-flex items-center gap-1 border border-gray-300 bg-white px-2 py-1 text-[10px] font-black text-gray-600 transition-colors hover:bg-gray-50"
+              @click="orderDetailExpanded = !orderDetailExpanded"
             >
-              <Package :size="12" />
-              품목별 발주 통계 상세
-            </button>
-            <button
-              type="button"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold transition-colors"
-              :class="detailViewMode === 'product'
-                ? 'bg-[#004D3C] text-white'
-                : 'text-gray-600 hover:bg-gray-50'"
-              @click="detailViewMode = 'product'"
-            >
-              <Tag :size="12" />
-              상품별 발주 통계 상세
+              {{ orderDetailExpanded ? '▲ 접기' : '▼ 상세 보기' }}
             </button>
           </div>
         </div>
-        <div class="overflow-auto">
+        <div v-if="orderDetailExpanded" class="overflow-auto">
           <table class="w-full min-w-[760px] text-[12px]">
             <thead class="bg-gray-50 text-[10px] uppercase text-gray-500">
               <tr>

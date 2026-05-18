@@ -11,8 +11,6 @@ import {
   Award,
   Filter,
   PieChart,
-  Package,
-  Tag,
   Search,
   Store,
 } from 'lucide-vue-next'
@@ -33,22 +31,9 @@ const activeTopMenu = computed(() => '정산/통계')
 const activeSideMenu = ref('판매량 통계')
 
 
-// ─── 탭 (URL 쿼리스트링과 동기화) ──────────────────────────────────────
-const tabs = [
-  { key: 'product', label: '품목별', icon: Package },
-  { key: 'productDetail', label: '상품별', icon: Tag },
-]
-
-const activeTab = ref(route.query.tab && tabs.some((t) => t.key === route.query.tab) ? route.query.tab : 'product')
-
-const setTab = (key) => {
-  activeTab.value = key
-  router.replace({ query: { ...route.query, tab: key } })
-}
-
-watch(() => route.query.tab, (tab) => {
-  if (tab && tabs.some((t) => t.key === tab)) activeTab.value = tab
-})
+// 하단 상세 테이블 펼침/접힘 (기본 접힘)
+const overviewDetailExpanded = ref(false)
+const productDetailExpanded = ref(false)
 
 // ─── 공통 필터 바 ──────────────────────────────────────────────────────
 // ─── 기간 단위별 dateRange 헬퍼 ──────────────────────────────────────
@@ -228,10 +213,7 @@ const kpiSummary = computed(() => {
   })
   if (!k) {
     return [
-      empty('총 매출',         '원',  TrendingUp,  'text-emerald-700', 'bg-emerald-50', 'text-emerald-600'),
-      empty('판매 수량',       '개',  ShoppingBag, 'text-blue-700',    'bg-blue-50',    'text-blue-600'),
-      empty('활성 매장 수',    '개',  Store,       'text-violet-700',  'bg-violet-50',  'text-violet-600'),
-      empty('베스트 카테고리', '',    BarChart3,   'text-amber-700',   'bg-amber-50',   'text-amber-600'),
+      empty('총 매출', '원', TrendingUp, 'text-emerald-700', 'bg-emerald-50', 'text-emerald-600'),
     ]
   }
   return [
@@ -241,27 +223,6 @@ const kpiSummary = computed(() => {
       unit: '',
       trend: trendStr(k.totalRevenueTrendPct),
       icon: TrendingUp, color: 'text-emerald-700', iconBg: 'bg-emerald-50', iconCls: 'text-emerald-600',
-    },
-    {
-      label: '판매 수량',
-      value: (k.totalQuantity ?? 0).toLocaleString(),
-      unit: '개',
-      trend: trendStr(k.totalQuantityTrendPct),
-      icon: ShoppingBag, color: 'text-blue-700', iconBg: 'bg-blue-50', iconCls: 'text-blue-600',
-    },
-    {
-      label: '활성 매장 수',
-      value: String(k.activeStoreCount ?? 0),
-      unit: '개',
-      trend: `/ ${k.totalStoreCount ?? 0}개 (${signed(k.activeStoreCountDelta ?? 0)})`,
-      icon: Store, color: 'text-violet-700', iconBg: 'bg-violet-50', iconCls: 'text-violet-600',
-    },
-    {
-      label: '베스트 카테고리',
-      value: k.bestCategoryName || '—',
-      unit: '',
-      trend: k.bestCategorySharePct != null ? `비중 ${Number(k.bestCategorySharePct).toFixed(1)}%` : '—',
-      icon: BarChart3, color: 'text-amber-700', iconBg: 'bg-amber-50', iconCls: 'text-amber-600',
     },
   ]
 })
@@ -506,7 +467,16 @@ const productDetailBarOptions = {
   indexAxis: 'y',
   plugins: {
     legend: { display: false },
-    tooltip: { callbacks: { label: (ctx) => formatKoreanMoney(ctx.parsed.x) } },
+    tooltip: {
+      callbacks: {
+        label: (ctx) => {
+          const item = top10ProductDetails.value[ctx.dataIndex]
+          const lines = [`매출: ${formatKoreanMoney(ctx.parsed.x)}`]
+          if (item) lines.push(`판매량: ${Number(item.units ?? 0).toLocaleString()}개`)
+          return lines
+        },
+      },
+    },
   },
   scales: {
     x: { grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, callback: (v) => formatKoreanMoney(v) } },
@@ -623,172 +593,30 @@ const barOptions = {
         </div>
       </section>
 
-      <!-- ━━━━━━━ KPI 4개 (모든 탭 공유) ━━━━━━━ -->
-      <section class="grid gap-3 grid-cols-2 lg:grid-cols-4">
-        <div
-          v-for="kpi in kpiSummary"
-          :key="kpi.label"
-          class="border border-gray-300 bg-white p-4 shadow-sm"
-        >
-          <div class="flex items-center justify-between">
-            <p class="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400">{{ kpi.label }}</p>
-            <div :class="[kpi.iconBg, 'flex h-8 w-8 items-center justify-center']">
-              <component :is="kpi.icon" :size="14" :class="kpi.iconCls" />
-            </div>
-          </div>
-          <p class="mt-2 text-xl font-black" :class="kpi.color">
-            {{ kpi.value }}
-            <span class="ml-1 text-xs font-bold text-gray-500">{{ kpi.unit }}</span>
-          </p>
-          <p class="mt-1 text-[10px] font-bold text-emerald-600">↗ {{ kpi.trend }}</p>
-        </div>
-      </section>
 
-      <!-- ━━━━━━━ 탭 네비게이션 ━━━━━━━ -->
+      <!-- ━━━━━━━ 상품 상세 ━━━━━━━ -->
       <section class="border border-gray-300 bg-white shadow-sm">
-        <div class="flex items-center border-b border-gray-200">
-          <button
-            v-for="tab in tabs"
-            :key="tab.key"
-            type="button"
-            class="relative flex items-center gap-2 px-5 py-3 text-xs font-bold transition-colors"
-            :class="activeTab === tab.key ? 'text-[#004D3C]' : 'text-gray-500 hover:bg-gray-50'"
-            @click="setTab(tab.key)"
-          >
-            <component :is="tab.icon" :size="14" />
-            {{ tab.label }}
-            <span
-              v-if="activeTab === tab.key"
-              class="absolute bottom-0 left-0 right-0 h-0.5 bg-[#004D3C]"
-            ></span>
-          </button>
-        </div>
-
-        <!-- ━━━━━━━ 탭: 품목별 ━━━━━━━ -->
-        <div v-if="activeTab === 'product'" class="p-6">
-          <!-- 카테고리 요약 카드 4개 -->
-          <div class="grid gap-6 grid-cols-2 lg:grid-cols-4">
-            <div
-              v-for="cat in categorySummary"
-              :key="cat.category"
-              class="border border-gray-300 bg-white p-5 shadow-sm"
-            >
-              <div class="flex items-center justify-between">
-                <span
-                  class="px-2 py-0.5 text-[10px] font-black text-white"
-                  :style="{ backgroundColor: cat.color }"
-                >
-                  {{ cat.category }}
-                </span>
-                <span class="text-[10px] font-bold text-gray-400">{{ cat.productCount }}개 품목</span>
-              </div>
-              <p class="mt-2 break-all text-xl font-black leading-tight" :style="{ color: cat.color }">
-                ₩{{ Number(cat.sales).toLocaleString('ko-KR') }}
-              </p>
-              <div class="mt-2.5 flex flex-col gap-1 text-[10px]">
-                <span class="whitespace-nowrap text-gray-500">{{ cat.units.toLocaleString() }}개 판매</span>
-                <span class="whitespace-nowrap text-right font-bold" :style="{ color: cat.color }">{{ cat.sharePct }}%</span>
-              </div>
-              <div class="mt-2 h-1.5 w-full bg-gray-100">
-                <div class="h-full transition-all" :style="{ width: `${cat.sharePct}%`, backgroundColor: cat.color }"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 카테고리 필터 -->
-          <div class="mt-6 flex flex-wrap items-center gap-5">
-            <label class="flex items-center gap-2 text-[11px] font-bold text-gray-500">
-              카테고리
-              <select
-                v-model="categoryFilter"
-                class="border border-gray-300 bg-gray-50 px-3 py-1.5 text-xs font-bold text-gray-700 outline-none focus:border-[#004D3C] focus:bg-white"
-              >
-                <option v-for="c in categoryOptions" :key="c" :value="c">{{ c }}</option>
-              </select>
-            </label>
-          </div>
-
-          <div class="mt-6 grid gap-6 lg:grid-cols-3">
-            <!-- 좌측: 품목별 매출 TOP 10 막대 -->
-            <div class="border border-gray-200 bg-white p-5 lg:col-span-2">
-              <header class="mb-3 flex items-center justify-between border-b border-gray-100 pb-2">
-                <h3 class="flex items-center gap-1.5 text-xs font-black text-gray-800">
-                  <Package :size="14" class="text-emerald-600" />
-                  품목별 매출 TOP 10
-                </h3>
-                <div class="flex items-center gap-2 text-[10px]">
-                  <span class="inline-flex items-center gap-1"><span class="h-2 w-2" style="background:#0ea5e9"></span>상의</span>
-                  <span class="inline-flex items-center gap-1"><span class="h-2 w-2" style="background:#f59e0b"></span>바지</span>
-                  <span class="inline-flex items-center gap-1"><span class="h-2 w-2" style="background:#a855f7"></span>치마</span>
-                  <span class="inline-flex items-center gap-1"><span class="h-2 w-2" style="background:#059669"></span>아우터</span>
-                </div>
-              </header>
-              <BarChart :data="productBarData" :options="barOptions" :height="320" />
-            </div>
-
-            <!-- 우측: 카테고리별 비중 도넛 -->
-            <div class="border border-gray-200 bg-white p-5">
-              <header class="mb-3 border-b border-gray-100 pb-2">
-                <h3 class="flex items-center gap-1.5 text-xs font-black text-gray-800">
-                  <PieChart :size="14" class="text-blue-600" />
-                  카테고리별 비중
-                </h3>
-              </header>
-              <DoughnutChart :data="categoryDoughnutData" :options="doughnutOptions" :height="240" />
-              <ul class="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
-                <li v-for="cat in categorySummary" :key="cat.category" class="flex items-center justify-between gap-2 border-b border-dashed border-gray-100 py-1">
-                  <span class="flex min-w-0 items-center gap-2">
-                    <span class="inline-block h-2 w-2 shrink-0" :style="{ backgroundColor: cat.color }"></span>
-                    <span class="truncate font-bold text-gray-700">{{ cat.category }}</span>
+        <div class="p-6">
+          <!-- 섹션 헤더 (좌: 제목 / 우: 총 매출 인디케이터) -->
+          <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h3 class="flex items-center gap-1.5 text-sm font-black text-gray-800">
+              <BarChart3 :size="16" class="text-[#004D3C]" />
+              판매 상품 분석
+            </h3>
+            <div class="flex items-center gap-3 border-l-4 border-[#004D3C] bg-emerald-50/50 px-4 py-2">
+              <TrendingUp :size="18" class="text-[#004D3C]" />
+              <div class="leading-tight">
+                <p class="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500">총 매출</p>
+                <p class="text-base font-black text-[#004D3C]">
+                  ₩{{ Number(salesData?.kpi?.totalRevenue ?? 0).toLocaleString('ko-KR') }}
+                  <span v-if="salesData?.kpi?.totalRevenueTrendPct != null" class="ml-1 text-[11px] font-bold text-emerald-700">
+                    {{ trendStr(salesData.kpi.totalRevenueTrendPct) }}
                   </span>
-                  <span class="shrink-0 text-gray-500">{{ cat.sharePct }}%</span>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <!-- 카테고리별 품목 상세 테이블 -->
-          <div class="mt-6 space-y-5">
-            <div
-              v-for="grp in productsByCategory"
-              :key="grp.category"
-              class="border border-gray-200 bg-white"
-            >
-              <header class="flex items-center justify-between border-b border-gray-100 bg-gray-50/70 px-4 py-3">
-                <h3 class="flex items-center gap-2 text-xs font-black text-gray-800">
-                  <span class="inline-block h-3 w-3" :style="{ backgroundColor: grp.color }"></span>
-                  {{ grp.category }}
-                </h3>
-                <span class="text-[10px] font-bold text-gray-400">
-                  {{ grp.items.length }}개 품목 · 합계 ₩{{ Number(grp.subtotal).toLocaleString('ko-KR') }}
-                </span>
-              </header>
-              <div class="overflow-auto">
-                <table class="w-full min-w-[480px] text-xs">
-                  <thead class="bg-gray-100 text-[10px] text-gray-500">
-                    <tr>
-                      <th class="w-12 px-3 py-2 text-center font-bold">순위</th>
-                      <th class="px-3 py-2 text-left font-bold">품목</th>
-                      <th class="w-24 px-3 py-2 text-right font-bold">판매수</th>
-                      <th class="w-24 px-3 py-2 text-right font-bold">매출</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-gray-100">
-                    <tr v-for="(item, i) in grp.items" :key="item.name" class="hover:bg-gray-50">
-                      <td class="px-3 py-2 text-center font-bold text-gray-500">{{ i + 1 }}</td>
-                      <td class="px-3 py-2 font-bold text-gray-800">{{ item.name }}</td>
-                      <td class="px-3 py-2 text-right font-mono text-gray-700">{{ item.units.toLocaleString() }}</td>
-                      <td class="px-3 py-2 text-right font-mono font-bold text-gray-800">₩{{ Number(item.sales).toLocaleString('ko-KR') }}</td>
-                    </tr>
-                  </tbody>
-                </table>
+                </p>
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- ━━━━━━━ 탭: 상품별 ━━━━━━━ -->
-        <div v-else-if="activeTab === 'productDetail'" class="p-6">
           <!-- 필터 바 -->
           <div class="flex flex-wrap items-center gap-4">
             <label class="flex items-center gap-2 text-[11px] font-bold text-gray-500">
@@ -820,32 +648,6 @@ const barOptions = {
             </label>
           </div>
 
-          <!-- 상품 KPI 4개 -->
-          <div class="mt-5 grid gap-4 grid-cols-2 lg:grid-cols-4">
-            <div class="border border-gray-300 bg-white p-4 shadow-sm">
-              <p class="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400">총 상품 수</p>
-              <p class="mt-2 text-xl font-black text-gray-900">{{ productDetailKpi.totalCount }}<span class="ml-1 text-xs font-bold text-gray-500">개</span></p>
-              <p class="mt-1 text-[10px] text-gray-500">필터 적용 결과</p>
-            </div>
-            <div class="border border-gray-300 bg-white p-4 shadow-sm">
-              <p class="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400">합계 매출</p>
-              <p class="mt-2 text-xl font-black text-gray-900">₩{{ Number(productDetailKpi.totalSales).toLocaleString('ko-KR') }}</p>
-              <p class="mt-1 text-[10px] text-gray-500">상품 매출 합산</p>
-            </div>
-            <div class="border border-gray-300 bg-white p-4 shadow-sm">
-              <p class="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400">합계 판매수</p>
-              <p class="mt-2 text-xl font-black text-gray-900">{{ productDetailKpi.totalUnits.toLocaleString() }}<span class="ml-1 text-xs font-bold text-gray-500">개</span></p>
-              <p class="mt-1 text-[10px] text-gray-500">전체 판매 수량</p>
-            </div>
-            <div class="border border-gray-300 bg-white p-4 shadow-sm">
-              <p class="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400">🏆 TOP 1 상품</p>
-              <p v-if="productDetailKpi.topProduct" class="mt-2 truncate text-sm font-black text-gray-900">{{ productDetailKpi.topProduct.name }}</p>
-              <p v-if="productDetailKpi.topProduct" class="mt-1 text-[10px] text-gray-500">
-                ₩{{ Number(productDetailKpi.topProduct.sales).toLocaleString('ko-KR') }} · {{ productDetailKpi.topProduct.units }}개
-              </p>
-            </div>
-          </div>
-
           <!-- TOP 10 상품 막대 -->
           <div class="mt-6 border border-gray-200 bg-white p-5 shadow-sm">
             <header class="mb-3 flex items-center justify-between border-b border-gray-100 pb-2">
@@ -864,8 +666,18 @@ const barOptions = {
             <p v-else class="py-12 text-center text-xs text-gray-400">검색 조건에 맞는 상품이 없습니다.</p>
           </div>
 
-          <!-- 품목별 그룹 상세 테이블 -->
-          <div class="mt-6 space-y-5">
+          <!-- 품목별 그룹 상세 테이블 (기본 접힘) -->
+          <div class="mt-6 flex items-center justify-between border-t border-gray-200 pt-4">
+            <h3 class="text-xs font-black text-gray-800">📋 판매 상품 상세</h3>
+            <button
+              type="button"
+              class="inline-flex items-center gap-1 border border-gray-300 bg-white px-2.5 py-1 text-[10px] font-black text-gray-600 transition-colors hover:bg-gray-50"
+              @click="productDetailExpanded = !productDetailExpanded"
+            >
+              {{ productDetailExpanded ? '▲ 접기' : '▼ 상세 보기' }}
+            </button>
+          </div>
+          <div v-if="productDetailExpanded" class="mt-4 space-y-5">
             <div
               v-for="grp in productDetailsByType"
               :key="grp.productType"

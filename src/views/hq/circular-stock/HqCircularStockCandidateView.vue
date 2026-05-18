@@ -11,7 +11,7 @@ const hqMenus = roleMenus.hq
 const circularStockMenus = roleMenus.hq.find(menu => menu.label === '순환 재고 관리')?.children ?? []
 
 const activeTopMenu = computed(() => '순환 재고 관리')
-const activeSideMenu = ref('순환 재고 후보 조회')
+const activeSideMenu = ref('순환 재고 전환')
 const hasRefreshed = ref(false)
 const candidateSkus = ref([])
 const selectedRowIds = ref([])
@@ -137,6 +137,11 @@ const childCategoryOptions = computed(() => {
 
 const sortedSkus = computed(() => candidateSkus.value)
 const paginatedSkus = computed(() => sortedSkus.value)
+const selectableRowIdsOnPage = computed(() =>
+  paginatedSkus.value
+    .filter(row => Number(row.convertibleStock ?? 0) > 0)
+    .map(row => row.id),
+)
 
 const canConvertInventory = computed(() => selectedRowIds.value.length > 0)
 const selectedRows = computed(() => {
@@ -173,8 +178,8 @@ const canSubmitConversion = computed(() =>
 )
 
 const isAllCurrentPageSelected = computed(() =>
-  paginatedSkus.value.length > 0
-  && paginatedSkus.value.every(row => selectedRowIds.value.includes(row.id)),
+  selectableRowIdsOnPage.value.length > 0
+  && selectableRowIdsOnPage.value.every(id => selectedRowIds.value.includes(id)),
 )
 
 const rangeStart = computed(() => {
@@ -203,6 +208,25 @@ const mergeSelectedRowsSnapshot = (rows) => {
     }
   }
   selectedRowsSnapshot.value = [...map.values()]
+}
+const syncSelectedRowsSnapshot = () => {
+  const selectedSet = new Set(selectedRowIds.value)
+  const currentPageMap = new Map(candidateSkus.value.map(row => [row.id, row]))
+  const merged = new Map(selectedRowsSnapshot.value.map(row => [row.id, row]))
+
+  for (const [id, row] of currentPageMap) {
+    if (selectedSet.has(id)) {
+      merged.set(id, row)
+    } else {
+      merged.delete(id)
+    }
+  }
+
+  for (const id of [...merged.keys()]) {
+    if (!selectedSet.has(id)) merged.delete(id)
+  }
+
+  selectedRowsSnapshot.value = [...merged.values()]
 }
 
 watch(selectedParentCategory, () => {
@@ -348,6 +372,11 @@ const refreshCandidates = async () => {
 
 const openConvertModal = () => {
   if (!canConvertInventory.value) return
+  syncSelectedRowsSnapshot()
+  if (selectedRows.value.length === 0) {
+    convertNotice.value = '선택된 전환 대상이 없습니다.'
+    return
+  }
   conversionInputs.value = Object.fromEntries(
     selectedRows.value.map(row => [row.id, Math.max(1, Number(row.convertibleStock ?? 0))]),
   )
@@ -405,17 +434,21 @@ const sortIcon = (key) => {
 }
 
 const toggleRow = (rowId) => {
+  const row = candidateSkus.value.find(item => item.id === rowId)
+  if (!row || Number(row.convertibleStock ?? 0) <= 0) return
   selectedRowIds.value = selectedRowIds.value.includes(rowId)
     ? selectedRowIds.value.filter(id => id !== rowId)
     : [...selectedRowIds.value, rowId]
+  syncSelectedRowsSnapshot()
 }
 
 const toggleAllCurrentPage = () => {
-  const pageRowIds = paginatedSkus.value.map(row => row.id)
+  const pageRowIds = selectableRowIdsOnPage.value
 
   selectedRowIds.value = isAllCurrentPageSelected.value
     ? selectedRowIds.value.filter(id => !pageRowIds.includes(id))
     : [...new Set([...selectedRowIds.value, ...pageRowIds])]
+  syncSelectedRowsSnapshot()
 }
 
 const goToPage = (page) => {
@@ -685,8 +718,9 @@ onBeforeUnmount(() => {
               <tr
                 v-for="row in paginatedSkus"
                 :key="row.id"
-                class="cursor-pointer transition"
+                class="transition"
                 :class="selectedRowIds.includes(row.id) ? 'bg-[#EBF5F5] font-bold' : 'hover:bg-[#EBF5F5]/60'"
+                :style="Number(row.convertibleStock ?? 0) <= 0 ? 'cursor:not-allowed; opacity:0.6;' : 'cursor:pointer;'"
                 @click="toggleRow(row.id)"
               >
                 <td class="px-3 py-3 text-center">
@@ -694,6 +728,7 @@ onBeforeUnmount(() => {
                     type="checkbox"
                     class="h-3.5 w-3.5 accent-[#004D3C]"
                     :checked="selectedRowIds.includes(row.id)"
+                    :disabled="Number(row.convertibleStock ?? 0) <= 0"
                     @click.stop="toggleRow(row.id)"
                   />
                 </td>

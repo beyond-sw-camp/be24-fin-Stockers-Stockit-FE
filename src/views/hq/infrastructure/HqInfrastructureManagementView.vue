@@ -1,24 +1,15 @@
 <script setup>
 import { computed, h, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
 import {
   createInfrastructure,
   getInfrastructures,
+  getInfrastructureByCode,
 } from '@/api/hq/infrastructure.js'
 
-const router = useRouter()
-const auth = useAuthStore()
 const hqMenus = roleMenus.hq
-
-
-const brandColor = '#004D3C'
-const brandColorLight = '#E6F2F0'
-
-const activeTopMenu = computed(() => '인프라 관리')
-const activeSideMenu = ref('인프라 통합 조회')
+const activeTopMenu = computed(() => '매장/창고 정보 관리')
 const viewType = ref('store')
 const storeRegionFilter = ref('전체 지역')
 const storeStatusFilter = ref('전체')
@@ -26,34 +17,19 @@ const storeSearchTerm = ref('')
 const warehouseRegionFilter = ref('전체 지역')
 const warehouseStatusFilter = ref('전체')
 const warehouseSearchTerm = ref('')
-
-const topMenus = [
-  '대시보드',
-  '재고 관리',
-  '발주 관리',
-  '제품 관리',
-  '인프라 관리',
-  '정산/통계',
-]
-
-const routeMap = {
-  대시보드: '/hq/dashboard',
-  '재고 관리': '/hq/inventory/company-wide',
-  '발주 관리': '/hq/orders',
-  '제품 관리': '/hq/products',
-  '인프라 관리': '/hq/infrastructure',
-  '정산/통계': '/hq/analytics',
-}
-
-const infraSideMenus = [
-  { label: '인프라 통합 조회', icon: 'store', id: 'SO-036' },
-]
+const storeRegionMaster = ref([])
+const warehouseRegionMaster = ref([])
 
 const storeData = ref([])
 const warehouseData = ref([])
 const infraError = ref('')
+const detailModalOpen = ref(false)
+const detailType = ref('store')
+const detailLoading = ref(false)
+const detailError = ref('')
+const selectedDetail = ref(null)
 
-const storeRegionOptions = computed(() => ['전체 지역', ...new Set(storeData.value.map((store) => store.region))])
+const storeRegionOptions = computed(() => ['전체 지역', ...storeRegionMaster.value])
 const storeStatusOptions = ['전체', '활성', '비활성']
 
 if (!storeRegionOptions.value.includes(storeRegionFilter.value)) {
@@ -66,7 +42,7 @@ if (!storeStatusOptions.includes(storeStatusFilter.value)) {
 
 const filteredStoreData = computed(() => storeData.value)
 
-const warehouseRegionOptions = computed(() => ['전체 지역', ...new Set(warehouseData.value.map((warehouse) => warehouse.region))])
+const warehouseRegionOptions = computed(() => ['전체 지역', ...warehouseRegionMaster.value])
 const warehouseStatusOptions = ['전체', '활성', '비활성', '점검중']
 
 if (!warehouseRegionOptions.value.includes(warehouseRegionFilter.value)) {
@@ -94,35 +70,28 @@ const activeSearchTerm = computed({
   },
 })
 
-const handleTopMenuClick = (menu) => {
-  const target = routeMap[menu]
-  if (target) {
-    router.push(target)
+const closeDetailModal = () => {
+  detailModalOpen.value = false
+  detailLoading.value = false
+  detailError.value = ''
+  selectedDetail.value = null
+}
+
+const openDetailModal = async (type, code) => {
+  detailType.value = type
+  detailModalOpen.value = true
+  detailLoading.value = true
+  detailError.value = ''
+  selectedDetail.value = null
+  try {
+    const found = await getInfrastructureByCode(code)
+    if (!found) throw new Error('상세 정보를 찾을 수 없습니다.')
+    selectedDetail.value = found
+  } catch (error) {
+    detailError.value = error?.message || '상세 정보를 불러오지 못했습니다.'
+  } finally {
+    detailLoading.value = false
   }
-}
-
-const goToStoreDetail = (store) => {
-  router.push({
-    name: 'hq-infrastructure-store-detail',
-    params: { storeId: store.code },
-    query: {
-      region: storeRegionFilter.value !== '전체 지역' ? storeRegionFilter.value : undefined,
-      status: storeStatusFilter.value !== '전체' ? storeStatusFilter.value : undefined,
-      search: storeSearchTerm.value || undefined,
-    },
-  })
-}
-
-const goToWarehouseDetail = (warehouse) => {
-  router.push({
-    name: 'hq-infrastructure-warehouse-detail',
-    params: { warehouseId: warehouse.code },
-    query: {
-      region: warehouseRegionFilter.value !== '전체 지역' ? warehouseRegionFilter.value : undefined,
-      status: warehouseStatusFilter.value !== '전체' ? warehouseStatusFilter.value : undefined,
-      search: warehouseSearchTerm.value || undefined,
-    },
-  })
 }
 
 const statusToKor = {
@@ -134,6 +103,13 @@ const korToStatus = {
   활성: 'ACTIVE',
   비활성: 'INACTIVE',
   점검중: 'SUSPENDED',
+}
+
+const statusBadgeClass = (status) => {
+  if (status === '활성') return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
+  if (status === '비활성') return 'bg-gray-100 text-gray-600 ring-1 ring-gray-200'
+  if (status === '점검중') return 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
+  return 'bg-slate-100 text-slate-600 ring-1 ring-slate-200'
 }
 
 async function loadStores() {
@@ -174,6 +150,15 @@ async function loadWarehouses() {
   }))
 }
 
+async function loadRegionMasters() {
+  const [stores, warehouses] = await Promise.all([
+    getInfrastructures({ type: 'STORE' }),
+    getInfrastructures({ type: 'WAREHOUSE' }),
+  ])
+  storeRegionMaster.value = Array.from(new Set((stores || []).map((row) => row.region).filter(Boolean)))
+  warehouseRegionMaster.value = Array.from(new Set((warehouses || []).map((row) => row.region).filter(Boolean)))
+}
+
 async function reloadActiveMenuData() {
   try {
     infraError.value = ''
@@ -207,7 +192,7 @@ async function quickCreateStore() {
       address: '서울시 강남구',
       status: 'ACTIVE',
     })
-    await loadStores()
+    await Promise.all([loadStores(), loadRegionMasters()])
   } catch (e) {
     infraError.value = e.message
   }
@@ -226,13 +211,14 @@ async function quickCreateWarehouse() {
       address: '서울시 강서구',
       status: 'ACTIVE',
     })
-    await loadWarehouses()
+    await Promise.all([loadWarehouses(), loadRegionMasters()])
   } catch (e) {
     infraError.value = e.message
   }
 }
 
 onMounted(() => {
+  loadRegionMasters()
   reloadActiveMenuData()
 })
 
@@ -260,10 +246,6 @@ const IconBase = (paths) => ({
   },
 })
 
-const BellIcon = IconBase([
-  { tag: 'path', attrs: { d: 'M15 17H5a2 2 0 0 1-2-2c2 0 3-1 3-3V9a6 6 0 0 1 12 0v3c0 2 1 3 3 3a2 2 0 0 1-2 2h-4' } },
-  { tag: 'path', attrs: { d: 'M10 17a2 2 0 0 0 4 0' } },
-])
 const StoreIcon = IconBase([
   { tag: 'path', attrs: { d: 'M4 10h16' } },
   { tag: 'path', attrs: { d: 'M5 10V6l2-2h10l2 2v4' } },
@@ -286,1247 +268,250 @@ const MapPinIcon = IconBase([
 const ChevronLeftIcon = IconBase([{ tag: 'path', attrs: { d: 'm15 18-6-6 6-6' } }])
 const ChevronRightIcon = IconBase([{ tag: 'path', attrs: { d: 'm9 18 6-6-6-6' } }])
 
-const iconMap = {
-  store: StoreIcon,
-  warehouse: WarehouseIcon,
-}
+void quickCreateStore
+void quickCreateWarehouse
 </script>
 
 <template>
   <AppLayout
     :active-top-menu="activeTopMenu"
     :top-menus="hqMenus"
-    :side-menus="infraSideMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
     show-system-card
   >
-    <div class="infra-content">
-        <section class="panel filter-bar">
-          <div class="filter-left">
-            <div class="filter-item">
-              <span>조회 대상</span>
-              <select v-model="viewType">
-                <option value="store">매장</option>
-                <option value="warehouse">창고</option>
-              </select>
-            </div>
-            <div class="filter-item">
-              <span>지역 분류</span>
-              <select v-if="isStoreView" v-model="storeRegionFilter">
-                <option v-for="region in storeRegionOptions" :key="region" :value="region">
-                  {{ region }}
-                </option>
-              </select>
-              <select v-else-if="isWarehouseView" v-model="warehouseRegionFilter">
-                <option v-for="region in warehouseRegionOptions" :key="region" :value="region">
-                  {{ region }}
-                </option>
-              </select>
-              <select v-else>
-                <option>전체 지역</option>
-                <option>서울권역</option>
-                <option>경기권역</option>
-                <option>인천/충청</option>
-                <option>부산/영남</option>
-              </select>
-            </div>
-            <div class="filter-item">
-              <span>운영 상태</span>
-              <select v-if="isStoreView" v-model="storeStatusFilter">
-                <option>전체</option>
-                <option>활성</option>
-                <option>비활성</option>
-              </select>
-              <select v-else-if="isWarehouseView" v-model="warehouseStatusFilter">
-                <option v-for="status in warehouseStatusOptions" :key="status" :value="status">
-                  {{ status }}
-                </option>
-              </select>
-              <select v-else>
-                <option>전체</option>
-                <option>{{ isWarehouseView ? '활성 창고' : '활성 매장' }}</option>
-                <option>비활성</option>
-              </select>
-            </div>
-            <div class="separator" />
-              <label class="search-box wide-search">
-              <SearchIcon :size="14" class="search-icon" />
-                <input
-                  v-model="activeSearchTerm"
-                  type="text"
-                  :placeholder="
-                    isWarehouseView
-                      ? '창고명, 창고 ID, 담당 책임자 통합 검색...'
-                      : '매장명, 매장 ID, 담당자 통합 검색...'
-                  "
-                />
-              </label>
-          </div>
-        </section>
-        <p v-if="infraError" class="text-xs font-bold text-red-600">{{ infraError }}</p>
+    <div class="flex flex-col gap-4">
+      <section class="border border-gray-200 bg-white p-4 shadow-sm">
+        <div class="grid gap-2 xl:grid-cols-[12rem_14rem_12rem_minmax(20rem,1fr)]">
+          <label class="grid min-w-[12rem] gap-1">
+            <span class="text-[11px] font-black text-gray-500">조회 대상</span>
+            <select v-model="viewType" class="h-10 w-full border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
+              <option value="store">매장</option>
+              <option value="warehouse">창고</option>
+            </select>
+          </label>
+          <label class="grid min-w-[14rem] gap-1">
+            <span class="text-[11px] font-black text-gray-500">지역 분류</span>
+            <select v-if="isStoreView" v-model="storeRegionFilter" class="h-10 w-full border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
+              <option v-for="region in storeRegionOptions" :key="region" :value="region">{{ region }}</option>
+            </select>
+            <select v-else-if="isWarehouseView" v-model="warehouseRegionFilter" class="h-10 w-full border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
+              <option v-for="region in warehouseRegionOptions" :key="region" :value="region">{{ region }}</option>
+            </select>
+            <select v-else class="h-10 w-full border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
+              <option>전체 지역</option>
+            </select>
+          </label>
+          <label class="grid min-w-[12rem] gap-1">
+            <span class="text-[11px] font-black text-gray-500">운영 상태</span>
+            <select v-if="isStoreView" v-model="storeStatusFilter" class="h-10 w-full border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
+              <option>전체</option>
+              <option>활성</option>
+              <option>비활성</option>
+            </select>
+            <select v-else-if="isWarehouseView" v-model="warehouseStatusFilter" class="h-10 w-full border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
+              <option v-for="status in warehouseStatusOptions" :key="status" :value="status">{{ status }}</option>
+            </select>
+            <select v-else class="h-10 w-full border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
+              <option>전체</option>
+            </select>
+          </label>
+          <label class="relative grid min-w-[20rem] gap-1">
+            <span class="text-[11px] font-black text-gray-500">통합 검색</span>
+            <SearchIcon :size="14" class="pointer-events-none absolute left-3 top-[35px] text-gray-400" />
+            <input
+              v-model="activeSearchTerm"
+              type="text"
+              class="h-10 border border-gray-300 bg-white pl-9 pr-3 text-xs font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#004D3C]"
+              :placeholder="isWarehouseView ? '창고명, 창고 ID, 담당 책임자 통합 검색...' : '매장명, 매장 ID, 담당자 통합 검색...'"
+            />
+          </label>
+        </div>
+      </section>
 
-        <section v-if="isStoreView" class="panel store-panel">
-            <div class="store-head">
-              <div class="store-head-left">
-                <h3 class="text-[11px] font-black uppercase tracking-[0.08em] text-gray-700">
-                  <MapPinIcon :size="14" /> 전사 매장 마스터 정보 (SO-036)
-                </h3>
-                <span class="text-[10px] font-bold text-gray-400">Total: {{ filteredStoreData.length }} Locations</span>
-              </div>
-            </div>
+      <p v-if="infraError" class="border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600">{{ infraError }}</p>
 
-            <div class="store-card-grid">
-              <article
+      <section v-if="isStoreView" class="border border-gray-200 bg-white p-4 shadow-sm">
+        <div class="mb-4 flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
+          <h3 class="inline-flex items-center gap-1 text-[11px] font-black uppercase tracking-[0.08em] text-gray-700">
+            <MapPinIcon :size="14" /> 전사 매장 마스터 정보 (SO-036)
+          </h3>
+          <span class="text-[10px] font-bold text-gray-400">Total: {{ filteredStoreData.length }} Locations</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="min-w-[1120px] w-full border-collapse text-left text-xs">
+            <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
+              <tr>
+                <th class="px-3 py-2.5 font-black">매장 코드</th>
+                <th class="px-3 py-2.5 font-black">매장명</th>
+                <th class="px-3 py-2.5 font-black">지역</th>
+                <th class="px-3 py-2.5 font-black">운영유형</th>
+                <th class="px-3 py-2.5 font-black">담당자</th>
+                <th class="px-3 py-2.5 font-black">연락처</th>
+                <th class="px-3 py-2.5 font-black">담당 창고</th>
+                <th class="px-3 py-2.5 font-black">주소</th>
+                <th class="px-3 py-2.5 text-center font-black">상태</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr
                 v-for="store in filteredStoreData"
                 :key="store.id"
-                class="store-card cursor-pointer hover:bg-[#EBF5F5]/40"
-                @click="goToStoreDetail(store)"
+                class="cursor-pointer transition hover:bg-[#EBF5F5]/60"
+                @click="openDetailModal('store', store.code)"
               >
-                <div class="store-card-head">
-                  <div>
-                    <p class="text-[10px] font-bold text-gray-400">{{ store.id }}</p>
-                    <h4 class="mt-1 text-sm font-black text-gray-900">{{ store.name }}</h4>
-                  </div>
-                  <span class="status-badge" :class="store.status">{{ store.status }}</span>
-                </div>
+                <td class="px-3 py-2.5 font-mono font-bold text-gray-600">{{ store.id }}</td>
+                <td class="px-3 py-2.5 font-black text-gray-900">{{ store.name }}</td>
+                <td class="px-3 py-2.5 font-bold text-gray-700">{{ store.region }}</td>
+                <td class="px-3 py-2.5 font-bold text-gray-700">{{ store.type }}</td>
+                <td class="px-3 py-2.5 font-bold text-gray-700">{{ store.manager }}</td>
+                <td class="px-3 py-2.5 font-bold text-gray-700">{{ store.contact }}</td>
+                <td class="px-3 py-2.5 font-black text-[#0f766e]">{{ store.warehouse }}</td>
+                <td class="max-w-[280px] truncate px-3 py-2.5 font-bold text-gray-600">{{ store.address }}</td>
+                <td class="px-3 py-2.5 text-center">
+                  <span class="inline-flex h-6 items-center px-2 text-[10px] font-black" :class="statusBadgeClass(store.status)">{{ store.status }}</span>
+                </td>
+              </tr>
+              <tr v-if="filteredStoreData.length === 0">
+                <td colspan="9" class="px-3 py-8 text-center text-xs font-bold text-gray-400">
+                  조건에 맞는 매장 정보가 없습니다.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
-                <div class="flex items-center gap-1">
-                  <span class="inline-flex items-center bg-gray-100 px-2 py-1 text-[10px] font-bold text-gray-600">{{ store.region }}</span>
-                </div>
+        <div class="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3">
+          <span class="text-[10px] font-bold uppercase tracking-[0.06em] text-gray-400">Infrastructure Data Master / Stable Build v2.4</span>
+          <div class="flex items-center gap-1">
+            <button type="button" class="inline-flex h-7 w-7 items-center justify-center border border-gray-300 text-gray-600 hover:bg-gray-50"><ChevronLeftIcon :size="14" /></button>
+            <button type="button" class="inline-flex h-7 min-w-7 items-center justify-center border border-[#004D3C] bg-[#004D3C] px-2 text-[11px] font-black text-white">1</button>
+            <button type="button" class="inline-flex h-7 min-w-7 items-center justify-center border border-gray-300 px-2 text-[11px] font-black text-gray-600 hover:bg-gray-50">2</button>
+            <button type="button" class="inline-flex h-7 w-7 items-center justify-center border border-gray-300 text-gray-600 hover:bg-gray-50"><ChevronRightIcon :size="14" /></button>
+          </div>
+        </div>
+      </section>
 
-                <p class="warehouse-address">{{ store.address }}</p>
+      <section v-else-if="isWarehouseView" class="border border-gray-200 bg-white p-4 shadow-sm">
+        <div class="mb-4 flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
+          <h3 class="inline-flex items-center gap-1 text-[11px] font-black uppercase tracking-[0.08em] text-gray-700">
+            <WarehouseIcon :size="14" /> 전사 창고 마스터 정보 (SO-041)
+          </h3>
+          <span class="text-[10px] font-bold text-gray-400">Total: {{ filteredWarehouseData.length }} Warehouses</span>
+        </div>
 
-                <div class="warehouse-meta-grid">
-                  <p class="warehouse-meta-row">
-                    <span>운영유형</span>
-                    <strong>{{ store.type }}</strong>
-                  </p>
-                  <p class="warehouse-meta-row">
-                    <span>담당자</span>
-                    <strong>{{ store.manager }}</strong>
-                  </p>
-                  <p class="warehouse-meta-row">
-                    <span>연락처</span>
-                    <strong>{{ store.contact }}</strong>
-                  </p>
-                  <p class="warehouse-meta-row full">
-                    <span>담당 창고</span>
-                    <strong class="text-[#0f766e]">{{ store.warehouse }}</strong>
-                  </p>
-                </div>
-
-              </article>
-
-              <div v-if="filteredStoreData.length === 0" class="store-empty">
-                조건에 맞는 매장 정보가 없습니다.
-              </div>
-            </div>
-
-            <div class="table-footer">
-              <span>Infrastructure Data Master / Stable Build v2.4</span>
-              <div class="pagination">
-                <button type="button"><ChevronLeftIcon :size="14" /></button>
-                <button type="button" class="active">1</button>
-                <button type="button">2</button>
-                <button type="button"><ChevronRightIcon :size="14" /></button>
-              </div>
-            </div>
-        </section>
-
-        <section v-else-if="isWarehouseView" class="panel store-panel">
-            <div class="store-head">
-              <div class="store-head-left">
-                <h3><WarehouseIcon :size="14" /> 전사 창고 마스터 정보 (SO-041)</h3>
-                <span>Total: {{ filteredWarehouseData.length }} Warehouses</span>
-              </div>
-            </div>
-
-            <div class="store-card-grid">
-              <article
+        <div class="overflow-x-auto">
+          <table class="min-w-[1080px] w-full border-collapse text-left text-xs">
+            <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
+              <tr>
+                <th class="px-3 py-2.5 font-black">창고 코드</th>
+                <th class="px-3 py-2.5 font-black">창고명</th>
+                <th class="px-3 py-2.5 font-black">지역</th>
+                <th class="px-3 py-2.5 font-black">담당 책임자</th>
+                <th class="px-3 py-2.5 font-black">연락처</th>
+                <th class="px-3 py-2.5 text-right font-black">현재 재고 수량</th>
+                <th class="px-3 py-2.5 font-black">주소</th>
+                <th class="px-3 py-2.5 text-center font-black">상태</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr
                 v-for="warehouse in filteredWarehouseData"
                 :key="warehouse.id"
-                class="store-card warehouse-card cursor-pointer hover:bg-[#EBF5F5]/40"
-                @click="goToWarehouseDetail(warehouse)"
+                class="cursor-pointer transition hover:bg-[#EBF5F5]/60"
+                @click="openDetailModal('warehouse', warehouse.code)"
               >
-                <div class="store-card-head">
-                  <div>
-                    <p class="text-[10px] font-bold text-gray-400">{{ warehouse.id }}</p>
-                    <h4 class="mt-1 text-sm font-black text-gray-900">{{ warehouse.name }}</h4>
-                  </div>
-                  <span class="status-badge" :class="warehouse.status">{{ warehouse.status }}</span>
-                </div>
+                <td class="px-3 py-2.5 font-mono font-bold text-gray-600">{{ warehouse.id }}</td>
+                <td class="px-3 py-2.5 font-black text-gray-900">{{ warehouse.name }}</td>
+                <td class="px-3 py-2.5 font-bold text-gray-700">{{ warehouse.region }}</td>
+                <td class="px-3 py-2.5 font-bold text-gray-700">{{ warehouse.manager }}</td>
+                <td class="px-3 py-2.5 font-bold text-gray-700">{{ warehouse.contact }}</td>
+                <td class="px-3 py-2.5 text-right font-black text-[#0f766e]">{{ warehouse.stockQty.toLocaleString() }} EA</td>
+                <td class="max-w-[320px] truncate px-3 py-2.5 font-bold text-gray-600">{{ warehouse.address }}</td>
+                <td class="px-3 py-2.5 text-center">
+                  <span class="inline-flex h-6 items-center px-2 text-[10px] font-black" :class="statusBadgeClass(warehouse.status)">{{ warehouse.status }}</span>
+                </td>
+              </tr>
+              <tr v-if="filteredWarehouseData.length === 0">
+                <td colspan="8" class="px-3 py-8 text-center text-xs font-bold text-gray-400">
+                  조건에 맞는 창고 정보가 없습니다.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
-                <p class="warehouse-address">{{ warehouse.address }}</p>
+        <div class="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3">
+          <span class="text-[10px] font-bold uppercase tracking-[0.06em] text-gray-400">Warehouse Master / Occupancy Monitoring</span>
+          <div class="flex items-center gap-1">
+            <button type="button" class="inline-flex h-7 w-7 items-center justify-center border border-gray-300 text-gray-600 hover:bg-gray-50"><ChevronLeftIcon :size="14" /></button>
+            <button type="button" class="inline-flex h-7 min-w-7 items-center justify-center border border-[#004D3C] bg-[#004D3C] px-2 text-[11px] font-black text-white">1</button>
+            <button type="button" class="inline-flex h-7 w-7 items-center justify-center border border-gray-300 text-gray-600 hover:bg-gray-50"><ChevronRightIcon :size="14" /></button>
+          </div>
+        </div>
+      </section>
 
-                <div class="warehouse-meta-grid">
-                  <p class="warehouse-meta-row">
-                    <span>담당 책임자</span>
-                    <strong>{{ warehouse.manager }}</strong>
-                  </p>
-                  <p class="warehouse-meta-row">
-                    <span>연락처</span>
-                    <strong>{{ warehouse.contact }}</strong>
-                  </p>
-                  <p class="warehouse-meta-row full">
-                    <span>현재 재고 수량</span>
-                    <strong class="text-[#0f766e]">{{ warehouse.stockQty.toLocaleString() }} EA</strong>
-                  </p>
-                </div>
-              </article>
+      <section v-else class="border border-dashed border-gray-300 bg-white p-10 text-center text-sm font-bold text-gray-400 shadow-sm">
+        <p>현재 페이지가 준비 중입니다.</p>
+      </section>
+    </div>
 
-              <div v-if="filteredWarehouseData.length === 0" class="store-empty">
-                조건에 맞는 창고 정보가 없습니다.
-              </div>
+    <div
+      v-if="detailModalOpen"
+      class="fixed inset-0 z-50"
+      @keydown.esc="closeDetailModal"
+    >
+      <div class="absolute inset-0 bg-black/40" @click="closeDetailModal" />
+      <section class="absolute left-1/2 top-1/2 w-[min(760px,94vw)] -translate-x-1/2 -translate-y-1/2 border border-gray-200 bg-white shadow-2xl">
+        <div class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-5 py-4">
+          <div>
+            <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">Infrastructure Detail</p>
+            <h2 class="mt-1 text-base font-black text-gray-900">{{ detailType === 'store' ? '매장 상세 정보' : '창고 상세 정보' }}</h2>
+          </div>
+          <button type="button" class="h-8 border border-gray-300 bg-white px-3 text-xs font-black text-gray-700 hover:bg-gray-100" @click="closeDetailModal">
+            닫기
+          </button>
+        </div>
+
+        <div class="max-h-[72vh] overflow-y-auto p-5">
+          <div v-if="detailLoading" class="border border-gray-200 bg-gray-50 px-3 py-12 text-center text-sm font-bold text-gray-400">
+            상세 정보를 불러오는 중입니다.
+          </div>
+          <div v-else-if="detailError" class="border border-red-200 bg-red-50 px-3 py-3 text-xs font-bold text-red-600">
+            {{ detailError }}
+          </div>
+          <div v-else-if="selectedDetail" class="border border-gray-200">
+            <div class="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2 text-[11px] font-black text-gray-600">
+              <span>{{ detailType === 'store' ? '매장' : '창고' }}</span>
+              <span>·</span>
+              <span>{{ selectedDetail.code || '-' }}</span>
+              <span>·</span>
+              <span class="truncate">{{ selectedDetail.name || '-' }}</span>
             </div>
-
-            <div class="table-footer">
-              <span>Warehouse Master / Occupancy Monitoring</span>
-              <div class="pagination">
-                <button type="button"><ChevronLeftIcon :size="14" /></button>
-                <button type="button" class="active">1</button>
-                <button type="button"><ChevronRightIcon :size="14" /></button>
-              </div>
-            </div>
-        </section>
-
-        <section v-else class="panel placeholder-panel">
-          <p>현재 페이지가 준비 중입니다.</p>
-        </section>
+            <dl class="divide-y divide-gray-100 text-xs">
+            <template v-if="detailType === 'store'">
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">매장 코드</dt><dd class="font-black text-gray-900">{{ selectedDetail.code }}</dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">매장명</dt><dd class="font-black text-gray-900">{{ selectedDetail.name }}</dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">지역</dt><dd class="font-black text-gray-900">{{ selectedDetail.region || '-' }}</dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">상태</dt><dd><span class="inline-flex h-6 items-center px-2 text-[10px] font-black" :class="statusBadgeClass(statusToKor[selectedDetail.status] || selectedDetail.status)">{{ statusToKor[selectedDetail.status] || selectedDetail.status }}</span></dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">담당자</dt><dd class="font-black text-gray-900">{{ selectedDetail.managerName || '-' }}</dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">연락처</dt><dd class="font-black text-gray-900">{{ selectedDetail.contact || '-' }}</dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-start px-3 py-2.5"><dt class="pt-0.5 font-bold text-gray-500">주소</dt><dd class="font-black text-gray-900">{{ selectedDetail.address || '-' }}</dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">담당 창고</dt><dd class="font-black text-gray-900">매핑 관리에서 설정</dd></div>
+            </template>
+            <template v-else>
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">창고 코드</dt><dd class="font-black text-gray-900">{{ selectedDetail.code }}</dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">창고명</dt><dd class="font-black text-gray-900">{{ selectedDetail.name }}</dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">상태</dt><dd><span class="inline-flex h-6 items-center px-2 text-[10px] font-black" :class="statusBadgeClass(statusToKor[selectedDetail.status] || selectedDetail.status)">{{ statusToKor[selectedDetail.status] || selectedDetail.status }}</span></dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">연결 매장 수</dt><dd class="font-black text-gray-900">{{ Number(selectedDetail.mappedStoreCount || 0).toLocaleString() }}개</dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">담당 책임자</dt><dd class="font-black text-gray-900">{{ selectedDetail.managerName || '-' }}</dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">연락처</dt><dd class="font-black text-gray-900">{{ selectedDetail.contact || '-' }}</dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-start px-3 py-2.5"><dt class="pt-0.5 font-bold text-gray-500">주소</dt><dd class="font-black text-gray-900">{{ selectedDetail.address || '-' }}</dd></div>
+            </template>
+            </dl>
+          </div>
+        </div>
+      </section>
     </div>
   </AppLayout>
 </template>
-
-<style scoped>
-:global(body) {
-  background: #f3f4f6;
-}
-
-.erp-page {
-  min-height: 100vh;
-  background: #f3f4f6;
-  color: #111827;
-  font-family: inherit;
-  font-size: 13px;
-  -webkit-font-smoothing: antialiased;
-}
-
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  min-height: 48px;
-  padding: 0 16px;
-  background: #004d3c;
-  border-bottom: 1px solid #1f2937;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.14);
-}
-
-.topbar-left,
-.topbar-right,
-.topbar-actions,
-.top-nav,
-.side-nav-main,
-.filter-left,
-.filter-item,
-.store-head,
-.store-head-left,
-.pagination,
-.detail-head,
-.tag-row,
-.value.with-icon,
-.value.green,
-.contract-alert {
-  display: flex;
-  align-items: center;
-}
-
-.topbar-left,
-.topbar-right,
-.topbar-actions {
-  gap: 16px;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-right: 24px;
-  margin-right: 8px;
-  border-right: 1px solid rgba(255, 255, 255, 0.2);
-  height: 100%;
-}
-
-.brand-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.brand-mark.inverse {
-  background: #fff;
-  color: #111827;
-}
-
-.brand-name {
-  font-size: 14px;
-  font-weight: 900;
-  letter-spacing: -0.04em;
-  text-transform: uppercase;
-}
-
-.brand-name.inverse {
-  color: #fff;
-}
-
-.top-nav {
-  gap: 0;
-  height: 100%;
-}
-
-.top-nav-button,
-.icon-button,
-.user-card,
-.side-nav-button,
-.ghost-button,
-.primary-button,
-.pagination button,
-.detail-close {
-  border: 0;
-  background: transparent;
-  font: inherit;
-  cursor: pointer;
-}
-
-.top-nav-button {
-  height: 48px;
-  padding: 0 14px;
-  border-bottom: 2px solid transparent;
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 10.5px;
-  font-weight: 700;
-}
-
-.top-nav-button:hover,
-.icon-button:hover,
-.user-card:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-}
-
-.top-nav-button.active {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-  border-bottom-color: #fff;
-}
-
-.topbar-actions {
-  padding-left: 16px;
-  border-left: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.icon-button {
-  padding: 6px;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.user-card {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px;
-}
-
-.user-avatar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.user-name {
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.layout-shell {
-  display: flex;
-  min-height: calc(100vh - 48px);
-}
-
-.sidebar {
-  display: flex;
-  flex-direction: column;
-  width: 208px;
-  border-right: 1px solid #d1d5db;
-  background: #fff;
-}
-
-.sidebar-head {
-  padding: 16px;
-  border-bottom: 1px solid #f3f4f6;
-  background: rgba(249, 250, 251, 0.5);
-}
-
-.sidebar-caption {
-  margin-bottom: 4px;
-  color: #9ca3af;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
-.sidebar-title {
-  color: #1f2937;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.side-nav {
-  padding: 8px;
-}
-
-.side-nav-button {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid transparent;
-  color: #4b5563;
-  font-size: 12px;
-  text-align: left;
-}
-
-.side-nav-button + .side-nav-button {
-  margin-top: 2px;
-}
-
-.side-nav-button:hover {
-  background: #f9fafb;
-}
-
-.side-nav-main {
-  gap: 10px;
-}
-
-.side-nav-id {
-  font-size: 9px;
-  font-weight: 700;
-  opacity: 0.3;
-}
-
-.content {
-  flex: 1;
-  padding: 16px;
-}
-
-.infra-content {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  overflow: hidden;
-}
-
-.panel {
-  border: 1px solid #d1d5db;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
-}
-
-.filter-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px;
-  flex-shrink: 0;
-}
-
-.filter-left {
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.filter-item {
-  gap: 8px;
-}
-
-.filter-item span {
-  color: #9ca3af;
-  font-size: 10px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.filter-item select,
-.wide-search input {
-  border: 1px solid #d1d5db;
-  background: #f9fafb;
-  outline: none;
-  font: inherit;
-}
-
-.filter-item select {
-  width: 112px;
-  padding: 6px 8px;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.search-box {
-  position: relative;
-  display: block;
-}
-
-.wide-search input {
-  width: 320px;
-  padding: 7px 12px 7px 32px;
-  font-size: 11px;
-}
-
-.filter-item select:focus,
-.wide-search input:focus {
-  border-color: #004d3c;
-  background: #fff;
-}
-
-.search-icon {
-  position: absolute;
-  top: 50%;
-  left: 10px;
-  transform: translateY(-50%);
-  color: #9ca3af;
-}
-
-.separator {
-  width: 1px;
-  height: 24px;
-  background: #e5e7eb;
-}
-
-.primary-button,
-.ghost-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  font-size: 11px;
-  font-weight: 900;
-}
-
-.primary-button {
-  background: #004d3c;
-  color: #fff;
-}
-
-.ghost-button {
-  border: 1px solid #d1d5db;
-  color: #374151;
-}
-
-.ghost-button:hover {
-  background: #f9fafb;
-}
-
-.infra-split {
-  display: flex;
-  flex: 1;
-  gap: 16px;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.store-panel {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.store-head {
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  border-bottom: 1px solid #e5e7eb;
-  background: rgba(249, 250, 251, 0.5);
-}
-
-.store-head-left {
-  gap: 10px;
-}
-
-.store-head-left h3 {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: #374151;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.store-head-left span {
-  color: #9ca3af;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.store-card-grid {
-  flex: 1;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 12px;
-  padding: 12px;
-  overflow: auto;
-}
-
-.store-card {
-  border: 1px solid #e5e7eb;
-  background: #fff;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.warehouse-card {
-  gap: 12px;
-}
-
-.warehouse-address {
-  color: #6b7280;
-  font-size: 11px;
-  font-weight: 700;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.warehouse-meta-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px 12px;
-}
-
-.warehouse-meta-row {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.warehouse-meta-row.full {
-  grid-column: 1 / -1;
-}
-
-.warehouse-meta-row span {
-  color: #9ca3af;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.warehouse-meta-row strong {
-  color: #1f2937;
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.store-card-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.store-stock-graph {
-  margin-top: 2px;
-}
-
-.store-stock-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: #6b7280;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.store-stock-head strong {
-  color: #111827;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.store-stock-head strong.low {
-  color: #dc2626;
-}
-
-.store-stock-track {
-  margin-top: 6px;
-  height: 8px;
-  width: 100%;
-  background: #e5e7eb;
-  overflow: hidden;
-}
-
-.store-stock-fill {
-  height: 100%;
-  background: #0f766e;
-}
-
-.store-stock-fill.caution {
-  background: #d97706;
-}
-
-.store-stock-fill.low {
-  background: #dc2626;
-}
-
-.store-stock-meta {
-  margin-top: 6px;
-  color: #6b7280;
-  font-size: 10px;
-  font-weight: 700;
-  text-align: right;
-}
-
-.store-empty {
-  grid-column: 1 / -1;
-  border: 1px dashed #d1d5db;
-  background: #f9fafb;
-  padding: 28px 12px;
-  text-align: center;
-  color: #9ca3af;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.table-wrap {
-  flex: 1;
-  overflow: auto;
-}
-
-.infra-table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-}
-
-.infra-table thead {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.infra-table thead tr {
-  border-bottom: 1px solid #d1d5db;
-  background: #f3f4f6;
-}
-
-.infra-table th,
-.infra-table td {
-  padding: 8px 12px;
-  border-right: 1px solid #f3f4f6;
-  text-align: left;
-  white-space: nowrap;
-}
-
-.infra-table th:last-child,
-.infra-table td:last-child {
-  border-right: 0;
-}
-
-.infra-table th {
-  color: #6b7280;
-  font-size: 10px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.infra-table tbody tr {
-  border-bottom: 1px solid #f3f4f6;
-  cursor: pointer;
-}
-
-.infra-table tbody tr:hover {
-  background: rgba(239, 246, 255, 0.7);
-}
-
-.infra-table tbody tr.selected {
-  background: #e6f2f0;
-}
-
-.infra-table td {
-  color: #6b7280;
-  font-size: 11px;
-}
-
-.w-id { width: 96px; }
-.w-region { width: 80px; }
-.w-type { width: 80px; }
-.w-manager { width: 96px; }
-.w-contact { width: 128px; }
-.w-warehouse { width: 128px; }
-.w-warehouse-name { width: 148px; }
-.w-address { width: 240px; }
-.w-end { width: 112px; }
-.w-stock { width: 136px; }
-.w-store-name { width: 148px; }
-.w-priority { width: 92px; }
-.w-lead { width: 92px; }
-.w-status { width: 80px; }
-
-.center { text-align: center !important; }
-.right { text-align: right !important; }
-
-.muted { color: #9ca3af !important; }
-
-.strong-small { font-weight: 700; }
-
-.strong {
-  color: #111827 !important;
-  font-size: 12px !important;
-  font-weight: 900;
-}
-
-.semi-strong {
-  color: #4b5563 !important;
-  font-weight: 700;
-}
-
-.truncate {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.warehouse-cell {
-  color: #4b5563;
-  font-style: italic;
-  font-weight: 700;
-}
-
-.end-date {
-  color: #6b7280;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.end-date.expiring {
-  color: #dc2626;
-  text-decoration: underline;
-}
-
-.warn-icon {
-  margin-left: 6px;
-  color: #ef4444;
-}
-
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2px 6px;
-  border: 1px solid #d1d5db;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.status-badge.활성 {
-  border-color: #cce5e1;
-  background: #e6f2f0;
-  color: #004d3c;
-}
-
-.status-badge.비활성 {
-  border-color: #e5e7eb;
-  background: #f9fafb;
-  color: #9ca3af;
-}
-
-.status-badge.포화\ 임박 {
-  border-color: #fde68a;
-  background: #fffbeb;
-  color: #b45309;
-}
-
-.status-badge.운영중 {
-  border-color: #cce5e1;
-  background: #e6f2f0;
-  color: #004d3c;
-}
-
-.status-badge.점검중 {
-  border-color: #fde68a;
-  background: #fffbeb;
-  color: #b45309;
-}
-
-.priority-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 34px;
-  padding: 2px 6px;
-  border: 1px solid #d1d5db;
-  background: #f9fafb;
-  color: #4b5563;
-  font-size: 10px;
-  font-weight: 900;
-}
-
-.priority-chip.p1 {
-  border-color: #fecaca;
-  background: #fef2f2;
-  color: #b91c1c;
-}
-
-.priority-chip.p2 {
-  border-color: #fde68a;
-  background: #fffbeb;
-  color: #b45309;
-}
-
-.priority-chip.p3 {
-  border-color: #d1d5db;
-  background: #f9fafb;
-  color: #6b7280;
-}
-
-.table-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 12px;
-  border-top: 1px solid #d1d5db;
-  background: #f9fafb;
-  color: #9ca3af;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.pagination {
-  gap: 4px;
-}
-
-.pagination button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 24px;
-  height: 24px;
-  border: 1px solid #d1d5db;
-  color: #4b5563;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.pagination button:hover {
-  background: #f9fafb;
-}
-
-.pagination button.active {
-  border-color: #1f2937;
-  background: #1f2937;
-  color: #fff;
-}
-
-.detail-panel {
-  display: flex;
-  flex-direction: column;
-  width: 380px;
-  flex-shrink: 0;
-  overflow: hidden;
-}
-
-.detail-head {
-  justify-content: space-between;
-  padding: 12px;
-  border-bottom: 1px solid #e5e7eb;
-  background: #004d3c;
-  color: #fff;
-}
-
-.detail-head h3 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.detail-close {
-  padding: 2px;
-  color: #fff;
-}
-
-.detail-body {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 24px;
-  overflow-y: auto;
-  padding: 16px;
-}
-
-.caption,
-.section-title,
-.label {
-  color: #9ca3af;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.detail-body h4 {
-  margin: 6px 0 10px;
-  color: #111827;
-  font-size: 15px;
-  font-weight: 900;
-}
-
-.tag-row span {
-  display: inline-flex;
-  padding: 2px 6px;
-  border: 1px solid #e5e7eb;
-  background: #f3f4f6;
-  color: #4b5563;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.detail-section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.section-title {
-  padding-bottom: 4px;
-  border-bottom: 1px solid #f3f4f6;
-}
-
-.info-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 20px;
-}
-
-.info-grid .full {
-  grid-column: 1 / -1;
-}
-
-.value {
-  color: #1f2937;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.value.with-icon,
-.value.green {
-  gap: 6px;
-}
-
-.value.green {
-  color: #004d3c;
-}
-
-.contract-box {
-  padding: 12px;
-  border: 1px solid #e5e7eb;
-  background: #f9fafb;
-}
-
-.contract-box.expiring {
-  border-color: #fecaca;
-  background: #fef2f2;
-}
-
-.contract-row {
-  display: flex;
-  justify-content: space-between;
-  color: #6b7280;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.contract-row strong {
-  color: #111827;
-  font-weight: 900;
-}
-
-.contract-row strong.expiring {
-  color: #dc2626;
-}
-
-.contract-alert {
-  gap: 6px;
-  margin-top: 8px;
-  color: #b91c1c;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.detail-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  padding: 12px 16px 16px;
-  background: #fff;
-}
-
-.list-box {
-  border: 1px solid #e5e7eb;
-  background: #f9fafb;
-}
-
-.chip-wrap {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.coverage-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 8px;
-  border: 1px solid #cce5e1;
-  background: #e6f2f0;
-  color: #004d3c;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.list-row,
-.flow-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  border-bottom: 1px solid #f3f4f6;
-}
-
-.list-row:last-child,
-.flow-row:last-child {
-  border-bottom: 0;
-}
-
-.list-row {
-  color: #374151;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.flow-title {
-  color: #111827;
-  font-size: 11px;
-  font-weight: 900;
-}
-
-.flow-meta {
-  margin-top: 2px;
-  color: #9ca3af;
-  font-size: 9px;
-  font-weight: 700;
-}
-
-.flow-row strong {
-  color: #004d3c;
-  font-size: 11px;
-  font-weight: 900;
-}
-
-.flow-row strong.out {
-  color: #b91c1c;
-}
-
-.detail-action {
-  justify-content: center;
-}
-
-.detail-action.history {
-  color: #6b7280;
-}
-
-.placeholder-panel {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 320px;
-  color: #9ca3af;
-  font-style: italic;
-}
-
-@media (max-width: 1180px) {
-  .infra-split {
-    flex-direction: column;
-  }
-
-  .detail-panel {
-    width: 100%;
-  }
-}
-
-@media (max-width: 980px) {
-  .topbar,
-  .layout-shell,
-  .filter-bar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .topbar {
-    position: static;
-    padding: 12px 16px;
-  }
-
-  .topbar-left,
-  .topbar-right,
-  .filter-left {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .brand {
-    margin-right: 0;
-    padding-right: 0;
-    border-right: 0;
-  }
-
-  .top-nav {
-    flex-wrap: wrap;
-  }
-
-  .topbar-actions {
-    padding-left: 0;
-    border-left: 0;
-  }
-
-  .sidebar {
-    width: 100%;
-  }
-
-  .wide-search input {
-    width: 100%;
-  }
-}
-</style>

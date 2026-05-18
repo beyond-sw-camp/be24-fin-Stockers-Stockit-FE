@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
@@ -9,9 +9,7 @@ import { formatDateTime } from '@/features/store/common/ui.js'
 
 const router = useRouter()
 
-const activeSideMenu = ref('출고 관리')
 const topMenus = roleMenus.warehouse
-const sideMenus = roleMenus.warehouse.find((menu) => menu.label === '입/출고 관리')?.children ?? []
 
 const STATUS_TABS = [
   { key: 'ALL', label: '전체' },
@@ -53,11 +51,13 @@ function normalizeOutboundType(sourceType) {
 }
 
 function outboundTypeLabel(sourceType) {
-  return {
-    STORE_OUTBOUND: '매장 출고',
-    WH_TRANSFER: '창고간 이동',
-    CIRCULAR_SALE: '순환재고 판매',
-  }[normalizeOutboundType(sourceType)] ?? sourceType
+  return (
+    {
+      STORE_OUTBOUND: '매장 출고',
+      WH_TRANSFER: '창고간 이동',
+      CIRCULAR_SALE: '순환재고 판매',
+    }[normalizeOutboundType(sourceType)] ?? sourceType
+  )
 }
 
 function outboundTypeClass(sourceType) {
@@ -72,7 +72,9 @@ function outboundTypeClass(sourceType) {
 
 const visibleRows = computed(() => {
   if (activeTypeTab.value === 'ALL') return outboundRows.value
-  return outboundRows.value.filter((row) => normalizeOutboundType(row.sourceType) === activeTypeTab.value)
+  return outboundRows.value.filter(
+    (row) => normalizeOutboundType(row.sourceType) === activeTypeTab.value,
+  )
 })
 
 const statusCounts = computed(() => ({
@@ -167,16 +169,17 @@ onMounted(() => {
 
 <template>
   <AppLayout
-    active-top-menu="입/출고 관리"
+    active-top-menu="출고 관리"
     :top-menus="topMenus"
-    :side-menus="sideMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
   >
     <div class="flex flex-col gap-3">
       <section class="border border-slate-200 bg-gradient-to-r from-slate-50 via-white to-emerald-50/40 p-5 shadow-sm">
         <p class="text-[10px] font-extrabold uppercase tracking-[0.16em] text-slate-500">Warehouse Outbound</p>
         <h1 class="mt-1 text-xl font-black text-slate-900">출고 리스트</h1>
-        <p class="mt-1 text-sm font-semibold text-slate-600">창고 출고 목록을 조회하고 상태 전이를 관리합니다.</p>
+        <p class="mt-1 text-sm font-semibold text-slate-600">
+          창고 출고 목록을 조회하고 상태 전이를 관리합니다.
+        </p>
       </section>
 
       <section class="border border-slate-200 bg-white px-4 py-3 shadow-sm">
@@ -274,7 +277,9 @@ onMounted(() => {
             </thead>
             <tbody class="divide-y divide-slate-100">
               <tr v-if="loading">
-                <td colspan="7" class="px-4 py-14 text-center text-sm font-semibold text-slate-400">조회 중입니다.</td>
+                <td colspan="7" class="px-4 py-14 text-center text-sm font-semibold text-slate-400">
+                  조회 중입니다.
+                </td>
               </tr>
               <tr
                 v-for="row in visibleRows"
@@ -286,18 +291,28 @@ onMounted(() => {
                 <td class="whitespace-nowrap px-4 py-3 font-bold text-slate-500">{{ row.outboundNo }}</td>
                 <td class="px-4 py-3 font-black text-slate-900">{{ row.sourceRefNo }}</td>
                 <td class="px-4 py-3">
-                  <span class="inline-flex rounded-md border px-2.5 py-1 text-[10px] font-black" :class="outboundTypeClass(row.sourceType)">
+                  <span
+                    class="inline-flex rounded-md border px-2.5 py-1 text-[10px] font-black"
+                    :class="outboundTypeClass(row.sourceType)"
+                  >
                     {{ outboundTypeLabel(row.sourceType) }}
                   </span>
                 </td>
                 <td class="px-4 py-3 font-bold text-slate-700">{{ destinationLabel(row) }}</td>
-                <td class="px-4 py-3 text-right font-black text-slate-700">{{ row.totalRequestedQuantity ?? 0 }}</td>
+                <td class="px-4 py-3 text-right font-black text-slate-700">
+                  {{ row.totalRequestedQuantity ?? 0 }}
+                </td>
                 <td class="px-4 py-3 text-center">
-                  <span class="inline-flex rounded-md px-2.5 py-1 text-[10px] font-black" :class="statusClass(row.status)">
+                  <span
+                    class="inline-flex rounded-md px-2.5 py-1 text-[10px] font-black"
+                    :class="statusClass(row.status)"
+                  >
                     {{ statusLabel(row.status) }}
                   </span>
                 </td>
-                <td class="whitespace-nowrap px-4 py-3 font-bold text-slate-500">{{ formatDateTime(row.requestedAt) }}</td>
+                <td class="whitespace-nowrap px-4 py-3 font-bold text-slate-500">
+                  {{ formatDateTime(row.requestedAt) }}
+                </td>
               </tr>
               <tr v-if="!loading && visibleRows.length === 0">
                 <td colspan="7" class="px-4 py-14 text-center text-sm font-semibold text-slate-400">

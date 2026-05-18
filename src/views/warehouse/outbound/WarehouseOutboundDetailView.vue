@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Archive, BadgeCheck, Truck } from 'lucide-vue-next'
@@ -15,9 +15,7 @@ import { formatDateTime } from '@/features/store/common/ui.js'
 const route = useRoute()
 const router = useRouter()
 
-const activeSideMenu = ref('출고 관리')
 const topMenus = roleMenus.warehouse
-const sideMenus = roleMenus.warehouse.find((menu) => menu.label === '입/출고 관리')?.children ?? []
 
 const outboundNo = computed(() => String(route.params.id || ''))
 const outbound = ref(null)
@@ -26,7 +24,7 @@ const loadingAction = ref('')
 const errorMessage = ref('')
 const resultMessage = ref('')
 const outboundSteps = [
-  { key: 'READY_TO_SHIP', label: '출고 준비' },
+  { key: 'READY_TO_SHIP', label: '출고 준비 중' },
   { key: 'IN_TRANSIT', label: '배송 중' },
   { key: 'ARRIVED', label: '배송 완료' },
 ]
@@ -158,10 +156,9 @@ onMounted(fetchDetail)
 
 <template>
   <AppLayout
-    active-top-menu="입/출고 관리"
+    active-top-menu="출고 관리"
     :top-menus="topMenus"
-    :side-menus="sideMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
   >
     <div class="flex flex-col gap-4">
       <section class="flex items-center justify-between border border-gray-300 bg-white p-4 shadow-sm">

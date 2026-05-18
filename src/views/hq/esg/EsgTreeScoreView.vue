@@ -1,20 +1,27 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   ArrowLeft, RefreshCw, Leaf, Recycle, ShieldCheck, Heart,
-  TrendingUp, Award, Filter, ChevronDown, Sprout, Calendar,
+  TrendingUp, Award, Filter, Sprout, Calendar,
+  Info, X,
 } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import BarChart from '@/components/common/charts/BarChart.vue'
 import DoughnutChart from '@/components/common/charts/DoughnutChart.vue'
+import EsgTreeWidget from '@/components/common/EsgTreeWidget.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { useEsgStore } from '@/stores/esg.js'
+import { scoreEventsApi } from '@/api/hq/esg.js'
+import { extractErrorMessage } from '@/api/axios.js'
 const router = useRouter()
 const auth = useAuthStore()
 const topMenus = computed(() => roleMenus.hq ?? [])
-const sideMenus = ref([])
-const activeSideMenu = ref('')
+const sideMenus = computed(
+  () => (roleMenus.hq ?? []).find((menu) => menu.label === 'ESG 대시보드')?.children ?? [],
+)
+const activeSideMenu = ref('친환경 나무 키우기 점수')
 
 // ─────────── 점수 룰 마스터 ───────────
 const SCORE_RULES = {
@@ -25,37 +32,146 @@ const SCORE_RULES = {
   localPartnerBonus: 150,
   localPartnerMonthlyCap: 3, // 거래처당 월 한도
 }
+// circular_material_price_policy 시드와 동일한 10종.
+// factor: kgCO₂/kg (LCA 기준 표준치 mock — 향후 BE GET /api/hq/esg/material-factors 로 교체)
 const MATERIAL_FACTORS = {
-  COTTON:     { label: '면',     factor: 1.8 },
-  POLYESTER:  { label: '폴리에스터', factor: 2.3 },
-  NYLON:      { label: '나일론', factor: 2.1 },
-  WOOL:       { label: '울',     factor: 2.5 },
-  BLEND:      { label: '혼방',   factor: 2.0 },  // 면50:폴리50 비율 분해 평균 mock
+  COTTON:     { label: '면',         group: 'NATURAL_SINGLE', factor: 1.8, note: '—' },
+  WOOL:       { label: '울',         group: 'NATURAL_SINGLE', factor: 2.5, note: '—' },
+  CASHMERE:   { label: '캐시미어',   group: 'NATURAL_SINGLE', factor: 5.8, note: '방목 토지 사용으로 계수 높음' },
+  SILK:       { label: '실크',       group: 'NATURAL_SINGLE', factor: 3.2, note: '—' },
+  LINEN:      { label: '린넨',       group: 'NATURAL_SINGLE', factor: 1.1, note: '재배 단계 배출 적음' },
+  POLYESTER:  { label: '폴리에스터', group: 'SYNTHETIC',      factor: 2.3, note: '—' },
+  ACRYLIC:    { label: '아크릴',     group: 'SYNTHETIC',      factor: 2.2, note: '—' },
+  POLYAMIDE:  { label: '나일론',     group: 'SYNTHETIC',      factor: 2.1, note: 'POLYAMIDE' },
+  NYLON:      { label: '나일론',     group: 'SYNTHETIC',      factor: 2.1, note: 'POLYAMIDE 별칭' },
+  ELASTANE:   { label: '스판덱스',   group: 'SYNTHETIC',      factor: 2.5, note: '—' },
+  BLEND:      { label: '혼방',       group: 'BLEND',          factor: 2.0, note: '구성 비율 분해 평균' },
 }
 
-// ─────────── Mock 이벤트 데이터 (BE 연동 시 GET /api/hq/esg/score/events 로 교체) ───────────
-const events = ref([
-  // 4월 판매 4건
-  { id: 1,  date: '2026-04-27', type: 'sale',     buyer: '신규 D사', material: 'POLYESTER', weightKg: 500, isNewBuyer: true,  isLocalPartner: false, donationType: null,        method: 'RECYCLE' },
-  { id: 2,  date: '2026-04-20', type: 'sale',     buyer: '마을협동조합', material: 'BLEND',     weightKg: 300, isNewBuyer: false, isLocalPartner: true,  donationType: null,        method: 'UPCYCLE' },
-  { id: 3,  date: '2026-04-15', type: 'sale',     buyer: 'B사',     material: 'COTTON',    weightKg: 250, isNewBuyer: false, isLocalPartner: false, donationType: null,        method: 'RESALE' },
-  { id: 4,  date: '2026-04-10', type: 'sale',     buyer: 'A사',     material: 'COTTON',    weightKg: 100, isNewBuyer: false, isLocalPartner: false, donationType: null,        method: 'RESALE' },
+// 소재 계수 안내 모달
+const showFactorModal = ref(false)
+function openFactorModal()  { showFactorModal.value = true }
+function closeFactorModal() { showFactorModal.value = false }
+
+// 점수 산정 안내 모달
+const showScoreRuleModal = ref(false)
+function openScoreRuleModal()  { showScoreRuleModal.value = true }
+function closeScoreRuleModal() { showScoreRuleModal.value = false }
+
+// 점수 산정 안내 표시용 룰 (5종 + 공통 조건)
+const SCORE_RULE_ROWS = [
+  {
+    id: 'saleExecution',
+    label: '순환재고 판매 실행',
+    base: '판매 1건 = 100점',
+    cond: '최소 10kg 이상 판매 시',
+    detail: '판매 행동 자체에 부여되는 기본 점수. 너무 적게 팔면 점수 미부여 (어뷰징 방지).',
+    barCls: 'bg-emerald-500',
+  },
+  {
+    id: 'carbon',
+    label: '탄소 감축 기여',
+    base: '무게(kg) × 소재 계수 × 0.5',
+    cond: '판매 + 기부 합산',
+    detail: '폐기·소각되지 않고 판매·기부된 재고에 대한 실제 탄소 감축량 환산 점수. 혼방 소재는 구성 비율 분해 평균 적용. ×0.5는 다른 점수 요소와의 비중 균형용 스케일링.',
+    barCls: 'bg-teal-500',
+  },
+  {
+    id: 'newBuyer',
+    label: '순환 거래 확산',
+    base: '+150점 (1회)',
+    cond: '신규 거래처 첫 거래 시',
+    detail: 'buyerId 기준 과거 순환 판매 이력 0건일 때만 부여 (ESG-S). 신규 파트너 발굴 인센티브로 소각 대체 채널 확장 유도.',
+    barCls: 'bg-blue-500',
+  },
+  {
+    id: 'localPartner',
+    label: '지역 상생',
+    base: '+150점',
+    cond: '사회적기업·지역 파트너 거래 시 (월 3건 상한)',
+    detail: '지역 기반 소규모 파트너 / 사회적 기업과의 거래에 부여 (ESG-S). 거래처당 월 3건 상한으로 어뷰징 방지.',
+    barCls: 'bg-amber-500',
+  },
+  {
+    id: 'donationExecution',
+    label: '기부 활동 실행',
+    base: '기부 1건 = 80점',
+    cond: '최소 10kg 이상 기부 시',
+    detail: '기부 행동 자체에 부여되는 기본 점수. 탄소 감축 점수는 별도 합산.',
+    barCls: 'bg-pink-500',
+  },
+]
+
+// 모달 표시용 소재 리스트 — BE circular_material_price_policy 시드 순서와 동일 (NYLON 은 POLYAMIDE 의 FE 별칭이라 제외)
+const MATERIAL_FACTOR_ROWS = [
+  { code: 'COTTON',     ...MATERIAL_FACTORS.COTTON },
+  { code: 'WOOL',       ...MATERIAL_FACTORS.WOOL },
+  { code: 'CASHMERE',   ...MATERIAL_FACTORS.CASHMERE },
+  { code: 'SILK',       ...MATERIAL_FACTORS.SILK },
+  { code: 'LINEN',      ...MATERIAL_FACTORS.LINEN },
+  { code: 'POLYESTER',  ...MATERIAL_FACTORS.POLYESTER },
+  { code: 'ACRYLIC',    ...MATERIAL_FACTORS.ACRYLIC },
+  { code: 'POLYAMIDE',  ...MATERIAL_FACTORS.POLYAMIDE },
+  { code: 'ELASTANE',   ...MATERIAL_FACTORS.ELASTANE },
+  { code: 'BLEND',      ...MATERIAL_FACTORS.BLEND },
+]
+const MATERIAL_GROUP_LABEL = {
+  NATURAL_SINGLE: '천연 단일',
+  SYNTHETIC:      '합성',
+  BLEND:          '혼방',
+}
+
+// ─────────── 이벤트 데이터 ───────────
+//   sale: BE 연동 (GET /api/hq/esg/score-events)
+//   donation: BE 도메인 미구현 → mock 유지 (향후 BE 추가 시 같은 형태로 머지)
+const MOCK_DONATION_EVENTS = [
   // 4월 기부 4건
-  { id: 5,  date: '2026-04-28', type: 'donation', buyer: '재해구호본부',  material: 'COTTON',    weightKg:  95, isNewBuyer: false, isLocalPartner: false, donationType: 'DISASTER',  method: null },
-  { id: 6,  date: '2026-04-22', type: 'donation', buyer: '사회복지시설',  material: 'COTTON',    weightKg:  80, isNewBuyer: false, isLocalPartner: false, donationType: 'VULNERABLE',method: null },
-  { id: 7,  date: '2026-04-14', type: 'donation', buyer: '해외구호단체',  material: 'POLYESTER', weightKg:  50, isNewBuyer: false, isLocalPartner: false, donationType: 'OVERSEAS',  method: null },
-  { id: 8,  date: '2026-04-05', type: 'donation', buyer: '직업학교',      material: 'BLEND',     weightKg:  30, isNewBuyer: false, isLocalPartner: false, donationType: 'EDU',       method: null },
-  // 3월 mock (월별 추이용)
-  { id: 9,  date: '2026-03-25', type: 'sale',     buyer: 'B사',     material: 'WOOL',      weightKg: 150, isNewBuyer: false, isLocalPartner: false, donationType: null,        method: 'UPCYCLE' },
-  { id: 10, date: '2026-03-18', type: 'sale',     buyer: 'C사',     material: 'NYLON',     weightKg: 200, isNewBuyer: true,  isLocalPartner: false, donationType: null,        method: 'RECYCLE' },
-  { id: 11, date: '2026-03-12', type: 'donation', buyer: '재해구호본부',  material: 'COTTON',    weightKg:  60, isNewBuyer: false, isLocalPartner: false, donationType: 'DISASTER',  method: null },
-  // 2월 mock
-  { id: 12, date: '2026-02-28', type: 'sale',     buyer: 'A사',     material: 'COTTON',    weightKg: 180, isNewBuyer: false, isLocalPartner: false, donationType: null,        method: 'RESALE' },
-  { id: 13, date: '2026-02-15', type: 'sale',     buyer: '마을협동조합', material: 'BLEND',     weightKg: 220, isNewBuyer: false, isLocalPartner: true,  donationType: null,        method: 'UPCYCLE' },
-  // 1월 mock
-  { id: 14, date: '2026-01-22', type: 'sale',     buyer: 'A사',     material: 'COTTON',    weightKg:   8, isNewBuyer: false, isLocalPartner: false, donationType: null,        method: 'RESALE' },  // 최소 미달
-  { id: 15, date: '2026-01-12', type: 'donation', buyer: '직업학교',      material: 'BLEND',     weightKg:  40, isNewBuyer: false, isLocalPartner: false, donationType: 'EDU',       method: null },
-])
+  { id: 'd-1', date: '2026-04-28', type: 'donation', buyer: '재해구호본부',  material: 'COTTON',    weightKg:  95, isNewBuyer: false, isLocalPartner: false, donationType: 'DISASTER',  method: null },
+  { id: 'd-2', date: '2026-04-22', type: 'donation', buyer: '사회복지시설',  material: 'COTTON',    weightKg:  80, isNewBuyer: false, isLocalPartner: false, donationType: 'VULNERABLE',method: null },
+  { id: 'd-3', date: '2026-04-14', type: 'donation', buyer: '해외구호단체',  material: 'POLYESTER', weightKg:  50, isNewBuyer: false, isLocalPartner: false, donationType: 'OVERSEAS',  method: null },
+  { id: 'd-4', date: '2026-04-05', type: 'donation', buyer: '직업학교',      material: 'BLEND',     weightKg:  30, isNewBuyer: false, isLocalPartner: false, donationType: 'EDU',       method: null },
+  // 3월 기부 1건
+  { id: 'd-5', date: '2026-03-12', type: 'donation', buyer: '재해구호본부',  material: 'COTTON',    weightKg:  60, isNewBuyer: false, isLocalPartner: false, donationType: 'DISASTER',  method: null },
+  // 1월 기부 1건
+  { id: 'd-6', date: '2026-01-12', type: 'donation', buyer: '직업학교',      material: 'BLEND',     weightKg:  40, isNewBuyer: false, isLocalPartner: false, donationType: 'EDU',       method: null },
+]
+
+const saleEvents = ref([])
+const loadEventsError = ref('')
+
+/** BE 응답 sale events 를 FE event 형태로 정규화
+ *  - Jackson+Lombok 직렬화 quirk: isNewBuyer → "newBuyer" 로 직렬화됨
+ *  - 양쪽 필드명 모두 수용해서 BE/FE 직렬화 컨벤션 변경에 견고
+ */
+function normalizeSaleEvent(e) {
+  return {
+    id: e.id,
+    date: e.date,
+    type: 'sale',
+    buyer: e.buyer,
+    material: e.material,
+    weightKg: e.weightKg,
+    isNewBuyer: e.isNewBuyer ?? e.newBuyer ?? false,
+    isLocalPartner: e.isLocalPartner ?? e.localPartner ?? false,
+    donationType: null,
+    method: null,
+  }
+}
+
+async function loadEvents(year) {
+  loadEventsError.value = ''
+  try {
+    const targetYear = year ?? new Date().getFullYear()
+    const res = await scoreEventsApi.get(targetYear)
+    saleEvents.value = (res?.events ?? []).map(normalizeSaleEvent)
+  } catch (err) {
+    loadEventsError.value = extractErrorMessage(err, '점수 이벤트를 불러오지 못했습니다.')
+    saleEvents.value = []
+  }
+}
+
+// sale (BE) + donation (mock) 머지 → 기존 events 변수와 동일 인터페이스
+const events = computed(() => [...saleEvents.value, ...MOCK_DONATION_EVENTS])
 
 // ─────────── 점수 계산 함수 (이벤트 1건 → 분해 점수) ───────────
 //   탄소 점수 = 무게(kg) × 소재 계수 × 0.5
@@ -118,6 +234,14 @@ const LOG_FILTERS = [
   { v: 'localPartner',      l: '지역 상생',     dot: '#f59e0b' },
   { v: 'donationExecution', l: '기부 실행',     dot: '#ec4899' },
 ]
+// 단일 카테고리 필터 시 점수 분해/총점 컬럼 라벨 & 텍스트 색상
+const FILTER_BREAKDOWN_META = {
+  saleExecution:     { label: '판매 실행', cls: 'text-emerald-700' },
+  carbon:            { label: '탄소 감축', cls: 'text-teal-700' },
+  newBuyer:          { label: '신규 확산', cls: 'text-blue-700' },
+  localPartner:      { label: '지역 상생', cls: 'text-amber-700' },
+  donationExecution: { label: '기부 실행', cls: 'text-pink-700' },
+}
 
 // ─────────── 카테고리 누적 ───────────
 const categoryTotals = computed(() => {
@@ -135,6 +259,10 @@ const categoryTotals = computed(() => {
 const totalScore = computed(() =>
   Object.values(categoryTotals.value).reduce((a, b) => a + b, 0),
 )
+
+// ESG 대시보드 헤더와 누적 점수 동기화 — totalScore 변할 때마다 esgStore 갱신
+const esgStore = useEsgStore()
+watch(totalScore, (n) => esgStore.setTotalPoints(n), { immediate: true })
 
 const scoreCategories = computed(() => {
   const t = categoryTotals.value
@@ -166,33 +294,28 @@ const stats = computed(() => {
   }
 })
 
+// ESG 대시보드 KPI "순환재고 판매량" 카드와 동기화
+watch(() => stats.value.totalKg, (n) => esgStore.setTotalSalesKg(n), { immediate: true })
+
 // ─────────── 월별 추이 차트 ───────────
 const monthLabels = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월']
 const monthlyScoresData = computed(() => {
-  const buckets = Array(12).fill(0).map(() => ({ sale: 0, donation: 0 }))
+  const buckets = Array(12).fill(0)
   for (const e of events.value) {
-    const m = new Date(e.date).getMonth()
-    if (new Date(e.date).getFullYear() !== 2026) continue
-    const s = calcEventScore(e)
-    if (e.type === 'sale') buckets[m].sale += s.total
-    else buckets[m].donation += s.total
+    const d = new Date(e.date)
+    if (d.getFullYear() !== 2026) continue
+    const m = d.getMonth()
+    buckets[m] += calcEventScore(e).total
   }
   return {
     labels: monthLabels,
     datasets: [
       {
-        label: '판매',
-        data: buckets.map(b => b.sale),
+        label: '월별 점수',
+        data: buckets,
         backgroundColor: 'rgba(16, 185, 129, 0.85)',
         borderColor: '#059669',
-        borderWidth: 1.5, borderRadius: 4, maxBarThickness: 18, stack: 'pts',
-      },
-      {
-        label: '기부',
-        data: buckets.map(b => b.donation),
-        backgroundColor: 'rgba(236, 72, 153, 0.85)',
-        borderColor: '#db2777',
-        borderWidth: 1.5, borderRadius: 4, maxBarThickness: 18, stack: 'pts',
+        borderWidth: 1.5, borderRadius: 4, maxBarThickness: 18,
       },
     ],
   }
@@ -200,12 +323,12 @@ const monthlyScoresData = computed(() => {
 const monthlyScoresOptions = {
   responsive: true, maintainAspectRatio: false,
   plugins: {
-    legend: { position: 'top', align: 'end', labels: { boxWidth: 10, font: { size: 10 } } },
-    tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()} pt` } },
+    legend: { display: false },
+    tooltip: { callbacks: { label: (ctx) => `${ctx.parsed.y.toLocaleString()} pt` } },
   },
   scales: {
-    y: { stacked: true, beginAtZero: true, ticks: { font: { size: 10 }, callback: (v) => v.toLocaleString() }, grid: { color: 'rgba(0,0,0,0.05)' } },
-    x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 } } },
+    y: { beginAtZero: true, ticks: { font: { size: 10 }, callback: (v) => v.toLocaleString() }, grid: { color: 'rgba(0,0,0,0.05)' } },
+    x: { grid: { display: false }, ticks: { font: { size: 10 } } },
   },
 }
 
@@ -240,47 +363,49 @@ const categoryDoughnutOptions = {
 const sortedEvents = computed(() =>
   [...logEvents.value].sort((a, b) => new Date(b.date) - new Date(a.date)),
 )
-const pageSize = ref(8)
+const pageSize = ref(20)
 const page = ref(1)
 const totalPages = computed(() => Math.max(1, Math.ceil(sortedEvents.value.length / pageSize.value)))
 const pagedEvents = computed(() => {
   const start = (page.value - 1) * pageSize.value
   return sortedEvents.value.slice(start, start + pageSize.value)
 })
-function changePage(p) { if (p >= 1 && p <= totalPages.value) page.value = p }
 
-// 통계 위 "유효/미달" 카운트는 기간 필터 기준 (활동 이력 카테고리 필터 영향 X)
-const periodValidCount = computed(() => filteredEvents.value.filter(e => calcEventScore(e).valid).length)
-const periodInvalidCount = computed(() => filteredEvents.value.length - periodValidCount.value)
+/**
+ * 화살표 페이지네이션 — 현재 페이지를 중심으로 최대 5개 번호만 표시.
+ *  - totalPages ≤ 5: 전체 표시
+ *  - cur ≤ 3: [1, 2, 3, 4, 5]
+ *  - cur ≥ total-2: 마지막 5개
+ *  - 그 외: [cur-2, cur-1, cur, cur+1, cur+2]
+ */
+const PAGE_WINDOW = 5
+const pageNumbers = computed(() => {
+  const total = totalPages.value
+  const cur = page.value
+  if (total <= PAGE_WINDOW) {
+    return Array.from({ length: total }, (_, i) => i + 1)
+  }
+  let start
+  if (cur <= 3) {
+    start = 1
+  } else if (cur >= total - 2) {
+    start = total - PAGE_WINDOW + 1
+  } else {
+    start = cur - 2
+  }
+  return Array.from({ length: PAGE_WINDOW }, (_, i) => start + i)
+})
 
-// 카테고리 펼침 상세
-const expandedId = ref(null)
-function toggleExpand(id) { expandedId.value = expandedId.value === id ? null : id }
-
-// 카테고리별 기여 이벤트 추출 (펼침 시)
-function eventsForCategory(catId) {
-  return sortedEvents.value
-    .map(e => ({ ...e, score: calcEventScore(e) }))
-    .filter(e => {
-      if (!e.score.valid) return false
-      if (catId === 'saleExecution')     return e.score.saleExecution > 0
-      if (catId === 'carbon')            return e.score.carbon > 0
-      if (catId === 'newBuyer')          return e.score.newBuyer > 0
-      if (catId === 'localPartner')      return e.score.localPartner > 0
-      if (catId === 'donationExecution') return e.score.donationExecution > 0
-      return false
-    })
-    .map(e => ({
-      ...e,
-      catPoints:
-        catId === 'saleExecution'     ? e.score.saleExecution
-        : catId === 'carbon'          ? e.score.carbon
-        : catId === 'newBuyer'        ? e.score.newBuyer
-        : catId === 'localPartner'    ? e.score.localPartner
-        : catId === 'donationExecution' ? e.score.donationExecution
-        : 0,
-    }))
+const PAGE_JUMP = 5
+function changePage(p) {
+  const clamped = Math.max(1, Math.min(totalPages.value, p))
+  page.value = clamped
 }
+function goJumpBack()    { changePage(page.value - PAGE_JUMP) }
+function goPrev()        { changePage(page.value - 1) }
+function goNext()        { changePage(page.value + 1) }
+function goJumpForward() { changePage(page.value + PAGE_JUMP) }
+
 
 // ─────────── 포맷터 ───────────
 const formatNum = (n) => Number(n ?? 0).toLocaleString('ko-KR')
@@ -288,18 +413,22 @@ const formatDate = (s) => s.slice(5).replace('-', '.')
 const typeLabel = (t) => t === 'sale' ? '판매' : '기부'
 const typeCls = (t) => t === 'sale' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-pink-50 text-pink-700 border-pink-200'
 
-// 페이지 로드
+// 페이지 로드 — BE sale events 호출
 const loading = ref(false)
 async function reload() {
   loading.value = true
-  try { await new Promise(r => setTimeout(r, 100)) } finally { loading.value = false }
+  try {
+    await loadEvents()
+  } finally {
+    loading.value = false
+  }
 }
 onMounted(reload)
 </script>
 
 <template>
   <AppLayout
-    active-top-menu="ESG"
+    active-top-menu="ESG 대시보드"
     :top-menus="topMenus"
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
@@ -367,57 +496,84 @@ onMounted(reload)
         </div>
 
         <div class="border border-gray-300 bg-white p-4 shadow-sm">
-          <p class="text-[10px] font-bold uppercase tracking-widest text-gray-400">판매 건수</p>
+          <p class="text-[10px] font-bold uppercase tracking-widest text-gray-400">순환재고 판매 건수</p>
           <p class="mt-1 text-[22px] font-black text-emerald-700">{{ stats.saleCount }}</p>
           <p class="mt-0.5 text-[10px] text-gray-500">건 (≥10kg)</p>
         </div>
         <div class="border border-gray-300 bg-white p-4 shadow-sm">
-          <p class="text-[10px] font-bold uppercase tracking-widest text-gray-400">기부 건수</p>
+          <p class="text-[10px] font-bold uppercase tracking-widest text-gray-400">순환재고 기부 건수</p>
           <p class="mt-1 text-[22px] font-black text-pink-700">{{ stats.donationCount }}</p>
           <p class="mt-0.5 text-[10px] text-gray-500">건 (≥10kg)</p>
         </div>
         <div class="border border-gray-300 bg-white p-4 shadow-sm">
-          <p class="text-[10px] font-bold uppercase tracking-widest text-gray-400">총 처리 무게</p>
-          <p class="mt-1 text-[22px] font-black text-gray-800">{{ formatNum(stats.totalKg) }}</p>
-          <p class="mt-0.5 text-[10px] text-gray-500">kg / 평균 {{ formatNum(stats.avgScore) }} pt/건</p>
+          <p class="text-[10px] font-bold uppercase tracking-widest text-gray-400">총 순환재고 판매량</p>
+          <p class="mt-1 flex items-baseline gap-1">
+            <span class="text-[22px] font-black text-gray-800">{{ formatNum(stats.totalKg) }}</span>
+            <span class="text-[11px] font-medium text-gray-500">kg</span>
+          </p>
         </div>
       </section>
 
-      <!-- ───────── 2. 카테고리 도넛 + 월별 추이 ───────── -->
-      <section class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <article class="border border-gray-300 bg-white shadow-sm">
+      <!-- ───────── 2. 카테고리 + 월별 추이 + 점수 요소 + ESG 나무 (2행 그리드) ───────── -->
+      <section class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,0.7fr)_minmax(0,1fr)_13rem]">
+        <!-- (1,1) 카테고리별 비중 -->
+        <article class="flex flex-col border border-gray-300 bg-white shadow-sm">
           <div class="border-b border-gray-200 px-4 py-3">
             <h2 class="text-[14px] font-bold text-gray-800">카테고리별 비중</h2>
             <p class="text-[10px] text-gray-500">5종 점수 요소 — {{ filterPeriod === 'M' ? '이번 달' : filterPeriod === 'Q' ? '최근 3개월' : '올해' }}</p>
           </div>
-          <div class="p-4" style="height: 280px;">
+          <div class="min-h-[240px] flex-1 p-4">
             <DoughnutChart :data="categoryDoughnutData" :options="categoryDoughnutOptions" />
           </div>
         </article>
 
-        <article class="border border-gray-300 bg-white shadow-sm">
+        <!-- (1,2) 월별 점수 추이 -->
+        <article class="flex flex-col border border-gray-300 bg-white shadow-sm">
           <div class="border-b border-gray-200 px-4 py-3">
             <h2 class="text-[14px] font-bold text-gray-800">월별 점수 추이</h2>
             <p class="text-[10px] text-gray-500">판매 / 기부 누적 (스택)</p>
           </div>
-          <div class="p-4" style="height: 280px;">
+          <div class="min-h-[240px] flex-1 p-4">
             <BarChart :data="monthlyScoresData" :options="monthlyScoresOptions" />
           </div>
         </article>
-      </section>
 
-      <!-- ───────── 3. 5종 카테고리 카드 (확장 가능) ───────── -->
-      <section class="border border-gray-300 bg-white shadow-sm">
-        <div class="border-b border-gray-200 px-4 py-3">
-          <h2 class="text-[14px] font-bold text-gray-800">점수 요소 상세</h2>
-          <p class="text-[10px] text-gray-400">각 카테고리를 클릭하면 기여 이벤트 목록을 펼쳐 볼 수 있습니다</p>
-        </div>
-        <div class="divide-y divide-gray-100">
-          <div v-for="cat in scoreCategories" :key="cat.id">
-            <button
-              type="button"
-              class="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50"
-              @click="toggleExpand(cat.id)"
+        <!-- (1,3)~(2,3) ESG 나무 (2행 세로 병합) -->
+        <aside class="hidden self-stretch xl:flex xl:flex-col xl:row-span-2">
+          <EsgTreeWidget :expanded="true" />
+        </aside>
+
+        <!-- (2,1)~(2,2) 점수 요소 (2열 가로 병합) -->
+        <article class="flex min-w-0 flex-col border border-gray-300 bg-white shadow-sm md:col-span-2 xl:col-span-2">
+          <div class="flex items-start justify-between gap-3 border-b border-gray-200 px-4 py-3">
+            <div>
+              <h2 class="text-[14px] font-bold text-gray-800">점수 요소</h2>
+              <p class="text-[10px] text-gray-400">5종 점수 요소별 누적 점수와 비중</p>
+            </div>
+            <div class="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                class="inline-flex items-center gap-1 border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                @click="openScoreRuleModal"
+              >
+                <Info :size="13" />
+                점수 산정 안내
+              </button>
+              <button
+                type="button"
+                class="inline-flex items-center gap-1 border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                @click="openFactorModal"
+              >
+                <Info :size="13" />
+                소재 계수 안내
+              </button>
+            </div>
+          </div>
+          <div class="flex-1 divide-y divide-gray-100">
+            <div
+              v-for="cat in scoreCategories"
+              :key="cat.id"
+              class="flex items-center gap-3 px-4 py-3"
             >
               <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100">
                 <component :is="cat.icon" :size="16" :style="{ color: cat.color }" />
@@ -438,45 +594,12 @@ onMounted(reload)
                 <span class="text-[18px] font-black text-gray-900">+{{ formatNum(cat.points) }}</span>
                 <span class="ml-0.5 text-[10px] text-gray-400">pt</span>
               </div>
-              <ChevronDown :size="14" class="shrink-0 text-gray-400 transition-transform" :class="expandedId === cat.id ? 'rotate-180' : ''" />
-            </button>
-
-            <div v-if="expandedId === cat.id" class="border-t border-gray-100 bg-gray-50 px-4 py-3">
-              <p v-if="!eventsForCategory(cat.id).length" class="py-3 text-center text-[12px] text-gray-400">
-                해당 카테고리에 기여한 이벤트가 없습니다
-              </p>
-              <table v-else class="w-full text-[12px]">
-                <thead>
-                  <tr class="text-[10px] uppercase text-gray-400">
-                    <th class="pb-1.5 text-left font-medium">일자</th>
-                    <th class="pb-1.5 text-left font-medium">유형</th>
-                    <th class="pb-1.5 text-left font-medium">대상/거래처</th>
-                    <th class="pb-1.5 text-left font-medium">소재 · 무게</th>
-                    <th class="pb-1.5 text-right font-medium">기여 점수</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                  <tr v-for="e in eventsForCategory(cat.id)" :key="e.id">
-                    <td class="py-1.5 font-mono text-gray-600">{{ formatDate(e.date) }}</td>
-                    <td class="py-1.5">
-                      <span class="inline-flex items-center border px-1.5 py-0.5 text-[9px] font-bold" :class="typeCls(e.type)">
-                        {{ typeLabel(e.type) }}
-                      </span>
-                    </td>
-                    <td class="py-1.5 text-gray-700">{{ e.buyer }}</td>
-                    <td class="py-1.5 text-gray-500">
-                      {{ MATERIAL_FACTORS[e.material]?.label }} · {{ formatNum(e.weightKg) }} kg
-                    </td>
-                    <td class="py-1.5 text-right font-bold text-emerald-700">+{{ formatNum(e.catPoints) }}</td>
-                  </tr>
-                </tbody>
-              </table>
             </div>
           </div>
-        </div>
+        </article>
       </section>
 
-      <!-- ───────── 4. 활동 이력 (전체 + 페이지네이션) ───────── -->
+      <!-- ───────── 3. 활동 이력 (전체 + 페이지네이션) ───────── -->
       <section class="border border-gray-300 bg-white shadow-sm">
         <div class="flex flex-col gap-2 border-b border-gray-200 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -486,21 +609,15 @@ onMounted(reload)
             </h2>
             <p class="text-[10px] text-gray-500">이벤트 1건 = 1행 · 점수 분해 표시 · 5개 점수 요소별 필터링 가능</p>
           </div>
-          <div class="inline-flex flex-wrap items-center gap-1 border border-gray-300 bg-white p-0.5">
-            <button
-              v-for="f in LOG_FILTERS"
-              :key="f.v"
-              type="button"
-              class="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium transition"
-              :class="filterCategory === f.v ? 'bg-[#004D3C] text-white' : 'text-gray-600 hover:bg-gray-50'"
-              @click="filterCategory = f.v; page = 1"
+          <div class="inline-flex items-center gap-2">
+            <Filter :size="13" class="text-gray-500" />
+            <select
+              v-model="filterCategory"
+              class="border border-gray-300 bg-white px-2.5 py-1 pr-7 text-[12px] font-medium text-gray-700 focus:border-[#004D3C] focus:outline-none"
+              @change="page = 1"
             >
-              <span
-                class="inline-block h-2 w-2 rounded-full"
-                :style="{ backgroundColor: filterCategory === f.v ? '#ffffff' : f.dot }"
-              ></span>
-              {{ f.l }}
-            </button>
+              <option v-for="f in LOG_FILTERS" :key="f.v" :value="f.v">{{ f.l }}</option>
+            </select>
           </div>
         </div>
         <div class="overflow-x-auto">
@@ -527,42 +644,46 @@ onMounted(reload)
                 <td class="px-3 py-2 text-gray-800">{{ e.buyer }}</td>
                 <td class="px-3 py-2 text-gray-600">
                   {{ MATERIAL_FACTORS[e.material]?.label }}
-                  <span class="text-[10px] text-gray-400">×{{ MATERIAL_FACTORS[e.material]?.factor }}</span>
                 </td>
                 <td class="px-3 py-2 text-right font-mono text-gray-700">{{ formatNum(e.weightKg) }} kg</td>
                 <td class="px-3 py-2 text-[10.5px] text-gray-500">
                   <template v-if="calcEventScore(e).valid">
-                    <span v-if="calcEventScore(e).saleExecution"
-                          :class="filterCategory === 'saleExecution' ? 'font-black text-emerald-700' : ''">
-                      실행 {{ calcEventScore(e).saleExecution }}
-                    </span>
-                    <span v-if="calcEventScore(e).donationExecution"
-                          :class="filterCategory === 'donationExecution' ? 'font-black text-pink-700' : ''">
-                      실행 {{ calcEventScore(e).donationExecution }}
-                    </span>
-                    <span v-if="calcEventScore(e).carbon"
-                          :class="filterCategory === 'carbon' ? 'font-black text-teal-700' : ''">
-                      + 탄소 {{ formatNum(calcEventScore(e).carbon) }}
-                    </span>
-                    <span v-if="calcEventScore(e).newBuyer"
-                          :class="filterCategory === 'newBuyer' ? 'font-black text-blue-700' : 'text-blue-600'">
-                      + 신규 {{ calcEventScore(e).newBuyer }}
-                    </span>
-                    <span v-if="calcEventScore(e).localPartner"
-                          :class="filterCategory === 'localPartner' ? 'font-black text-amber-700' : 'text-amber-600'">
-                      + 지역 {{ calcEventScore(e).localPartner }}
-                    </span>
+                    <!-- 전체 필터: 모든 점수 요소 분해 표시 -->
+                    <template v-if="filterCategory === 'ALL'">
+                      <span v-if="calcEventScore(e).saleExecution">
+                        실행 {{ calcEventScore(e).saleExecution }}
+                      </span>
+                      <span v-if="calcEventScore(e).donationExecution">
+                        실행 {{ calcEventScore(e).donationExecution }}
+                      </span>
+                      <span v-if="calcEventScore(e).carbon">
+                        + 탄소 {{ formatNum(calcEventScore(e).carbon) }}
+                      </span>
+                      <span v-if="calcEventScore(e).newBuyer" class="text-blue-600">
+                        + 신규 {{ calcEventScore(e).newBuyer }}
+                      </span>
+                      <span v-if="calcEventScore(e).localPartner" class="text-amber-600">
+                        + 지역 {{ calcEventScore(e).localPartner }}
+                      </span>
+                    </template>
+                    <!-- 단일 카테고리 필터: 해당 점수 요소 1개만 표시 -->
+                    <template v-else>
+                      <span class="font-black" :class="FILTER_BREAKDOWN_META[filterCategory]?.cls">
+                        {{ FILTER_BREAKDOWN_META[filterCategory]?.label }}
+                        +{{ formatNum(calcEventScore(e)[filterCategory] || 0) }}
+                      </span>
+                    </template>
                   </template>
                   <span v-else class="italic text-red-500">최소 10kg 미달 — 점수 부여 없음</span>
                 </td>
                 <td class="px-3 py-2 text-right">
                   <div class="font-black"
-                       :class="calcEventScore(e).valid ? 'text-emerald-700' : 'text-gray-400'">
-                    +{{ formatNum(calcEventScore(e).total) }}
-                  </div>
-                  <div v-if="filterCategory !== 'ALL' && calcEventScore(e).valid"
-                       class="mt-0.5 text-[9px] text-gray-500">
-                    이 항목 기여 <span class="font-bold">+{{ formatNum(calcEventScore(e)[filterCategory] || 0) }}</span>
+                       :class="calcEventScore(e).valid
+                         ? (filterCategory === 'ALL' ? 'text-emerald-700' : FILTER_BREAKDOWN_META[filterCategory]?.cls)
+                         : 'text-gray-400'">
+                    +{{ formatNum(filterCategory === 'ALL'
+                      ? calcEventScore(e).total
+                      : (calcEventScore(e)[filterCategory] || 0)) }}
                   </div>
                 </td>
               </tr>
@@ -576,11 +697,7 @@ onMounted(reload)
         <!-- 페이지네이션 -->
         <div class="flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 bg-gray-50 px-4 py-2.5 text-[11px]">
           <span class="text-gray-500">
-            <template v-if="filterCategory === 'ALL'">
-              총 {{ sortedEvents.length }}건 ·
-              유효 {{ periodValidCount }}건 / 미달 {{ periodInvalidCount }}건
-            </template>
-            <template v-else>
+            <template v-if="filterCategory !== 'ALL'">
               <span class="font-bold text-[#004D3C]">
                 {{ LOG_FILTERS.find(f => f.v === filterCategory)?.l }}
               </span>
@@ -589,8 +706,29 @@ onMounted(reload)
             </template>
           </span>
           <div v-if="totalPages > 1" class="inline-flex items-center gap-1">
+            <!-- 5페이지 이전 -->
             <button
-              v-for="p in totalPages"
+              type="button"
+              :disabled="page === 1"
+              class="h-7 min-w-[28px] border border-gray-300 bg-white px-2 text-[11px] font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+              title="5페이지 이전"
+              @click="goJumpBack"
+            >
+              «
+            </button>
+            <!-- 이전 -->
+            <button
+              type="button"
+              :disabled="page === 1"
+              class="h-7 min-w-[28px] border border-gray-300 bg-white px-2 text-[11px] font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+              title="이전 페이지"
+              @click="goPrev"
+            >
+              ‹
+            </button>
+            <!-- 페이지 번호 (최대 5개) -->
+            <button
+              v-for="p in pageNumbers"
               :key="p"
               type="button"
               class="h-7 min-w-[28px] border border-gray-300 px-2 text-[11px] font-medium transition"
@@ -599,28 +737,178 @@ onMounted(reload)
             >
               {{ p }}
             </button>
+            <!-- 다음 -->
+            <button
+              type="button"
+              :disabled="page === totalPages"
+              class="h-7 min-w-[28px] border border-gray-300 bg-white px-2 text-[11px] font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+              title="다음 페이지"
+              @click="goNext"
+            >
+              ›
+            </button>
+            <!-- 5페이지 이후 -->
+            <button
+              type="button"
+              :disabled="page === totalPages"
+              class="h-7 min-w-[28px] border border-gray-300 bg-white px-2 text-[11px] font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+              title="5페이지 이후"
+              @click="goJumpForward"
+            >
+              »
+            </button>
           </div>
         </div>
       </section>
 
-      <!-- ───────── 5. 룰 안내 ───────── -->
-      <div class="grid grid-cols-1 gap-2 lg:grid-cols-2">
-        <div class="border-l-2 border-emerald-300 bg-emerald-50/50 px-3 py-2.5 text-[11px] leading-relaxed text-emerald-900/80">
-          <span class="font-bold">ⓘ 점수 요소 (순환재고 판매 1건):</span>
-          ① 실행 100점 (≥10kg) ② 탄소 = 무게 × 소재 계수 × 0.5
-          ③ 신규 거래처 첫 거래 +150 ④ 사회적기업/지역 파트너 +150 (월 3건 한도)
-        </div>
-        <div class="border-l-2 border-pink-300 bg-pink-50/50 px-3 py-2.5 text-[11px] leading-relaxed text-pink-900/80">
-          <span class="font-bold">ⓘ 점수 요소 (기부 1건):</span>
-          ⑤ 실행 80점 (≥10kg) ② 탄소 = 무게 × 소재 계수 × 0.5 (혼방은 비율 분해 평균)
-        </div>
-      </div>
-
-      <div class="border-l-2 border-gray-300 bg-gray-50/60 px-3 py-2.5 text-[11px] leading-relaxed text-gray-700">
-        <span class="font-bold">ⓘ 소재별 탄소 계수 (kgCO₂/kg) × 0.5 스케일:</span>
-        면 1.8 · 폴리에스터 2.3 · 나일론 2.1 · 울 2.5 · 혼방 2.0 (구성 비율 분해 평균)
-        <span class="ml-1 text-gray-500">— 0.5 스케일 적용은 거래량 누적에 따른 점수 폭주 방지·다른 점수 요소와의 비중 균형 목적</span>
-      </div>
     </div>
+
+    <!-- 점수 산정 안내 모달 -->
+    <Teleport to="body">
+      <div
+        v-if="showScoreRuleModal"
+        class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4"
+        @click.self="closeScoreRuleModal"
+      >
+        <div class="flex max-h-[90vh] w-full max-w-2xl flex-col border border-gray-300 bg-white shadow-2xl">
+          <!-- 헤더 -->
+          <div class="flex items-center justify-between border-b border-gray-200 bg-gradient-to-r from-emerald-50 to-teal-50 px-5 py-3">
+            <h3 class="inline-flex items-center gap-2 text-[15px] font-bold text-gray-900">
+              <Info :size="18" class="text-emerald-600" />
+              점수 산정 안내
+            </h3>
+            <button
+              type="button"
+              class="flex h-7 w-7 items-center justify-center text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+              @click="closeScoreRuleModal"
+            >
+              <X :size="16" />
+            </button>
+          </div>
+
+          <!-- 본문 -->
+          <div class="flex-1 overflow-y-auto px-5 py-4">
+            <p class="mb-3 text-[11px] leading-relaxed text-gray-500">
+              순환재고 판매·기부 활동 1건마다 아래 5개 점수 요소가 산정되어 합산됩니다.
+              <span class="font-bold text-gray-700">최소 10kg 미만</span> 활동은 점수 부여 대상이 아닙니다 (어뷰징 방지).
+            </p>
+
+            <ul class="space-y-2.5">
+              <li
+                v-for="(rule, idx) in SCORE_RULE_ROWS"
+                :key="rule.id"
+                class="border border-gray-200 bg-gray-50/40 px-3 py-2.5"
+              >
+                <div class="mb-1 flex items-baseline gap-2">
+                  <span class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[11px] font-black text-emerald-700">{{ idx + 1 }}</span>
+                  <span class="text-[13px] font-bold text-gray-900">{{ rule.label }}</span>
+                  <span :class="['ml-auto inline-block h-2 w-2 shrink-0 rounded-full', rule.barCls]"></span>
+                </div>
+                <div class="ml-7 space-y-1">
+                  <p class="text-[12px] font-bold text-emerald-700">{{ rule.base }}</p>
+                  <p class="text-[11px] font-medium text-gray-600">조건: {{ rule.cond }}</p>
+                  <p class="text-[11px] leading-relaxed text-gray-500">{{ rule.detail }}</p>
+                </div>
+              </li>
+            </ul>
+
+            <!-- 공통 안내 -->
+            <div class="mt-4 border border-emerald-100 bg-emerald-50/60 px-3 py-2.5">
+              <p class="text-[11px] font-bold text-emerald-800">공통 적용 룰</p>
+              <ul class="mt-1 space-y-0.5 text-[11px] text-emerald-700">
+                <li>· 최소 중량 <span class="font-bold">10kg</span> 미만 활동은 모든 점수 0점 (탄소 점수 포함)</li>
+                <li>· 탄소 점수의 <span class="font-bold">×0.5 스케일</span>은 거래량 누적에 따른 점수 폭주 방지 + 다른 요소와의 비중 균형 목적</li>
+                <li>· 혼방 소재의 탄소 계수는 <span class="font-bold">구성 비율 분해 평균</span>으로 산정</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- 푸터 -->
+          <div class="flex items-center justify-end border-t border-gray-200 bg-gray-50 px-5 py-3">
+            <button
+              type="button"
+              class="border border-gray-300 bg-white px-3 py-1.5 text-[12px] font-semibold text-gray-700 transition hover:bg-gray-100"
+              @click="closeScoreRuleModal"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 소재 계수 안내 모달 -->
+    <Teleport to="body">
+      <div
+        v-if="showFactorModal"
+        class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4"
+        @click.self="closeFactorModal"
+      >
+        <div class="flex max-h-[90vh] w-full max-w-xl flex-col border border-gray-300 bg-white shadow-2xl">
+          <!-- 헤더 -->
+          <div class="flex items-center justify-between border-b border-gray-200 bg-gradient-to-r from-emerald-50 to-teal-50 px-5 py-3">
+            <h3 class="inline-flex items-center gap-2 text-[15px] font-bold text-gray-900">
+              <Info :size="18" class="text-emerald-600" />
+              소재 계수 안내
+            </h3>
+            <button
+              type="button"
+              class="flex h-7 w-7 items-center justify-center text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+              @click="closeFactorModal"
+            >
+              <X :size="16" />
+            </button>
+          </div>
+
+          <!-- 본문 -->
+          <div class="flex-1 overflow-y-auto px-5 py-4">
+            <!-- 소재별 탄소 계수 표 -->
+            <div class="mb-3">
+              <p class="mb-1.5 text-[11px] font-bold text-gray-700">소재별 탄소 계수 (kgCO₂/kg)</p>
+              <table class="w-full border border-gray-200 text-[12px]">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="border-b border-gray-200 px-3 py-2 text-left font-semibold text-gray-600">소재</th>
+                    <th class="border-b border-gray-200 px-3 py-2 text-left font-semibold text-gray-600">구분</th>
+                    <th class="border-b border-gray-200 px-3 py-2 text-right font-semibold text-gray-600">계수</th>
+                    <th class="border-b border-gray-200 px-3 py-2 text-left font-semibold text-gray-600">비고</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="row in MATERIAL_FACTOR_ROWS"
+                    :key="row.code"
+                    class="border-b border-gray-100 last:border-b-0"
+                  >
+                    <td class="px-3 py-1.5 font-medium text-gray-800">
+                      {{ row.label }} <span class="text-[10px] text-gray-400">({{ row.code }})</span>
+                    </td>
+                    <td class="px-3 py-1.5 text-gray-600">{{ MATERIAL_GROUP_LABEL[row.group] || '—' }}</td>
+                    <td class="px-3 py-1.5 text-right font-bold text-emerald-700">{{ row.factor.toFixed(1) }}</td>
+                    <td class="px-3 py-1.5 text-gray-500">{{ row.note }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- 스케일 안내 -->
+            <p class="text-[11px] leading-relaxed text-gray-500">
+              <span class="font-bold text-gray-700">× 0.5 스케일</span> 적용 — 거래량 누적에 따른 점수 폭주 방지 및 다른 점수 요소와의 비중 균형 목적
+            </p>
+          </div>
+
+          <!-- 푸터 -->
+          <div class="flex items-center justify-end border-t border-gray-200 bg-gray-50 px-5 py-3">
+            <button
+              type="button"
+              class="border border-gray-300 bg-white px-3 py-1.5 text-[12px] font-semibold text-gray-700 transition hover:bg-gray-100"
+              @click="closeFactorModal"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </AppLayout>
 </template>

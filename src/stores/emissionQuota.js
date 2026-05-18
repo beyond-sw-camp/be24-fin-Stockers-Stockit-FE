@@ -1,9 +1,8 @@
 /**
  * emissionQuota.js — 탄소중립 관리 (목표 + 활동량 + 절감 + 자동 환산) Pinia 스토어
  *
- * 두 페이지에서 공유:
- *  - /hq/esg/emissionquota : 입력 + 분석 상세
- *  - /hq/esg               : ESG 대시보드 — "배출 한도 vs 실적" 카드 (요약)
+ * 사용 위치:
+ *  - /hq/esg : ESG 대시보드 — "탄소중립 관리" 카드 (요약 + 모달 입력)
  *
  * 데이터 모델 (BE 호환 설계):
  *  emission_quota         { fiscal_year, yearly_allocation, warn_threshold_pct, updated_at, updated_by }
@@ -55,21 +54,24 @@ function recordCo2ByFactor(r, factorKey) {
   return (r[fld] ?? 0) * EMISSION_FACTORS[factorKey].factor
 }
 
+// 기본값 25000 tCO₂ — BE 에 row 없거나 yearly_allocation 이 0 인 초기 상태일 때 사용
+const DEFAULT_YEARLY_ALLOCATION = 25000
+
 export const useEmissionQuotaStore = defineStore('emissionQuota', () => {
   // ─────────── State ───────────
   const fiscalYear = ref(2026)
 
-  // 할당량 정보 (HQ 수기 입력)
-  const yearlyAllocation = ref(5000)         // tCO₂
+  // 할당량 정보 (HQ 수기 입력) — fetchQuota() 호출 시 BE 응답으로 덮어씀
+  const yearlyAllocation = ref(DEFAULT_YEARLY_ALLOCATION)
   const warnThresholdPct = ref(75)
-  const quotaUpdatedAt = ref('2026-01-02')
-  const quotaUpdatedBy = ref('hq0001')
+  const quotaUpdatedAt = ref('')
+  const quotaUpdatedBy = ref('')
 
   // 월별 실효 배출 — 본사 관리자가 매달 수기 입력 (12개 element, index 0=1월)
   // null = 해당 월 미입력 (차트에 막대 안 그려짐)
   // YTD 합계 / 분기 합계는 모두 이 배열에서 자동 계산
   const monthlyEmissions = ref([
-    32.5, 45.0, 28.7, 20.6,
+    null, null, null, null,
     null, null, null, null,
     null, null, null, null,
   ])
@@ -276,7 +278,12 @@ export const useEmissionQuotaStore = defineStore('emissionQuota', () => {
   function applyQuotaResponse(res) {
     if (!res) return
     if (typeof res.fiscalYear === 'number') fiscalYear.value = res.fiscalYear
-    if (res.yearlyAllocation != null)       yearlyAllocation.value = Number(res.yearlyAllocation)
+    // 할당량이 null·0 이면 기본값(25000) 유지 — 사용자가 입력한 적이 없는 경우로 간주
+    if (res.yearlyAllocation != null && Number(res.yearlyAllocation) > 0) {
+      yearlyAllocation.value = Number(res.yearlyAllocation)
+    } else {
+      yearlyAllocation.value = DEFAULT_YEARLY_ALLOCATION
+    }
     if (res.warnThresholdPct != null)       warnThresholdPct.value = Number(res.warnThresholdPct)
     monthlyEmissions.value = normalizeMonthly(res.monthlyEmissions)
     quotaUpdatedBy.value = res.updatedBy ?? quotaUpdatedBy.value
@@ -300,8 +307,10 @@ export const useEmissionQuotaStore = defineStore('emissionQuota', () => {
 
   /** PUT /api/hq/esg/quota — 수정 버튼 → 저장 (BE 영속화 + state 동기화) */
   async function saveQuota({ allocation, warnPct, monthly }) {
+    const allocNum = Number(allocation)
     const payload = {
-      yearlyAllocation:  Number(allocation) || 0,
+      // 0 또는 NaN → 기본값(25000)으로 저장
+      yearlyAllocation:  allocNum > 0 ? allocNum : DEFAULT_YEARLY_ALLOCATION,
       monthlyEmissions:  normalizeMonthly(monthly),
       warnThresholdPct:  Number(warnPct) || 75,
     }

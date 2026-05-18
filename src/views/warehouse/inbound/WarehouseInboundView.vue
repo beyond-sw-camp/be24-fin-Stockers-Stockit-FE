@@ -1,7 +1,5 @@
-
-<script setup>
-import { computed, h, onMounted, onUnmounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+﻿<script setup>
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import AppLayout from '@/components/common/AppLayout.vue'
 import WarehouseInboundConfirmModal from '@/components/warehouse/inbound/WarehouseInboundConfirmModal.vue'
 import WarehouseInboundDetailPanel from '@/components/warehouse/inbound/WarehouseInboundDetailPanel.vue'
@@ -9,12 +7,9 @@ import { SearchIcon } from '@/components/warehouse/inbound/icons.js'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useToast } from '@/composables/useToast.js'
 import { useWarehouseStatusFormat } from '@/composables/warehouse/useWarehouseStatusFormat.js'
-import { useAuthStore } from '@/stores/auth.js'
 import { useWarehouseInboundStore } from '@/stores/warehouse/warehouseInbound.js'
 import { useWarehouseStockStore } from '@/stores/warehouse/warehouseStock.js'
 
-const router = useRouter()
-const auth = useAuthStore()
 const inbound = useWarehouseInboundStore()
 const stockStore = useWarehouseStockStore()
 const { toast, triggerToast } = useToast()
@@ -24,9 +19,6 @@ const { statusClass, statusLabel, inboundTypeClass, inboundTypeLabel, formatDate
 // ─── 레이아웃 ────────────────────────────────────────────────────────────────
 const activeSideMenu = ref('입고 관리')
 const topMenus = roleMenus.warehouse
-const sideMenus = roleMenus.warehouse.find((menu) => menu.label === '입/출고 관리')?.children ?? []
-
-
 
 // ─── 상태 탭 ────────────────────────────────────────────────────────────────
 // 5탭 — [전체] + 거래처 책임 4단계 (READY_TO_SHIP 부터 노출). [입고 확정] 은 ARRIVED 일 때만.
@@ -57,18 +49,18 @@ const inboundPreview = computed(() => {
   return stockStore.getInboundPreview(order.warehouseId, order.items ?? [])
 })
 
-const previewHasShortage = computed(() =>
-  inboundPreview.value.some((row) => row.shortageAfter),
-)
+const previewHasShortage = computed(() => inboundPreview.value.some((row) => row.shortageAfter))
 
-// 우측 상세 품목 표 — 행마다 현재 실재고/안전재고 표시용 캐시
+// 우측 상세 품목 표 — 행마다 현재 실재고/안전재고 표시용 캐시.
+// 발주 라인 = 단일 SKU 이므로 SKU 단위 lookup (master 합산값과 혼동 방지 —
+// 창고재고조회 화면이 SKU 단위로 보여주는 것과 정합).
 const itemStocks = computed(() => {
   const order = inbound.selectedOrder
   if (!order || !order.warehouseId) return new Map()
   const map = new Map()
   for (const item of order.items ?? []) {
-    if (!item.productCode) continue
-    map.set(item.id, stockStore.getStock(order.warehouseId, item.productCode))
+    if (!item.skuCode) continue
+    map.set(item.id, stockStore.getSkuStock(order.warehouseId, item.skuCode))
   }
   return map
 })
@@ -85,6 +77,9 @@ async function confirmInbound() {
   showConfirmInbound.value = false
   try {
     await inbound.confirmInbound(id)
+    // 입고 확정 직후 재고 캐시 무효화 + 즉시 재로딩 — onHand 변화 반영.
+    stockStore.invalidate()
+    await stockStore.loadProductStocks().catch(() => {})
     triggerToast('입고가 확정되었습니다')
   } catch (e) {
     triggerToast(e?.message ?? '입고 확정에 실패했습니다')
@@ -99,19 +94,22 @@ function handleKeydown(e) {
 }
 
 // 화면 진입 시 입고 목록 강제 fetch — 다른 화면에서 status 변경됐을 수 있으므로 stale 방지.
+// stockStore SKU + master 둘 다 트리거 — itemStocks 는 SKU 단위, inboundPreview 도 SKU 단위.
+// master 캐시는 다른 화면 호환 위해 같이 채워둠 (no-op if already loaded).
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
   inbound.fetchAll().catch(() => {})
+  stockStore.loadProductStocks().catch(() => {})
+  stockStore.loadSkuStocks().catch(() => {})
 })
 onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
 </script>
 
 <template>
   <AppLayout
-    active-top-menu="입/출고 관리"
+    active-top-menu="입고 관리"
     :top-menus="topMenus"
-    :side-menus="sideMenus"
-    v-model:active-side-menu="activeSideMenu"
+    :side-menus="[]"
 
   >
     <div class="flex flex-col gap-4">
@@ -312,4 +310,3 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
     </Transition>
   </AppLayout>
 </template>
->>>>>>> 6c7016aa57c471f851db80fc2bac659572b1e605

@@ -2,9 +2,12 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
+import WarehouseTransferCartDrawer from '@/components/hq/WarehouseTransferCartDrawer.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useWarehouseTransferCartStore } from '@/stores/hq/warehouseTransferCart.js'
+import { executeWarehouseTransfers } from '@/api/hq/inventory.js'
+import { extractErrorMessage } from '@/api/axios.js'
 import { getWarehouseTransferImbalancedSkus } from '@/api/hq/inventory.js'
 
 const router = useRouter()
@@ -12,10 +15,10 @@ const route = useRoute()
 const auth = useAuthStore()
 const cartStore = useWarehouseTransferCartStore()
 const hqMenus = roleMenus.hq
-const inventoryMenus = roleMenus.hq.find(menu => menu.label === '재고 관리')?.children ?? []
+const inventoryMenus = roleMenus.hq.find(menu => menu.label === '물류 창고간 재고이동')?.children ?? []
 
-const activeTopMenu = computed(() => '재고 관리')
-const activeSideMenu = ref('창고간 재고 이동')
+const activeTopMenu = computed(() => '물류 창고간 재고이동')
+const activeSideMenu = ref('재고 이동')
 const COLOR_LABEL_BY_CODE = {
   BLK: '검정',
   WHT: '흰색',
@@ -24,23 +27,60 @@ const COLOR_LABEL_BY_CODE = {
 }
 
 const searchTerm = ref(String(route.query.search || ''))
-const selectedCategory = ref(String(route.query.category || '전체'))
-const selectedWarehouseGroup = ref(String(route.query.warehouseGroup || '전체'))
+const parseCategoryLabel = (categoryLabel) => {
+  const [parentCategory = '', childCategory = ''] = String(categoryLabel ?? '')
+    .split('>')
+    .map((part) => part.trim())
+  return { parentCategory, childCategory }
+}
+
+const initialCategory = String(route.query.category || '')
+const initialParsedCategory = parseCategoryLabel(initialCategory)
+const selectedParentCategory = ref(
+  String(route.query.parentCategory || route.query.filterParentCategory || initialParsedCategory.parentCategory || ''),
+)
+const selectedChildCategory = ref(
+  String(route.query.childCategory || route.query.filterChildCategory || initialParsedCategory.childCategory || ''),
+)
+const selectedColor = ref(String(route.query.filterColor || ''))
+const selectedSize = ref(String(route.query.filterSize || ''))
 const skuRows = ref([])
 const loading = ref(false)
+const cartDrawerOpen = ref(false)
+const toastMessage = ref('')
+const toastShowHistoryAction = ref(false)
+let toastTimer = null
 
-const categoryOptions = computed(() => ['전체', ...new Set(skuRows.value.map(sku => sku.category).filter(Boolean))])
-const warehouseGroupOptions = ['전체', '수도권', '충청권', '영남권']
-
-const inferWarehouseGroups = () => ['수도권', '충청권', '영남권']
-
+const parentCategoryOptions = computed(() =>
+  [...new Set(skuRows.value.map((sku) => sku.parentCategory).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'ko')),
+)
+const childCategoryOptions = computed(() => {
+  if (!selectedParentCategory.value) return []
+  return [...new Set(
+    skuRows.value
+      .filter((sku) => sku.parentCategory === selectedParentCategory.value)
+      .map((sku) => sku.childCategory)
+      .filter(Boolean),
+  )].sort((a, b) => a.localeCompare(b, 'ko'))
+})
+const colorOptions = computed(() =>
+  [...new Set(skuRows.value.map((sku) => sku.colorLabel).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'ko')),
+)
+const sizeOptions = computed(() =>
+  [...new Set(skuRows.value.map((sku) => sku.size).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'ko')),
+)
 const filteredSkuRows = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase()
 
   return [...skuRows.value]
     .filter((row) => {
-      if (selectedCategory.value !== '전체' && row.category !== selectedCategory.value) return false
-      if (selectedWarehouseGroup.value !== '전체' && !row.warehouseGroups.includes(selectedWarehouseGroup.value)) return false
+      if (selectedParentCategory.value && row.parentCategory !== selectedParentCategory.value) return false
+      if (selectedChildCategory.value && row.childCategory !== selectedChildCategory.value) return false
+      if (selectedColor.value && row.colorLabel !== selectedColor.value) return false
+      if (selectedSize.value && row.size !== selectedSize.value) return false
       if (!keyword) return true
 
       return [row.skuCode, row.itemCode, row.itemName].join(' ').toLowerCase().includes(keyword)
@@ -55,6 +95,7 @@ const filteredSkuRows = computed(() => {
       return a.skuCode.localeCompare(b.skuCode)
     })
 })
+const ctaSkuCode = computed(() => cartStore.lines[0]?.skuCode || filteredSkuRows.value[0]?.skuCode || '')
 
 const loadImbalancedSkus = async () => {
   loading.value = true
@@ -62,8 +103,8 @@ const loadImbalancedSkus = async () => {
     const items = await getWarehouseTransferImbalancedSkus()
     skuRows.value = (items ?? []).map((item) => ({
       ...item,
-      colorLabel: COLOR_LABEL_BY_CODE[String(item.color ?? '').toUpperCase()] ?? item.color,
-      warehouseGroups: inferWarehouseGroups(item.itemCode),
+      ...parseCategoryLabel(item.category),
+      colorLabel: COLOR_LABEL_BY_CODE[String(item.color ?? '').toUpperCase()] ?? String(item.color ?? ''),
     }))
   } catch (error) {
     skuRows.value = []
@@ -88,18 +129,103 @@ const moveToSkuDetail = (sku) => {
       color: sku.color || undefined,
       size: sku.size || undefined,
       search: searchTerm.value || undefined,
-      filterCategory: selectedCategory.value !== '전체' ? selectedCategory.value : undefined,
-      warehouseGroup: selectedWarehouseGroup.value !== '전체' ? selectedWarehouseGroup.value : undefined,
+      filterParentCategory: selectedParentCategory.value || undefined,
+      filterChildCategory: selectedChildCategory.value || undefined,
+      filterColor: selectedColor.value || undefined,
+      filterSize: selectedSize.value || undefined,
     },
   })
 }
 
-const resetFilters = () => {
-  searchTerm.value = ''
-  selectedCategory.value = '전체'
-  selectedWarehouseGroup.value = '전체'
+const moveToSkuDetailFromCta = () => {
+  const skuCode = ctaSkuCode.value
+  if (!skuCode) return
+  const target = filteredSkuRows.value.find((row) => row.skuCode === skuCode)
+  moveToSkuDetail(target || { skuCode })
 }
 
+const resetFilters = () => {
+  searchTerm.value = ''
+  selectedParentCategory.value = ''
+  selectedChildCategory.value = ''
+  selectedColor.value = ''
+  selectedSize.value = ''
+}
+
+const handleParentCategoryChange = () => {
+  selectedChildCategory.value = ''
+}
+
+const openCartDrawer = () => {
+  cartDrawerOpen.value = true
+}
+
+const closeCartDrawer = () => {
+  cartDrawerOpen.value = false
+}
+
+const updateCartLineQty = (lineId, event) => {
+  const nextQty = Number(event.target.value)
+  if (!Number.isFinite(nextQty) || nextQty < 1) {
+    event.target.value = '1'
+    cartStore.updateLineQty(lineId, 1)
+    return
+  }
+  cartStore.updateLineQty(lineId, Math.trunc(nextQty))
+}
+
+const showToast = (message, showHistoryAction = false) => {
+  toastMessage.value = message
+  toastShowHistoryAction.value = showHistoryAction
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => {
+    toastMessage.value = ''
+    toastShowHistoryAction.value = false
+  }, 3000)
+}
+
+const moveHistory = () => {
+  router.push({ name: 'hq-inventory-warehouse-transfer-history' })
+}
+
+const executeCartTransfers = async () => {
+  if (!cartStore.lineCount) return
+  try {
+    const beforeCount = cartStore.lineCount
+    const payload = {
+      requestedBy: auth.user?.name || '본사 관리자',
+      lines: cartStore.lines.map((line) => ({
+        lineId: line.lineId,
+        skuCode: line.skuCode,
+        fromWarehouseCode: line.fromWarehouseCode,
+        toWarehouseCode: line.toWarehouseCode,
+        qty: Number(line.qty),
+        reason: line.reason,
+        memo: line.memo,
+      })),
+    }
+
+    const result = await executeWarehouseTransfers(payload)
+    const lineResults = Array.isArray(result?.lineResults) ? result.lineResults : []
+    const failed = Array.isArray(result?.failedTransfers) ? result.failedTransfers : []
+    const successLineIds = lineResults.filter((row) => row.success).map((row) => row.lineId).filter(Boolean)
+    if (successLineIds.length) {
+      successLineIds.forEach((lineId) => cartStore.removeLine(lineId))
+    }
+
+    const successCount = Number(result?.successCount || successLineIds.length || 0)
+    const failureCount = Number(result?.failureCount || Math.max(0, beforeCount - successCount))
+    if (failureCount === 0) {
+      showToast(`장바구니 실행 완료: ${successCount}건 처리됨`, true)
+      closeCartDrawer()
+    } else {
+      showToast(`부분 완료: 성공 ${successCount}건 / 실패 ${failureCount}건`)
+    }
+    void failed
+  } catch (error) {
+    showToast(extractErrorMessage(error, '재고 이동 실행에 실패했습니다.'))
+  }
+}
 
 </script>
 
@@ -119,7 +245,7 @@ const resetFilters = () => {
             <button
               type="button"
               class="h-8 border border-gray-300 px-3 text-[11px] font-black text-gray-700 transition hover:bg-gray-100"
-              @click="router.push({ name: 'hq-inventory-warehouse-transfer-history' })"
+              @click="openCartDrawer"
             >
               장바구니 {{ cartStore.lineCount }}건
             </button>
@@ -127,7 +253,7 @@ const resetFilters = () => {
           <p class="mt-1 text-xs font-bold text-gray-500">부족 창고가 많은 SKU를 우선 확인하고 상세에서 장바구니를 구성해 이동을 실행합니다.</p>
         </div>
 
-        <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-[1.2fr_0.9fr_0.9fr_auto]">
+        <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-[1.2fr_0.8fr_0.8fr_0.7fr_0.7fr_auto]">
           <label class="flex flex-col gap-1">
             <span class="text-[11px] font-bold text-gray-500">검색</span>
             <input
@@ -139,16 +265,42 @@ const resetFilters = () => {
           </label>
 
           <label class="flex flex-col gap-1">
-            <span class="text-[11px] font-bold text-gray-500">카테고리</span>
-            <select v-model="selectedCategory" class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
-              <option v-for="category in categoryOptions" :key="category" :value="category">{{ category }}</option>
+            <span class="text-[11px] font-bold text-gray-500">카테고리 1단계</span>
+            <select
+              v-model="selectedParentCategory"
+              class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
+              @change="handleParentCategoryChange"
+            >
+              <option value="">전체</option>
+              <option v-for="category in parentCategoryOptions" :key="category" :value="category">{{ category }}</option>
             </select>
           </label>
 
           <label class="flex flex-col gap-1">
-            <span class="text-[11px] font-bold text-gray-500">창고군</span>
-            <select v-model="selectedWarehouseGroup" class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
-              <option v-for="group in warehouseGroupOptions" :key="group" :value="group">{{ group }}</option>
+            <span class="text-[11px] font-bold text-gray-500">카테고리 2단계</span>
+            <select
+              v-model="selectedChildCategory"
+              class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C] disabled:bg-gray-50 disabled:text-gray-400"
+              :disabled="!selectedParentCategory"
+            >
+              <option value="">전체</option>
+              <option v-for="category in childCategoryOptions" :key="category" :value="category">{{ category }}</option>
+            </select>
+          </label>
+
+          <label class="flex flex-col gap-1">
+            <span class="text-[11px] font-bold text-gray-500">색상</span>
+            <select v-model="selectedColor" class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
+              <option value="">전체</option>
+              <option v-for="color in colorOptions" :key="color" :value="color">{{ color }}</option>
+            </select>
+          </label>
+
+          <label class="flex flex-col gap-1">
+            <span class="text-[11px] font-bold text-gray-500">사이즈</span>
+            <select v-model="selectedSize" class="h-10 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]">
+              <option value="">전체</option>
+              <option v-for="size in sizeOptions" :key="size" :value="size">{{ size }}</option>
             </select>
           </label>
 
@@ -215,6 +367,57 @@ const resetFilters = () => {
           </table>
         </div>
       </section>
+
+      <div class="fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 bg-white/95 backdrop-blur">
+        <div class="flex flex-wrap items-center gap-2 px-4 py-3">
+          <div class="min-w-0 flex-1">
+            <p class="text-[11px] font-black text-gray-500">재고 이동 장바구니</p>
+            <p class="text-xs font-bold text-gray-600">
+              현재 {{ cartStore.lineCount }}건이 담겨 있습니다. 이동 정보 입력은 SKU 상세 페이지에서 진행하세요.
+            </p>
+          </div>
+          <button
+            type="button"
+            class="flex h-10 shrink-0 items-center gap-1.5 border border-gray-300 px-4 text-xs font-black text-gray-700 transition hover:bg-gray-100"
+            @click="openCartDrawer"
+          >
+            장바구니 열기 ({{ cartStore.lineCount }})
+          </button>
+          <button
+            type="button"
+            class="h-10 shrink-0 border border-gray-300 bg-gray-100 px-4 text-xs font-black text-gray-400 cursor-not-allowed"
+            disabled
+          >
+            SKU 상세에서 입력
+          </button>
+        </div>
+      </div>
+
+      <WarehouseTransferCartDrawer
+        :open="cartDrawerOpen"
+        :cart-groups="cartStore.groupedByRoute"
+        :cart-line-count="cartStore.lineCount"
+        @close="closeCartDrawer"
+        @clear-all="cartStore.clearAll()"
+        @execute="executeCartTransfers"
+        @remove-line="cartStore.removeLine($event)"
+        @update-line-qty="updateCartLineQty"
+      />
+
+      <div
+        v-if="toastMessage"
+        class="fixed bottom-20 right-5 z-50 border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-black text-emerald-700 shadow-sm"
+      >
+        <p>{{ toastMessage }}</p>
+        <button
+          v-if="toastShowHistoryAction"
+          type="button"
+          class="mt-1 text-[11px] font-black text-emerald-800 underline"
+          @click="moveHistory"
+        >
+          이동내역 보기
+        </button>
+      </div>
     </div>
   </AppLayout>
 </template>
