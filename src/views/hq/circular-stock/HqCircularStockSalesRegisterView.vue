@@ -10,13 +10,11 @@ import SalesRegisterStepFooter from '@/components/hq/circular-stock/sales-regist
 import SalesRegisterFinalReviewModal from '@/components/hq/circular-stock/sales-register/SalesRegisterFinalReviewModal.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useEsgStore } from '@/stores/esg.js'
 import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
 import { useCircularStockStore } from '@/stores/hq/circularStock/circularStock.js'
 
 const router = useRouter()
 const auth = useAuthStore()
-const esgStore = useEsgStore()
 const buyerStore = useCircularStockBuyerStore()
 const circularStockStore = useCircularStockStore()
 
@@ -28,9 +26,7 @@ const activeTopMenu = computed(() => '순환 재고 관리')
 const activeSideMenu = ref('순환 재고 판매 등록')
 
 const buyerSearchTerm = ref('')
-const isDrawerOpen = ref(false)
 const showFinalReviewModal = ref(false)
-const priceEditModes = ref({})
 const expandedStep3Groups = ref({})
 const groupRequestedKg = ref({})
 const groupRequestedInputText = ref({})
@@ -40,7 +36,6 @@ const step3SkuInputText = ref({})
 const toastMessage = ref('')
 const toastTone = ref('success')
 const inventoryLoadError = ref('')
-const isInventoryLoading = ref(false)
 let toastTimer = null
 
 // ADR-021 AI 거래처 추천 — Step 2 좌측 영역 모드 토글. 'ai' | 'manual'.
@@ -136,73 +131,6 @@ async function ensureRecommendationsUpToDate() {
     await circularStockStore.fetchRecommendations()
   }
 }
-const matchingMaterialBadges = computed(() => {
-  const badgeMap = new Map()
-  for (const item of draftItems.value) {
-    for (const material of item.materials || []) {
-      const name = String(material?.name || '').trim()
-      const ratio = Number(material?.ratio || 0)
-      if (!name || ratio <= 0) continue
-      const key = `${name}-${ratio}`
-      if (!badgeMap.has(key)) badgeMap.set(key, `${name} ${ratio}%`)
-    }
-  }
-  return Array.from(badgeMap.values()).slice(0, 3)
-})
-const matchingContextSummary = computed(() => {
-  const totalSkuCount = draftItems.value.length
-  const totalQuantity = draftItems.value.reduce(
-    (sum, item) => sum + (Number(item.availableQuantity) || 0),
-    0,
-  )
-  const totalWeightKg = draftItems.value.reduce(
-    (sum, item) => sum + (Number(item.availableWeightKg) || 0),
-    0,
-  )
-
-  const carbonFactors = {
-    면: 6.5,
-    폴리에스터: 6.8,
-    나일론: 5.5,
-    데님: 6.5,
-    울: 20.0,
-    캐시미어: 20.0,
-    실크: 12.0,
-    리넨: 7.0,
-    아크릴: 5.8,
-    스판덱스: 5.2,
-    default: 6.0,
-  }
-
-  let estimatedSavedCarbonKg = 0
-  for (const item of draftItems.value) {
-    const weightKg = Number(item.availableWeightKg) || 0
-    const materials =
-      Array.isArray(item.materials) && item.materials.length > 0
-        ? item.materials
-        : [{ name: '기타', ratio: 100 }]
-    const totalRatio =
-      materials.reduce((sum, material) => sum + (Number(material.ratio) || 0), 0) || 100
-    for (const material of materials) {
-      const ratio = Number(material.ratio) || 0
-      const normalizedName = String(material.name || '').trim()
-      const factor = carbonFactors[normalizedName] ?? carbonFactors.default
-      estimatedSavedCarbonKg += weightKg * (ratio / totalRatio) * factor
-    }
-  }
-
-  const roundedCarbonKg = Math.round(estimatedSavedCarbonKg * 100) / 100
-  const kauPrice = Number(esgStore.kauPrice || 0)
-  const carbonCreditValue = Math.round((roundedCarbonKg / 1000) * kauPrice)
-
-  return {
-    totalSkuCount,
-    totalQuantity,
-    totalWeightKg,
-    roundedCarbonKg,
-    carbonCreditValue,
-  }
-})
 
 function toggleStep3Group(groupKey) {
   expandedStep3Groups.value = {
@@ -560,24 +488,6 @@ function hasWeightAdjustment(item) {
   return Math.abs(Number(item.actualWeightKg || 0) - Number(item.requestedWeightKg || 0)) >= 0.01
 }
 
-function isItemAdded(draftId) {
-  return Boolean(circularStockStore.getDraftItem(draftId))
-}
-
-function isRowSelectionDisabled(row) {
-  if (isItemAdded(row.id)) return false
-  if (!lockedMaterialType.value) return false
-  return lockedMaterialType.value !== row.materialType
-}
-
-function openDrawer() {
-  isDrawerOpen.value = true
-}
-
-function toggleDrawer() {
-  isDrawerOpen.value = !isDrawerOpen.value
-}
-
 function moveStep(step) {
   if (step === 2 && !canMoveStep2.value) {
     showToast('먼저 판매할 SKU를 선택해주세요.', 'error')
@@ -736,20 +646,6 @@ function goToSkuList() {
   router.push({ name: 'hq-circular-inventory-sales-register', query: { fromWorkflow: '1' } })
 }
 
-function addItemToDraft(row) {
-  const result = circularStockStore.addSaleDraftItem(row)
-  if (!result.success) {
-    showToast(result.message, 'error')
-    return
-  }
-
-  isDrawerOpen.value = true
-  showToast(
-    result.alreadyExists ? '이미 판매 패널에 담긴 SKU입니다.' : '판매 패널에 SKU를 추가했습니다.',
-    'success',
-  )
-}
-
 function updateDraftItemField(draftId, field, value) {
   const normalizedField = field === 'soldWeightKg' ? 'requestedWeightKg' : field
   circularStockStore.updateSaleDraftItem(draftId, {
@@ -760,7 +656,6 @@ function updateDraftItemField(draftId, field, value) {
 
 function removeDraftItem(draftId) {
   circularStockStore.removeSaleDraftItem(draftId)
-  delete priceEditModes.value[draftId]
   const nextManual = { ...manualAdjustedKgBySku.value }
   const nextAuto = { ...autoAllocatedKgBySku.value }
   delete nextManual[draftId]
@@ -768,7 +663,6 @@ function removeDraftItem(draftId) {
   manualAdjustedKgBySku.value = nextManual
   autoAllocatedKgBySku.value = nextAuto
   if (draftItems.value.length === 0) {
-    isDrawerOpen.value = false
     groupRequestedKg.value = {}
     groupRequestedInputText.value = {}
     circularStockStore.step3GroupRequestedKg = {}
@@ -784,7 +678,6 @@ function selectBuyer(buyer) {
 
 function clearDraftPanel() {
   circularStockStore.clearDraft()
-  priceEditModes.value = {}
   buyerSearchTerm.value = ''
   groupRequestedKg.value = {}
   groupRequestedInputText.value = {}
@@ -792,24 +685,6 @@ function clearDraftPanel() {
   manualAdjustedKgBySku.value = {}
   autoAllocatedKgBySku.value = {}
   saleStep.value = 1
-}
-
-function isPriceEditMode(draftId) {
-  return Boolean(priceEditModes.value[draftId])
-}
-
-function openPriceEditMode(draftId) {
-  priceEditModes.value = {
-    ...priceEditModes.value,
-    [draftId]: true,
-  }
-}
-
-function closePriceEditMode(draftId) {
-  priceEditModes.value = {
-    ...priceEditModes.value,
-    [draftId]: false,
-  }
 }
 
 function openFinalReviewModal() {
@@ -822,7 +697,6 @@ function openFinalReviewModal() {
 
 function returnToDrawerEdit() {
   showFinalReviewModal.value = false
-  isDrawerOpen.value = true
 }
 
 function submitSale() {
@@ -834,7 +708,6 @@ function submitSale() {
 
   if (result.success) {
     buyerSearchTerm.value = ''
-    isDrawerOpen.value = false
     showFinalReviewModal.value = false
     router.push({
       name: 'hq-circular-inventory-sales-history-detail',
@@ -853,14 +726,11 @@ function materialFitLabel(value) {
 }
 
 async function loadCircularInventoryRows() {
-  isInventoryLoading.value = true
   inventoryLoadError.value = ''
   try {
     await circularStockStore.loadCircularInventoryRows({ page: 0, size: 100, sort: 'skuCode,asc' })
   } catch (e) {
     inventoryLoadError.value = e.message || '순환 재고 불러오기에 실패했습니다.'
-  } finally {
-    isInventoryLoading.value = false
   }
 }
 
@@ -894,7 +764,6 @@ onMounted(() => {
   window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   loadCircularInventoryRows()
   circularStockStore.markWorkflowStarted()
-  isDrawerOpen.value = true
   if (saleStep.value >= 2) {
     ensureRecommendationsUpToDate()
     revealAllVisibleRationales()
