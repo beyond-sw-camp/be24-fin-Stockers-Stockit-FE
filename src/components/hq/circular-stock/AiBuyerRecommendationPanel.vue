@@ -128,6 +128,12 @@ const isEmpty = computed(
 
           <p class="mt-2 text-sm font-black text-gray-900">{{ rec.companyName }}</p>
           <p class="mt-0.5 text-[11px] font-semibold text-gray-500">{{ rec.industryGroup }}</p>
+          <p
+            v-if="rec.distanceKm !== null && rec.distanceKm !== undefined"
+            class="mt-1 text-[11px] font-bold text-[#0F5C4D]"
+          >
+            창고 기준 약 {{ Number(rec.distanceKm).toFixed(2) }}km
+          </p>
 
           <div class="mt-3">
             <p class="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">AI 사유</p>

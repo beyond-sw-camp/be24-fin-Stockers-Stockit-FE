@@ -597,11 +597,16 @@ function moveStep(step) {
   }
 }
 
-function onRecommendationSelect(code) {
+async function onRecommendationSelect(code) {
   const rec = circularStockStore.recommendations.find((r) => r.code === code)
   if (!rec) return
   if (selectedBuyer.value?.id === code || selectedBuyer.value?.code === code) {
     circularStockStore.selectBuyer('')
+    return
+  }
+  const hydrated = await buyerStore.ensureBuyerByCode(code)
+  if (!hydrated) {
+    showToast('추천 거래처 상세 정보를 불러오지 못해 선택할 수 없습니다.', 'error')
     return
   }
   circularStockStore.selectBuyer(code)

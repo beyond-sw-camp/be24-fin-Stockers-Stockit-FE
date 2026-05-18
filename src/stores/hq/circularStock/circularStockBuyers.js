@@ -56,6 +56,14 @@ function fromApi(v) {
   }
 }
 
+function upsertBuyer(list, buyer) {
+  const idx = list.findIndex((b) => b.id === buyer.id)
+  if (idx === -1) return [buyer, ...list]
+  const next = [...list]
+  next[idx] = { ...next[idx], ...buyer }
+  return next
+}
+
 function createEmptyBuyerForm() {
   return {
     companyName: '',
@@ -289,6 +297,35 @@ export const useCircularStockBuyerStore = defineStore('circularStockBuyers', () 
     }
   }
 
+  async function ensureBuyerByCode(code) {
+    const normalized = String(code ?? '').trim()
+    if (!normalized) return null
+    const existing = getBuyerById(normalized)
+    if (existing) return existing
+    try {
+      const detail = await circularBuyerApi.detail(normalized)
+      const buyer = fromApi(detail)
+      buyers.value = upsertBuyer(buyers.value, buyer)
+      return buyer
+    } catch {
+      try {
+        const pageRes = await circularBuyerApi.listPage({
+          page: 0,
+          size: 20,
+          keyword: normalized,
+        })
+        const found = (Array.isArray(pageRes?.content) ? pageRes.content : [])
+          .find((b) => String(b?.code || '') === normalized)
+        if (!found) return null
+        const buyer = fromApi(found)
+        buyers.value = upsertBuyer(buyers.value, buyer)
+        return buyer
+      } catch {
+        return null
+      }
+    }
+  }
+
   return {
     buyers,
     sortedBuyers,
@@ -314,5 +351,7 @@ export const useCircularStockBuyerStore = defineStore('circularStockBuyers', () 
     fetchStats,
     createBuyer,
     updateBuyer,
+    deleteBuyer,
+    ensureBuyerByCode,
   }
 })
