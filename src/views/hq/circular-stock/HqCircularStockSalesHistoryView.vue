@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
@@ -125,8 +125,7 @@ function materialTypeLabel(sale) {
 }
 
 function industryGroupLabel(sale) {
-  if (sale?.buyerIndustryGroup) return sale.buyerIndustryGroup
-  return buyerStore.getBuyerById(sale?.buyerId)?.industryGroup ?? '-'
+  return sale?.buyerIndustryGroup ?? '-'
 }
 
 function formatDateTime(iso) {
@@ -165,6 +164,9 @@ function openSaleDetail(saleId) {
     params: { saleId },
   })
 }
+
+onMounted(() => {
+})
 
 
 </script>

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
@@ -27,7 +27,7 @@ const activeTab = ref('sales')
 const saleId = computed(() => String(route.params.saleId ?? ''))
 const sale = computed(() => circularStockStore.getSaleById(saleId.value))
 const saleEsgSnapshot = computed(() => circularStockStore.getSaleEsgSnapshot(sale.value))
-const linkedBuyer = computed(() => buyerStore.getBuyerById(sale.value?.buyerId) ?? null)
+const linkedBuyer = computed(() => null)
 
 const includedMaterialNames = computed(() => {
   const names = sale.value?.items?.flatMap((item) => item.materials?.map((material) => material.name) ?? []) ?? []
@@ -219,13 +219,16 @@ function industryGroupLabel() {
   return sale.value?.buyerIndustryGroup || linkedBuyer.value?.industryGroup || '-'
 }
 
-function productTypesLabel() {
-  const fromSale = sale.value?.buyerProductTypes
+onMounted(() => {
+})
+
+function factoryProductLabel() {
+  const fromSale = sale.value?.buyerFactoryProduct ?? sale.value?.buyerProductTypes
   if (Array.isArray(fromSale) && fromSale.length > 0) return fromSale.join(', ')
-  if (Array.isArray(linkedBuyer.value?.productTypes) && linkedBuyer.value.productTypes.length > 0) {
-    return linkedBuyer.value.productTypes.join(', ')
+  if (Array.isArray(linkedBuyer.value?.factoryProduct) && linkedBuyer.value.factoryProduct.length > 0) {
+    return linkedBuyer.value.factoryProduct.join(', ')
   }
-  return linkedBuyer.value?.productNote || '-'
+  return sale.value?.buyerAddress || linkedBuyer.value?.address || '-'
 }
 
 function buyerDescriptionLabel() {
@@ -366,7 +369,7 @@ function handleBack() {
 
                   <div class="mt-4 border-t border-gray-200 pt-3">
                     <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">취급제품 / 생산품</p>
-                    <p class="mt-1 text-xs font-bold leading-5 text-gray-700">{{ productTypesLabel() }}</p>
+                    <p class="mt-1 text-xs font-bold leading-5 text-gray-700">{{ factoryProductLabel() }}</p>
                   </div>
 
                   <div class="mt-4 border-t border-gray-200 pt-3">
