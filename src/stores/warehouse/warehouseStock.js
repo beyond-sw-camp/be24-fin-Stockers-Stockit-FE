@@ -66,7 +66,7 @@ export const useWarehouseStockStore = defineStore('warehouseStock', () => {
     loading.value = true
     error.value = null
     try {
-      const res = await getWarehouseInventorySkus({ page: 0, size: 1000 })
+      const res = await getWarehouseInventorySkus({ page: 0, size: 2000 })
       const items = Array.isArray(res?.items) ? res.items : []
       const next = new Map()
       for (const row of items) {
