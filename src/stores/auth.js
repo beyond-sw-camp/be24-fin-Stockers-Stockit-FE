@@ -4,6 +4,7 @@ import { roleHomeMap } from '@/config/roleMenus.js'
 import { authApi } from '@/api/user/auth.js'
 import { extractErrorMessage } from '@/api/axios.js'
 import { useNotificationStore } from '@/stores/notification.js'
+import { useCircularStockStore } from '@/stores/hq/circularStock/circularStock.js'
 
 // HttpOnly Cookie 방식이라 토큰은 JS에서 접근 불가.
 // localStorage 에는 사용자 정보(UI 표시용)만 저장.
@@ -71,6 +72,12 @@ export const useAuthStore = defineStore('auth', () => {
       // 네트워크 / 401 / 만료 토큰 등 — 클라이언트 정리는 무조건 진행
       console.warn('[auth.logout] BE call failed, clearing client state anyway:', err)
     } finally {
+      // 로그아웃 시 순환재고 판매 등록 draft/워크플로우 상태를 즉시 초기화한다.
+      try {
+        useCircularStockStore().clearDraft()
+      } catch (e) {
+        console.warn('[auth.logout] circularStock draft clear failed:', e)
+      }
       user.value = null
       localStorage.removeItem(STORAGE_KEY)
       sessionStorage.removeItem('stockit:openTopMenus')
