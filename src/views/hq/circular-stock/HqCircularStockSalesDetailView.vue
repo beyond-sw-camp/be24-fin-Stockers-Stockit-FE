@@ -146,7 +146,7 @@ const impactNarrative = computed(() => [
     key: 'materials',
     title: '무엇을 순환시켰나',
     value: esgMaterialNames.value.join(', ') || includedMaterialNames.value.join(', ') || '-',
-    detail: `${formatQuantity(sale.value?.totalItems || 0)}개 SKU를 순환 판매로 전환`,
+    detail: `${formatQuantity(sale.value?.totalSkuCount || 0)}개 SKU를 순환 판매로 전환`,
   },
   {
     key: 'environment',
@@ -299,7 +299,7 @@ function handleBack() {
                       <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">거래 요약</p>
                       <p class="mt-1 text-base font-black text-gray-900">{{ sale.buyerName }}</p>
                       <p class="mt-1 text-xs font-bold text-gray-500">
-                        소재 분류 {{ materialTypeLabel(sale.items?.[0]) }} · 판매 SKU {{ formatQuantity(sale.totalItems) }}건 · 판매번호 {{ sale.saleNo }}
+                        소재 분류 {{ materialTypeLabel(sale.items?.[0]) }} · 판매 SKU {{ formatQuantity(sale.totalSkuCount) }}건 · 판매번호 {{ sale.saleNo }}
                       </p>
                     </div>
                     <div class="rounded-full bg-[#EAF4F0] px-3 py-1 text-[10px] font-black text-[#255F52]">
@@ -314,14 +314,12 @@ function handleBack() {
                       <p class="mt-1 text-sm font-black text-[#0F5C4D]">{{ formatKg(sale.totalActualWeightKg) }}</p>
                     </div>
                     <div class="rounded-md border border-gray-200 bg-gray-50 px-3 py-3">
-                      <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">환산 / 실차감 수량</p>
-                      <p class="mt-1 text-sm font-black text-gray-900">{{ Number(sale.totalEstimatedQuantity || 0).toFixed(2) }}벌</p>
-                      <p class="mt-1 text-sm font-black text-amber-700">{{ formatQuantity(sale.totalDeductedQuantity) }}벌</p>
+                      <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">총 판매 수량</p>
+                      <p class="mt-1 text-sm font-black text-amber-700">{{ formatQuantity(sale.totalSoldQuantity) }}벌</p>
                     </div>
                     <div class="rounded-md border border-gray-200 bg-gray-50 px-3 py-3">
-                      <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">예상 / 확정 거래 금액</p>
-                      <p class="mt-1 text-sm font-black text-gray-900">{{ formatCurrency(sale.totalRequestedAmount) }}</p>
-                      <p class="mt-1 text-sm font-black text-[#0F5C4D]">{{ formatCurrency(sale.totalActualAmount) }}</p>
+                      <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">총 판매 금액</p>
+                      <p class="mt-1 text-sm font-black text-[#0F5C4D]">{{ formatCurrency(sale.totalAmount) }}</p>
                     </div>
                     <div class="rounded-md border border-gray-200 bg-gray-50 px-3 py-3">
                       <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">포함 소재</p>
@@ -340,7 +338,7 @@ function handleBack() {
 
                   <div class="absolute bottom-0 right-0 text-right">
                     <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">총 판매 금액</p>
-                    <p class="mt-1 text-base font-black text-[#0F5C4D]">{{ formatCurrency(sale.totalActualAmount) }}</p>
+                    <p class="mt-1 text-base font-black text-[#0F5C4D]">{{ formatCurrency(sale.totalAmount) }}</p>
                   </div>
                 </div>
 
@@ -406,30 +404,28 @@ function handleBack() {
                       <th class="px-3 py-3 text-left font-black">현재 재고</th>
                       <th class="px-3 py-3 text-left font-black">요청 kg</th>
                       <th class="px-3 py-3 text-left font-black">환산 수량</th>
-                      <th class="px-3 py-3 text-left font-black">실차감 수량</th>
+                      <th class="px-3 py-3 text-left font-black">판매 수량</th>
                       <th class="px-3 py-3 text-left font-black">확정 반영 kg</th>
                       <th class="px-3 py-3 text-left font-black">kg당 단가</th>
-                      <th class="px-3 py-3 text-left font-black">예상 금액</th>
-                      <th class="px-3 py-3 text-left font-black">확정 거래 금액</th>
+                      <th class="px-3 py-3 text-left font-black">거래 금액</th>
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-gray-100">
                     <tr v-for="item in sale.items" :key="`${sale.saleNo}-${item.itemId || item.skuCode || item.inventoryId}`">
                       <td class="px-3 py-3 font-mono font-bold text-gray-500">{{ item.skuCode || item.itemCode || '-' }}</td>
-                      <td class="px-3 py-3 font-black text-gray-900">{{ item.itemName }}</td>
+                      <td class="px-3 py-3 font-black text-gray-900">{{ item.productName }}</td>
                       <td class="px-3 py-3 text-left font-black text-gray-900">{{ materialTypeLabel(item) }}</td>
                       <td class="px-3 py-3 font-bold text-gray-700">{{ formatMaterials(item.materials || []) }}</td>
                       <td class="px-3 py-3 text-left font-black text-gray-600">{{ formatQuantity(item.availableQuantity) }}벌 / {{ formatKg(item.availableWeightKg) }}</td>
                       <td class="px-3 py-3 text-left font-black text-gray-900">{{ formatKg(item.requestedWeightKg) }}</td>
                       <td class="px-3 py-3 text-left font-black text-gray-700">{{ Number(item.estimatedQuantity || 0).toFixed(2) }}벌</td>
-                      <td class="px-3 py-3 text-left font-black text-amber-700">{{ formatQuantity(item.deductedQuantity) }}벌</td>
+                      <td class="px-3 py-3 text-left font-black text-amber-700">{{ formatQuantity(item.soldQuantity) }}벌</td>
                       <td class="px-3 py-3 text-left font-black" :class="hasWeightAdjustment(item) ? 'text-[#0F5C4D]' : 'text-gray-900'">
                         {{ formatKg(item.actualWeightKg) }}
                       </td>
                       <td class="px-3 py-3 text-left font-black text-gray-900">{{ formatCurrency(item.unitPrice) }}</td>
-                      <td class="px-3 py-3 text-left font-black text-gray-900">{{ formatCurrency(item.requestedAmount) }}</td>
                       <td class="px-3 py-3 text-left font-black" :class="hasWeightAdjustment(item) ? 'text-[#0F5C4D]' : 'text-gray-900'">
-                        {{ formatCurrency(item.actualAmount) }}
+                        {{ formatCurrency(item.lineAmount) }}
                       </td>
                     </tr>
                   </tbody>

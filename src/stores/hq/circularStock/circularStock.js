@@ -273,8 +273,8 @@ function buildSaleEsgSnapshot(sale, buyer, kauPrice, options = {}) {
   const resourceCirculationPoints = roundTo(resourceCirculationPointsRaw, 0)
   const carbonContributionPoints = roundTo(roundedSavedCarbonKg * CARBON_POINT_MULTIPLIER, 0)
   const carbonCreditValue = roundTo((roundedSavedCarbonKg / 1000) * (Number(kauPrice) || 0), 0)
-  const salesRevenue = Number(sale?.totalActualAmount ?? sale?.totalAmount)
-    || items.reduce((sum, item) => sum + (Number(item.actualAmount ?? item.lineAmount) || 0), 0)
+  const salesRevenue = Number(sale?.totalAmount)
+    || items.reduce((sum, item) => sum + (Number(item.lineAmount) || 0), 0)
   const wasteLossRecoveredValue = roundTo(salesRevenue, 0)
   const tradableCarbonCreditValue = carbonCreditValue
 
@@ -493,7 +493,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
         totalAmount: 0,
       }
       buyerEntry.totalWeightKg += sale.totalActualWeightKg
-      buyerEntry.totalAmount += sale.totalActualAmount
+      buyerEntry.totalAmount += Number(sale.totalAmount) || 0
       buyerMap.set(sale.buyerId, buyerEntry)
 
       for (const item of sale.items) {
@@ -504,7 +504,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
           totalAmount: 0,
         }
         categoryEntry.totalWeightKg += item.actualWeightKg
-        categoryEntry.totalAmount += item.actualAmount
+        categoryEntry.totalAmount += Number(item.lineAmount) || 0
         categoryMap.set(categoryKey, categoryEntry)
 
         for (const material of item.materials) {
@@ -649,7 +649,6 @@ export const useCircularStockStore = defineStore('circularStock', () => {
         skuCode: String(item.skuCode ?? ''),
         productCode: String(item.productCode ?? ''),
         productName: String(item.productName ?? ''),
-        itemName: String(item.productName ?? ''),
         mainCategory: String(item.mainCategory ?? ''),
         subCategory: String(item.subCategory ?? ''),
         color: String(item.color ?? ''),
@@ -659,11 +658,8 @@ export const useCircularStockStore = defineStore('circularStock', () => {
         actualWeightKg: Number(item.actualWeightKg || 0),
         estimatedQuantity: Number(item.estimatedQuantity || 0),
         soldQuantity: Number(item.soldQuantity || 0),
-        deductedQuantity: Number(item.soldQuantity || 0),
         unitPrice: Number(item.unitPrice || 0),
         lineAmount: Number(item.lineAmount || 0),
-        requestedAmount: Number(item.lineAmount || 0),
-        actualAmount: Number(item.lineAmount || 0),
         memo: item.memo ?? null,
         materials: Array.isArray(item.materials)
           ? item.materials.map((mat) => ({
@@ -692,17 +688,12 @@ export const useCircularStockStore = defineStore('circularStock', () => {
       buyerIndustryGroup: detail.buyerIndustryGroup ?? null,
       materialType: detail.materialType ?? null,
       totalSkuCount: Number(detail.totalSkuCount || 0),
-      totalItems: Number(detail.totalSkuCount || 0),
       totalRequestedWeightKg: Number(detail.totalRequestedWeightKg || 0),
       totalActualWeightKg: Number(detail.totalActualWeightKg || 0),
       totalEstimatedQuantity: items.reduce((sum, item) => sum + (Number(item.estimatedQuantity) || 0), 0),
       totalSoldQuantity: Number(detail.totalSoldQuantity || 0),
-      totalDeductedQuantity: Number(detail.totalSoldQuantity || 0),
       totalAmount: Number(detail.totalAmount || 0),
-      totalActualAmount: Number(detail.totalAmount || 0),
-      totalRequestedAmount: Number(detail.totalAmount || 0),
       memo: detail.memo ?? null,
-      soldBy: detail.soldByName ?? null,
       items,
       statusHistory: Array.isArray(detail.statusHistory) ? detail.statusHistory : [],
     }
@@ -721,7 +712,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
         actualWeightKg: Number(Number(item.actualWeightKg || 0).toFixed(3)),
         estimatedQuantity: Number(Number(item.estimatedQuantity || 0).toFixed(3)),
         unitPrice: Number(item.unitPrice || 0),
-        lineAmount: Number(item.requestedAmount || item.lineAmount || 0),
+        lineAmount: Number(item.lineAmount || 0),
         memo: item.memo ?? null,
       })),
     }
