@@ -253,6 +253,49 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
   const buyerStore = useCircularStockBuyerStore()
   const esgStore = useEsgStore()
   const inventoryStore = useCircularStockInventoryStore()
+  const salesPage = ref({
+    page: 0,
+    size: 20,
+    totalPages: 0,
+    totalElements: 0,
+    hasNext: false,
+    hasPrevious: false,
+    content: [],
+  })
+  const salesDetailById = ref({})
+  const draftBuyerId = ref('')
+  const draftMemo = ref('')
+  const draftItems = ref([])
+  const step3GroupRequestedKg = ref({})
+  const saleStep = ref(1)
+  const hasStartedWorkflow = ref(false)
+  const lockedMaterialType = ref('')
+  const selectedWarehouseCode = ref('')
+  const selectedWarehouseName = ref('')
+  const sortedSales = computed(() => [...salesPage.value.content])
+  const selectedBuyer = computed(() =>
+    buyerStore.getBuyerById(draftBuyerId.value) ?? null,
+  )
+  const draftSummary = computed(() => ({
+    totalItems: draftItems.value.length,
+    totalRequestedWeightKg: roundTo(
+      draftItems.value.reduce((sum, item) => sum + (Number(item.requestedWeightKg) || 0), 0),
+    ),
+    totalRequestedAmount: draftItems.value.reduce((sum, item) => sum + (Number(item.requestedAmount) || 0), 0),
+    totalEstimatedQuantity: roundTo(
+      draftItems.value.reduce((sum, item) => sum + (Number(item.estimatedQuantity) || 0), 0),
+    ),
+    totalDeductedQuantity: draftItems.value.reduce((sum, item) => sum + (Number(item.deductedQuantity) || 0), 0),
+    totalActualWeightKg: roundTo(
+      draftItems.value.reduce((sum, item) => sum + (Number(item.actualWeightKg) || 0), 0),
+    ),
+    totalActualAmount: draftItems.value.reduce((sum, item) => sum + (Number(item.actualAmount) || 0), 0),
+    totalWeightKg: roundTo(
+      draftItems.value.reduce((sum, item) => sum + (Number(item.requestedWeightKg) || 0), 0),
+    ),
+    totalAmount: draftItems.value.reduce((sum, item) => sum + (Number(item.requestedAmount) || 0), 0),
+  }))
+
   // ADR-021 AI 거래처 추천: Step 1 -> Step 2 전환 시 1회 자동 호출 (결정일 2026-04-30).
   const recommendations = ref([])
   const isRecommendationLoading = ref(false)
