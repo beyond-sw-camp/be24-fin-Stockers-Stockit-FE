@@ -10,11 +10,13 @@ import SalesRegisterStepFooter from '@/components/hq/circular-stock/sales-regist
 import SalesRegisterFinalReviewModal from '@/components/hq/circular-stock/sales-register/SalesRegisterFinalReviewModal.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
-import { useCircularStockStore } from '@/stores/hq/circularStock/circularStock.js'
+import { useCircularStockSaleStore } from '@/stores/hq/circularStock/circularStockSale.js'
+import { useCircularStockInventoryStore } from '@/stores/hq/circularStock/circularStockInventory.js'
 
 const router = useRouter()
 const buyerStore = useCircularStockBuyerStore()
-const circularStockStore = useCircularStockStore()
+const circularStockStore = useCircularStockSaleStore()
+const inventoryStore = useCircularStockInventoryStore()
 
 const hqMenus = roleMenus.hq
 const circularStockMenus =
@@ -722,7 +724,7 @@ function materialFitLabel(value) {
 async function loadCircularInventoryRows() {
   inventoryLoadError.value = ''
   try {
-    await circularStockStore.loadCircularInventoryRows({ page: 0, size: 100, sort: 'skuCode,asc' })
+    await inventoryStore.loadCircularInventoryRows({ page: 0, size: 100, sort: 'skuCode,asc' })
   } catch (e) {
     inventoryLoadError.value = e.message || '순환 재고 불러오기에 실패했습니다.'
   }
@@ -953,3 +955,4 @@ onBeforeUnmount(() => {
     </div>
   </AppLayout>
 </template>
+

@@ -1,109 +1,12 @@
 ﻿import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { useCircularStockInventoryStore } from '@/stores/hq/circularStock/circularStockInventory.js'
+import { roundTo, parseWeightLabel } from '@/stores/hq/circularStock/circularStockCommon.js'
 import { circularBuyerApi } from '@/api/hq/circularBuyer.js'
 import { extractErrorMessage } from '@/api/axios.js'
-import { getCircularInventories } from '@/api/hq/inventory.js'
 import { createCircularSale as createCircularSaleApi, getCircularSaleDetail as getCircularSaleDetailApi, getCircularSales as getCircularSalesApi } from '@/api/hq/circularSale.js'
 import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
 import { useEsgStore } from '@/stores/esg.js'
-
-const INVENTORY_STORAGE_KEY = 'stockit_circular_inventory_inventory_v2'
-
-const RAW_INITIAL_INVENTORY = []
-
-function roundTo(value, digits = 2) {
-  const factor = 10 ** digits
-  return Math.round(value * factor) / factor
-}
-
-function inventoryQuantitySeed(id) {
-  return 760 + (String(id).split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) % 520)
-}
-
-function expandSeedInventoryItem(item) {
-  const originalQuantity = Math.max(1, Number(item.quantity) || 1)
-  const originalWeightKg = roundTo(Number(item.weightKg) || 0)
-  const unitWeightKg = originalWeightKg > 0 ? originalWeightKg / originalQuantity : 0
-  const expandedQuantity = Math.max(originalQuantity, inventoryQuantitySeed(item.id))
-  const expandedWeightKg = roundTo(unitWeightKg * expandedQuantity, 1)
-
-  return {
-    ...item,
-    quantity: expandedQuantity,
-    weightKg: expandedWeightKg,
-  }
-}
-
-const INITIAL_INVENTORY = RAW_INITIAL_INVENTORY.map(expandSeedInventoryItem)
-
-function formatWeight(weightKg) {
-  return `${roundTo(weightKg).toFixed(2)}kg`
-}
-
-function enrichInventoryItem(item) {
-  const quantity = Number(item.quantity) || 0
-  const weightKg = roundTo(Number(item.weightKg) || 0)
-  const unitWeightKg = quantity > 0 ? roundTo(weightKg / quantity, 4) : 0
-
-  return {
-    ...item,
-    quantity,
-    weightKg,
-    unitWeightKg,
-  }
-}
-
-function loadJson(key, fallback) {
-  try {
-    const saved = localStorage.getItem(key)
-    return saved ? JSON.parse(saved) : fallback
-  } catch {
-    return fallback
-  }
-}
-
-function saveJson(key, value) {
-  localStorage.setItem(key, JSON.stringify(value))
-}
-
-function normalizeDraftField(item, updates = {}) {
-  const next = {
-    ...item,
-    ...updates,
-  }
-  const requestedWeightSource = updates.requestedWeightKg ?? updates.soldWeightKg ?? next.requestedWeightKg ?? next.soldWeightKg
-  const rawRequestedWeightKg = Number(requestedWeightSource) || 0
-  const requestedWeightKg = Math.min(Math.max(rawRequestedWeightKg, 0), Number(next.availableWeightKg) || 0)
-  const unitPrice = Number(next.unitPrice) || 0
-  const estimatedQuantity = next.unitWeightKg > 0 ? requestedWeightKg / next.unitWeightKg : 0
-  const availableQuantity = Math.max(0, Number(next.availableQuantity) || 0)
-  const ceilSafeQuantity = Math.ceil(Math.max(estimatedQuantity - 1e-9, 0))
-  const deductedQuantity = requestedWeightKg > 0 && next.unitWeightKg > 0
-    ? Math.min(ceilSafeQuantity, availableQuantity)
-    : 0
-  const actualWeightKg = deductedQuantity > 0 && next.unitWeightKg > 0
-    ? roundTo(deductedQuantity * next.unitWeightKg, 4)
-    : 0
-  const requestedAmount = roundTo(requestedWeightKg * unitPrice, 0)
-  const actualAmount = roundTo(actualWeightKg * unitPrice, 0)
-
-  return {
-    ...next,
-    requestedWeightKg,
-    unitPrice: next.unitPrice,
-    estimatedQuantity: roundTo(estimatedQuantity, 2),
-    deductedQuantity,
-    requestedAmount,
-    actualWeightKg,
-    actualAmount,
-    soldWeightKg: requestedWeightKg,
-    lineAmount: requestedAmount,
-  }
-}
-
-function parseWeightLabel(weight) {
-  return Number(String(weight ?? '').replace('kg', '')) || 0
-}
 
 const NATURAL_SINGLE_MATERIALS = ['면', '울', '캐시미어', '실크', '리넨']
 const SYNTHETIC_MATERIALS = ['폴리에스터', '아크릴', '나일론', '스판덱스']
@@ -235,7 +138,7 @@ function buildSaleEsgSnapshot(sale, buyer, kauPrice, options = {}) {
     const actualWeightKg = Number(item.actualWeightKg) || 0
     const materials = Array.isArray(item.materials) && item.materials.length > 0
       ? item.materials
-      : [{ name: '湲고?', ratio: 100 }]
+      : [{ name: '기타', ratio: 100 }]
 
     const totalRatio = materials.reduce((sum, material) => sum + (Number(material.ratio) || 0), 0) || 100
 
@@ -301,27 +204,27 @@ function buildSaleEsgSnapshot(sale, buyer, kauPrice, options = {}) {
   const scoreBreakdown = [
     {
       scoreType: 'execution',
-      label: '?쒗솚 ?먮ℓ ?ㅽ뻾 ?먯닔',
+      label: '순환 판매 실행 점수',
       points: items.length > 0 ? EXECUTION_BASE_POINTS : 0,
-      formulaSummary: `?먮ℓ 1嫄?理쒖쥌 ?깅줉 ?꾨즺 ??湲곕낯 ${EXECUTION_BASE_POINTS}pt`,
+      formulaSummary: `판매 1건 최종 등록 완료 시 기본 ${EXECUTION_BASE_POINTS}pt`,
     },
     {
       scoreType: 'resourceCirculation',
-      label: '?먯썝 ?쒗솚 ?꾪솚 ?먯닔',
+      label: '자원 순환 전환 점수',
       points: resourceCirculationPoints,
-      formulaSummary: '?ㅼ젣 ?먮ℓ 臾닿쾶 횞 ?뚯옱蹂??쒗솚 ?꾪솚 怨꾩닔',
+      formulaSummary: '실제 판매 무게 × 소재별 순환 전환 계수',
     },
     {
       scoreType: 'carbonContribution',
-      label: '?꾩냼 ?덇컧 湲곗뿬 ?먯닔',
+      label: '탄소 절감 기여 점수',
       points: carbonContributionPoints,
-      formulaSummary: `?ㅼ젣 ?꾩냼 媛먯텞??${roundedSavedCarbonKg.toFixed(2)}kgCO??횞 ${CARBON_POINT_MULTIPLIER}`,
+      formulaSummary: `실제 탄소 절감량 ${roundedSavedCarbonKg.toFixed(2)}kgCO2 × ${CARBON_POINT_MULTIPLIER}`,
     },
     {
       scoreType: 'traceability',
-      label: '?몄쬆/異붿쟻 ?꾨즺 ?먯닔',
+      label: '인증/추적 완료 점수',
       points: traceabilityBreakdown.reduce((sum, item) => sum + item.points, 0),
-      formulaSummary: `${traceabilityBreakdown.filter(item => item.points > 0).length}/${traceabilityBreakdown.length} ??ぉ 異⑹”`,
+      formulaSummary: `${traceabilityBreakdown.filter(item => item.points > 0).length}/${traceabilityBreakdown.length} 항목 충족`,
     },
   ]
 
@@ -338,7 +241,7 @@ function buildSaleEsgSnapshot(sale, buyer, kauPrice, options = {}) {
       treeGrowPoints: scoreBreakdown.reduce((sum, item) => sum + item.points, 0),
       treatmentType,
       kauPriceAtSale: Number(kauPrice) || 0,
-      formulaSummary: '?섎Т ?ㅼ슦湲??먯닔 = ?쒗솚 ?먮ℓ ?ㅽ뻾 + ?먯썝 ?쒗솚 ?꾪솚 + ?꾩냼 ?덇컧 湲곗뿬 + ?몄쬆/異붿쟻 ?꾨즺',
+      formulaSummary: '나무 심기 점수 = 순환 판매 실행 + 자원 순환 전환 + 탄소 절감 기여 + 인증/추적 완료',
       materialBreakdown: normalizedBreakdown,
       traceabilityBreakdown,
     },
@@ -346,90 +249,19 @@ function buildSaleEsgSnapshot(sale, buyer, kauPrice, options = {}) {
   }
 }
 
-export const useCircularStockStore = defineStore('circularStock', () => {
+export const useCircularStockSaleStore = defineStore('circularStockSale', () => {
   const buyerStore = useCircularStockBuyerStore()
   const esgStore = useEsgStore()
-  const inventoryItems = ref(loadJson(INVENTORY_STORAGE_KEY, INITIAL_INVENTORY).map(enrichInventoryItem))
-  const salesPage = ref({
-    page: 0,
-    size: 20,
-    totalPages: 0,
-    totalElements: 0,
-    hasNext: false,
-    hasPrevious: false,
-    content: [],
-  })
-  const salesDetailById = ref({})
-  const draftBuyerId = ref('')
-  const draftMemo = ref('')
-  const draftItems = ref([])
-  const step3GroupRequestedKg = ref({})
-  const saleStep = ref(1)
-  const hasStartedWorkflow = ref(false)
-  const lockedMaterialType = ref('')
-  const selectedWarehouseCode = ref('')
-  const selectedWarehouseName = ref('')
-  const liveCircularInventoryRows = ref([])
-  const inventoryPage = ref(0)
-  const inventorySize = ref(20)
-  const inventoryTotalPages = ref(0)
-  const inventoryTotalElements = ref(0)
-  const inventoryHasNext = ref(false)
-  const inventoryHasPrevious = ref(false)
-  const inventorySort = ref('skuCode,asc')
-  const inventoryKeyword = ref('')
-  const inventoryWarehouseCodes = ref([])
-  const inventoryMaterialGroup = ref('')
-  const inventoryMaterialName = ref('')
-  const inventoryMaterialNames = ref([])
-
-  // ADR-021 AI 嫄곕옒泥?異붿쿇 ??Step 1 ??Step 2 [?ㅼ쓬] ?대┃ ??1???몄텧 (?ъ슜??寃곗젙 2026-04-30).
+  const inventoryStore = useCircularStockInventoryStore()
+  // ADR-021 AI 거래처 추천: Step 1 -> Step 2 전환 시 1회 자동 호출 (결정일 2026-04-30).
   const recommendations = ref([])
   const isRecommendationLoading = ref(false)
   const recommendationError = ref(null)
   const lastRecommendationBasisKey = ref('')
   const recommendationDirty = ref(true)
-
-  const inventoryRows = computed(() => {
-    const source = liveCircularInventoryRows.value.length > 0
-      ? liveCircularInventoryRows.value
-      : inventoryItems.value
-    return [...source].sort((a, b) => (
-      a.parentCategory.localeCompare(b.parentCategory, 'ko')
-      || a.childCategory.localeCompare(b.childCategory, 'ko')
-      || a.itemName.localeCompare(b.itemName, 'ko')
-    ))
-  })
-
-  const selectedBuyer = computed(() =>
-    buyerStore.getBuyerById(draftBuyerId.value) ?? null,
-  )
-
-  const sortedSales = computed(() => [...salesPage.value.content])
-
-  const draftSummary = computed(() => ({
-    totalItems: draftItems.value.length,
-    totalRequestedWeightKg: roundTo(
-      draftItems.value.reduce((sum, item) => sum + (Number(item.requestedWeightKg) || 0), 0),
-    ),
-    totalRequestedAmount: draftItems.value.reduce((sum, item) => sum + (Number(item.requestedAmount) || 0), 0),
-    totalEstimatedQuantity: roundTo(
-      draftItems.value.reduce((sum, item) => sum + (Number(item.estimatedQuantity) || 0), 0),
-    ),
-    totalDeductedQuantity: draftItems.value.reduce((sum, item) => sum + (Number(item.deductedQuantity) || 0), 0),
-    totalActualWeightKg: roundTo(
-      draftItems.value.reduce((sum, item) => sum + (Number(item.actualWeightKg) || 0), 0),
-    ),
-    totalActualAmount: draftItems.value.reduce((sum, item) => sum + (Number(item.actualAmount) || 0), 0),
-    totalWeightKg: roundTo(
-      draftItems.value.reduce((sum, item) => sum + (Number(item.requestedWeightKg) || 0), 0),
-    ),
-    totalAmount: draftItems.value.reduce((sum, item) => sum + (Number(item.requestedAmount) || 0), 0),
-  }))
-
   /**
-   * 異붿쿇 ?몄텧 ?섏씠濡쒕뱶 ?먮룞 ?⑹꽦. Step 1 ??SKU ??+ lockedMaterialType ?쇰줈 4?꾨뱶 留뚮뱺??
-   * ?ъ슜??異붽? ?낅젰 0 ???듭뀡 A ?먮룞 異붿텧 (?ъ슜??寃곗젙 2026-04-30).
+   * 추천 요청 페이로드 자동 생성.
+   * Step 1의 SKU 선택 + lockedMaterialType 기준으로 핵심 4필드를 만든다.
    */
   const recommendationPayload = computed(() => {
     const items = draftItems.value
@@ -524,103 +356,6 @@ export const useCircularStockStore = defineStore('circularStock', () => {
       materialBreakdown: [...materialMap.values()].sort((a, b) => b.totalWeightKg - a.totalWeightKg),
     }
   })
-
-  function persistInventory() {
-    saveJson(INVENTORY_STORAGE_KEY, inventoryItems.value)
-  }
-
-  function getInventoryById(inventoryId) {
-    return inventoryItems.value.find(item => item.id === inventoryId)
-      ?? liveCircularInventoryRows.value.find(item => item.id === inventoryId)
-      ?? null
-  }
-
-  function mapCircularApiRowToInventoryItem(row) {
-    const compositions = Array.isArray(row.materialCompositions) ? row.materialCompositions : []
-    const materials = compositions.map(comp => ({
-      name: String(comp.materialNameKo ?? ''),
-      ratio: Number(comp.ratio ?? 0),
-    }))
-    return {
-      id: String(row.inventoryId ?? ''),
-      itemCode: String(row.itemCode ?? ''),
-      parentCategory: String(row.parentCategory ?? ''),
-      childCategory: String(row.childCategory ?? ''),
-      itemName: String(row.itemName ?? ''),
-      warehouseCode: String(row.warehouseCode ?? ''),
-      warehouseName: String(row.warehouseName ?? ''),
-      materials,
-      quantity: Number(row.availableQuantity ?? 0),
-      weightKg: Number(row.totalWeightKg ?? 0),
-      skuCode: String(row.skuCode ?? ''),
-      color: String(row.color ?? ''),
-      size: String(row.size ?? ''),
-      materialType: String(row.materialType ?? ''),
-      materialKgPrice: Number(row.materialKgPrice ?? 0),
-      circularSalePrice: Number(row.circularSalePrice ?? 0),
-      materialCompositions: compositions,
-      availableQuantity: Number(row.availableQuantity ?? 0),
-      totalWeightKg: Number(row.totalWeightKg ?? 0),
-    }
-  }
-
-  async function loadCircularInventoryRows(overrides = {}) {
-    const nextPage = Number.isInteger(overrides.page) ? overrides.page : inventoryPage.value
-    const nextSize = [20, 50, 100].includes(Number(overrides.size)) ? Number(overrides.size) : inventorySize.value
-    const nextSort = String((overrides.sort ?? inventorySort.value) || 'skuCode,asc')
-    const nextKeyword = String((overrides.keyword ?? inventoryKeyword.value) || '').trim()
-    const nextWarehouseCodes = Array.isArray(overrides.warehouseCodes)
-      ? overrides.warehouseCodes
-      : inventoryWarehouseCodes.value
-    const nextMaterialGroup = String((overrides.materialGroup ?? inventoryMaterialGroup.value) || '').trim()
-    const nextMaterialNames = Array.isArray(overrides.materialNames)
-      ? overrides.materialNames.map(value => String(value || '').trim()).filter(Boolean)
-      : inventoryMaterialNames.value
-    const fallbackMaterialName = nextMaterialNames.length === 1 ? nextMaterialNames[0] : ''
-    const materialNameSource = overrides.materialName ?? fallbackMaterialName ?? inventoryMaterialName.value
-    const nextMaterialName = String(materialNameSource || '').trim()
-
-    const response = await getCircularInventories({
-      page: Math.max(0, Number(nextPage) || 0),
-      size: nextSize,
-      sort: nextSort,
-      keyword: nextKeyword || undefined,
-      warehouseCodes: nextWarehouseCodes.length > 0 ? nextWarehouseCodes : undefined,
-      materialGroup: nextMaterialGroup || undefined,
-      materialName: nextMaterialName || undefined,
-      materialNames: nextMaterialNames.length > 0 ? nextMaterialNames : undefined,
-    })
-
-    const rows = Array.isArray(response?.content) ? response.content : []
-    const mapped = rows.map(mapCircularApiRowToInventoryItem)
-
-    inventoryPage.value = Number(response?.page ?? 0)
-    inventorySize.value = Number(response?.size ?? nextSize)
-    inventoryTotalPages.value = Number(response?.totalPages ?? 0)
-    inventoryTotalElements.value = Number(response?.totalElements ?? 0)
-    inventoryHasNext.value = Boolean(response?.hasNext)
-    inventoryHasPrevious.value = Boolean(response?.hasPrevious)
-    inventorySort.value = nextSort
-    inventoryKeyword.value = nextKeyword
-    inventoryWarehouseCodes.value = [...nextWarehouseCodes]
-    inventoryMaterialGroup.value = nextMaterialGroup
-    inventoryMaterialName.value = nextMaterialName
-    inventoryMaterialNames.value = [...nextMaterialNames]
-
-    liveCircularInventoryRows.value = mapped
-    inventoryItems.value = mapped.map(enrichInventoryItem)
-    persistInventory()
-    return {
-      rows: mapped,
-      page: inventoryPage.value,
-      size: inventorySize.value,
-      totalPages: inventoryTotalPages.value,
-      totalElements: inventoryTotalElements.value,
-      hasNext: inventoryHasNext.value,
-      hasPrevious: inventoryHasPrevious.value,
-    }
-  }
-
   function mapSaleListFromApi(row = {}) {
     return {
       saleId: Number(row.saleId),
@@ -793,14 +528,14 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     const resolvedInventoryId = skuRow?.inventoryId ?? skuRow?.id ?? ''
     const draftId = String(skuRow?.id ?? resolvedInventoryId)
     const inventoryId = String(resolvedInventoryId)
-    const inventory = getInventoryById(inventoryId)
+    const inventory = inventoryStore.getInventoryById(inventoryId)
     if (!inventory) {
-      return { success: false, message: '?쒗솚 ?ш퀬 ?덈ぉ??李얠쓣 ???놁뒿?덈떎.' }
+      return { success: false, message: '순환 재고 항목을 찾을 수 없습니다.' }
     }
-    if (!Array.isArray(inventoryWarehouseCodes.value) || inventoryWarehouseCodes.value.length !== 1) {
+    if (!Array.isArray(inventoryStore.inventoryWarehouseCodes) || inventoryStore.inventoryWarehouseCodes.length !== 1) {
       return { success: false, message: '창고 1개를 먼저 선택해 주세요.' }
     }
-    if (!String(inventoryMaterialGroup.value || '').trim()) {
+    if (!String(inventoryStore.inventoryMaterialGroup || '').trim()) {
       return { success: false, message: '소재 구분을 먼저 선택해 주세요.' }
     }
     const existing = getDraftItem(draftId)
@@ -812,18 +547,18 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     const currentWarehouseCode = String(skuRow?.warehouseCode ?? inventory.warehouseCode ?? '')
     const currentWarehouseName = String(skuRow?.warehouseName ?? inventory.warehouseName ?? '')
     if (!currentWarehouseCode) {
-      return { success: false, message: '異쒓퀬 李쎄퀬 ?뺣낫瑜??뺤씤?????놁뒿?덈떎.' }
+      return { success: false, message: '출고 창고 정보를 확인할 수 없습니다.' }
     }
     if (lockedMaterialType.value && lockedMaterialType.value !== materialType) {
       return {
         success: false,
-        message: `?꾩옱 ?붿껌?쒕뒗 ${lockedMaterialType.value}留??좏깮?????덉뒿?덈떎.`,
+        message: `현재 요청서는 ${lockedMaterialType.value}만 선택할 수 있습니다.`,
       }
     }
     if (selectedWarehouseCode.value && selectedWarehouseCode.value !== currentWarehouseCode) {
       return {
         success: false,
-        message: `?꾩옱 ?붿껌?쒕뒗 ${selectedWarehouseName.value || selectedWarehouseCode.value} 李쎄퀬 SKU留??좏깮?????덉뒿?덈떎.`,
+        message: `현재 요청서는 ${selectedWarehouseName.value || selectedWarehouseCode.value} 창고 SKU만 선택할 수 있습니다.`,
       }
     }
     if (!lockedMaterialType.value) {
@@ -876,7 +611,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
   function updateSaleDraftItem(draftId, payload) {
     const index = draftItems.value.findIndex(item => item.draftId === draftId)
     if (index === -1) {
-      return { success: false, message: '?먮ℓ ?⑤꼸?먯꽌 ??ぉ??李얠쓣 ???놁뒿?덈떎.' }
+      return { success: false, message: '판매 초안에서 항목을 찾을 수 없습니다.' }
     }
 
     const next = [...draftItems.value]
@@ -924,9 +659,9 @@ export const useCircularStockStore = defineStore('circularStock', () => {
   }
 
   /**
-   * ADR-021 異붿쿇 ?몄텧. ?섏씠濡쒕뱶??recommendationPayload computed 媛 ?먮룞 ?⑹꽦.
-   * ?몄텧 ?쒖젏? ?섏씠吏??moveStep(2) ????Step 1 ??Step 2 [?ㅼ쓬] ?대┃ ??1??
-   * BE 媛 LLM ?ㅽ뙣?대룄 200 OK + rationale fallback ?띿뒪??諛섑솚?섎?濡?catch ???ㅽ듃?뚰겕/4xx 留?
+   * ADR-021 추천 호출.
+   * 호출 시점: moveStep(2) 또는 Step 1 -> Step 2 진입 시점 1회.
+   * BE가 LLM 실패 시에도 fallback 응답을 내려줄 수 있어 네트워크/4xx 중심으로만 catch 처리한다.
    */
   async function fetchRecommendations() {
     const payload = recommendationPayload.value
@@ -1027,7 +762,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
       const requestedWeightKg = Number(item.requestedWeightKg)
       const actualWeightKg = Number(item.actualWeightKg)
       const unitPrice = Number(item.unitPrice)
-      const inventory = getInventoryById(item.inventoryId)
+      const inventory = inventoryStore.getInventoryById(item.inventoryId)
       const skuLabel = `${item.itemName}(${item.skuCode || item.itemCode})`
 
       if (!inventory) {
@@ -1066,7 +801,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     }
 
     for (const [inventoryId, aggregate] of inventoryAggregate.entries()) {
-      const inventory = getInventoryById(inventoryId)
+      const inventory = inventoryStore.getInventoryById(inventoryId)
       if (!inventory) continue
       if (aggregate.actualWeightKg > inventory.weightKg) {
         return fail(`${inventory.itemName} 항목의 실제 반영 kg 합계가 재고 kg를 초과합니다.`, 'AGG_WEIGHT_OVER_LIMIT')
@@ -1114,19 +849,6 @@ export const useCircularStockStore = defineStore('circularStock', () => {
   }
 
   return {
-    inventoryRows,
-    inventoryPage,
-    inventorySize,
-    inventoryTotalPages,
-    inventoryTotalElements,
-    inventoryHasNext,
-    inventoryHasPrevious,
-    inventorySort,
-    inventoryKeyword,
-    inventoryWarehouseCodes,
-    inventoryMaterialGroup,
-    inventoryMaterialName,
-    inventoryMaterialNames,
     salesPage,
     sortedSales,
     draftBuyerId,
@@ -1151,7 +873,6 @@ export const useCircularStockStore = defineStore('circularStock', () => {
     lastRecommendationBasisKey,
     recommendationDirty,
     filteredBuyers,
-    loadCircularInventoryRows,
     fetchCircularSalesPage,
     fetchCircularSaleDetail,
     getSaleById,

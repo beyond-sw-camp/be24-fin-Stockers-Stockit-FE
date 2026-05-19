@@ -1,10 +1,10 @@
-import { defineStore } from 'pinia'
+﻿import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { roleHomeMap } from '@/config/roleMenus.js'
 import { authApi } from '@/api/user/auth.js'
 import { extractErrorMessage } from '@/api/axios.js'
 import { useNotificationStore } from '@/stores/notification.js'
-import { useCircularStockStore } from '@/stores/hq/circularStock/circularStock.js'
+import { useCircularStockSaleStore } from '@/stores/hq/circularStock/circularStockSale.js'
 
 // HttpOnly Cookie 방식이라 토큰은 JS에서 접근 불가.
 // localStorage 에는 사용자 정보(UI 표시용)만 저장.
@@ -74,7 +74,7 @@ export const useAuthStore = defineStore('auth', () => {
     } finally {
       // 로그아웃 시 순환재고 판매 등록 draft/워크플로우 상태를 즉시 초기화한다.
       try {
-        useCircularStockStore().clearDraft()
+        useCircularStockSaleStore().clearDraft()
       } catch (e) {
         console.warn('[auth.logout] circularStock draft clear failed:', e)
       }

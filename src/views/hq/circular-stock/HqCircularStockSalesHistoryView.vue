@@ -3,10 +3,10 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useCircularStockStore } from '@/stores/hq/circularStock/circularStock.js'
+import { useCircularStockSaleStore } from '@/stores/hq/circularStock/circularStockSale.js'
 
 const router = useRouter()
-const circularStockStore = useCircularStockStore()
+const circularStockStore = useCircularStockSaleStore()
 
 const hqMenus = roleMenus.hq
 const circularStockMenus =
@@ -373,3 +373,4 @@ onMounted(() => {
     </div>
   </AppLayout>
 </template>
+

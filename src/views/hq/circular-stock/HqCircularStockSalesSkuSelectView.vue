@@ -5,11 +5,13 @@ import { Info, X } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useCircularStockStore } from '@/stores/hq/circularStock/circularStock.js'
+import { useCircularStockSaleStore } from '@/stores/hq/circularStock/circularStockSale.js'
+import { useCircularStockInventoryStore } from '@/stores/hq/circularStock/circularStockInventory.js'
 
 const router = useRouter()
 const route = useRoute()
-const circularStockStore = useCircularStockStore()
+const circularStockStore = useCircularStockSaleStore()
+const inventoryStore = useCircularStockInventoryStore()
 
 const hqMenus = roleMenus.hq
 const circularStockMenus =
@@ -41,14 +43,14 @@ const showReturnToWorkflowButton = computed(
 )
 const selectedWarehouseCode = computed(() => String(circularStockStore.selectedWarehouseCode || ''))
 const selectedMaterialGroup = computed(() =>
-  String(circularStockStore.inventoryMaterialGroup || ''),
+  String(inventoryStore.inventoryMaterialGroup || ''),
 )
 
 function hasRequiredFilters() {
-  const hasWarehouse = Array.isArray(circularStockStore.inventoryWarehouseCodes)
-    ? circularStockStore.inventoryWarehouseCodes.length === 1
+  const hasWarehouse = Array.isArray(inventoryStore.inventoryWarehouseCodes)
+    ? inventoryStore.inventoryWarehouseCodes.length === 1
     : false
-  const hasMaterialGroup = Boolean(String(circularStockStore.inventoryMaterialGroup || '').trim())
+  const hasMaterialGroup = Boolean(String(inventoryStore.inventoryMaterialGroup || '').trim())
   return hasWarehouse && hasMaterialGroup
 }
 
@@ -78,11 +80,11 @@ function isRowSelectionDisabled(row) {
 }
 
 function addItemToDraft(row) {
-  const warehouseCount = Array.isArray(circularStockStore.inventoryWarehouseCodes)
-    ? circularStockStore.inventoryWarehouseCodes.length
+  const warehouseCount = Array.isArray(inventoryStore.inventoryWarehouseCodes)
+    ? inventoryStore.inventoryWarehouseCodes.length
     : 0
   const hasWarehouse = warehouseCount === 1
-  const hasMaterialGroup = Boolean(String(circularStockStore.inventoryMaterialGroup || '').trim())
+  const hasMaterialGroup = Boolean(String(inventoryStore.inventoryMaterialGroup || '').trim())
   if (!hasWarehouse || !hasMaterialGroup) {
     if (!hasWarehouse && !hasMaterialGroup) {
       showToast('창고와 소재 구분을 먼저 선택해 주세요.', 'error')
@@ -145,7 +147,7 @@ async function loadCircularInventoryRows() {
   isInventoryLoading.value = true
   inventoryLoadError.value = ''
   try {
-    await circularStockStore.loadCircularInventoryRows()
+    await inventoryStore.loadCircularInventoryRows()
   } catch (e) {
     inventoryLoadError.value = e.message || '순환 재고를 불러오지 못했습니다.'
   } finally {
@@ -211,7 +213,7 @@ async function loadCircularInventoryRowsWithOverrides(overrides = {}) {
   isInventoryLoading.value = true
   inventoryLoadError.value = ''
   try {
-    await circularStockStore.loadCircularInventoryRows(overrides)
+    await inventoryStore.loadCircularInventoryRows(overrides)
   } catch (e) {
     inventoryLoadError.value = e.message || '순환 재고를 불러오지 못했습니다.'
   } finally {
@@ -279,13 +281,13 @@ onBeforeUnmount(() => {
         :compact-rows="true"
         :pin-lead-columns="false"
         :server-mode="true"
-        :page="circularStockStore.inventoryPage"
-        :size="circularStockStore.inventorySize"
-        :total-pages="circularStockStore.inventoryTotalPages"
-        :total-elements="circularStockStore.inventoryTotalElements"
-        :inventory-rows="circularStockStore.inventoryRows"
-        :initial-warehouse-codes="circularStockStore.inventoryWarehouseCodes"
-        :initial-material-group="circularStockStore.inventoryMaterialGroup"
+        :page="inventoryStore.inventoryPage"
+        :size="inventoryStore.inventorySize"
+        :total-pages="inventoryStore.inventoryTotalPages"
+        :total-elements="inventoryStore.inventoryTotalElements"
+        :inventory-rows="inventoryStore.inventoryRows"
+        :initial-warehouse-codes="inventoryStore.inventoryWarehouseCodes"
+        :initial-material-group="inventoryStore.inventoryMaterialGroup"
         action-column-label="추가"
         action-column-position="end"
         :selected-row-ids="draftRowIds"
