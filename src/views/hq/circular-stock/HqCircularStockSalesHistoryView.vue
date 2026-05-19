@@ -117,8 +117,20 @@ function buyerIndustryGroupLabel(sale) {
 }
 
 function outboundStatusLabel(sale) {
-  if (!sale) return '-'
-  return sale.outboundStatus ?? '-'
+  const status = sale?.outboundStatus
+  if (!status) return '-'
+  if (status === 'READY_TO_SHIP') return '출고 준비 중'
+  if (status === 'IN_TRANSIT') return '배송중'
+  if (status === 'ARRIVED') return '배송 완료'
+  return status
+}
+
+function outboundStatusBadgeClass(sale) {
+  const status = sale?.outboundStatus
+  if (status === 'READY_TO_SHIP') return 'border-amber-200 bg-amber-50 text-amber-700'
+  if (status === 'IN_TRANSIT') return 'border-sky-200 bg-sky-50 text-sky-700'
+  if (status === 'ARRIVED') return 'border-emerald-200 bg-emerald-50 text-emerald-700'
+  return 'border-gray-200 bg-gray-50 text-gray-600'
 }
 
 function formatDateTime(iso) {
@@ -307,7 +319,7 @@ onMounted(() => {
                 <th class="px-4 py-3 text-right font-black">확정 반영 KG</th>
                 <th class="px-4 py-3 text-right font-black">총 판매 재고 수량</th>
                 <th class="px-4 py-3 text-right font-black">확정 거래 금액</th>
-                <th class="px-4 py-3 text-left font-black">상태</th>
+                <th class="px-4 py-3 text-center font-black">상태</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -334,7 +346,14 @@ onMounted(() => {
                 <td class="px-4 py-3 text-right font-black text-gray-900">
                   {{ formatCurrency(sale.totalAmount) }}
                 </td>
-                <td class="px-4 py-3 font-bold text-gray-700">{{ outboundStatusLabel(sale) }}</td>
+                <td class="px-4 py-3 text-center">
+                  <span
+                    class="inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-extrabold"
+                    :class="outboundStatusBadgeClass(sale)"
+                  >
+                    {{ outboundStatusLabel(sale) }}
+                  </span>
+                </td>
               </tr>
               <tr v-if="filteredSales.length === 0">
                 <td colspan="9" class="px-4 py-12 text-center text-gray-400">조회 가능한 판매 이력이 없습니다.</td>
