@@ -273,7 +273,7 @@ const includedMaterialBadges = computed(() => {
                   </div>
                   <div class="info-line">
                     <dt class="info-key">취급 제품</dt>
-                    <dd class="info-value">{{ selectedBuyer?.productTypes?.join(', ') || selectedBuyer?.productNote || '-' }}</dd>
+                    <dd class="info-value">{{ selectedBuyer?.factoryProduct?.join(', ') || '-' }}</dd>
                   </div>
                 </dl>
               </article>

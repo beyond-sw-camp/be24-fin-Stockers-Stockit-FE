@@ -569,15 +569,11 @@ function recommendationBonusReason(rec, index) {
 }
 
 function recommendationProductLabel(rec) {
-  const products = Array.isArray(rec?.factoryProduct)
-    ? rec.factoryProduct
-    : Array.isArray(rec?.productTypes)
-      ? rec.productTypes
-      : []
+  const products = Array.isArray(rec?.factoryProduct) ? rec.factoryProduct : []
   if (products.length > 0) {
     return products.join(', ')
   }
-  return String(rec?.productNote || '').trim() || '-'
+  return '-'
 }
 
 function isSocialEnterprise(rec) {

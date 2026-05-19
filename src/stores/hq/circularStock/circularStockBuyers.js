@@ -177,8 +177,7 @@ export const useCircularStockBuyerStore = defineStore('circularStockBuyers', () 
         buyer.companyName,
         buyer.managerName,
         buyer.phone,
-        buyer.productNote,
-        ...(Array.isArray(buyer.productTypes) ? buyer.productTypes : []),
+        ...(Array.isArray(buyer.factoryProduct) ? buyer.factoryProduct : []),
         buyer.address,
       ]
         .filter(Boolean)
