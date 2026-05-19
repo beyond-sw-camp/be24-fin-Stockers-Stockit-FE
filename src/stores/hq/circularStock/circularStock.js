@@ -632,6 +632,7 @@ export const useCircularStockStore = defineStore('circularStock', () => {
       completedAt: row.completedAt ?? null,
       buyerCode: row.buyerCode ?? null,
       buyerName: row.buyerName ?? null,
+      buyerIndustryGroup: row.buyerIndustryGroup ?? null,
       materialType: row.materialType ?? null,
       totalSkuCount: Number(row.totalSkuCount || 0),
       totalActualWeightKg: Number(row.totalActualWeightKg || 0),
