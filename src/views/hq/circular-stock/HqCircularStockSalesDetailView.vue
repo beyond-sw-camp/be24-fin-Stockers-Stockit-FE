@@ -4,13 +4,11 @@ import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useCircularStockStore } from '@/stores/hq/circularStock/circularStock.js'
-import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
 import { circularBuyerApi } from '@/api/hq/circularBuyer.js'
 
 const route = useRoute()
 const router = useRouter()
 const circularStockStore = useCircularStockStore()
-const buyerStore = useCircularStockBuyerStore()
 
 const hqMenus = roleMenus.hq
 const circularStockMenus = roleMenus.hq.find((menu) => menu.label === '순환 재고 관리')?.children ?? []
@@ -205,13 +203,9 @@ function formatPercent(value) {
   return `${(Number(value || 0) * 100).toFixed(1)}%`
 }
 
-function materialFitLabel(value) {
-  return buyerStore.materialFitLabel(value)
-}
-
 function materialTypeLabel(item) {
   if (item?.materialType) return item.materialType
-  return materialFitLabel(sale.value?.buyerPrimaryMaterialFit) || '-'
+  return sale.value?.materialType || '-'
 }
 
 function industryGroupLabel() {
@@ -231,16 +225,14 @@ onMounted(async () => {
 })
 
 function factoryProductLabel() {
-  const fromSale = sale.value?.buyerFactoryProduct ?? sale.value?.buyerProductTypes
-  if (Array.isArray(fromSale) && fromSale.length > 0) return fromSale.join(', ')
   if (Array.isArray(linkedBuyer.value?.factoryProduct) && linkedBuyer.value.factoryProduct.length > 0) {
     return linkedBuyer.value.factoryProduct.join(', ')
   }
-  return sale.value?.buyerAddress || linkedBuyer.value?.address || '-'
+  return linkedBuyer.value?.address || '-'
 }
 
 function buyerDescriptionLabel() {
-  return sale.value?.buyerDescription || linkedBuyer.value?.description || '설명 없음'
+  return linkedBuyer.value?.description || '설명 없음'
 }
 
 function hasWeightAdjustment(item) {
@@ -307,11 +299,11 @@ function handleBack() {
                       <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">거래 요약</p>
                       <p class="mt-1 text-base font-black text-gray-900">{{ sale.buyerName }}</p>
                       <p class="mt-1 text-xs font-bold text-gray-500">
-                        소재 분류 {{ materialTypeLabel(sale.items?.[0]) }} · 판매 SKU {{ formatQuantity(sale.totalItems) }}건 · 판매번호 {{ sale.saleId }}
+                        소재 분류 {{ materialTypeLabel(sale.items?.[0]) }} · 판매 SKU {{ formatQuantity(sale.totalItems) }}건 · 판매번호 {{ sale.saleNo }}
                       </p>
                     </div>
                     <div class="rounded-full bg-[#EAF4F0] px-3 py-1 text-[10px] font-black text-[#255F52]">
-                      {{ materialFitLabel(sale.buyerPrimaryMaterialFit) || '-' }}
+                      {{ sale.status }}<template v-if="sale.outboundStatus"> / {{ sale.outboundStatus }}</template>
                     </div>
                   </div>
 
@@ -367,11 +359,11 @@ function handleBack() {
                   <div class="mt-2 grid grid-cols-2 gap-3">
                     <div>
                       <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">담당자</p>
-                      <p class="mt-1 text-xs font-black text-gray-800">{{ sale.buyerManagerName || linkedBuyer?.managerName || '-' }}</p>
+                      <p class="mt-1 text-xs font-black text-gray-800">{{ linkedBuyer?.managerName || '-' }}</p>
                     </div>
                     <div>
                       <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">연락처</p>
-                      <p class="mt-1 text-xs font-black text-gray-800">{{ sale.buyerPhone || linkedBuyer?.phone || '-' }}</p>
+                      <p class="mt-1 text-xs font-black text-gray-800">{{ linkedBuyer?.phone || '-' }}</p>
                     </div>
                   </div>
 
@@ -392,7 +384,7 @@ function handleBack() {
 
                   <div class="mt-4 border-t border-gray-200 pt-3">
                     <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">판매일시 / 등록자</p>
-                    <p class="mt-1 text-xs font-bold leading-5 text-gray-700">{{ formatDateTime(sale.soldAt) }} / {{ sale.soldBy }}</p>
+                    <p class="mt-1 text-xs font-bold leading-5 text-gray-700">{{ formatDateTime(sale.soldAt) }} / {{ sale.soldByName || '-' }}</p>
                   </div>
                 </aside>
               </div>
@@ -422,7 +414,7 @@ function handleBack() {
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-gray-100">
-                    <tr v-for="item in sale.items" :key="`${sale.saleId}-${item.draftId || item.skuCode || item.inventoryId}`">
+                    <tr v-for="item in sale.items" :key="`${sale.saleNo}-${item.itemId || item.skuCode || item.inventoryId}`">
                       <td class="px-3 py-3 font-mono font-bold text-gray-500">{{ item.skuCode || item.itemCode || '-' }}</td>
                       <td class="px-3 py-3 font-black text-gray-900">{{ item.itemName }}</td>
                       <td class="px-3 py-3 text-left font-black text-gray-900">{{ materialTypeLabel(item) }}</td>

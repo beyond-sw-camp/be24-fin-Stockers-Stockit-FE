@@ -8,7 +8,6 @@ import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularSt
 import { useEsgStore } from '@/stores/esg.js'
 
 const INVENTORY_STORAGE_KEY = 'stockit_circular_inventory_inventory_v2'
-const RETIRED_SALE_DATES = new Set(['2026-04-26', '2026-04-28'])
 
 const RAW_INITIAL_INVENTORY = []
 
@@ -65,95 +64,6 @@ function loadJson(key, fallback) {
 
 function saveJson(key, value) {
   localStorage.setItem(key, JSON.stringify(value))
-}
-
-function deriveRequestedWeightKg(item) {
-  return roundTo(Number(item.requestedWeightKg ?? item.soldWeightKg) || 0)
-}
-
-function deriveActualWeightKg(item, requestedWeightKg, deductedQuantity) {
-  if (Number.isFinite(Number(item.actualWeightKg))) {
-    return roundTo(Number(item.actualWeightKg))
-  }
-  const unitWeightKg = Number(item.unitWeightKg) || 0
-  if (deductedQuantity > 0 && unitWeightKg > 0) {
-    return roundTo(deductedQuantity * unitWeightKg, 4)
-  }
-  return requestedWeightKg
-}
-
-function deriveRequestedAmount(item, requestedWeightKg, unitPrice) {
-  if (Number.isFinite(Number(item.requestedAmount))) {
-    return roundTo(Number(item.requestedAmount), 0)
-  }
-  return roundTo(requestedWeightKg * unitPrice, 0)
-}
-
-function deriveActualAmount(item, actualWeightKg, unitPrice) {
-  if (Number.isFinite(Number(item.actualAmount))) {
-    return roundTo(Number(item.actualAmount), 0)
-  }
-  return roundTo(actualWeightKg * unitPrice, 0)
-}
-
-function normalizeSaleItem(item) {
-  const unitWeightKg = roundTo(Number(item.unitWeightKg) || 0, 4)
-  const unitPrice = Number(item.unitPrice) || 0
-  const requestedWeightKg = deriveRequestedWeightKg(item)
-  const estimatedQuantity = unitWeightKg > 0
-    ? roundTo(Number(item.estimatedQuantity ?? (requestedWeightKg / unitWeightKg)) || 0, 2)
-    : 0
-  const deductedQuantity = Math.max(0, Number(item.deductedQuantity) || 0)
-  const actualWeightKg = deriveActualWeightKg(item, requestedWeightKg, deductedQuantity)
-  const requestedAmount = deriveRequestedAmount(item, requestedWeightKg, unitPrice)
-  const actualAmount = deriveActualAmount(item, actualWeightKg, unitPrice)
-
-  return {
-    ...item,
-    unitWeightKg,
-    unitPrice,
-    requestedWeightKg,
-    estimatedQuantity,
-    deductedQuantity,
-    requestedAmount,
-    actualWeightKg,
-    actualAmount,
-    soldWeightKg: requestedWeightKg,
-    lineAmount: requestedAmount,
-  }
-}
-
-function normalizeSaleRecord(sale) {
-  const items = Array.isArray(sale.items) ? sale.items.map(normalizeSaleItem) : []
-  const totalEstimatedQuantity = roundTo(items.reduce((sum, item) => sum + item.estimatedQuantity, 0))
-  const totalDeductedQuantity = items.reduce((sum, item) => sum + item.deductedQuantity, 0)
-  const totalRequestedWeightKg = roundTo(items.reduce((sum, item) => sum + item.requestedWeightKg, 0))
-  const totalRequestedAmount = items.reduce((sum, item) => sum + item.requestedAmount, 0)
-  const totalActualWeightKg = roundTo(items.reduce((sum, item) => sum + item.actualWeightKg, 0))
-  const totalActualAmount = items.reduce((sum, item) => sum + item.actualAmount, 0)
-
-  return {
-    ...sale,
-    items,
-    totalItems: Number(sale.totalItems) || items.length,
-    totalEstimatedQuantity,
-    totalDeductedQuantity,
-    totalRequestedWeightKg,
-    totalRequestedAmount,
-    totalActualWeightKg,
-    totalActualAmount,
-    totalWeightKg: totalActualWeightKg,
-    totalAmount: totalActualAmount,
-  }
-}
-
-function isRetiredSaleRecord(sale) {
-  const soldDate = String(sale?.soldAt ?? '').slice(0, 10)
-  return RETIRED_SALE_DATES.has(soldDate)
-}
-
-function filterRetiredSales(list = []) {
-  return list.filter(sale => !isRetiredSaleRecord(sale))
 }
 
 function normalizeDraftField(item, updates = {}) {
@@ -315,7 +225,7 @@ function resolveTreatmentTypeFromBuyer(buyer = {}) {
 }
 
 function buildSaleEsgSnapshot(sale, buyer, kauPrice, options = {}) {
-  const items = Array.isArray(sale?.items) ? sale.items.map(normalizeSaleItem) : []
+  const items = Array.isArray(sale?.items) ? sale.items : []
   const treatmentType = resolveTreatmentTypeFromBuyer(buyer)
   const materialBreakdownMap = new Map()
   let savedCarbonKg = 0
@@ -363,8 +273,8 @@ function buildSaleEsgSnapshot(sale, buyer, kauPrice, options = {}) {
   const resourceCirculationPoints = roundTo(resourceCirculationPointsRaw, 0)
   const carbonContributionPoints = roundTo(roundedSavedCarbonKg * CARBON_POINT_MULTIPLIER, 0)
   const carbonCreditValue = roundTo((roundedSavedCarbonKg / 1000) * (Number(kauPrice) || 0), 0)
-  const salesRevenue = Number(sale?.totalActualAmount)
-    || items.reduce((sum, item) => sum + (Number(item.actualAmount) || 0), 0)
+  const salesRevenue = Number(sale?.totalActualAmount ?? sale?.totalAmount)
+    || items.reduce((sum, item) => sum + (Number(item.actualAmount ?? item.lineAmount) || 0), 0)
   const wasteLossRecoveredValue = roundTo(salesRevenue, 0)
   const tradableCarbonCreditValue = carbonCreditValue
 
@@ -440,7 +350,6 @@ export const useCircularStockStore = defineStore('circularStock', () => {
   const buyerStore = useCircularStockBuyerStore()
   const esgStore = useEsgStore()
   const inventoryItems = ref(loadJson(INVENTORY_STORAGE_KEY, INITIAL_INVENTORY).map(enrichInventoryItem))
-  const sales = ref([])
   const salesPage = ref({
     page: 0,
     size: 20,
@@ -753,6 +662,8 @@ export const useCircularStockStore = defineStore('circularStock', () => {
         deductedQuantity: Number(item.soldQuantity || 0),
         unitPrice: Number(item.unitPrice || 0),
         lineAmount: Number(item.lineAmount || 0),
+        requestedAmount: Number(item.lineAmount || 0),
+        actualAmount: Number(item.lineAmount || 0),
         memo: item.memo ?? null,
         materials: Array.isArray(item.materials)
           ? item.materials.map((mat) => ({
@@ -784,12 +695,14 @@ export const useCircularStockStore = defineStore('circularStock', () => {
       totalItems: Number(detail.totalSkuCount || 0),
       totalRequestedWeightKg: Number(detail.totalRequestedWeightKg || 0),
       totalActualWeightKg: Number(detail.totalActualWeightKg || 0),
+      totalEstimatedQuantity: items.reduce((sum, item) => sum + (Number(item.estimatedQuantity) || 0), 0),
       totalSoldQuantity: Number(detail.totalSoldQuantity || 0),
       totalDeductedQuantity: Number(detail.totalSoldQuantity || 0),
       totalAmount: Number(detail.totalAmount || 0),
       totalActualAmount: Number(detail.totalAmount || 0),
       totalRequestedAmount: Number(detail.totalAmount || 0),
       memo: detail.memo ?? null,
+      soldBy: detail.soldByName ?? null,
       items,
       statusHistory: Array.isArray(detail.statusHistory) ? detail.statusHistory : [],
     }
@@ -826,7 +739,6 @@ export const useCircularStockStore = defineStore('circularStock', () => {
       hasPrevious: Boolean(response?.hasPrevious),
       content,
     }
-    sales.value = content
     return salesPage.value
   }
 
@@ -859,11 +771,8 @@ export const useCircularStockStore = defineStore('circularStock', () => {
       }
     }
 
-    const buyer = buyerStore.getBuyerById(saleRecord.buyerId) ?? {
+    const buyer = buyerStore.getBuyerById(saleRecord.buyerCode) ?? {
       industryGroup: saleRecord.buyerIndustryGroup,
-      productTypes: saleRecord.buyerProductTypes,
-      productNote: saleRecord.buyerProductNote,
-      primaryMaterialFit: saleRecord.buyerPrimaryMaterialFit,
     }
 
     return buildSaleEsgSnapshot(saleRecord, buyer, esgStore.kauPrice, { isEstimated: true })

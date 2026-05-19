@@ -73,9 +73,7 @@ const filteredSales = computed(() => {
   return periodFilteredSales.value.filter((sale) => {
     if (!keyword) return true
 
-    const headline = sale.items.length > 1
-      ? `${sale.items[0].itemName} 외 ${sale.items.length - 1}건`
-      : sale.items[0]?.itemName ?? ''
+    const headline = sale.headline || ''
 
     return [
       sale.saleNo,
@@ -106,7 +104,8 @@ function materialTypeLabel(sale) {
 }
 
 function industryGroupLabel(sale) {
-  return sale?.status ?? '-'
+  if (!sale) return '-'
+  return sale.outboundStatus ? `${sale.status} / ${sale.outboundStatus}` : (sale.status ?? '-')
 }
 
 function formatDateTime(iso) {
