@@ -260,7 +260,7 @@ const includedMaterialBadges = computed(() => {
                     </dd>
                   </div>
                   <div class="info-line">
-                    <dt class="info-key">유형</dt>
+                    <dt class="info-key">산업군</dt>
                     <dd class="info-value">{{ selectedBuyer?.industryGroup ?? '-' }}</dd>
                   </div>
                   <div class="info-line">
@@ -272,7 +272,7 @@ const includedMaterialBadges = computed(() => {
                     <dd class="info-value">{{ selectedBuyer?.phone ?? '-' }}</dd>
                   </div>
                   <div class="info-line">
-                    <dt class="info-key">취급 제품</dt>
+                    <dt class="info-key">생산품</dt>
                     <dd class="info-value">{{ selectedBuyer?.factoryProduct?.join(', ') || '-' }}</dd>
                   </div>
                 </dl>
