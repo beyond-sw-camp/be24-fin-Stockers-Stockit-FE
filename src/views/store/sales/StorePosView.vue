@@ -9,6 +9,7 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import PaginationNav from '@/components/common/PaginationNav.vue'
 import SkuFacetChips from '@/components/store/SkuFacetChips.vue'
 import { roleMenus } from '@/config/roleMenus.js'
+import { STORE_CATEGORY_MAP } from '@/constants/storeCategoryMap.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useSalesStore } from '@/stores/store/storeSales.js'
 import { getStoreInventorySkuFacets, getStoreInventorySkus } from '@/api/store/inventory.js'
@@ -59,18 +60,14 @@ const hasPrevious = ref(false)
  */
 const mainCategories = computed(() => [
   '전체',
-  ...new Set(skuRows.value.map((sku) => sku.mainCategory)),
+  ...Object.keys(STORE_CATEGORY_MAP),
 ])
 
 const subCategoryOptions = computed(() => {
   if (!selectedMainCategory.value || selectedMainCategory.value === '전체') return ['전체']
   return [
     '전체',
-    ...new Set(
-      skuRows.value
-        .filter((sku) => sku.mainCategory === selectedMainCategory.value)
-        .map((sku) => sku.subCategory),
-    ),
+    ...(STORE_CATEGORY_MAP[selectedMainCategory.value] ?? []),
   ]
 })
 

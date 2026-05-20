@@ -10,6 +10,7 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import PaginationNav from '@/components/common/PaginationNav.vue'
 import SkuFacetChips from '@/components/store/SkuFacetChips.vue'
 import { roleMenus } from '@/config/roleMenus.js'
+import { STORE_CATEGORY_MAP, STORE_MAIN_CATEGORY_ORDER } from '@/constants/storeCategoryMap.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { createStoreOrder, getStoreOrderDetail, updateStoreOrder } from '@/api/store/orders.js'
 import { getStoreInventorySkuFacets, getStoreInventorySkus } from '@/api/store/inventory.js'
@@ -59,18 +60,14 @@ const editingOrderNo = computed(() => String(route.params.orderNo ?? ''))
 
 const availableMainCategories = computed(() => [
   '전체',
-  ...[...new Set(skuRows.value.map((sku) => sku.mainCategory))].sort(compareMainCategory),
+  ...Object.keys(STORE_CATEGORY_MAP),
 ])
 
 const availableSubCategories = computed(() => {
   if (selectedMainCategory.value === '전체') return ['전체']
   return [
     '전체',
-    ...new Set(
-      skuRows.value
-        .filter((sku) => sku.mainCategory === selectedMainCategory.value)
-        .map((sku) => sku.subCategory),
-    ),
+    ...(STORE_CATEGORY_MAP[selectedMainCategory.value] ?? []),
   ]
 })
 
@@ -125,7 +122,7 @@ const totalRecommendedQuantity = computed(() => requestLines.value.reduce((sum, 
  * 4. CONSTANTS
  * ==============================================================================
  */
-const MAIN_CATEGORY_ORDER = ['상의', '바지', '치마', '아우터']
+const MAIN_CATEGORY_ORDER = STORE_MAIN_CATEGORY_ORDER
 
 const statusClass = {
   out: 'bg-red-100 text-red-700',
