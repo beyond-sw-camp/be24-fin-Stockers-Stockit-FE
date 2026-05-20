@@ -52,6 +52,10 @@ const totalPages = ref(0)
 const hasNext = ref(false)
 const hasPrevious = ref(false)
 
+// 컬럼 폭 비율(%) 설정: 값만 바꾸면 마스터/SKU 표의 컬럼 간 간격을 손쉽게 조정할 수 있다.
+const MASTER_COLUMN_RATIOS = [16, 20, 22, 10, 10, 10, 12] // 품목코드, 카테고리, 품목명, 실재고, 가용재고, 안전재고, 상태
+const SKU_COLUMN_RATIOS = [18, 24, 10, 10, 10, 10, 10, 8] // SKU코드, 품목명, 색상, 사이즈, 실재고, 가용재고, 안전재고, 상태
+
 const childCategoryOptions = computed(() =>
   selectedParentCategory.value ? (STORE_CATEGORY_MAP[selectedParentCategory.value] ?? []) : [],
 )
@@ -293,11 +297,14 @@ onMounted(() => {
       <section class="min-w-0 border border-gray-200 bg-white shadow-sm">
         <div v-if="loadError" class="bg-red-50 px-4 py-2 text-xs font-bold text-red-700">{{ loadError }}</div>
         <div class="overflow-x-auto">
-          <table v-if="currentMode === 'master'" class="w-full min-w-[960px] table-auto border-collapse text-left text-sm">
+          <table v-if="currentMode === 'master'" class="w-full min-w-[960px] table-fixed border-collapse text-left text-sm">
+            <colgroup>
+              <col v-for="(ratio, idx) in MASTER_COLUMN_RATIOS" :key="`master-col-${idx}`" :style="{ width: `${ratio}%` }">
+            </colgroup>
             <thead class="bg-gray-50 text-[11px] uppercase tracking-[0.12em] text-gray-500">
               <tr>
-                <th class="px-3 py-3 font-black">품목 코드</th>
-                <th class="px-3 py-3 font-black">카테고리</th>
+                <th class="pl-3 pr-1 py-3 font-black">품목 코드</th>
+                <th class="pl-1 pr-4 py-3 font-black">카테고리</th>
                 <th class="px-3 py-3 font-black">품목명</th>
                 <th class="px-3 py-3 text-right font-black">실재고</th>
                 <th class="px-3 py-3 text-right font-black">가용재고</th>
@@ -307,8 +314,8 @@ onMounted(() => {
             </thead>
             <tbody class="divide-y divide-gray-100">
               <tr v-for="item in inventoryData" :key="item.itemCode" class="hover:bg-[#EBF5F5]/60">
-                <td class="px-3 py-3 font-mono text-gray-500">{{ item.itemCode }}</td>
-                <td class="px-3 py-3 font-bold">{{ item.parentCategory }} > {{ item.childCategory }}</td>
+                <td class="pl-3 pr-1 py-3 font-mono text-gray-500">{{ item.itemCode }}</td>
+                <td class="pl-1 pr-6 py-3 font-bold">{{ item.parentCategory }} > {{ item.childCategory }}</td>
                 <td class="px-3 py-3 font-bold">{{ item.itemName }}</td>
                 <td class="px-3 py-3 text-right font-black">{{ item.actualStock.toLocaleString() }}</td>
                 <td class="px-3 py-3 text-right font-black">{{ item.availableStock.toLocaleString() }}</td>
@@ -323,7 +330,10 @@ onMounted(() => {
             </tbody>
           </table>
 
-          <table v-else class="w-full min-w-[1040px] table-auto border-collapse text-left text-sm">
+          <table v-else class="w-full min-w-[1040px] table-fixed border-collapse text-left text-sm">
+            <colgroup>
+              <col v-for="(ratio, idx) in SKU_COLUMN_RATIOS" :key="`sku-col-${idx}`" :style="{ width: `${ratio}%` }">
+            </colgroup>
             <thead class="bg-gray-50 text-[11px] uppercase tracking-[0.12em] text-gray-500">
               <tr>
                 <th class="px-3 py-3 font-black">SKU 코드</th>
