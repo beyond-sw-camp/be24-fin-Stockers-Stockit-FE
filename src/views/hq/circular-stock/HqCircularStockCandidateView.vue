@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppLayout from '@/components/common/AppLayout.vue'
+import PaginationNav from '@/components/common/PaginationNav.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { convertCircularCandidates, getCircularCandidates, refreshCircularCandidates } from '@/api/hq/inventory.js'
@@ -189,14 +190,6 @@ const rangeStart = computed(() => {
 const rangeEnd = computed(() => {
   if (totalElements.value === 0) return 0
   return Math.min(rangeStart.value + paginatedSkus.value.length - 1, totalElements.value)
-})
-
-const pageNumbers = computed(() => {
-  if (totalPages.value <= 0) return []
-  const start = Math.max(1, currentPage.value - 2)
-  const end = Math.min(totalPages.value, start + 4)
-  const adjustedStart = Math.max(1, end - 4)
-  return Array.from({ length: end - adjustedStart + 1 }, (_, idx) => adjustedStart + idx)
 })
 
 const selectedRowsSnapshot = ref([])
@@ -451,9 +444,10 @@ const toggleAllCurrentPage = () => {
   syncSelectedRowsSnapshot()
 }
 
-const goToPage = (page) => {
-  if (page < 1 || page > totalPages.value) return
-  currentPage.value = page
+const changePage = (nextPageZeroBased) => {
+  const total = Math.max(1, Number(totalPages.value || 1))
+  const next = Math.min(Math.max(0, Number(nextPageZeroBased || 0)), total - 1)
+  currentPage.value = next + 1
   requestCandidates()
 }
 
@@ -761,47 +755,17 @@ onBeforeUnmount(() => {
           v-if="hasRefreshed"
           class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-4 py-3"
         >
-          <div class="flex items-center gap-2">
-            <span class="text-xs font-bold text-gray-600">페이지 크기</span>
-            <select
-              :value="pageSize"
-              class="h-8 border border-gray-300 bg-white px-2 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
-              @change="changePageSize($event.target.value)"
-            >
-              <option v-for="sizeOption in PAGE_SIZE_OPTIONS" :key="sizeOption" :value="sizeOption">
-                {{ sizeOption }}
-              </option>
-            </select>
-          </div>
-
-          <div class="flex items-center gap-1">
-            <button
-              type="button"
-              :disabled="currentPage === 1"
-              class="h-8 border border-gray-300 px-3 text-xs font-bold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
-              @click="goToPage(currentPage - 1)"
-            >
-              이전
-            </button>
-            <button
-              v-for="page in pageNumbers"
-              :key="page"
-              type="button"
-              class="h-8 min-w-8 border px-2 text-xs font-bold"
-              :class="page === currentPage ? 'border-[#004D3C] bg-[#004D3C] text-white' : 'border-gray-300 text-gray-700'"
-              @click="goToPage(page)"
-            >
-              {{ page }}
-            </button>
-            <button
-              type="button"
-              :disabled="currentPage === totalPages"
-              class="h-8 border border-gray-300 px-3 text-xs font-bold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
-              @click="goToPage(currentPage + 1)"
-            >
-              다음
-            </button>
-          </div>
+          <PaginationNav
+            :page="Math.max(0, currentPage - 1)"
+            :size="pageSize"
+            :total-pages="totalPages"
+            :total-elements="totalElements"
+            :has-previous="currentPage > 1"
+            :has-next="currentPage < totalPages"
+            :size-options="PAGE_SIZE_OPTIONS"
+            @update:page="changePage"
+            @update:size="changePageSize"
+          />
         </div>
       </section>
     </div>

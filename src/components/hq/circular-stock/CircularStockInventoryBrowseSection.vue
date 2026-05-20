@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, useSlots, watch } from 'vue'
 import { getInfrastructures } from '@/api/hq/infrastructure.js'
+import PaginationNav from '@/components/common/PaginationNav.vue'
 
 const props = defineProps({
   title: {
@@ -177,16 +178,6 @@ const COLOR_LABEL_BY_CODE = {
   NVY: '네이비',
   GRY: '그레이',
 }
-
-const pageSizeOptions = [20, 50, 100]
-const pageNumbers = computed(() => {
-  if (!props.serverMode || props.totalPages <= 0) return []
-  const current = props.page + 1
-  const start = Math.max(1, current - 2)
-  const end = Math.min(props.totalPages, start + 4)
-  const adjustedStart = Math.max(1, end - 4)
-  return Array.from({ length: end - adjustedStart + 1 }, (_, idx) => adjustedStart + idx)
-})
 
 const normalizedInventoryData = computed(() =>
   (Array.isArray(props.inventoryRows) ? props.inventoryRows : [])
@@ -533,11 +524,19 @@ function emitQueryChange() {
   })
 }
 
-function goToPage(pageNumber) {
+function emitPageChange(pageNumber) {
   if (!props.serverMode) return
-  const nextPage = Math.max(0, pageNumber)
+  const lastPage = Math.max(0, Number(props.totalPages || 1) - 1)
+  const nextPage = Math.min(Math.max(0, Number(pageNumber || 0)), lastPage)
   if (nextPage === props.page) return
   emit('page-change', nextPage)
+}
+
+function emitSizeChange(nextSize) {
+  if (!props.serverMode) return
+  const size = Number(nextSize)
+  if (!Number.isFinite(size) || size <= 0) return
+  emit('size-change', size)
 }
 </script>
 
@@ -902,45 +901,16 @@ function goToPage(pageNumber) {
         v-if="serverMode"
         class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-4 py-3"
       >
-        <div class="flex items-center gap-2 text-xs font-bold text-gray-600">
-          <span>페이지 크기</span>
-          <select
-            :value="size"
-            class="h-8 border border-gray-300 bg-white px-2 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
-            @change="emit('size-change', Number($event.target.value))"
-          >
-            <option v-for="opt in pageSizeOptions" :key="opt" :value="opt">{{ opt }}</option>
-          </select>
-        </div>
-
-        <div class="flex items-center gap-1">
-          <button
-            type="button"
-            class="h-8 border border-gray-300 px-3 text-xs font-bold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
-            :disabled="page <= 0"
-            @click="goToPage(page - 1)"
-          >
-            이전
-          </button>
-          <button
-            v-for="num in pageNumbers"
-            :key="num"
-            type="button"
-            class="h-8 min-w-8 border px-2 text-xs font-bold"
-            :class="num - 1 === page ? 'border-[#004D3C] bg-[#004D3C] text-white' : 'border-gray-300 text-gray-700'"
-            @click="goToPage(num - 1)"
-          >
-            {{ num }}
-          </button>
-          <button
-            type="button"
-            class="h-8 border border-gray-300 px-3 text-xs font-bold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
-            :disabled="page >= totalPages - 1"
-            @click="goToPage(page + 1)"
-          >
-            다음
-          </button>
-        </div>
+        <PaginationNav
+          :page="page"
+          :size="size"
+          :total-pages="totalPages"
+          :total-elements="totalElements"
+          :has-previous="page > 0"
+          :has-next="page < totalPages - 1"
+          @update:page="emitPageChange"
+          @update:size="emitSizeChange"
+        />
       </div>
     </section>
   </div>
