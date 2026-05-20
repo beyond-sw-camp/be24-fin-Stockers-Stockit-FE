@@ -5,6 +5,10 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useCircularStockSaleStore } from '@/stores/hq/circularStock/circularStockSale.js'
 import { circularBuyerApi } from '@/api/hq/circularBuyer.js'
+import {
+  circularSaleOutboundStatusBadgeClass,
+  circularSaleOutboundStatusLabel,
+} from '@/stores/hq/circularStock/circularStockCommon.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -212,6 +216,14 @@ function industryGroupLabel() {
   return sale.value?.buyerIndustryGroup || linkedBuyer.value?.industryGroup || '-'
 }
 
+function outboundStatusLabel(status) {
+  return circularSaleOutboundStatusLabel(status)
+}
+
+function outboundStatusBadgeClass(status) {
+  return circularSaleOutboundStatusBadgeClass(status)
+}
+
 onMounted(async () => {
   if (!saleId.value) return
   await circularStockStore.fetchCircularSaleDetail(saleId.value)
@@ -302,9 +314,12 @@ function handleBack() {
                         소재 분류 {{ materialTypeLabel(sale.items?.[0]) }} · 판매 SKU {{ formatQuantity(sale.totalSkuCount) }}건 · 판매번호 {{ sale.saleNo }}
                       </p>
                     </div>
-                    <div class="rounded-full bg-[#EAF4F0] px-3 py-1 text-[10px] font-black text-[#255F52]">
-                      {{ sale.status }}<template v-if="sale.outboundStatus"> / {{ sale.outboundStatus }}</template>
-                    </div>
+                    <span
+                      class="inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-black"
+                      :class="outboundStatusBadgeClass(sale.outboundStatus)"
+                    >
+                      {{ outboundStatusLabel(sale.outboundStatus) }}
+                    </span>
                   </div>
 
                   <div class="mt-2 grid gap-3 pb-4 md:grid-cols-2 xl:grid-cols-4">

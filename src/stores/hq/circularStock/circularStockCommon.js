@@ -105,3 +105,18 @@ export function buyerMaterialFitValue(materialType) {
   if (materialType === '합성 섬유') return 'synthetic'
   return 'blended'
 }
+
+export function circularSaleOutboundStatusLabel(status) {
+  if (!status) return '-'
+  if (status === 'READY_TO_SHIP') return '출고 준비 중'
+  if (status === 'IN_TRANSIT') return '배송 중'
+  if (status === 'ARRIVED') return '배송 완료'
+  return status
+}
+
+export function circularSaleOutboundStatusBadgeClass(status) {
+  if (status === 'READY_TO_SHIP') return 'border-amber-200 bg-amber-50 text-amber-700'
+  if (status === 'IN_TRANSIT') return 'border-sky-200 bg-sky-50 text-sky-700'
+  if (status === 'ARRIVED') return 'border-emerald-200 bg-emerald-50 text-emerald-700'
+  return 'border-gray-200 bg-gray-50 text-gray-600'
+}

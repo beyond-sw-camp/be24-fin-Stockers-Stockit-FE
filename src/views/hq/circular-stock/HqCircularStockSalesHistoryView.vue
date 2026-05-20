@@ -4,6 +4,10 @@ import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useCircularStockSaleStore } from '@/stores/hq/circularStock/circularStockSale.js'
+import {
+  circularSaleOutboundStatusBadgeClass,
+  circularSaleOutboundStatusLabel,
+} from '@/stores/hq/circularStock/circularStockCommon.js'
 
 const router = useRouter()
 const circularStockStore = useCircularStockSaleStore()
@@ -117,20 +121,11 @@ function buyerIndustryGroupLabel(sale) {
 }
 
 function outboundStatusLabel(sale) {
-  const status = sale?.outboundStatus
-  if (!status) return '-'
-  if (status === 'READY_TO_SHIP') return '출고 준비 중'
-  if (status === 'IN_TRANSIT') return '배송중'
-  if (status === 'ARRIVED') return '배송 완료'
-  return status
+  return circularSaleOutboundStatusLabel(sale?.outboundStatus)
 }
 
 function outboundStatusBadgeClass(sale) {
-  const status = sale?.outboundStatus
-  if (status === 'READY_TO_SHIP') return 'border-amber-200 bg-amber-50 text-amber-700'
-  if (status === 'IN_TRANSIT') return 'border-sky-200 bg-sky-50 text-sky-700'
-  if (status === 'ARRIVED') return 'border-emerald-200 bg-emerald-50 text-emerald-700'
-  return 'border-gray-200 bg-gray-50 text-gray-600'
+  return circularSaleOutboundStatusBadgeClass(sale?.outboundStatus)
 }
 
 function formatDateTime(iso) {
@@ -356,7 +351,7 @@ onMounted(() => {
                 </td>
               </tr>
               <tr v-if="filteredSales.length === 0">
-                <td colspan="9" class="px-4 py-12 text-center text-gray-400">조회 가능한 판매 이력이 없습니다.</td>
+                <td colspan="10" class="px-4 py-12 text-center text-gray-400">조회 가능한 판매 이력이 없습니다.</td>
               </tr>
             </tbody>
             <tfoot class="border-t-2 border-gray-200 bg-gray-50 text-xs">
