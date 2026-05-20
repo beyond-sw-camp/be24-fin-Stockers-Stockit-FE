@@ -121,6 +121,16 @@ const recommendationKey = computed(() =>
     .join('|'),
 )
 
+async function ensureManualBuyerPoolLoaded() {
+  if (buyerStore.loading) return
+  if (buyerStore.buyers.length > 0) return
+  try {
+    await buyerStore.fetchAll()
+  } catch {
+    // 수동 탭 기본 목록 로드 실패는 토스트 없이 조용히 처리하고, 사용자가 검색으로 재시도 가능하게 둔다.
+  }
+}
+
 async function ensureRecommendationsUpToDate() {
   if (circularStockStore.isRecommendationLoading) return
   const shouldRefetch =
@@ -750,6 +760,15 @@ watch(
   },
 )
 
+watch(
+  buyerPanelMode,
+  (mode) => {
+    if (mode === 'manual') {
+      ensureManualBuyerPoolLoaded()
+    }
+  },
+)
+
 // 탭 전환만으로는 이미 표시된 AI 추천 이유를 다시 스켈레톤으로 되돌리지 않는다.
 
 onMounted(() => {
@@ -759,6 +778,7 @@ onMounted(() => {
   )
   window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   loadCircularInventoryRows()
+  ensureManualBuyerPoolLoaded()
   circularStockStore.markWorkflowStarted()
   if (saleStep.value >= 2) {
     ensureRecommendationsUpToDate()

@@ -213,6 +213,28 @@ export const useCircularStockBuyerStore = defineStore('circularStockBuyers', () 
     }
   }
 
+  // 거래처 전체 목록을 조회한다(페이지 제한 없이 거래처 수동 선택 풀 구성용).
+  async function fetchAll(opts = {}) {
+    loading.value = true
+    error.value = null
+    try {
+      const list = await circularBuyerApi.list(opts)
+      buyers.value = (Array.isArray(list) ? list : []).map(fromApi)
+      page.value = 0
+      size.value = buyers.value.length
+      totalPages.value = buyers.value.length > 0 ? 1 : 0
+      totalElements.value = buyers.value.length
+      hasNext.value = false
+      hasPrevious.value = false
+      return buyers.value
+    } catch (e) {
+      error.value = e?.message ?? '거래처 목록을 불러오지 못했습니다.'
+      throw e
+    } finally {
+      loading.value = false
+    }
+  }
+
   // 거래처 페이지 목록을 조회하고 페이징 상태를 동기화한다.
   async function fetchPage(opts = {}) {
     loading.value = true
@@ -348,6 +370,7 @@ export const useCircularStockBuyerStore = defineStore('circularStockBuyers', () 
     partnerTypeLabel,
     getBuyerById,
     filteredBuyers,
+    fetchAll,
     fetchPage,
     fetchStats,
     createBuyer,

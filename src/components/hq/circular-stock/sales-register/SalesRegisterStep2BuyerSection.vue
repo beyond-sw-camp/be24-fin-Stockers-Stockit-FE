@@ -313,7 +313,11 @@ const emit = defineEmits([
               <span class="block text-xs font-bold text-gray-400">
                 {{ materialFitLabel(buyer.primaryMaterialFit) }} ·
                 {{ buyer.industryGroup || '-' }} ·
-                {{ buyer.productNote || '-' }}
+                {{
+                  Array.isArray(buyer.factoryProduct) && buyer.factoryProduct.length > 0
+                    ? buyer.factoryProduct.join(', ')
+                    : '-'
+                }}
               </span>
               <div class="h-1.5" />
               <span class="block text-xs font-bold text-gray-500">
