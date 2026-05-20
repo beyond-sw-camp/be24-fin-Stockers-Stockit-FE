@@ -1,6 +1,6 @@
 ﻿<script setup>
 import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { Info, X } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
@@ -26,7 +26,13 @@ const isInventoryLoading = ref(false)
 const showSkuModal = ref(false)
 const showResetConfirmModal = ref(false)
 const pendingQuery = ref(null)
+const showLeaveConfirmModal = ref(false)
+const pendingNavigationTarget = ref('')
 let toastTimer = null
+const registerRouteNames = new Set([
+  'hq-circular-inventory-sales-register',
+  'hq-circular-inventory-sales-register-workflow',
+])
 
 const draftItems = computed(() => circularStockStore.draftItems)
 const draftRowIds = computed(() => draftItems.value.map((item) => item.draftId))
@@ -45,6 +51,21 @@ const selectedWarehouseCode = computed(() => String(circularStockStore.selectedW
 const selectedMaterialGroup = computed(() =>
   String(inventoryStore.inventoryMaterialGroup || ''),
 )
+const hasActiveDraft = computed(() => circularStockStore.hasActiveDraft)
+
+function isRegisterFlowRoute(routeLike) {
+  return registerRouteNames.has(String(routeLike?.name || ''))
+}
+
+function shouldBlockLeave(to) {
+  return hasActiveDraft.value && !isRegisterFlowRoute(to)
+}
+
+function handleBeforeUnload(event) {
+  if (!hasActiveDraft.value) return
+  event.preventDefault()
+  event.returnValue = ''
+}
 
 function hasRequiredFilters() {
   const hasWarehouse = Array.isArray(inventoryStore.inventoryWarehouseCodes)
@@ -209,6 +230,21 @@ function cancelResetAndApplyQuery() {
   })
 }
 
+function confirmLeaveAndClearDraft() {
+  const target = pendingNavigationTarget.value
+  pendingNavigationTarget.value = ''
+  showLeaveConfirmModal.value = false
+  circularStockStore.clearDraft()
+  if (target) {
+    router.push(target)
+  }
+}
+
+function cancelLeaveAndKeepDraft() {
+  pendingNavigationTarget.value = ''
+  showLeaveConfirmModal.value = false
+}
+
 async function loadCircularInventoryRowsWithOverrides(overrides = {}) {
   isInventoryLoading.value = true
   inventoryLoadError.value = ''
@@ -230,11 +266,23 @@ watch(toastMessage, (message) => {
 })
 
 onMounted(() => {
+  window.addEventListener('beforeunload', handleBeforeUnload)
   loadCircularInventoryRows()
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('beforeunload', handleBeforeUnload)
   if (toastTimer) clearTimeout(toastTimer)
+})
+
+onBeforeRouteLeave((to, _from, next) => {
+  if (!shouldBlockLeave(to)) {
+    next()
+    return
+  }
+  pendingNavigationTarget.value = String(to.fullPath || '')
+  showLeaveConfirmModal.value = true
+  next(false)
 })
 </script>
 
@@ -502,6 +550,36 @@ onBeforeUnmount(() => {
               @click="confirmResetAndApplyQuery"
             >
               초기화 후 변경
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <div
+        v-if="showLeaveConfirmModal"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4"
+      >
+        <section class="w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-2xl">
+          <p class="text-base font-black text-gray-900" style="margin-bottom: 6px">
+            판매 등록 화면 이탈
+          </p>
+          <p class="mt-2 text-sm font-bold text-gray-600" style="margin-bottom: 15px">
+            화면을 나가면 판매 등록 진행 중인 내용이 사라집니다.
+          </p>
+          <div class="mt-4 flex justify-end gap-2">
+            <button
+              type="button"
+              class="h-9 rounded-lg border border-gray-200 bg-white px-3 text-xs font-black text-gray-700 hover:bg-gray-50"
+              @click="cancelLeaveAndKeepDraft"
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              class="h-9 rounded-lg border border-rose-700 bg-rose-700 px-3 text-xs font-black text-white hover:bg-rose-800"
+              @click="confirmLeaveAndClearDraft"
+            >
+              나가기
             </button>
           </div>
         </section>

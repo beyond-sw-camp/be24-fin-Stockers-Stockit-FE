@@ -1,6 +1,6 @@
 ﻿<script setup>
 import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import SalesRegisterStepper from '@/components/hq/circular-stock/sales-register/SalesRegisterStepper.vue'
 import SalesRegisterStep1SkuTable from '@/components/hq/circular-stock/sales-register/SalesRegisterStep1SkuTable.vue'
@@ -36,7 +36,13 @@ const step3SkuInputText = ref({})
 const toastMessage = ref('')
 const toastTone = ref('success')
 const inventoryLoadError = ref('')
+const showLeaveConfirmModal = ref(false)
+const pendingNavigationTarget = ref('')
 let toastTimer = null
+const registerRouteNames = new Set([
+  'hq-circular-inventory-sales-register',
+  'hq-circular-inventory-sales-register-workflow',
+])
 
 // ADR-021 AI 거래처 추천 — Step 2 좌측 영역 모드 토글. 'ai' | 'manual'.
 const buyerPanelMode = ref('ai')
@@ -120,6 +126,21 @@ const recommendationKey = computed(() =>
     .sort()
     .join('|'),
 )
+const hasActiveDraft = computed(() => circularStockStore.hasActiveDraft)
+
+function isRegisterFlowRoute(routeLike) {
+  return registerRouteNames.has(String(routeLike?.name || ''))
+}
+
+function shouldBlockLeave(to) {
+  return hasActiveDraft.value && !isRegisterFlowRoute(to)
+}
+
+function handleBeforeUnload(event) {
+  if (!hasActiveDraft.value) return
+  event.preventDefault()
+  event.returnValue = ''
+}
 
 async function ensureManualBuyerPoolLoaded() {
   if (buyerStore.loading) return
@@ -652,6 +673,21 @@ function goToSkuList() {
   router.push({ name: 'hq-circular-inventory-sales-register', query: { fromWorkflow: '1' } })
 }
 
+function confirmLeaveAndClearDraft() {
+  const target = pendingNavigationTarget.value
+  pendingNavigationTarget.value = ''
+  showLeaveConfirmModal.value = false
+  circularStockStore.clearDraft()
+  if (target) {
+    router.push(target)
+  }
+}
+
+function cancelLeaveAndKeepDraft() {
+  pendingNavigationTarget.value = ''
+  showLeaveConfirmModal.value = false
+}
+
 function updateDraftItemField(draftId, field, value) {
   const normalizedField = field === 'soldWeightKg' ? 'requestedWeightKg' : field
   circularStockStore.updateSaleDraftItem(draftId, {
@@ -772,6 +808,7 @@ watch(
 // 탭 전환만으로는 이미 표시된 AI 추천 이유를 다시 스켈레톤으로 되돌리지 않는다.
 
 onMounted(() => {
+  window.addEventListener('beforeunload', handleBeforeUnload)
   groupRequestedKg.value = { ...(circularStockStore.step3GroupRequestedKg || {}) }
   groupRequestedInputText.value = Object.fromEntries(
     Object.entries(groupRequestedKg.value).map(([key, value]) => [key, Number(value || 0).toFixed(2)]),
@@ -787,8 +824,19 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('beforeunload', handleBeforeUnload)
   if (toastTimer) clearTimeout(toastTimer)
   clearRationaleTimers()
+})
+
+onBeforeRouteLeave((to, _from, next) => {
+  if (!shouldBlockLeave(to)) {
+    next()
+    return
+  }
+  pendingNavigationTarget.value = String(to.fullPath || '')
+  showLeaveConfirmModal.value = true
+  next(false)
 })
 </script>
 
@@ -960,6 +1008,36 @@ onBeforeUnmount(() => {
         @return-edit="returnToDrawerEdit"
         @submit="submitSale"
       />
+
+      <div
+        v-if="showLeaveConfirmModal"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4"
+      >
+        <section class="w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-2xl">
+          <p class="text-base font-black text-gray-900" style="margin-bottom: 6px">
+            판매 등록 화면 이탈
+          </p>
+          <p class="mt-2 text-sm font-bold text-gray-600" style="margin-bottom: 15px">
+            화면을 나가면 판매 등록 진행 중인 내용이 사라집니다.
+          </p>
+          <div class="mt-4 flex justify-end gap-2">
+            <button
+              type="button"
+              class="h-9 rounded-lg border border-gray-200 bg-white px-3 text-xs font-black text-gray-700 hover:bg-gray-50"
+              @click="cancelLeaveAndKeepDraft"
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              class="h-9 rounded-lg border border-rose-700 bg-rose-700 px-3 text-xs font-black text-white hover:bg-rose-800"
+              @click="confirmLeaveAndClearDraft"
+            >
+              나가기
+            </button>
+          </div>
+        </section>
+      </div>
 
       <p
         v-if="toastMessage"

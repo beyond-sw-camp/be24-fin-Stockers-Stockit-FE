@@ -344,6 +344,14 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     ),
     totalAmount: draftItems.value.reduce((sum, item) => sum + (Number(item.requestedAmount) || 0), 0),
   }))
+  const hasActiveDraft = computed(() => {
+    const hasItems = draftItems.value.length > 0
+    const hasBuyer = Boolean(String(draftBuyerId.value || '').trim())
+    const hasMemo = Boolean(String(draftMemo.value || '').trim())
+    const hasStep3GroupInput = Object.keys(step3GroupRequestedKg.value || {}).length > 0
+    const hasWorkflowState = Boolean(hasStartedWorkflow.value)
+    return hasItems || hasBuyer || hasMemo || hasStep3GroupInput || hasWorkflowState
+  })
 
   // ADR-021 AI 거래처 추천: Step 1 -> Step 2 전환 시 1회 자동 호출 (결정일 2026-04-30).
   const recommendations = ref([])
@@ -928,6 +936,7 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     selectedBuyer,
     matchedBuyerCandidates,
     draftSummary,
+    hasActiveDraft,
     recommendations,
     isRecommendationLoading,
     recommendationError,
