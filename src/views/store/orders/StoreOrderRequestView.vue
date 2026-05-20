@@ -25,6 +25,7 @@ const auth = useAuthStore()
 
 const selectedMainCategory = ref('전체')
 const selectedSubCategory = ref('전체')
+const selectedStatus = ref('')
 const selectedColor = ref('')
 const selectedSize = ref('')
 const searchTerm = ref('')
@@ -238,6 +239,7 @@ async function loadSkuFacets() {
       ? selectedSubCategory.value
       : (selectedMainCategory.value !== '전체' ? selectedMainCategory.value : '')
     if (category) params.category = category
+    if (selectedStatus.value) params.status = selectedStatus.value
     if (searchTerm.value.trim()) params.keyword = searchTerm.value.trim()
     const res = await getStoreInventorySkuFacets(params)
     facetColors.value = Array.isArray(res?.colors) ? res.colors : []
@@ -369,6 +371,7 @@ async function loadSkuRows() {
       ? selectedSubCategory.value
       : (selectedMainCategory.value !== '전체' ? selectedMainCategory.value : '')
     if (category) params.category = category
+    if (selectedStatus.value) params.status = selectedStatus.value
     if (selectedColor.value) params.color = selectedColor.value
     if (selectedSize.value) params.skuSize = selectedSize.value
     if (searchTerm.value.trim()) params.keyword = searchTerm.value.trim()
@@ -430,7 +433,7 @@ async function loadSkuRows() {
  */
 watch(selectedMainCategory, syncSubCategory)
 watch(
-  [selectedMainCategory, selectedSubCategory, selectedColor, selectedSize, searchTerm],
+  [selectedMainCategory, selectedSubCategory, selectedStatus, selectedColor, selectedSize, searchTerm],
   async () => {
     currentPage.value = 0
     await loadSkuRows()
@@ -491,7 +494,7 @@ onMounted(async () => {
             <h2 class="text-sm font-black text-gray-900">매장 발주 검색</h2>
           </div>
 
-          <div class="grid gap-2.5 border-b border-gray-200 bg-gray-50/80 px-3 py-3 md:grid-cols-6">
+          <div class="grid gap-2.5 border-b border-gray-200 bg-gray-50/80 px-3 py-3 md:grid-cols-[135px_135px_135px_135px_minmax(220px,1fr)]">
             <label class="flex flex-col gap-1.5">
               <span class="text-[11px] font-bold text-gray-500">대분류</span>
               <select
@@ -526,13 +529,16 @@ onMounted(async () => {
             </label>
 
             <label class="flex flex-col gap-1.5">
-              <span class="text-[11px] font-bold text-gray-500">검색</span>
-              <input
-                v-model="searchTerm"
-                type="search"
-                class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#004D3C]"
-                placeholder="상품명, 옵션"
-              />
+              <span class="text-[11px] font-bold text-gray-500">상태</span>
+              <select
+                v-model="selectedStatus"
+                class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
+              >
+                <option value="">전체</option>
+                <option value="정상">정상</option>
+                <option value="부족">부족</option>
+                <option value="품절">품절</option>
+              </select>
             </label>
 
             <label class="flex flex-col gap-1.5">
@@ -547,6 +553,16 @@ onMounted(async () => {
                 <option value="stockAsc">재고 부족한순</option>
                 <option value="stockDesc">재고 많은순</option>
               </select>
+            </label>
+
+            <label class="flex flex-col gap-1.5">
+              <span class="text-[11px] font-bold text-gray-500">검색</span>
+              <input
+                v-model="searchTerm"
+                type="search"
+                class="h-9 w-full min-w-0 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#004D3C]"
+                placeholder="상품명, 옵션"
+              />
             </label>
           </div>
           <SkuFacetChips

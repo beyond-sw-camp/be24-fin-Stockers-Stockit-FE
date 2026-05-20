@@ -32,6 +32,7 @@ const activeSubMenu = ref('POS / 판매 등록')
 
 const selectedMainCategory = ref('전체')
 const selectedSubCategory = ref('전체')
+const selectedStatus = ref('')
 const selectedColor = ref('')
 const selectedSize = ref('')
 const searchTerm = ref('')
@@ -205,6 +206,7 @@ async function loadSkuFacets() {
       ? selectedSubCategory.value
       : (selectedMainCategory.value !== '전체' ? selectedMainCategory.value : '')
     if (category) params.category = category
+    if (selectedStatus.value) params.status = selectedStatus.value
     if (searchTerm.value.trim()) params.keyword = searchTerm.value.trim()
     const res = await getStoreInventorySkuFacets(params)
     facetColors.value = Array.isArray(res?.colors) ? res.colors : []
@@ -317,6 +319,7 @@ async function loadStoreSkus() {
       ? selectedSubCategory.value
       : (selectedMainCategory.value !== '전체' ? selectedMainCategory.value : '')
     if (category) params.category = category
+    if (selectedStatus.value) params.status = selectedStatus.value
     if (selectedColor.value) params.color = selectedColor.value
     if (selectedSize.value) params.skuSize = selectedSize.value
     if (searchTerm.value.trim()) params.keyword = searchTerm.value.trim()
@@ -373,7 +376,7 @@ onMounted(async () => {
 })
 
 watch(
-  [selectedMainCategory, selectedSubCategory, selectedColor, selectedSize, searchTerm],
+  [selectedMainCategory, selectedSubCategory, selectedStatus, selectedColor, selectedSize, searchTerm],
   async () => {
     currentPage.value = 0
     await loadStoreSkus()
@@ -418,7 +421,7 @@ watch([currentPage, pageSize], async () => {
             <h2 class="text-sm font-black text-gray-900">상품 검색</h2>
           </div>
 
-          <div class="grid gap-3 border-b border-gray-200 bg-gray-50/80 px-4 py-4 md:grid-cols-4">
+          <div class="grid gap-3 border-b border-gray-200 bg-gray-50/80 px-4 py-4 md:grid-cols-[160px_160px_160px_minmax(260px,1fr)]">
             <label class="flex flex-col gap-1.5">
               <span class="text-[11px] font-bold text-gray-500">대분류</span>
               <select
@@ -441,6 +444,19 @@ watch([currentPage, pageSize], async () => {
                 <option v-for="category in subCategoryOptions" :key="category" :value="category">
                   {{ category }}
                 </option>
+              </select>
+            </label>
+
+            <label class="flex flex-col gap-1.5">
+              <span class="text-[11px] font-bold text-gray-500">상태</span>
+              <select
+                v-model="selectedStatus"
+                class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
+              >
+                <option value="">전체</option>
+                <option value="정상">정상</option>
+                <option value="부족">부족</option>
+                <option value="품절">품절</option>
               </select>
             </label>
 
