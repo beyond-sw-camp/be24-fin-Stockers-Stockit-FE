@@ -74,13 +74,13 @@ const availableSubCategories = computed(() => {
 const filteredSkus = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase()
   const list = skuRows.value.filter((sku) => {
-    const matchMain = selectedMainCategory.value === '전체' || sku.mainCategory === selectedMainCategory.value
-    const matchSub = selectedSubCategory.value === '전체' || sku.subCategory === selectedSubCategory.value
+    const matchMain = selectedMainCategory.value === '전체' || sku.parentCategory === selectedMainCategory.value
+    const matchSub = selectedSubCategory.value === '전체' || sku.childCategory === selectedSubCategory.value
     const matchColor = !selectedColor.value || sku.color === selectedColor.value
     const matchSize = !selectedSize.value || sku.size === selectedSize.value
     const matchKeyword =
       !keyword ||
-      [sku.productName, sku.mainCategory, sku.subCategory, sku.color, sku.size]
+      [sku.itemName, sku.parentCategory, sku.childCategory, sku.color, sku.size]
         .join(' ')
         .toLowerCase()
         .includes(keyword)
@@ -92,16 +92,16 @@ const filteredSkus = computed(() => {
   if (requestSortBy.value === 'category') {
     sorted.sort(
       (a, b) =>
-        compareMainCategory(a.mainCategory, b.mainCategory) ||
-        String(a.subCategory ?? '').localeCompare(String(b.subCategory ?? ''), 'ko') ||
-        String(a.productName ?? '').localeCompare(String(b.productName ?? ''), 'ko'),
+        compareMainCategory(a.parentCategory, b.parentCategory) ||
+        String(a.childCategory ?? '').localeCompare(String(b.childCategory ?? ''), 'ko') ||
+        String(a.itemName ?? '').localeCompare(String(b.itemName ?? ''), 'ko'),
     )
   } else if (requestSortBy.value === 'name') {
-    sorted.sort((a, b) => String(a.productName ?? '').localeCompare(String(b.productName ?? ''), 'ko'))
+    sorted.sort((a, b) => String(a.itemName ?? '').localeCompare(String(b.itemName ?? ''), 'ko'))
   } else if (requestSortBy.value === 'stockAsc') {
-    sorted.sort((a, b) => Number(a.stock ?? 0) - Number(b.stock ?? 0))
+    sorted.sort((a, b) => Number(a.actualStock ?? 0) - Number(b.actualStock ?? 0))
   } else if (requestSortBy.value === 'stockDesc') {
-    sorted.sort((a, b) => Number(b.stock ?? 0) - Number(a.stock ?? 0))
+    sorted.sort((a, b) => Number(b.actualStock ?? 0) - Number(a.actualStock ?? 0))
   } else {
     sorted.sort((a, b) => {
       const aPriority = Number(a.recommendedQuantity ?? 0) > 0 || a.stockStatus !== 'normal' ? 0 : 1
@@ -168,7 +168,7 @@ function showFeedback(message, type = 'info') {
 // [함수] SKU를 발주 요청 라인에 추가한다.
 function addToRequest(sku) {
   feedbackMessage.value = ''
-  const existing = requestLines.value.find((line) => line.skuId === sku.skuId)
+  const existing = requestLines.value.find((line) => line.skuCode === sku.skuCode)
   if (existing) {
     existing.requestedQuantity += 1
     return
@@ -177,17 +177,16 @@ function addToRequest(sku) {
   requestLines.value = [
     ...requestLines.value,
     {
-      skuId: sku.skuId,
-      productId: sku.productId,
+      skuCode: sku.skuCode,
       itemCode: sku.itemCode,
-      productName: sku.productName,
-      mainCategory: sku.mainCategory,
-      subCategory: sku.subCategory,
+      itemName: sku.itemName,
+      parentCategory: sku.parentCategory,
+      childCategory: sku.childCategory,
       color: sku.color,
       size: sku.size,
-      currentStoreStock: sku.stock,
+      actualStock: sku.actualStock,
       inboundExpectedQuantity: sku.inboundExpectedQuantity,
-      availableStoreStock: sku.availableStoreStock,
+      availableStock: sku.availableStock,
       safetyStock: sku.safetyStock,
       recommendedQuantity: sku.recommendedQuantity,
       requestedQuantity: Math.max(1, sku.recommendedQuantity || 1),
@@ -196,8 +195,8 @@ function addToRequest(sku) {
 }
 
 // [함수] 발주 요청 라인에서 특정 SKU를 제거한다.
-function removeLine(skuId) {
-  requestLines.value = requestLines.value.filter((line) => line.skuId !== skuId)
+function removeLine(skuCode) {
+  requestLines.value = requestLines.value.filter((line) => line.skuCode !== skuCode)
 }
 
 // [함수] 요청 라인과 메모/피드백 상태를 초기화한다.
@@ -279,7 +278,7 @@ async function submitRequest() {
     try {
       await updateStoreOrder(currentOrder.orderId, {
         items: requestLines.value.map((line) => ({
-          skuCode: line.skuId,
+          skuCode: line.skuCode,
           requestedQuantity: Number(line.requestedQuantity),
         })),
         memo: memo.value,
@@ -299,7 +298,7 @@ async function submitRequest() {
       requestedByName: auth.user.name ?? '매장 관리자',
       memo: memo.value,
       items: requestLines.value.map((line) => ({
-        skuCode: line.skuId,
+        skuCode: line.skuCode,
         requestedQuantity: Number(line.requestedQuantity),
       })),
     })
@@ -325,17 +324,16 @@ async function loadEditingOrder() {
 
     editingOrder.value = order
     requestLines.value = (order.items ?? []).map((item) => ({
-      skuId: item.skuCode,
-      productId: item.productCode,
-      itemCode: item.skuCode,
-      productName: item.productName,
-      mainCategory: item.mainCategory,
-      subCategory: item.subCategory,
+      skuCode: item.skuCode,
+      itemCode: item.productCode,
+      itemName: item.productName ?? item.itemName,
+      parentCategory: item.mainCategory ?? item.parentCategory,
+      childCategory: item.subCategory ?? item.childCategory,
       color: item.color,
       size: item.size,
-      currentStoreStock: 0,
+      actualStock: 0,
       inboundExpectedQuantity: 0,
-      availableStoreStock: 0,
+      availableStock: 0,
       safetyStock: 0,
       recommendedQuantity: 0,
       requestedQuantity: item.requestedQuantity,
@@ -376,19 +374,18 @@ async function loadSkuRows() {
       const safetyStock = Number(sku.safetyStock ?? 0)
 
       rows.push({
-        skuId: sku.skuCode,
-        productId: sku.itemCode,
+        skuCode: sku.skuCode,
         itemCode: sku.itemCode,
-        productName: sku.itemName,
-        mainCategory: sku.parentCategory,
-        subCategory: sku.childCategory,
+        itemName: sku.itemName,
+        parentCategory: sku.parentCategory,
+        childCategory: sku.childCategory,
         color: sku.color,
         size: sku.size,
         unitPrice: Number(sku.unitPrice ?? 0),
-        stock,
+        actualStock: stock,
         safetyStock,
         inboundExpectedQuantity: Number(sku.inboundExpectedQuantity ?? 0),
-        availableStoreStock: Number(sku.availableStock ?? 0),
+        availableStock: Number(sku.availableStock ?? 0),
         recommendedQuantity: Math.max(0, safetyStock - stock),
         stockStatus: stock === 0 ? 'out' : stock <= safetyStock ? 'low' : 'normal',
       })
@@ -585,22 +582,22 @@ onMounted(async () => {
               <tbody class="divide-y divide-gray-100">
                 <tr
                   v-for="sku in filteredSkus"
-                  :key="sku.skuId"
+                  :key="sku.skuCode"
                   class="transition-colors hover:bg-gray-50"
                 >
                   <td class="px-3 py-2.5 font-mono font-bold text-gray-500">{{ sku.itemCode }}</td>
                   <td class="px-2 py-2.5">
-                    <p class="truncate font-black text-gray-900">{{ sku.productName }}</p>
+                    <p class="truncate font-black text-gray-900">{{ sku.itemName }}</p>
                   </td>
                   <td class="px-1 py-2.5 font-bold text-gray-700">
                     {{ sku.color }} / {{ sku.size }}
                   </td>
                   <td class="px-1 py-2.5 font-bold text-gray-600">
-                    <p class="truncate">{{ sku.mainCategory }} &gt; {{ sku.subCategory }}</p>
+                    <p class="truncate">{{ sku.parentCategory }} &gt; {{ sku.childCategory }}</p>
                   </td>
-                  <td class="px-1 py-2.5 text-center font-black text-gray-700">{{ sku.stock }}</td>
+                  <td class="px-1 py-2.5 text-center font-black text-gray-700">{{ sku.actualStock }}</td>
                   <td class="px-1 py-2.5 text-center font-black text-gray-900">
-                    {{ sku.availableStoreStock }}
+                    {{ sku.availableStock }}
                   </td>
                   <td class="px-1 py-2.5 text-center font-black text-gray-700">
                     {{ sku.safetyStock }}
@@ -678,7 +675,7 @@ onMounted(async () => {
 
             <div
               v-for="line in requestLines"
-              :key="line.skuId"
+              :key="line.skuCode"
               class="border-b border-gray-100 px-4 py-4"
             >
               <div class="flex items-start justify-between gap-3">
@@ -686,20 +683,20 @@ onMounted(async () => {
                   <p class="font-mono text-[10px] font-bold text-gray-400">
                     {{ line.itemCode }}
                   </p>
-                  <p class="mt-1 truncate text-sm font-black text-gray-900">{{ line.productName }}</p>
+                  <p class="mt-1 truncate text-sm font-black text-gray-900">{{ line.itemName }}</p>
                   <p class="mt-1 text-[11px] font-bold text-gray-500">
-                    {{ line.mainCategory }} &gt; {{ line.subCategory }} · {{ line.color }} /
+                    {{ line.parentCategory }} &gt; {{ line.childCategory }} · {{ line.color }} /
                     {{ line.size }}
                   </p>
                   <p class="mt-1 text-[11px] font-bold text-gray-400">
-                    실재고 {{ line.currentStoreStock }} · 가용재고 {{ line.availableStoreStock }} ·
+                    실재고 {{ line.actualStock }} · 가용재고 {{ line.availableStock }} ·
                     안전재고 {{ line.safetyStock }} · 권장 {{ line.recommendedQuantity }}
                   </p>
                 </div>
                 <button
                   type="button"
                   class="text-sm font-black text-gray-300 transition hover:text-red-500"
-                  @click="removeLine(line.skuId)"
+                  @click="removeLine(line.skuCode)"
                 >
                   ×
                 </button>
