@@ -1,36 +1,14 @@
 ﻿export const INVENTORY_STORAGE_KEY = 'stockit_circular_inventory_inventory_v2'
 
-const RAW_INITIAL_INVENTORY = []
 
+// 소수점 반올림을 공통 규칙으로 맞추기 위한 유틸이다.
 export function roundTo(value, digits = 2) {
   const factor = 10 ** digits
   return Math.round(value * factor) / factor
 }
 
-function inventoryQuantitySeed(id) {
-  return 760 + (String(id).split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) % 520)
-}
 
-function expandSeedInventoryItem(item) {
-  const originalQuantity = Math.max(1, Number(item.quantity) || 1)
-  const originalWeightKg = roundTo(Number(item.weightKg) || 0)
-  const unitWeightKg = originalWeightKg > 0 ? originalWeightKg / originalQuantity : 0
-  const expandedQuantity = Math.max(originalQuantity, inventoryQuantitySeed(item.id))
-  const expandedWeightKg = roundTo(unitWeightKg * expandedQuantity, 1)
-
-  return {
-    ...item,
-    quantity: expandedQuantity,
-    weightKg: expandedWeightKg,
-  }
-}
-
-export const INITIAL_INVENTORY = RAW_INITIAL_INVENTORY.map(expandSeedInventoryItem)
-
-export function formatWeight(weightKg) {
-  return `${roundTo(weightKg).toFixed(2)}kg`
-}
-
+// 재고 항목의 숫자 필드와 단위중량을 정규화해 계산 오차를 줄인다.
 export function enrichInventoryItem(item) {
   const quantity = Number(item.quantity) || 0
   const weightKg = roundTo(Number(item.weightKg) || 0)
@@ -44,6 +22,7 @@ export function enrichInventoryItem(item) {
   }
 }
 
+// localStorage에서 JSON을 안전하게 읽어 상태 복구 실패를 방지한다.
 export function loadJson(key, fallback) {
   try {
     const saved = localStorage.getItem(key)
@@ -53,10 +32,12 @@ export function loadJson(key, fallback) {
   }
 }
 
+// localStorage에 JSON 형태로 상태를 저장한다.
 export function saveJson(key, value) {
   localStorage.setItem(key, JSON.stringify(value))
 }
 
+// `12.3kg` 같은 라벨 문자열을 숫자 무게로 복원한다.
 export function parseWeightLabel(weight) {
   return Number(String(weight ?? '').replace('kg', '')) || 0
 }
@@ -64,6 +45,7 @@ export function parseWeightLabel(weight) {
 const NATURAL_SINGLE_MATERIALS = ['면', '울', '캐시미어', '실크', '리넨']
 const SYNTHETIC_MATERIALS = ['폴리에스터', '아크릴', '나일론', '스판덱스']
 
+// 소재명을 동의어 기준으로 정규화해 분류/추천 로직 일관성을 유지한다.
 export function normalizeMaterialName(name) {
   const normalized = String(name ?? '').trim().toLowerCase()
   const aliasMap = {
@@ -85,6 +67,7 @@ export function normalizeMaterialName(name) {
   return aliasMap[normalized] ?? String(name ?? '').trim()
 }
 
+// 소재 구성비를 기준으로 소재 구분(천연/합성/혼방)을 판정한다.
 export function deriveMaterialType(materials) {
   if (!Array.isArray(materials) || materials.length === 0) return '혼방'
   const normalized = materials.map(material => ({
@@ -100,12 +83,14 @@ export function deriveMaterialType(materials) {
   return '혼방'
 }
 
+// 소재 구분값을 거래처 적합도 코드로 변환한다.
 export function buyerMaterialFitValue(materialType) {
   if (materialType === '천연 단일 섬유') return 'natural-single'
   if (materialType === '합성 섬유') return 'synthetic'
   return 'blended'
 }
 
+// 출고 상태 코드를 상세/내역 공통 한글 라벨로 변환한다.
 export function circularSaleOutboundStatusLabel(status) {
   if (!status) return '-'
   if (status === 'READY_TO_SHIP') return '출고 준비 중'
@@ -114,6 +99,7 @@ export function circularSaleOutboundStatusLabel(status) {
   return status
 }
 
+// 출고 상태 코드에 맞는 공통 배지 스타일 클래스를 반환한다.
 export function circularSaleOutboundStatusBadgeClass(status) {
   if (status === 'READY_TO_SHIP') return 'border-amber-200 bg-amber-50 text-amber-700'
   if (status === 'IN_TRANSIT') return 'border-sky-200 bg-sky-50 text-sky-700'

@@ -11,6 +11,7 @@ import { useEsgStore } from '@/stores/esg.js'
 const NATURAL_SINGLE_MATERIALS = ['면', '울', '캐시미어', '실크', '리넨']
 const SYNTHETIC_MATERIALS = ['폴리에스터', '아크릴', '나일론', '스판덱스']
 
+// 소재명을 표준 명칭으로 정규화해 계산/매칭 오차를 줄인다.
 function normalizeMaterialName(name) {
   const normalized = String(name ?? '').trim().toLowerCase()
   const aliasMap = {
@@ -32,6 +33,7 @@ function normalizeMaterialName(name) {
   return aliasMap[normalized] ?? String(name ?? '').trim()
 }
 
+// 소재 구성비를 기반으로 소재 구분을 판정한다.
 function deriveMaterialType(materials) {
   if (!Array.isArray(materials) || materials.length === 0) return '혼방'
   const normalized = materials.map(material => ({
@@ -47,6 +49,7 @@ function deriveMaterialType(materials) {
   return '혼방'
 }
 
+// 소재 구분을 거래처 적합도 코드로 매핑한다.
 function buyerMaterialFitValue(materialType) {
   if (materialType === '천연 단일 섬유') return 'natural-single'
   if (materialType === '합성 섬유') return 'synthetic'
@@ -106,11 +109,13 @@ const INDUSTRY_TREATMENT_TYPE_MAP = {
   에너지: '다운사이클링',
 }
 
+// 소재명 기준 계수를 조회하되, 미정의 시 기본 계수를 사용한다.
 function getMaterialFactor(map, materialName) {
   const normalizedName = normalizeMaterialName(materialName)
   return map[normalizedName] ?? map.default
 }
 
+// 거래처 산업군/생산품 정보를 기반으로 처리 목적(재활용/업사이클링 등)을 추론한다.
 function resolveTreatmentTypeFromBuyer(buyer = {}) {
   const exactMatch = INDUSTRY_TREATMENT_TYPE_MAP[buyer?.industryGroup]
   if (exactMatch) return exactMatch
@@ -127,6 +132,7 @@ function resolveTreatmentTypeFromBuyer(buyer = {}) {
   return '재활용'
 }
 
+// 판매건 기준 ESG 스냅샷(점수/KPI/근거)을 계산한다.
 function buildSaleEsgSnapshot(sale, buyer, kauPrice, options = {}) {
   const items = Array.isArray(sale?.items) ? sale.items : []
   const treatmentType = resolveTreatmentTypeFromBuyer(buyer)
@@ -249,6 +255,7 @@ function buildSaleEsgSnapshot(sale, buyer, kauPrice, options = {}) {
   }
 }
 
+// 순환재고 판매 도메인 상태/등록 흐름/목록·상세 조회를 관리하는 Store다.
 export const useCircularStockSaleStore = defineStore('circularStockSale', () => {
   const buyerStore = useCircularStockBuyerStore()
   const esgStore = useEsgStore()
@@ -306,6 +313,7 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
    * 추천 요청 페이로드 자동 생성.
    * Step 1의 SKU 선택 + lockedMaterialType 기준으로 핵심 4필드를 만든다.
    */
+  // 추천 API 요청용 핵심 페이로드를 현재 draft 상태에서 조합한다.
   const recommendationPayload = computed(() => {
     const items = draftItems.value
     if (items.length === 0 || !lockedMaterialType.value) return null
@@ -336,11 +344,13 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     }
   })
 
+  // 추천 요청 중복 호출 방지를 위한 기준 키다.
   const recommendationBasisKey = computed(() => {
     if (!recommendationPayload.value) return ''
     return JSON.stringify(recommendationPayload.value)
   })
 
+  // 현재 소재 구분에 맞는 거래처 후보 목록을 제공한다.
   const matchedBuyerCandidates = computed(() => {
     if (!lockedMaterialType.value) return buyerStore.sortedBuyers
     return buyerStore.filteredBuyers('', {
@@ -355,6 +365,7 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     totalBuyerCount: new Set(sortedSales.value.map(sale => sale.buyerCode)).size,
   }))
 
+  // 판매 목록 기반 요약 통계를 계산한다.
   const salesAnalytics = computed(() => {
     const categoryMap = new Map()
     const buyerMap = new Map()
@@ -399,6 +410,7 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
       materialBreakdown: [...materialMap.values()].sort((a, b) => b.totalWeightKg - a.totalWeightKg),
     }
   })
+  // 판매 목록 API row를 FE 목록 모델로 정규화한다.
   function mapSaleListFromApi(row = {}) {
     return {
       saleId: Number(row.saleId),
@@ -420,6 +432,7 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     }
   }
 
+  // 판매 상세 API 응답을 FE 상세 모델로 정규화한다.
   function mapSaleDetailFromApi(detail = {}) {
     const items = Array.isArray(detail.items)
       ? detail.items.map((item) => ({
@@ -478,6 +491,7 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     }
   }
 
+  // 현재 draft를 판매 생성 API payload 규격으로 변환한다.
   function mapCreatePayloadToApi() {
     return {
       buyerCode: String(draftBuyerId.value || ''),
@@ -497,6 +511,7 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     }
   }
 
+  // 판매 내역 페이지를 조회하고 페이징 상태를 반영한다.
   async function fetchCircularSalesPage(filters = {}) {
     const response = await getCircularSalesApi(filters)
     const content = Array.isArray(response?.content) ? response.content.map(mapSaleListFromApi) : []
@@ -512,6 +527,7 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     return salesPage.value
   }
 
+  // 판매 상세를 조회하고 id별 캐시에 저장한다.
   async function fetchCircularSaleDetail(saleId) {
     const response = await getCircularSaleDetailApi(saleId)
     const mapped = mapSaleDetailFromApi(response)
@@ -522,12 +538,14 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     return mapped
   }
 
+  // 상세 캐시 우선으로 판매건을 조회하고, 없으면 목록에서 fallback 탐색한다.
   function getSaleById(saleId) {
     return salesDetailById.value[String(saleId)]
       ?? sortedSales.value.find(sale => String(sale.saleId) === String(saleId))
       ?? null
   }
 
+  // 판매건 ESG 스냅샷을 반환한다(저장값 우선, 없으면 추정 계산).
   function getSaleEsgSnapshot(saleInput) {
     const saleRecord = typeof saleInput === 'string' ? getSaleById(saleInput) : saleInput
     if (!saleRecord) return null
@@ -548,10 +566,12 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     return buildSaleEsgSnapshot(saleRecord, buyer, esgStore.kauPrice, { isEstimated: true })
   }
 
+  // draftId로 등록 초안 항목을 조회한다.
   function getDraftItem(draftId) {
     return draftItems.value.find(item => item.draftId === draftId) ?? null
   }
 
+  // 현재 소재 구분 조건을 반영한 거래처 필터 결과를 반환한다.
   function filteredBuyers(keyword = '') {
     if (!lockedMaterialType.value) return buyerStore.filteredBuyers(keyword)
     return buyerStore.filteredBuyers(keyword, {
@@ -559,14 +579,17 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     })
   }
 
+  // 선택 거래처를 등록 draft 상태에 반영한다.
   function selectBuyer(buyerId) {
     draftBuyerId.value = buyerId
   }
 
+  // 판매 메모 입력값을 draft 상태에 반영한다.
   function setDraftMemo(memo) {
     draftMemo.value = memo
   }
 
+  // 재고 SKU를 판매 draft 항목으로 추가하고 제약(소재/창고)을 검증한다.
   function addSaleDraftItem(skuRow) {
     const resolvedInventoryId = skuRow?.inventoryId ?? skuRow?.id ?? ''
     const draftId = String(skuRow?.id ?? resolvedInventoryId)
@@ -651,6 +674,7 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     return { success: true, item: draftItem }
   }
 
+  // 특정 draft 항목의 수량/금액 등 편집값을 갱신한다.
   function updateSaleDraftItem(draftId, payload) {
     const index = draftItems.value.findIndex(item => item.draftId === draftId)
     if (index === -1) {
@@ -663,6 +687,7 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     return { success: true, item: next[index] }
   }
 
+  // draft 항목을 제거하고 필요 시 워크플로우 상태를 초기화한다.
   function removeSaleDraftItem(draftId) {
     draftItems.value = draftItems.value.filter(item => item.draftId !== draftId)
     recommendationDirty.value = true
@@ -681,6 +706,7 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     }
   }
 
+  // 판매 등록 관련 상태를 전부 초기화한다(로그아웃/등록 완료 후 사용).
   function clearDraft() {
     draftBuyerId.value = ''
     draftMemo.value = ''
@@ -697,6 +723,7 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     recommendationDirty.value = true
   }
 
+  // 등록 워크플로우 시작 여부를 표시한다.
   function markWorkflowStarted() {
     hasStartedWorkflow.value = true
   }
@@ -706,6 +733,7 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
    * 호출 시점: moveStep(2) 또는 Step 1 -> Step 2 진입 시점 1회.
    * BE가 LLM 실패 시에도 fallback 응답을 내려줄 수 있어 네트워크/4xx 중심으로만 catch 처리한다.
    */
+  // AI 거래처 추천을 호출하고 로딩/오류/결과 상태를 관리한다.
   async function fetchRecommendations() {
     const payload = recommendationPayload.value
     if (!payload) return
@@ -732,6 +760,7 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     }
   }
 
+  // 등록 단계(1~3) 전환을 검증 규칙에 맞춰 처리한다.
   function setSaleStep(nextStep) {
     const parsed = Number(nextStep)
     if (![1, 2, 3].includes(parsed)) return
@@ -740,6 +769,7 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     saleStep.value = parsed
   }
 
+  // 판매 생성 전에 draft의 필수값/재고 한도/소재·창고 일치를 검증한다.
   function validateCircularStockSaleDraft() {
     const buildCounts = () => {
       let unfilledSkuCount = 0
@@ -765,6 +795,7 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
       return { unfilledSkuCount, errorSkuCount, overLimitSkuCount }
     }
 
+    // 실패 메시지와 SKU 오류 집계를 표준 포맷으로 반환한다.
     const fail = (message, code, firstBlockingSku = null) => ({
       success: false,
       message,
@@ -865,6 +896,7 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     }
   }
 
+  // 판매 생성 API를 호출하고 성공 시 draft를 비운 뒤 핵심 식별값을 반환한다.
   async function submitCircularStockSale() {
     const validation = validateCircularStockSaleDraft()
     if (!validation.success) {

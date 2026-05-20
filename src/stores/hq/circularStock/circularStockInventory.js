@@ -3,14 +3,14 @@ import { computed, ref } from 'vue'
 import { getCircularInventories } from '@/api/hq/inventory.js'
 import {
   INVENTORY_STORAGE_KEY,
-  INITIAL_INVENTORY,
   enrichInventoryItem,
   loadJson,
   saveJson,
 } from '@/stores/hq/circularStock/circularStockCommon.js'
 
+// 순환재고 조회 전용 상태를 관리하는 Store다.
 export const useCircularStockInventoryStore = defineStore('circularStockInventory', () => {
-  const inventoryItems = ref(loadJson(INVENTORY_STORAGE_KEY, INITIAL_INVENTORY).map(enrichInventoryItem))
+  const inventoryItems = ref(loadJson(INVENTORY_STORAGE_KEY, []).map(enrichInventoryItem))
   const liveCircularInventoryRows = ref([])
   const inventoryPage = ref(0)
   const inventorySize = ref(20)
@@ -25,6 +25,7 @@ export const useCircularStockInventoryStore = defineStore('circularStockInventor
   const inventoryMaterialName = ref('')
   const inventoryMaterialNames = ref([])
 
+  // API 응답 우선, 없으면 로컬 캐시를 사용하는 조회용 목록 getter다.
   const inventoryRows = computed(() => {
     const source = liveCircularInventoryRows.value.length > 0
       ? liveCircularInventoryRows.value
@@ -36,16 +37,19 @@ export const useCircularStockInventoryStore = defineStore('circularStockInventor
     ))
   })
 
+  // 현재 재고 캐시를 localStorage에 저장해 새로고침 복원을 지원한다.
   function persistInventory() {
     saveJson(INVENTORY_STORAGE_KEY, inventoryItems.value)
   }
 
+  // inventoryId 기준으로 로컬/라이브 목록에서 재고를 조회한다.
   function getInventoryById(inventoryId) {
     return inventoryItems.value.find(item => item.id === inventoryId)
       ?? liveCircularInventoryRows.value.find(item => item.id === inventoryId)
       ?? null
   }
 
+  // BE 재고 row를 FE 재고 모델로 매핑해 화면 바인딩을 단순화한다.
   function mapCircularApiRowToInventoryItem(row) {
     const compositions = Array.isArray(row.materialCompositions) ? row.materialCompositions : []
     const materials = compositions.map(comp => ({
@@ -75,6 +79,7 @@ export const useCircularStockInventoryStore = defineStore('circularStockInventor
     }
   }
 
+  // 필터/페이징 조건으로 순환재고를 조회하고 store 상태를 동기화한다.
   async function loadCircularInventoryRows(overrides = {}) {
     const nextPage = Number.isInteger(overrides.page) ? overrides.page : inventoryPage.value
     const nextSize = [20, 50, 100].includes(Number(overrides.size)) ? Number(overrides.size) : inventorySize.value
