@@ -10,7 +10,7 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { createStoreOrder, getStoreOrderDetail, updateStoreOrder } from '@/api/store/orders.js'
-import { getStoreInventories, getStoreInventorySkus } from '@/api/store/inventory.js'
+import { getStoreInventorySkus } from '@/api/store/inventory.js'
 
 /**
  * ==============================================================================
@@ -337,34 +337,39 @@ async function loadSkuRows() {
 
   loading.value = true
   try {
-    const items = await getStoreInventories()
+    const allSkus = []
+    let page = 0
+    const size = 200
+    let hasNext = false
+    do {
+      const res = await getStoreInventorySkus({ page, size })
+      const pageItems = Array.isArray(res?.items) ? res.items : []
+      allSkus.push(...pageItems)
+      hasNext = Boolean(res?.hasNext)
+      page += 1
+    } while (hasNext)
 
-    const skuGroups = await Promise.all(items.map((item) => getStoreInventorySkus(item.itemCode)))
     const rows = []
-    items.forEach((item, index) => {
-      const skus = skuGroups[index] ?? []
+    allSkus.forEach((sku) => {
+      const stock = Number(sku.actualStock ?? 0)
+      const safetyStock = Number(sku.safetyStock ?? 0)
 
-      skus.forEach((sku) => {
-        const stock = Number(sku.actualStock ?? 0)
-        const safetyStock = Number(sku.safetyStock ?? 0)
-
-        rows.push({
-          skuId: sku.skuCode,
-          productId: item.itemCode,
-          itemCode: item.itemCode,
-          productName: item.itemName,
-          mainCategory: item.parentCategory,
-          subCategory: item.childCategory,
-          color: sku.color,
-          size: sku.size,
-          unitPrice: Number(sku.unitPrice ?? 0),
-          stock,
-          safetyStock,
-          inboundExpectedQuantity: Number(sku.inboundExpectedQuantity ?? 0),
-          availableStoreStock: Number(sku.availableStock ?? 0),
-          recommendedQuantity: Math.max(0, safetyStock - stock),
-          stockStatus: stock === 0 ? 'out' : stock <= safetyStock ? 'low' : 'normal',
-        })
+      rows.push({
+        skuId: sku.skuCode,
+        productId: sku.itemCode,
+        itemCode: sku.itemCode,
+        productName: sku.itemName,
+        mainCategory: sku.parentCategory,
+        subCategory: sku.childCategory,
+        color: sku.color,
+        size: sku.size,
+        unitPrice: Number(sku.unitPrice ?? 0),
+        stock,
+        safetyStock,
+        inboundExpectedQuantity: Number(sku.inboundExpectedQuantity ?? 0),
+        availableStoreStock: Number(sku.availableStock ?? 0),
+        recommendedQuantity: Math.max(0, safetyStock - stock),
+        stockStatus: stock === 0 ? 'out' : stock <= safetyStock ? 'low' : 'normal',
       })
     })
 

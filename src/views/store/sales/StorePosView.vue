@@ -9,7 +9,7 @@ import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useSalesStore } from '@/stores/store/storeSales.js'
-import { getStoreInventories, getStoreInventorySkus } from '@/api/store/inventory.js'
+import { getStoreInventorySkus } from '@/api/store/inventory.js'
 import { createSale } from '@/api/store/sales.js'
 
 import { Plus, Ban } from 'lucide-vue-next'
@@ -285,29 +285,32 @@ async function loadStoreSkus() {
   loadingSkus.value = true
   feedbackMessage.value = ''
   try {
-    const items = await getStoreInventories()
-
-    const skuLists = await Promise.all(
-      items.map((item) => getStoreInventorySkus(item.itemCode)),
-    )
+    const allSkus = []
+    let page = 0
+    const size = 200
+    let hasNext = false
+    do {
+      const res = await getStoreInventorySkus({ page, size })
+      const pageItems = Array.isArray(res?.items) ? res.items : []
+      allSkus.push(...pageItems)
+      hasNext = Boolean(res?.hasNext)
+      page += 1
+    } while (hasNext)
 
     const rows = []
-    items.forEach((item, idx) => {
-      const skus = skuLists[idx] ?? []
-      skus.forEach((sku) => {
-        rows.push({
-          skuId: sku.skuCode,
-          productId: item.itemCode,
-          productName: item.itemName,
-          mainCategory: item.parentCategory,
-          subCategory: item.childCategory,
-          color: sku.color,
-          size: sku.size,
-          unitPrice: Number(sku.unitPrice ?? 0),
-          stock: Number(sku.actualStock ?? 0),
-          safetyStock: sku.safetyStock ?? 0,
-          status: sku.status,
-        })
+    allSkus.forEach((sku) => {
+      rows.push({
+        skuId: sku.skuCode,
+        productId: sku.itemCode,
+        productName: sku.itemName,
+        mainCategory: sku.parentCategory,
+        subCategory: sku.childCategory,
+        color: sku.color,
+        size: sku.size,
+        unitPrice: Number(sku.unitPrice ?? 0),
+        stock: Number(sku.actualStock ?? 0),
+        safetyStock: sku.safetyStock ?? 0,
+        status: sku.status,
       })
     })
     skuRows.value = rows
