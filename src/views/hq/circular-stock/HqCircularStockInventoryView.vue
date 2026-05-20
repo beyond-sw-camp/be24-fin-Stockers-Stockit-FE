@@ -1,11 +1,11 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, ref } from 'vue'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useCircularStockStore } from '@/stores/hq/circularStock/circularStock.js'
+import { useCircularStockInventoryStore } from '@/stores/hq/circularStock/circularStockInventory.js'
 
-const circularStockStore = useCircularStockStore()
+const inventoryStore = useCircularStockInventoryStore()
 const hqMenus = roleMenus.hq
 const circularStockMenus = roleMenus.hq.find(menu => menu.label === '순환 재고 관리')?.children ?? []
 
@@ -18,7 +18,7 @@ const loadCircularInventory = async (overrides = {}) => {
   isLoading.value = true
   loadError.value = ''
   try {
-    await circularStockStore.loadCircularInventoryRows(overrides)
+    await inventoryStore.loadCircularInventoryRows(overrides)
   } catch (e) {
     loadError.value = e.message || '순환 재고 조회에 실패했습니다.'
   } finally {
@@ -82,11 +82,11 @@ onMounted(() => {
         :use-fixed-column-widths="true"
         :pin-lead-columns="false"
         :server-mode="true"
-        :page="circularStockStore.inventoryPage"
-        :size="circularStockStore.inventorySize"
-        :total-pages="circularStockStore.inventoryTotalPages"
-        :total-elements="circularStockStore.inventoryTotalElements"
-        :inventory-rows="circularStockStore.inventoryRows"
+        :page="inventoryStore.inventoryPage"
+        :size="inventoryStore.inventorySize"
+        :total-pages="inventoryStore.inventoryTotalPages"
+        :total-elements="inventoryStore.inventoryTotalElements"
+        :inventory-rows="inventoryStore.inventoryRows"
         @page-change="handlePageChange"
         @size-change="handleSizeChange"
         @sort-change="handleSortChange"

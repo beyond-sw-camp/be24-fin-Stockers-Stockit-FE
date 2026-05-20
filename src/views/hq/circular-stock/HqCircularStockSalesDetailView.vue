@@ -1,17 +1,18 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
-import { useCircularStockStore } from '@/stores/hq/circularStock/circularStock.js'
-import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
+import { useCircularStockSaleStore } from '@/stores/hq/circularStock/circularStockSale.js'
+import { circularBuyerApi } from '@/api/hq/circularBuyer.js'
+import {
+  circularSaleOutboundStatusBadgeClass,
+  circularSaleOutboundStatusLabel,
+} from '@/stores/hq/circularStock/circularStockCommon.js'
 
 const route = useRoute()
 const router = useRouter()
-const auth = useAuthStore()
-const circularStockStore = useCircularStockStore()
-const buyerStore = useCircularStockBuyerStore()
+const circularStockStore = useCircularStockSaleStore()
 
 const hqMenus = roleMenus.hq
 const circularStockMenus = roleMenus.hq.find((menu) => menu.label === '순환 재고 관리')?.children ?? []
@@ -27,7 +28,7 @@ const activeTab = ref('sales')
 const saleId = computed(() => String(route.params.saleId ?? ''))
 const sale = computed(() => circularStockStore.getSaleById(saleId.value))
 const saleEsgSnapshot = computed(() => circularStockStore.getSaleEsgSnapshot(sale.value))
-const linkedBuyer = computed(() => null)
+const linkedBuyer = ref(null)
 
 const includedMaterialNames = computed(() => {
   const names = sale.value?.items?.flatMap((item) => item.materials?.map((material) => material.name) ?? []) ?? []
@@ -149,7 +150,7 @@ const impactNarrative = computed(() => [
     key: 'materials',
     title: '무엇을 순환시켰나',
     value: esgMaterialNames.value.join(', ') || includedMaterialNames.value.join(', ') || '-',
-    detail: `${formatQuantity(sale.value?.totalItems || 0)}개 SKU를 순환 판매로 전환`,
+    detail: `${formatQuantity(sale.value?.totalSkuCount || 0)}개 SKU를 순환 판매로 전환`,
   },
   {
     key: 'environment',
@@ -206,33 +207,44 @@ function formatPercent(value) {
   return `${(Number(value || 0) * 100).toFixed(1)}%`
 }
 
-function materialFitLabel(value) {
-  return buyerStore.materialFitLabel(value)
-}
-
 function materialTypeLabel(item) {
   if (item?.materialType) return item.materialType
-  return materialFitLabel(sale.value?.buyerPrimaryMaterialFit) || '-'
+  return sale.value?.materialType || '-'
 }
 
 function industryGroupLabel() {
   return sale.value?.buyerIndustryGroup || linkedBuyer.value?.industryGroup || '-'
 }
 
-onMounted(() => {
+function outboundStatusLabel(status) {
+  return circularSaleOutboundStatusLabel(status)
+}
+
+function outboundStatusBadgeClass(status) {
+  return circularSaleOutboundStatusBadgeClass(status)
+}
+
+onMounted(async () => {
+  if (!saleId.value) return
+  await circularStockStore.fetchCircularSaleDetail(saleId.value)
+  if (sale.value?.buyerCode) {
+    try {
+      linkedBuyer.value = await circularBuyerApi.detail(sale.value.buyerCode)
+    } catch {
+      linkedBuyer.value = null
+    }
+  }
 })
 
 function factoryProductLabel() {
-  const fromSale = sale.value?.buyerFactoryProduct ?? sale.value?.buyerProductTypes
-  if (Array.isArray(fromSale) && fromSale.length > 0) return fromSale.join(', ')
   if (Array.isArray(linkedBuyer.value?.factoryProduct) && linkedBuyer.value.factoryProduct.length > 0) {
     return linkedBuyer.value.factoryProduct.join(', ')
   }
-  return sale.value?.buyerAddress || linkedBuyer.value?.address || '-'
+  return linkedBuyer.value?.address || '-'
 }
 
 function buyerDescriptionLabel() {
-  return sale.value?.buyerDescription || linkedBuyer.value?.description || '설명 없음'
+  return linkedBuyer.value?.description || '설명 없음'
 }
 
 function hasWeightAdjustment(item) {
@@ -299,12 +311,15 @@ function handleBack() {
                       <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">거래 요약</p>
                       <p class="mt-1 text-base font-black text-gray-900">{{ sale.buyerName }}</p>
                       <p class="mt-1 text-xs font-bold text-gray-500">
-                        소재 분류 {{ materialTypeLabel(sale.items?.[0]) }} · 판매 SKU {{ formatQuantity(sale.totalItems) }}건 · 판매번호 {{ sale.saleId }}
+                        소재 분류 {{ materialTypeLabel(sale.items?.[0]) }} · 판매 SKU {{ formatQuantity(sale.totalSkuCount) }}건 · 판매번호 {{ sale.saleNo }}
                       </p>
                     </div>
-                    <div class="rounded-full bg-[#EAF4F0] px-3 py-1 text-[10px] font-black text-[#255F52]">
-                      {{ materialFitLabel(sale.buyerPrimaryMaterialFit) || '-' }}
-                    </div>
+                    <span
+                      class="inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-black"
+                      :class="outboundStatusBadgeClass(sale.outboundStatus)"
+                    >
+                      {{ outboundStatusLabel(sale.outboundStatus) }}
+                    </span>
                   </div>
 
                   <div class="mt-2 grid gap-3 pb-4 md:grid-cols-2 xl:grid-cols-4">
@@ -314,14 +329,12 @@ function handleBack() {
                       <p class="mt-1 text-sm font-black text-[#0F5C4D]">{{ formatKg(sale.totalActualWeightKg) }}</p>
                     </div>
                     <div class="rounded-md border border-gray-200 bg-gray-50 px-3 py-3">
-                      <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">환산 / 실차감 수량</p>
-                      <p class="mt-1 text-sm font-black text-gray-900">{{ Number(sale.totalEstimatedQuantity || 0).toFixed(2) }}벌</p>
-                      <p class="mt-1 text-sm font-black text-amber-700">{{ formatQuantity(sale.totalDeductedQuantity) }}벌</p>
+                      <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">총 판매 수량</p>
+                      <p class="mt-1 text-sm font-black text-amber-700">{{ formatQuantity(sale.totalSoldQuantity) }}벌</p>
                     </div>
                     <div class="rounded-md border border-gray-200 bg-gray-50 px-3 py-3">
-                      <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">예상 / 확정 거래 금액</p>
-                      <p class="mt-1 text-sm font-black text-gray-900">{{ formatCurrency(sale.totalRequestedAmount) }}</p>
-                      <p class="mt-1 text-sm font-black text-[#0F5C4D]">{{ formatCurrency(sale.totalActualAmount) }}</p>
+                      <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">총 판매 금액</p>
+                      <p class="mt-1 text-sm font-black text-[#0F5C4D]">{{ formatCurrency(sale.totalAmount) }}</p>
                     </div>
                     <div class="rounded-md border border-gray-200 bg-gray-50 px-3 py-3">
                       <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">포함 소재</p>
@@ -340,7 +353,7 @@ function handleBack() {
 
                   <div class="absolute bottom-0 right-0 text-right">
                     <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">총 판매 금액</p>
-                    <p class="mt-1 text-base font-black text-[#0F5C4D]">{{ formatCurrency(sale.totalActualAmount) }}</p>
+                    <p class="mt-1 text-base font-black text-[#0F5C4D]">{{ formatCurrency(sale.totalAmount) }}</p>
                   </div>
                 </div>
 
@@ -359,11 +372,11 @@ function handleBack() {
                   <div class="mt-2 grid grid-cols-2 gap-3">
                     <div>
                       <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">담당자</p>
-                      <p class="mt-1 text-xs font-black text-gray-800">{{ sale.buyerManagerName || linkedBuyer?.managerName || '-' }}</p>
+                      <p class="mt-1 text-xs font-black text-gray-800">{{ linkedBuyer?.managerName || '-' }}</p>
                     </div>
                     <div>
                       <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">연락처</p>
-                      <p class="mt-1 text-xs font-black text-gray-800">{{ sale.buyerPhone || linkedBuyer?.phone || '-' }}</p>
+                      <p class="mt-1 text-xs font-black text-gray-800">{{ linkedBuyer?.phone || '-' }}</p>
                     </div>
                   </div>
 
@@ -384,7 +397,7 @@ function handleBack() {
 
                   <div class="mt-4 border-t border-gray-200 pt-3">
                     <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">판매일시 / 등록자</p>
-                    <p class="mt-1 text-xs font-bold leading-5 text-gray-700">{{ formatDateTime(sale.soldAt) }} / {{ sale.soldBy }}</p>
+                    <p class="mt-1 text-xs font-bold leading-5 text-gray-700">{{ formatDateTime(sale.soldAt) }} / {{ sale.soldByName || '-' }}</p>
                   </div>
                 </aside>
               </div>
@@ -406,30 +419,28 @@ function handleBack() {
                       <th class="px-3 py-3 text-left font-black">현재 재고</th>
                       <th class="px-3 py-3 text-left font-black">요청 kg</th>
                       <th class="px-3 py-3 text-left font-black">환산 수량</th>
-                      <th class="px-3 py-3 text-left font-black">실차감 수량</th>
+                      <th class="px-3 py-3 text-left font-black">판매 수량</th>
                       <th class="px-3 py-3 text-left font-black">확정 반영 kg</th>
                       <th class="px-3 py-3 text-left font-black">kg당 단가</th>
-                      <th class="px-3 py-3 text-left font-black">예상 금액</th>
-                      <th class="px-3 py-3 text-left font-black">확정 거래 금액</th>
+                      <th class="px-3 py-3 text-left font-black">거래 금액</th>
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-gray-100">
-                    <tr v-for="item in sale.items" :key="`${sale.saleId}-${item.draftId || item.skuCode || item.inventoryId}`">
+                    <tr v-for="item in sale.items" :key="`${sale.saleNo}-${item.itemId || item.skuCode || item.inventoryId}`">
                       <td class="px-3 py-3 font-mono font-bold text-gray-500">{{ item.skuCode || item.itemCode || '-' }}</td>
-                      <td class="px-3 py-3 font-black text-gray-900">{{ item.itemName }}</td>
+                      <td class="px-3 py-3 font-black text-gray-900">{{ item.productName }}</td>
                       <td class="px-3 py-3 text-left font-black text-gray-900">{{ materialTypeLabel(item) }}</td>
                       <td class="px-3 py-3 font-bold text-gray-700">{{ formatMaterials(item.materials || []) }}</td>
                       <td class="px-3 py-3 text-left font-black text-gray-600">{{ formatQuantity(item.availableQuantity) }}벌 / {{ formatKg(item.availableWeightKg) }}</td>
                       <td class="px-3 py-3 text-left font-black text-gray-900">{{ formatKg(item.requestedWeightKg) }}</td>
                       <td class="px-3 py-3 text-left font-black text-gray-700">{{ Number(item.estimatedQuantity || 0).toFixed(2) }}벌</td>
-                      <td class="px-3 py-3 text-left font-black text-amber-700">{{ formatQuantity(item.deductedQuantity) }}벌</td>
+                      <td class="px-3 py-3 text-left font-black text-amber-700">{{ formatQuantity(item.soldQuantity) }}벌</td>
                       <td class="px-3 py-3 text-left font-black" :class="hasWeightAdjustment(item) ? 'text-[#0F5C4D]' : 'text-gray-900'">
                         {{ formatKg(item.actualWeightKg) }}
                       </td>
                       <td class="px-3 py-3 text-left font-black text-gray-900">{{ formatCurrency(item.unitPrice) }}</td>
-                      <td class="px-3 py-3 text-left font-black text-gray-900">{{ formatCurrency(item.requestedAmount) }}</td>
                       <td class="px-3 py-3 text-left font-black" :class="hasWeightAdjustment(item) ? 'text-[#0F5C4D]' : 'text-gray-900'">
-                        {{ formatCurrency(item.actualAmount) }}
+                        {{ formatCurrency(item.lineAmount) }}
                       </td>
                     </tr>
                   </tbody>

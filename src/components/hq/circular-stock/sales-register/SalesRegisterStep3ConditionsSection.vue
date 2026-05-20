@@ -229,7 +229,7 @@ const emit = defineEmits([
                       {{ formatKg(item.actualWeightKg) }}
                     </td>
                     <td class="px-5 py-4 text-right text-lg text-[#2F8F6A]" style="font-weight: 500">
-                      {{ formatCurrency(item.actualAmount) }}
+                      {{ formatCurrency(item.lineAmount) }}
                     </td>
                   </tr>
                   <tr class="bg-[#F7FAF8] text-sm font-black text-gray-700">

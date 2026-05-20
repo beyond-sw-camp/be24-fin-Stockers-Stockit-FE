@@ -1,15 +1,18 @@
 ﻿<script setup>
 import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { Info, X } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
+import SalesRegisterLeaveConfirmModal from '@/components/hq/circular-stock/sales-register/SalesRegisterLeaveConfirmModal.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useCircularStockStore } from '@/stores/hq/circularStock/circularStock.js'
+import { useCircularStockSaleStore } from '@/stores/hq/circularStock/circularStockSale.js'
+import { useCircularStockInventoryStore } from '@/stores/hq/circularStock/circularStockInventory.js'
 
 const router = useRouter()
 const route = useRoute()
-const circularStockStore = useCircularStockStore()
+const circularStockStore = useCircularStockSaleStore()
+const inventoryStore = useCircularStockInventoryStore()
 
 const hqMenus = roleMenus.hq
 const circularStockMenus =
@@ -24,7 +27,13 @@ const isInventoryLoading = ref(false)
 const showSkuModal = ref(false)
 const showResetConfirmModal = ref(false)
 const pendingQuery = ref(null)
+const showLeaveConfirmModal = ref(false)
+const pendingNavigationTarget = ref('')
 let toastTimer = null
+const registerRouteNames = new Set([
+  'hq-circular-inventory-sales-register',
+  'hq-circular-inventory-sales-register-workflow',
+])
 
 const draftItems = computed(() => circularStockStore.draftItems)
 const draftRowIds = computed(() => draftItems.value.map((item) => item.draftId))
@@ -41,14 +50,29 @@ const showReturnToWorkflowButton = computed(
 )
 const selectedWarehouseCode = computed(() => String(circularStockStore.selectedWarehouseCode || ''))
 const selectedMaterialGroup = computed(() =>
-  String(circularStockStore.inventoryMaterialGroup || ''),
+  String(inventoryStore.inventoryMaterialGroup || ''),
 )
+const hasActiveDraft = computed(() => circularStockStore.hasActiveDraft)
+
+function isRegisterFlowRoute(routeLike) {
+  return registerRouteNames.has(String(routeLike?.name || ''))
+}
+
+function shouldBlockLeave(to) {
+  return hasActiveDraft.value && !isRegisterFlowRoute(to)
+}
+
+function handleBeforeUnload(event) {
+  if (!hasActiveDraft.value) return
+  event.preventDefault()
+  event.returnValue = ''
+}
 
 function hasRequiredFilters() {
-  const hasWarehouse = Array.isArray(circularStockStore.inventoryWarehouseCodes)
-    ? circularStockStore.inventoryWarehouseCodes.length === 1
+  const hasWarehouse = Array.isArray(inventoryStore.inventoryWarehouseCodes)
+    ? inventoryStore.inventoryWarehouseCodes.length === 1
     : false
-  const hasMaterialGroup = Boolean(String(circularStockStore.inventoryMaterialGroup || '').trim())
+  const hasMaterialGroup = Boolean(String(inventoryStore.inventoryMaterialGroup || '').trim())
   return hasWarehouse && hasMaterialGroup
 }
 
@@ -78,11 +102,11 @@ function isRowSelectionDisabled(row) {
 }
 
 function addItemToDraft(row) {
-  const warehouseCount = Array.isArray(circularStockStore.inventoryWarehouseCodes)
-    ? circularStockStore.inventoryWarehouseCodes.length
+  const warehouseCount = Array.isArray(inventoryStore.inventoryWarehouseCodes)
+    ? inventoryStore.inventoryWarehouseCodes.length
     : 0
   const hasWarehouse = warehouseCount === 1
-  const hasMaterialGroup = Boolean(String(circularStockStore.inventoryMaterialGroup || '').trim())
+  const hasMaterialGroup = Boolean(String(inventoryStore.inventoryMaterialGroup || '').trim())
   if (!hasWarehouse || !hasMaterialGroup) {
     if (!hasWarehouse && !hasMaterialGroup) {
       showToast('창고와 소재 구분을 먼저 선택해 주세요.', 'error')
@@ -145,7 +169,7 @@ async function loadCircularInventoryRows() {
   isInventoryLoading.value = true
   inventoryLoadError.value = ''
   try {
-    await circularStockStore.loadCircularInventoryRows()
+    await inventoryStore.loadCircularInventoryRows()
   } catch (e) {
     inventoryLoadError.value = e.message || '순환 재고를 불러오지 못했습니다.'
   } finally {
@@ -207,11 +231,26 @@ function cancelResetAndApplyQuery() {
   })
 }
 
+function confirmLeaveAndClearDraft() {
+  const target = pendingNavigationTarget.value
+  pendingNavigationTarget.value = ''
+  showLeaveConfirmModal.value = false
+  circularStockStore.clearDraft()
+  if (target) {
+    router.push(target)
+  }
+}
+
+function cancelLeaveAndKeepDraft() {
+  pendingNavigationTarget.value = ''
+  showLeaveConfirmModal.value = false
+}
+
 async function loadCircularInventoryRowsWithOverrides(overrides = {}) {
   isInventoryLoading.value = true
   inventoryLoadError.value = ''
   try {
-    await circularStockStore.loadCircularInventoryRows(overrides)
+    await inventoryStore.loadCircularInventoryRows(overrides)
   } catch (e) {
     inventoryLoadError.value = e.message || '순환 재고를 불러오지 못했습니다.'
   } finally {
@@ -228,11 +267,23 @@ watch(toastMessage, (message) => {
 })
 
 onMounted(() => {
+  window.addEventListener('beforeunload', handleBeforeUnload)
   loadCircularInventoryRows()
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('beforeunload', handleBeforeUnload)
   if (toastTimer) clearTimeout(toastTimer)
+})
+
+onBeforeRouteLeave((to, _from, next) => {
+  if (!shouldBlockLeave(to)) {
+    next()
+    return
+  }
+  pendingNavigationTarget.value = String(to.fullPath || '')
+  showLeaveConfirmModal.value = true
+  next(false)
 })
 </script>
 
@@ -279,13 +330,13 @@ onBeforeUnmount(() => {
         :compact-rows="true"
         :pin-lead-columns="false"
         :server-mode="true"
-        :page="circularStockStore.inventoryPage"
-        :size="circularStockStore.inventorySize"
-        :total-pages="circularStockStore.inventoryTotalPages"
-        :total-elements="circularStockStore.inventoryTotalElements"
-        :inventory-rows="circularStockStore.inventoryRows"
-        :initial-warehouse-codes="circularStockStore.inventoryWarehouseCodes"
-        :initial-material-group="circularStockStore.inventoryMaterialGroup"
+        :page="inventoryStore.inventoryPage"
+        :size="inventoryStore.inventorySize"
+        :total-pages="inventoryStore.inventoryTotalPages"
+        :total-elements="inventoryStore.inventoryTotalElements"
+        :inventory-rows="inventoryStore.inventoryRows"
+        :initial-warehouse-codes="inventoryStore.inventoryWarehouseCodes"
+        :initial-material-group="inventoryStore.inventoryMaterialGroup"
         action-column-label="추가"
         action-column-position="end"
         :selected-row-ids="draftRowIds"
@@ -504,6 +555,12 @@ onBeforeUnmount(() => {
           </div>
         </section>
       </div>
+
+      <SalesRegisterLeaveConfirmModal
+        :open="showLeaveConfirmModal"
+        @cancel="cancelLeaveAndKeepDraft"
+        @confirm="confirmLeaveAndClearDraft"
+      />
 
       <p
         v-if="toastMessage"
