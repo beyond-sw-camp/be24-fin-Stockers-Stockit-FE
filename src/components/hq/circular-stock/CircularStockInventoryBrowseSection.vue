@@ -902,6 +902,7 @@ function emitSizeChange(nextSize) {
         class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-4 py-3"
       >
         <PaginationNav
+          class="circular-pagination-nav"
           :page="page"
           :size="size"
           :total-pages="totalPages"
@@ -920,5 +921,24 @@ function emitSizeChange(nextSize) {
 .compact-rows tbody td {
   padding-top: 0.45rem !important;
   padding-bottom: 0.45rem !important;
+}
+
+:deep(.circular-pagination-nav) {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+}
+
+:deep(.circular-pagination-nav > p) {
+  justify-self: start;
+}
+
+:deep(.circular-pagination-nav > div) {
+  justify-self: center;
+}
+
+:deep(.circular-pagination-nav > label) {
+  justify-self: end;
 }
 </style>

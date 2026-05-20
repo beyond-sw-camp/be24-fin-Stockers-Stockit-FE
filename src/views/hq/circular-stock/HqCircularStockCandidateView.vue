@@ -756,6 +756,7 @@ onBeforeUnmount(() => {
           class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-4 py-3"
         >
           <PaginationNav
+            class="circular-pagination-nav"
             :page="Math.max(0, currentPage - 1)"
             :size="pageSize"
             :total-pages="totalPages"
@@ -848,3 +849,24 @@ onBeforeUnmount(() => {
     </div>
   </AppLayout>
 </template>
+
+<style scoped>
+:deep(.circular-pagination-nav) {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+}
+
+:deep(.circular-pagination-nav > p) {
+  justify-self: start;
+}
+
+:deep(.circular-pagination-nav > div) {
+  justify-self: center;
+}
+
+:deep(.circular-pagination-nav > label) {
+  justify-self: end;
+}
+</style>
