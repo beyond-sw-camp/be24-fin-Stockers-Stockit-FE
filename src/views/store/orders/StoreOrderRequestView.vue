@@ -33,7 +33,6 @@ const requestLines = ref([])
 const memo = ref('')
 const feedbackMessage = ref('')
 const feedbackType = ref('info')
-const loading = ref(false)
 const requestSortBy = ref('priority')
 const skuRows = ref([])
 const facetColors = ref([])
@@ -321,7 +320,6 @@ async function submitRequest() {
 async function loadEditingOrder() {
   if (!isEditMode.value) return
 
-  loading.value = true
   try {
     const res = await getStoreOrderDetail(editingOrderNo.value)
     const order = res?.order
@@ -348,8 +346,6 @@ async function loadEditingOrder() {
     memo.value = order.memo ?? ''
   } catch (error) {
     showFeedback(error?.message ?? '발주 상세를 불러오지 못했습니다.', 'error')
-  } finally {
-    loading.value = false
   }
 }
 
@@ -361,7 +357,6 @@ async function loadSkuRows() {
     return
   }
 
-  loading.value = true
   try {
     const params = {
       page: currentPage.value,
@@ -414,8 +409,6 @@ async function loadSkuRows() {
     totalPages.value = 0
     hasNext.value = false
     hasPrevious.value = false
-  } finally {
-    loading.value = false
   }
 }
 
@@ -431,10 +424,13 @@ async function loadSkuRows() {
  * 8. WATCHERS
  * ==============================================================================
  */
-watch(selectedMainCategory, syncSubCategory)
 watch(
   [selectedMainCategory, selectedSubCategory, selectedStatus, selectedColor, selectedSize, searchTerm],
-  async () => {
+  async ([mainCategory, subCategory], [prevMainCategory]) => {
+    if (mainCategory !== prevMainCategory && !availableSubCategories.value.includes(subCategory)) {
+      selectedSubCategory.value = '전체'
+      return
+    }
     currentPage.value = 0
     await loadSkuRows()
     await loadSkuFacets()

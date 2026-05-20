@@ -41,7 +41,6 @@ const saleRequest = reactive({ items: [] })
 const feedbackMessage = ref('')
 const isSuccessModalOpen = ref(false)
 const completedSale = ref(null)
-const loadingSkus = ref(false)
 const submitState = ref('idle')
 const skuRows = ref([])
 const facetColors = ref([])
@@ -308,7 +307,6 @@ async function loadStoreSkus() {
     return
   }
 
-  loadingSkus.value = true
   feedbackMessage.value = ''
   try {
     const params = {
@@ -339,7 +337,6 @@ async function loadStoreSkus() {
         unitPrice: Number(sku.unitPrice ?? 0),
         stock: Number(sku.actualStock ?? 0),
         safetyStock: sku.safetyStock ?? 0,
-        status: sku.status,
       })
     })
     skuRows.value = rows
@@ -353,8 +350,6 @@ async function loadStoreSkus() {
     totalPages.value = 0
     hasNext.value = false
     hasPrevious.value = false
-  } finally {
-    loadingSkus.value = false
   }
 }
 
