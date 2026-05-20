@@ -358,58 +358,6 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     })
   })
 
-  const salesSummary = computed(() => ({
-    totalSalesCount: sortedSales.value.length,
-    totalWeightKg: roundTo(sortedSales.value.reduce((sum, sale) => sum + (Number(sale.totalActualWeightKg) || 0), 0)),
-    totalAmount: sortedSales.value.reduce((sum, sale) => sum + (Number(sale.totalAmount) || 0), 0),
-    totalBuyerCount: new Set(sortedSales.value.map(sale => sale.buyerCode)).size,
-  }))
-
-  // 판매 목록 기반 요약 통계를 계산한다.
-  const salesAnalytics = computed(() => {
-    const categoryMap = new Map()
-    const buyerMap = new Map()
-    const materialMap = new Map()
-
-    for (const sale of sortedSales.value) {
-      const buyerEntry = buyerMap.get(sale.buyerId) ?? {
-        buyerId: sale.buyerId,
-        buyerName: sale.buyerName,
-        totalWeightKg: 0,
-        totalAmount: 0,
-      }
-      buyerEntry.totalWeightKg += sale.totalActualWeightKg
-      buyerEntry.totalAmount += Number(sale.totalAmount) || 0
-      buyerMap.set(sale.buyerId, buyerEntry)
-
-      for (const item of sale.items) {
-        const categoryKey = `${item.mainCategory}|${item.subCategory}`
-        const categoryEntry = categoryMap.get(categoryKey) ?? {
-          label: `${item.mainCategory} > ${item.subCategory}`,
-          totalWeightKg: 0,
-          totalAmount: 0,
-        }
-        categoryEntry.totalWeightKg += item.actualWeightKg
-        categoryEntry.totalAmount += Number(item.lineAmount) || 0
-        categoryMap.set(categoryKey, categoryEntry)
-
-        for (const material of item.materials) {
-          const materialEntry = materialMap.get(material.name) ?? {
-            materialName: material.name,
-            totalWeightKg: 0,
-          }
-          materialEntry.totalWeightKg += item.actualWeightKg * (material.ratio / 100)
-          materialMap.set(material.name, materialEntry)
-        }
-      }
-    }
-
-    return {
-      categoryBreakdown: [...categoryMap.values()].sort((a, b) => b.totalWeightKg - a.totalWeightKg),
-      buyerBreakdown: [...buyerMap.values()].sort((a, b) => b.totalAmount - a.totalAmount),
-      materialBreakdown: [...materialMap.values()].sort((a, b) => b.totalWeightKg - a.totalWeightKg),
-    }
-  })
   // 판매 목록 API row를 FE 목록 모델로 정규화한다.
   function mapSaleListFromApi(row = {}) {
     return {
@@ -938,8 +886,6 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     selectedBuyer,
     matchedBuyerCandidates,
     draftSummary,
-    salesSummary,
-    salesAnalytics,
     recommendations,
     isRecommendationLoading,
     recommendationError,

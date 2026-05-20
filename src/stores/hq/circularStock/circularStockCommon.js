@@ -42,54 +42,6 @@ export function parseWeightLabel(weight) {
   return Number(String(weight ?? '').replace('kg', '')) || 0
 }
 
-const NATURAL_SINGLE_MATERIALS = ['면', '울', '캐시미어', '실크', '리넨']
-const SYNTHETIC_MATERIALS = ['폴리에스터', '아크릴', '나일론', '스판덱스']
-
-// 소재명을 동의어 기준으로 정규화해 분류/추천 로직 일관성을 유지한다.
-export function normalizeMaterialName(name) {
-  const normalized = String(name ?? '').trim().toLowerCase()
-  const aliasMap = {
-    코튼: '면',
-    cotton: '면',
-    폴리: '폴리에스터',
-    polyester: '폴리에스터',
-    acrylic: '아크릴',
-    polyamide: '나일론',
-    nylon: '나일론',
-    elastane: '스판덱스',
-    스판: '스판덱스',
-    spandex: '스판덱스',
-    wool: '울',
-    cashmere: '캐시미어',
-    silk: '실크',
-    linen: '리넨',
-  }
-  return aliasMap[normalized] ?? String(name ?? '').trim()
-}
-
-// 소재 구성비를 기준으로 소재 구분(천연/합성/혼방)을 판정한다.
-export function deriveMaterialType(materials) {
-  if (!Array.isArray(materials) || materials.length === 0) return '혼방'
-  const normalized = materials.map(material => ({
-    ...material,
-    name: normalizeMaterialName(material.name),
-  }))
-  if (normalized.length >= 2) return '혼방'
-
-  const [single] = normalized
-  if (Number(single.ratio) !== 100) return '혼방'
-  if (NATURAL_SINGLE_MATERIALS.includes(single.name)) return '천연 단일 섬유'
-  if (SYNTHETIC_MATERIALS.includes(single.name)) return '합성 섬유'
-  return '혼방'
-}
-
-// 소재 구분값을 거래처 적합도 코드로 변환한다.
-export function buyerMaterialFitValue(materialType) {
-  if (materialType === '천연 단일 섬유') return 'natural-single'
-  if (materialType === '합성 섬유') return 'synthetic'
-  return 'blended'
-}
-
 // 출고 상태 코드를 상세/내역 공통 한글 라벨로 변환한다.
 export function circularSaleOutboundStatusLabel(status) {
   if (!status) return '-'

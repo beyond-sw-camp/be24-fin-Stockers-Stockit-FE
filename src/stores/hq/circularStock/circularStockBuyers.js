@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 순환재고 거래처 store (ADR-021).
  * BE 단일 출처 — localStorage / 시드 / persist 없음. 마운트 시 자동 fetch.
  *
@@ -57,7 +57,7 @@ function fromApi(v) {
   }
 }
 
-// 동일 거래처가 이미 있으면 갱신하고 없으면 앞에 추가한다.
+// 동일 거래처가 있으면 갱신하고, 없으면 목록 앞에 추가한다.
 function upsertBuyer(list, buyer) {
   const idx = list.findIndex((b) => b.id === buyer.id)
   if (idx === -1) return [buyer, ...list]
@@ -66,7 +66,7 @@ function upsertBuyer(list, buyer) {
   return next
 }
 
-// 등록/수정 모달의 초기 폼 값을 생성한다.
+// 등록/수정 모달에서 사용하는 초기 폼 값을 생성한다.
 function createEmptyBuyerForm() {
   return {
     companyName: '',
@@ -81,7 +81,7 @@ function createEmptyBuyerForm() {
   }
 }
 
-// 생산품 입력을 배열로 정규화해 API 페이로드를 일관화한다.
+// 생산품 입력값을 배열로 정규화해 API payload 형식을 통일한다.
 function normalizeFactoryProduct(factoryProduct) {
   if (Array.isArray(factoryProduct)) {
     return [
@@ -130,8 +130,8 @@ function normalizeBuyerPayload(payload) {
   }
 }
 
-// FE 1차 검증 — BE 가 4001(REQUEST_ERROR) 로도 막지만 즉시 피드백 용도. 거래처 코드는 BE 자동 부여라 검증 X.
-// FE 선검증으로 즉시 입력 오류를 안내해 불필요한 API 호출을 줄인다.
+// FE 1차 검증: BE에서도 검증하지만, 즉시 피드백을 위해 선검증한다.
+// 거래처 코드는 BE 자동 부여라 FE에서 별도 검증하지 않는다.
 function validateBuyerPayload(payload) {
   const errors = {}
 
@@ -148,7 +148,7 @@ function validateBuyerPayload(payload) {
   return errors
 }
 
-// 순환재고 거래처 도메인 상태/조회/CRUD를 관리하는 Store다.
+// 순환재고 거래처 상태/조회/CRUD를 관리하는 Store다.
 export const useCircularStockBuyerStore = defineStore('circularStockBuyers', () => {
   // --- state ---
   const buyers = ref([])
@@ -171,12 +171,12 @@ export const useCircularStockBuyerStore = defineStore('circularStockBuyers', () 
     ),
   )
 
-  // 단일 거래처를 id(code)로 조회한다.
+  // 단일 거래처를 id(code) 기준으로 조회한다.
   function getBuyerById(id) {
     return buyers.value.find((buyer) => buyer.id === id) ?? null
   }
 
-  // 키워드/소재적합도 조건으로 거래처 목록을 필터링한다.
+  // 키워드/소재 적합도 조건으로 거래처 목록을 필터링한다.
   function filteredBuyers(keyword = '', options = {}) {
     const normalized = keyword.trim().toLowerCase()
     const materialFit = options.primaryMaterialFit ?? ''
@@ -209,26 +209,11 @@ export const useCircularStockBuyerStore = defineStore('circularStockBuyers', () 
       const counts = await circularBuyerApi.stats()
       materialFitCounts.value = counts ?? {}
     } catch {
-      // stats 실패는 목록 동작에 영향 없으므로 무시
+      // stats 실패는 목록 동작에 영향이 없어 무시한다.
     }
   }
 
-  // 거래처 전체 목록을 조회해 store에 반영한다.
-  async function fetchAll(opts = {}) {
-    loading.value = true
-    error.value = null
-    try {
-      const list = await circularBuyerApi.list(opts)
-      buyers.value = (list ?? []).map(fromApi)
-    } catch (e) {
-      error.value = e?.message ?? '거래처 목록을 불러오지 못했습니다.'
-      throw e
-    } finally {
-      loading.value = false
-    }
-  }
-
-  // 거래처 페이지 목록을 조회해 페이징 상태와 함께 반영한다.
+  // 거래처 페이지 목록을 조회하고 페이징 상태를 동기화한다.
   async function fetchPage(opts = {}) {
     loading.value = true
     error.value = null
@@ -313,7 +298,7 @@ export const useCircularStockBuyerStore = defineStore('circularStockBuyers', () 
     }
   }
 
-  // code 기반으로 거래처를 보장 조회(캐시 우선, 실패 시 상세/검색 fallback)한다.
+  // code 기준으로 거래처를 보장 조회한다(캐시 우선, 실패 시 상세/검색 fallback).
   async function ensureBuyerByCode(code) {
     const normalized = String(code ?? '').trim()
     if (!normalized) return null
@@ -363,7 +348,6 @@ export const useCircularStockBuyerStore = defineStore('circularStockBuyers', () 
     partnerTypeLabel,
     getBuyerById,
     filteredBuyers,
-    fetchAll,
     fetchPage,
     fetchStats,
     createBuyer,
