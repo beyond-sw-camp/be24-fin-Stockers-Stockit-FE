@@ -293,7 +293,7 @@ onMounted(() => {
       <section class="min-w-0 border border-gray-200 bg-white shadow-sm">
         <div v-if="loadError" class="bg-red-50 px-4 py-2 text-xs font-bold text-red-700">{{ loadError }}</div>
         <div class="overflow-x-auto">
-          <table v-if="currentMode === 'master'" class="w-full min-w-[960px] table-fixed border-collapse text-left text-sm">
+          <table v-if="currentMode === 'master'" class="w-full min-w-[960px] table-auto border-collapse text-left text-sm">
             <thead class="bg-gray-50 text-[11px] uppercase tracking-[0.12em] text-gray-500">
               <tr>
                 <th class="px-3 py-3 font-black">품목 코드</th>
@@ -323,7 +323,7 @@ onMounted(() => {
             </tbody>
           </table>
 
-          <table v-else class="w-full min-w-[1040px] table-fixed border-collapse text-left text-sm">
+          <table v-else class="w-full min-w-[1040px] table-auto border-collapse text-left text-sm">
             <thead class="bg-gray-50 text-[11px] uppercase tracking-[0.12em] text-gray-500">
               <tr>
                 <th class="px-3 py-3 font-black">SKU 코드</th>
@@ -353,14 +353,14 @@ onMounted(() => {
         </div>
 
         <PaginationNav
-          :current-page="currentPage"
+          :page="currentPage"
+          :size="pageSize"
           :total-pages="totalPages"
           :total-elements="totalElements"
-          :page-size="pageSize"
           :has-next="hasNext"
           :has-previous="hasPrevious"
-          @update:current-page="(v) => (currentPage = v)"
-          @update:page-size="(v) => (pageSize = v)"
+          @update:page="(v) => (currentPage = v)"
+          @update:size="(v) => (pageSize = v)"
         />
       </section>
     </div>
