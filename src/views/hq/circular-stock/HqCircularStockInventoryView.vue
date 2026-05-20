@@ -52,7 +52,7 @@ function handleQueryChange(query) {
 }
 
 onMounted(() => {
-  loadCircularInventory()
+  loadCircularInventory({ page: 0 })
 })
 </script>
 
