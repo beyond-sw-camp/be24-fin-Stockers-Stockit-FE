@@ -27,20 +27,24 @@ const loadCircularInventory = async (overrides = {}) => {
 }
 
 function handlePageChange(page) {
+  // PaginationNav 는 0-based 페이지 번호를 emit 하므로 그대로 서버 조회에 전달한다.
   loadCircularInventory({ page })
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 function handleSizeChange(size) {
+  // 페이지 크기 변경 시 범위 이탈/빈 페이지 방지를 위해 1페이지(page=0)부터 다시 조회한다.
   loadCircularInventory({ page: 0, size })
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 function handleSortChange({ sort }) {
+  // 정렬 변경 시 UX 일관성을 위해 항상 1페이지로 리셋한다.
   loadCircularInventory({ page: 0, sort })
 }
 
 function handleQueryChange(query) {
+  // 필터/검색 조건 변경 시에도 항상 1페이지부터 재조회한다.
   loadCircularInventory({
     page: 0,
     keyword: query.keyword,
@@ -52,7 +56,8 @@ function handleQueryChange(query) {
 }
 
 onMounted(() => {
-  loadCircularInventory()
+  // 요구사항: 순환재고 조회 화면 진입 시 항상 1페이지(0-based page=0)에서 시작한다.
+  loadCircularInventory({ page: 0 })
 })
 </script>
 

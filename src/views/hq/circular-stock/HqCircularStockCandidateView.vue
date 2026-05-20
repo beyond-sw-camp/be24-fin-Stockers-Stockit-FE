@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppLayout from '@/components/common/AppLayout.vue'
+import PaginationNav from '@/components/common/PaginationNav.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { convertCircularCandidates, getCircularCandidates, refreshCircularCandidates } from '@/api/hq/inventory.js'
@@ -191,14 +192,6 @@ const rangeEnd = computed(() => {
   return Math.min(rangeStart.value + paginatedSkus.value.length - 1, totalElements.value)
 })
 
-const pageNumbers = computed(() => {
-  if (totalPages.value <= 0) return []
-  const start = Math.max(1, currentPage.value - 2)
-  const end = Math.min(totalPages.value, start + 4)
-  const adjustedStart = Math.max(1, end - 4)
-  return Array.from({ length: end - adjustedStart + 1 }, (_, idx) => adjustedStart + idx)
-})
-
 const selectedRowsSnapshot = ref([])
 const mergeSelectedRowsSnapshot = (rows) => {
   const map = new Map(selectedRowsSnapshot.value.map(row => [row.id, row]))
@@ -288,6 +281,7 @@ const changePageSize = (value) => {
   const next = Number(value)
   if (!PAGE_SIZE_OPTIONS.includes(next)) return
   pageSize.value = next
+  // 페이지당 수가 바뀌면 항상 1페이지부터 다시 조회한다.
   requestCandidates({ resetPage: true })
 }
 
@@ -339,6 +333,7 @@ const loadCandidates = async () => {
 }
 
 const requestCandidates = async ({ resetPage = false } = {}) => {
+  // 후보 조회 화면은 내부적으로 1-based 페이지 상태를 사용하므로 리셋 목표는 page=1이다.
   if (resetPage) currentPage.value = 1
   await loadCandidates()
 }
@@ -451,9 +446,11 @@ const toggleAllCurrentPage = () => {
   syncSelectedRowsSnapshot()
 }
 
-const goToPage = (page) => {
-  if (page < 1 || page > totalPages.value) return
-  currentPage.value = page
+const changePage = (nextPageZeroBased) => {
+  // PaginationNav(0-based) 값을 화면 내부 상태(1-based)로 변환한다.
+  const total = Math.max(1, Number(totalPages.value || 1))
+  const next = Math.min(Math.max(0, Number(nextPageZeroBased || 0)), total - 1)
+  currentPage.value = next + 1
   requestCandidates()
 }
 
@@ -761,47 +758,18 @@ onBeforeUnmount(() => {
           v-if="hasRefreshed"
           class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-4 py-3"
         >
-          <div class="flex items-center gap-2">
-            <span class="text-xs font-bold text-gray-600">페이지 크기</span>
-            <select
-              :value="pageSize"
-              class="h-8 border border-gray-300 bg-white px-2 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
-              @change="changePageSize($event.target.value)"
-            >
-              <option v-for="sizeOption in PAGE_SIZE_OPTIONS" :key="sizeOption" :value="sizeOption">
-                {{ sizeOption }}
-              </option>
-            </select>
-          </div>
-
-          <div class="flex items-center gap-1">
-            <button
-              type="button"
-              :disabled="currentPage === 1"
-              class="h-8 border border-gray-300 px-3 text-xs font-bold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
-              @click="goToPage(currentPage - 1)"
-            >
-              이전
-            </button>
-            <button
-              v-for="page in pageNumbers"
-              :key="page"
-              type="button"
-              class="h-8 min-w-8 border px-2 text-xs font-bold"
-              :class="page === currentPage ? 'border-[#004D3C] bg-[#004D3C] text-white' : 'border-gray-300 text-gray-700'"
-              @click="goToPage(page)"
-            >
-              {{ page }}
-            </button>
-            <button
-              type="button"
-              :disabled="currentPage === totalPages"
-              class="h-8 border border-gray-300 px-3 text-xs font-bold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
-              @click="goToPage(currentPage + 1)"
-            >
-              다음
-            </button>
-          </div>
+          <PaginationNav
+            class="circular-pagination-nav"
+            :page="Math.max(0, currentPage - 1)"
+            :size="pageSize"
+            :total-pages="totalPages"
+            :total-elements="totalElements"
+            :has-previous="currentPage > 1"
+            :has-next="currentPage < totalPages"
+            :size-options="PAGE_SIZE_OPTIONS"
+            @update:page="changePage"
+            @update:size="changePageSize"
+          />
         </div>
       </section>
     </div>
@@ -884,3 +852,25 @@ onBeforeUnmount(() => {
     </div>
   </AppLayout>
 </template>
+
+<style scoped>
+:deep(.circular-pagination-nav) {
+  /* 순환재고 전환(후보) 화면 전용 페이지네이션 배치 */
+  display: grid;
+  width: 100%;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+}
+
+:deep(.circular-pagination-nav > p) {
+  justify-self: start;
+}
+
+:deep(.circular-pagination-nav > div) {
+  justify-self: center;
+}
+
+:deep(.circular-pagination-nav > label) {
+  justify-self: end;
+}
+</style>

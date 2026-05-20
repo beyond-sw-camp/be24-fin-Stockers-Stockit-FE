@@ -1,9 +1,10 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import AppLayout from '@/components/common/AppLayout.vue'
 import PaginationNav from '@/components/common/PaginationNav.vue'
 import InventoryModeToggle from '@/components/common/InventoryModeToggle.vue'
 import { roleMenus } from '@/config/roleMenus.js'
+import { STORE_CATEGORY_MAP } from '@/constants/storeCategoryMap.js'
 import { useAuthStore } from '@/stores/auth.js'
 import {
   getStoreInventories,
@@ -11,18 +12,11 @@ import {
   getStoreInventorySkuFacets,
 } from '@/api/store/inventory.js'
 import { extractErrorMessage } from '@/api/axios.js'
+import SkuFacetChips from '@/components/store/SkuFacetChips.vue'
 
 const auth = useAuthStore()
 const storeTopMenus = roleMenus.store
 const activeTopMenu = computed(() => '매장 재고 조회')
-
-// BE SQL 매칭 호환 — 한글 이름 그대로 사용 (Category.name 매칭).
-const categoryMap = {
-  상의: ['반팔', '긴팔', '셔츠', '니트', '후드티'],
-  바지: ['청바지', '반바지', '긴바지', '츄리닝'],
-  치마: ['미니스커트', '롱스커트'],
-  아우터: ['패딩', '후드집업', '자켓', '가디건'],
-}
 
 const selectedParentCategory = ref('')
 const selectedChildCategory = ref('')
@@ -58,8 +52,12 @@ const totalPages = ref(0)
 const hasNext = ref(false)
 const hasPrevious = ref(false)
 
+// 컬럼 폭 비율(%) 설정: 값만 바꾸면 마스터/SKU 표의 컬럼 간 간격을 손쉽게 조정할 수 있다.
+const MASTER_COLUMN_RATIOS = [16, 20, 22, 10, 10, 10, 12] // 품목코드, 카테고리, 품목명, 실재고, 가용재고, 안전재고, 상태
+const SKU_COLUMN_RATIOS = [18, 24, 10, 10, 10, 10, 10, 8] // SKU코드, 품목명, 색상, 사이즈, 실재고, 가용재고, 안전재고, 상태
+
 const childCategoryOptions = computed(() =>
-  selectedParentCategory.value ? (categoryMap[selectedParentCategory.value] ?? []) : [],
+  selectedParentCategory.value ? (STORE_CATEGORY_MAP[selectedParentCategory.value] ?? []) : [],
 )
 
 const statusClass = (status) => ({
@@ -134,10 +132,7 @@ async function fetchSku() {
   isLoading.value = true
   loadError.value = ''
   try {
-    const params = {
-      page: currentPage.value,
-      size: pageSize.value,
-    }
+    const params = { page: currentPage.value, size: pageSize.value }
     const category = selectedChildCategory.value || selectedParentCategory.value
     if (category) params.category = category
     if (selectedStatus.value) params.status = selectedStatus.value
@@ -250,7 +245,7 @@ onMounted(() => {
               @change="handleParentCategoryChange"
             >
               <option value="">전체</option>
-              <option v-for="c in Object.keys(categoryMap)" :key="c" :value="c">{{ c }}</option>
+              <option v-for="c in Object.keys(STORE_CATEGORY_MAP)" :key="c" :value="c">{{ c }}</option>
             </select>
           </label>
 
@@ -268,10 +263,7 @@ onMounted(() => {
 
           <label class="flex flex-col gap-1.5">
             <span class="text-[11px] font-black uppercase tracking-wider text-gray-400">상태</span>
-            <select
-              v-model="selectedStatus"
-              class="h-9 border border-gray-300 bg-white px-3 text-sm font-bold text-gray-900 outline-none focus:border-[#004D3C]"
-            >
+            <select v-model="selectedStatus" class="h-9 border border-gray-300 bg-white px-3 text-sm font-bold">
               <option value="">전체</option>
               <option>정상</option>
               <option>부족</option>
@@ -281,14 +273,7 @@ onMounted(() => {
 
           <label class="flex flex-col gap-1.5">
             <span class="text-[11px] font-black uppercase tracking-wider text-gray-400">검색</span>
-            <input
-              :value="searchTerm"
-              type="search"
-              class="h-9 border border-gray-300 bg-white px-3 text-sm font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#004D3C]"
-              placeholder="품목 코드, 품목명, SKU 코드"
-              @input="searchTerm = $event.target.value"
-              @compositionupdate="searchTerm = $event.target.value"
-            />
+            <input :value="searchTerm" type="search" class="h-9 border border-gray-300 bg-white px-3 text-sm font-bold" placeholder="품목 코드, 품목명, SKU 코드" @input="searchTerm = $event.target.value" />
           </label>
 
           <div class="flex flex-col gap-1.5">
@@ -305,43 +290,7 @@ onMounted(() => {
         <div class="mt-4 flex flex-wrap items-center gap-3 border-t border-gray-100 pt-3">
           <span class="text-[11px] font-black uppercase tracking-wider text-gray-400">보기</span>
           <InventoryModeToggle v-model="currentMode" />
-          <div
-            v-if="currentMode === 'sku' && (facetColors.length > 0 || facetSizes.length > 0)"
-            class="flex flex-wrap items-center gap-3"
-          >
-            <div v-if="facetColors.length > 0" class="flex flex-wrap items-center gap-1">
-              <span class="text-[11px] font-black uppercase tracking-wider text-gray-400">색상</span>
-              <button
-                v-for="c in facetColors"
-                :key="`color-${c}`"
-                type="button"
-                class="border px-2 py-0.5 text-[11px] font-bold transition-colors"
-                :class="selectedColor === c
-                  ? 'border-[#004D3C] bg-[#004D3C] text-white'
-                  : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'"
-                @click="selectedColor = (selectedColor === c ? '' : c)"
-              >{{ c }}</button>
-            </div>
-            <div v-if="facetSizes.length > 0" class="flex flex-wrap items-center gap-1">
-              <span class="text-[11px] font-black uppercase tracking-wider text-gray-400">사이즈</span>
-              <button
-                v-for="s in facetSizes"
-                :key="`size-${s}`"
-                type="button"
-                class="border px-2 py-0.5 text-[11px] font-bold transition-colors"
-                :class="selectedSize === s
-                  ? 'border-[#004D3C] bg-[#004D3C] text-white'
-                  : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'"
-                @click="selectedSize = (selectedSize === s ? '' : s)"
-              >{{ s }}</button>
-            </div>
-            <button
-              v-if="selectedColor || selectedSize"
-              type="button"
-              class="ml-auto text-[11px] font-bold text-gray-500 underline hover:text-gray-700"
-              @click="selectedColor = ''; selectedSize = ''"
-            >색상/사이즈 초기화</button>
-          </div>
+          <SkuFacetChips v-if="currentMode === 'sku'" :colors="facetColors" :sizes="facetSizes" v-model:selected-color="selectedColor" v-model:selected-size="selectedSize" />
         </div>
       </section>
 
@@ -350,18 +299,12 @@ onMounted(() => {
         <div class="overflow-x-auto">
           <table v-if="currentMode === 'master'" class="w-full min-w-[960px] table-fixed border-collapse text-left text-sm">
             <colgroup>
-              <col class="w-[14%]" />  <!-- 품목코드 -->
-              <col class="w-[16%]" />  <!-- 카테고리 -->
-              <col />                  <!-- 품목명 -->
-              <col class="w-[10%]" />  <!-- 실재고 -->
-              <col class="w-[10%]" />  <!-- 가용재고 -->
-              <col class="w-[10%]" />  <!-- 안전재고 -->
-              <col class="w-[10%]" />  <!-- 상태 -->
+              <col v-for="(ratio, idx) in MASTER_COLUMN_RATIOS" :key="`master-col-${idx}`" :style="{ width: `${ratio}%` }">
             </colgroup>
             <thead class="bg-gray-50 text-[11px] uppercase tracking-[0.12em] text-gray-500">
               <tr>
-                <th class="px-3 py-3 font-black">품목 코드</th>
-                <th class="px-3 py-3 font-black">카테고리</th>
+                <th class="pl-3 pr-1 py-3 font-black">품목 코드</th>
+                <th class="pl-1 pr-4 py-3 font-black">카테고리</th>
                 <th class="px-3 py-3 font-black">품목명</th>
                 <th class="px-3 py-3 text-right font-black">실재고</th>
                 <th class="px-3 py-3 text-right font-black">가용재고</th>
@@ -371,17 +314,13 @@ onMounted(() => {
             </thead>
             <tbody class="divide-y divide-gray-100">
               <tr v-for="item in inventoryData" :key="item.itemCode" class="hover:bg-[#EBF5F5]/60">
-                <td class="truncate px-3 py-3 font-mono text-gray-400">{{ item.itemCode }}</td>
-                <td class="truncate px-3 py-3 font-bold text-gray-800">{{ item.parentCategory }} &gt; {{ item.childCategory }}</td>
-                <td class="truncate px-3 py-3 font-bold text-gray-900">{{ item.itemName }}</td>
-                <td class="px-3 py-3 text-right font-black tabular-nums text-gray-900">{{ item.actualStock.toLocaleString() }}</td>
-                <td class="px-3 py-3 text-right font-black tabular-nums text-gray-900">{{ item.availableStock.toLocaleString() }}</td>
-                <td class="px-3 py-3 text-right font-bold tabular-nums text-gray-500">{{ item.safetyStock.toLocaleString() }}</td>
-                <td class="px-3 py-3 text-center">
-                  <span class="inline-flex min-w-12 justify-center px-2 py-1 text-xs font-black" :class="statusClass(item.status)">
-                    {{ item.status }}
-                  </span>
-                </td>
+                <td class="pl-3 pr-1 py-3 font-mono text-gray-500">{{ item.itemCode }}</td>
+                <td class="pl-1 pr-6 py-3 font-bold">{{ item.parentCategory }} > {{ item.childCategory }}</td>
+                <td class="px-3 py-3 font-bold">{{ item.itemName }}</td>
+                <td class="px-3 py-3 text-right font-black">{{ item.actualStock.toLocaleString() }}</td>
+                <td class="px-3 py-3 text-right font-black">{{ item.availableStock.toLocaleString() }}</td>
+                <td class="px-3 py-3 text-right font-bold">{{ item.safetyStock.toLocaleString() }}</td>
+                <td class="px-3 py-3 text-center"><span class="inline-flex min-w-12 justify-center px-2 py-1 text-xs font-black" :class="statusClass(item.status)">{{ item.status }}</span></td>
               </tr>
               <tr v-if="inventoryData.length === 0">
                 <td colspan="7" class="px-3 py-14 text-center text-sm font-bold text-gray-400">
@@ -393,14 +332,7 @@ onMounted(() => {
 
           <table v-else class="w-full min-w-[1040px] table-fixed border-collapse text-left text-sm">
             <colgroup>
-              <col class="w-[20%]" />  <!-- SKU 코드 -->
-              <col />                  <!-- 품목명 -->
-              <col class="w-[8%]" />   <!-- 색상 -->
-              <col class="w-[8%]" />   <!-- 사이즈 -->
-              <col class="w-[10%]" />  <!-- 실재고 -->
-              <col class="w-[10%]" />  <!-- 가용재고 -->
-              <col class="w-[10%]" />  <!-- 안전재고 -->
-              <col class="w-[10%]" />  <!-- 상태 -->
+              <col v-for="(ratio, idx) in SKU_COLUMN_RATIOS" :key="`sku-col-${idx}`" :style="{ width: `${ratio}%` }">
             </colgroup>
             <thead class="bg-gray-50 text-[11px] uppercase tracking-[0.12em] text-gray-500">
               <tr>
@@ -416,36 +348,29 @@ onMounted(() => {
             </thead>
             <tbody class="divide-y divide-gray-100">
               <tr v-for="row in skuData" :key="row.skuCode" class="hover:bg-[#EBF5F5]/60">
-                <td class="truncate px-3 py-3 font-mono text-gray-400">{{ row.skuCode }}</td>
-                <td class="truncate px-3 py-3 font-bold text-gray-900">{{ row.itemName }}</td>
-                <td class="px-3 py-3 font-bold text-gray-800">{{ row.color }}</td>
-                <td class="px-3 py-3 font-bold text-gray-800">{{ row.size }}</td>
-                <td class="px-3 py-3 text-right font-black tabular-nums text-gray-900">{{ row.actualStock.toLocaleString() }}</td>
-                <td class="px-3 py-3 text-right font-black tabular-nums text-gray-900">{{ row.availableStock.toLocaleString() }}</td>
-                <td class="px-3 py-3 text-right font-bold tabular-nums text-gray-500">{{ row.safetyStock.toLocaleString() }}</td>
-                <td class="px-3 py-3 text-center">
-                  <span class="inline-flex min-w-12 justify-center px-2 py-1 text-xs font-black" :class="statusClass(row.status)">
-                    {{ row.status }}
-                  </span>
-                </td>
+                <td class="px-3 py-3 font-mono text-gray-500">{{ row.skuCode }}</td>
+                <td class="px-3 py-3 font-bold">{{ row.itemName }}</td>
+                <td class="px-3 py-3">{{ row.color }}</td>
+                <td class="px-3 py-3">{{ row.size }}</td>
+                <td class="px-3 py-3 text-right font-black">{{ row.actualStock.toLocaleString() }}</td>
+                <td class="px-3 py-3 text-right font-black">{{ row.availableStock.toLocaleString() }}</td>
+                <td class="px-3 py-3 text-right font-bold">{{ row.safetyStock.toLocaleString() }}</td>
+                <td class="px-3 py-3 text-center"><span class="inline-flex min-w-12 justify-center px-2 py-1 text-xs font-black" :class="statusClass(row.status)">{{ row.status }}</span></td>
               </tr>
-              <tr v-if="skuData.length === 0">
-                <td colspan="8" class="px-3 py-14 text-center text-sm font-bold text-gray-400">
-                  {{ isLoading ? 'SKU 재고를 불러오는 중입니다.' : '조건에 맞는 SKU 재고가 없습니다.' }}
-                </td>
-              </tr>
+              <tr v-if="skuData.length === 0"><td colspan="8" class="px-3 py-14 text-center text-sm font-bold text-gray-400">{{ isLoading ? 'SKU 재고를 불러오는 중입니다.' : '조건에 맞는 SKU 재고가 없습니다.' }}</td></tr>
             </tbody>
           </table>
         </div>
+
         <PaginationNav
           :page="currentPage"
           :size="pageSize"
           :total-pages="totalPages"
           :total-elements="totalElements"
-          :has-previous="hasPrevious"
           :has-next="hasNext"
-          @update:page="currentPage = $event"
-          @update:size="pageSize = $event"
+          :has-previous="hasPrevious"
+          @update:page="(v) => (currentPage = v)"
+          @update:size="(v) => (pageSize = v)"
         />
       </section>
     </div>
