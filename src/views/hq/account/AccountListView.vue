@@ -556,39 +556,18 @@ async function confirmWithdraw() {
               </p>
             </div>
 
-            <!-- 탈퇴 처리 (APPROVED 상태에서만) -->
+            <!-- 탈퇴 처리 (APPROVED 상태에서만) — 현재 점검 중으로 비활성화 -->
             <div v-if="selected.status === 'APPROVED'">
-              <p class="mb-2 text-[11px] font-bold uppercase tracking-widest text-red-500">계정 탈퇴 처리</p>
-              <p class="mb-3 text-[13px] text-gray-500">
-                탈퇴 처리 시 해당 사용자의 모든 세션이 즉시 무효화됩니다. 추후 다시 로그인할 수 없습니다.
+              <p class="mb-2 text-[11px] font-bold uppercase tracking-widest text-gray-400">계정 탈퇴 처리</p>
+              <p class="mb-3 text-[13px] text-gray-400">
+                현재 계정 탈퇴 처리 기능은 점검 중입니다.
               </p>
 
-              <div v-if="withdrawConfirm" class="border border-red-200 bg-red-50 p-4">
-                <p class="mb-3 text-[13px] font-medium text-red-700">
-                  정말 탈퇴 처리하시겠습니까? <strong>{{ selected.name }}</strong> 계정이 비활성화됩니다.
-                </p>
-                <div class="flex gap-2">
-                  <button
-                    type="button"
-                    class="h-9 border border-gray-300 bg-white px-4 text-[13px] font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    :disabled="withdrawing"
-                    @click="withdrawConfirm = false"
-                  >취소</button>
-                  <button
-                    type="button"
-                    class="h-9 bg-red-600 px-4 text-[13px] font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                    :disabled="withdrawing"
-                    @click="confirmWithdraw"
-                  >
-                    {{ withdrawing ? '처리 중...' : '탈퇴 확정' }}
-                  </button>
-                </div>
-              </div>
               <button
-                v-else
                 type="button"
-                class="inline-flex h-9 items-center gap-2 border border-red-300 bg-white px-4 text-[13px] font-medium text-red-600 transition hover:bg-red-50"
-                @click="withdrawConfirm = true"
+                disabled
+                class="inline-flex h-9 items-center gap-2 border border-gray-200 bg-gray-100 px-4 text-[13px] font-medium text-gray-400 cursor-not-allowed"
+                title="계정 탈퇴 처리 기능 점검 중"
               >
                 <LogOut :size="14" />
                 계정 탈퇴 처리
