@@ -8,6 +8,7 @@ import SalesRegisterStep2BuyerSection from '@/components/hq/circular-stock/sales
 import SalesRegisterStep3ConditionsSection from '@/components/hq/circular-stock/sales-register/SalesRegisterStep3ConditionsSection.vue'
 import SalesRegisterStepFooter from '@/components/hq/circular-stock/sales-register/SalesRegisterStepFooter.vue'
 import SalesRegisterFinalReviewModal from '@/components/hq/circular-stock/sales-register/SalesRegisterFinalReviewModal.vue'
+import SalesRegisterLeaveConfirmModal from '@/components/hq/circular-stock/sales-register/SalesRegisterLeaveConfirmModal.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
 import { useCircularStockSaleStore } from '@/stores/hq/circularStock/circularStockSale.js'
@@ -1009,35 +1010,11 @@ onBeforeRouteLeave((to, _from, next) => {
         @submit="submitSale"
       />
 
-      <div
-        v-if="showLeaveConfirmModal"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4"
-      >
-        <section class="w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-2xl">
-          <p class="text-base font-black text-gray-900" style="margin-bottom: 6px">
-            판매 등록 화면 이탈
-          </p>
-          <p class="mt-2 text-sm font-bold text-gray-600" style="margin-bottom: 15px">
-            화면을 나가면 판매 등록 진행 중인 내용이 사라집니다.
-          </p>
-          <div class="mt-4 flex justify-end gap-2">
-            <button
-              type="button"
-              class="h-9 rounded-lg border border-gray-200 bg-white px-3 text-xs font-black text-gray-700 hover:bg-gray-50"
-              @click="cancelLeaveAndKeepDraft"
-            >
-              취소
-            </button>
-            <button
-              type="button"
-              class="h-9 rounded-lg border border-rose-700 bg-rose-700 px-3 text-xs font-black text-white hover:bg-rose-800"
-              @click="confirmLeaveAndClearDraft"
-            >
-              나가기
-            </button>
-          </div>
-        </section>
-      </div>
+      <SalesRegisterLeaveConfirmModal
+        :open="showLeaveConfirmModal"
+        @cancel="cancelLeaveAndKeepDraft"
+        @confirm="confirmLeaveAndClearDraft"
+      />
 
       <p
         v-if="toastMessage"
