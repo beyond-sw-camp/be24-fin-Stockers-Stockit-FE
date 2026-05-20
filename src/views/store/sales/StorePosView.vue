@@ -4,12 +4,14 @@
  * 1. IMPORTS
  * ==============================================================================
  */
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import AppLayout from '@/components/common/AppLayout.vue'
+import PaginationNav from '@/components/common/PaginationNav.vue'
+import SkuFacetChips from '@/components/store/SkuFacetChips.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useSalesStore } from '@/stores/store/storeSales.js'
-import { getStoreInventorySkus } from '@/api/store/inventory.js'
+import { getStoreInventorySkuFacets, getStoreInventorySkus } from '@/api/store/inventory.js'
 import { createSale } from '@/api/store/sales.js'
 
 import { Plus, Ban } from 'lucide-vue-next'
@@ -30,7 +32,8 @@ const activeSubMenu = ref('POS / 판매 등록')
 
 const selectedMainCategory = ref('전체')
 const selectedSubCategory = ref('전체')
-const selectedColor = ref('전체')
+const selectedColor = ref('')
+const selectedSize = ref('')
 const searchTerm = ref('')
 const salesLines = ref([])
 const saleRequest = reactive({ items: [] })
@@ -40,6 +43,14 @@ const completedSale = ref(null)
 const loadingSkus = ref(false)
 const submitState = ref('idle')
 const skuRows = ref([])
+const facetColors = ref([])
+const facetSizes = ref([])
+const currentPage = ref(0)
+const pageSize = ref(20)
+const totalElements = ref(0)
+const totalPages = ref(0)
+const hasNext = ref(false)
+const hasPrevious = ref(false)
 
 /**
  * ==============================================================================
@@ -63,11 +74,6 @@ const subCategoryOptions = computed(() => {
   ]
 })
 
-const colorOptions = computed(() => [
-  '전체',
-  ...new Set(skuRows.value.map((sku) => sku.color)),
-])
-
 const filteredSkus = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase()
   return skuRows.value.filter((sku) => {
@@ -75,14 +81,15 @@ const filteredSkus = computed(() => {
       selectedMainCategory.value === '전체' || sku.mainCategory === selectedMainCategory.value
     const matchSub =
       selectedSubCategory.value === '전체' || sku.subCategory === selectedSubCategory.value
-    const matchColor = selectedColor.value === '전체' || sku.color === selectedColor.value
+    const matchColor = !selectedColor.value || sku.color === selectedColor.value
+    const matchSize = !selectedSize.value || sku.size === selectedSize.value
     const matchKeyword =
       !keyword ||
       [sku.productName, sku.mainCategory, sku.subCategory, sku.color, sku.size]
         .join(' ')
         .toLowerCase()
         .includes(keyword)
-    return matchMain && matchSub && matchColor && matchKeyword
+    return matchMain && matchSub && matchColor && matchSize && matchKeyword
   })
 })
 
@@ -191,6 +198,23 @@ function clearSalesList() {
   salesLines.value = []
 }
 
+async function loadSkuFacets() {
+  try {
+    const params = {}
+    const category = selectedSubCategory.value !== '전체'
+      ? selectedSubCategory.value
+      : (selectedMainCategory.value !== '전체' ? selectedMainCategory.value : '')
+    if (category) params.category = category
+    if (searchTerm.value.trim()) params.keyword = searchTerm.value.trim()
+    const res = await getStoreInventorySkuFacets(params)
+    facetColors.value = Array.isArray(res?.colors) ? res.colors : []
+    facetSizes.value = Array.isArray(res?.sizes) ? res.sizes : []
+  } catch {
+    facetColors.value = []
+    facetSizes.value = []
+  }
+}
+
 /**
  * ==============================================================================
  * 6. METHODS - API SERVICE
@@ -285,20 +309,22 @@ async function loadStoreSkus() {
   loadingSkus.value = true
   feedbackMessage.value = ''
   try {
-    const allSkus = []
-    let page = 0
-    const size = 200
-    let hasNext = false
-    do {
-      const res = await getStoreInventorySkus({ page, size })
-      const pageItems = Array.isArray(res?.items) ? res.items : []
-      allSkus.push(...pageItems)
-      hasNext = Boolean(res?.hasNext)
-      page += 1
-    } while (hasNext)
+    const params = {
+      page: currentPage.value,
+      size: pageSize.value,
+    }
+    const category = selectedSubCategory.value !== '전체'
+      ? selectedSubCategory.value
+      : (selectedMainCategory.value !== '전체' ? selectedMainCategory.value : '')
+    if (category) params.category = category
+    if (selectedColor.value) params.color = selectedColor.value
+    if (selectedSize.value) params.skuSize = selectedSize.value
+    if (searchTerm.value.trim()) params.keyword = searchTerm.value.trim()
 
+    const res = await getStoreInventorySkus(params)
+    const pageItems = Array.isArray(res?.items) ? res.items : []
     const rows = []
-    allSkus.forEach((sku) => {
+    pageItems.forEach((sku) => {
       rows.push({
         skuId: sku.skuCode,
         productId: sku.itemCode,
@@ -314,8 +340,16 @@ async function loadStoreSkus() {
       })
     })
     skuRows.value = rows
+    totalElements.value = Number(res?.totalElements ?? 0)
+    totalPages.value = Number(res?.totalPages ?? 0)
+    hasNext.value = Boolean(res?.hasNext)
+    hasPrevious.value = Boolean(res?.hasPrevious)
   } catch (e) {
     feedbackMessage.value = e?.message ?? '상품/재고 조회에 실패했습니다.'
+    totalElements.value = 0
+    totalPages.value = 0
+    hasNext.value = false
+    hasPrevious.value = false
   } finally {
     loadingSkus.value = false
   }
@@ -334,6 +368,20 @@ async function loadStoreSkus() {
  * ==============================================================================
  */
 onMounted(async () => {
+  await loadStoreSkus()
+  await loadSkuFacets()
+})
+
+watch(
+  [selectedMainCategory, selectedSubCategory, selectedColor, selectedSize, searchTerm],
+  async () => {
+    currentPage.value = 0
+    await loadStoreSkus()
+    await loadSkuFacets()
+  },
+)
+
+watch([currentPage, pageSize], async () => {
   await loadStoreSkus()
 })
 </script>
@@ -397,18 +445,6 @@ onMounted(async () => {
             </label>
 
             <label class="flex flex-col gap-1.5">
-              <span class="text-[11px] font-bold text-gray-500">색상</span>
-              <select
-                v-model="selectedColor"
-                class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
-              >
-                <option v-for="color in colorOptions" :key="color" :value="color">
-                  {{ color }}
-                </option>
-              </select>
-            </label>
-
-            <label class="flex flex-col gap-1.5">
               <span class="text-[11px] font-bold text-gray-500">검색</span>
               <input
                 v-model="searchTerm"
@@ -418,6 +454,12 @@ onMounted(async () => {
               />
             </label>
           </div>
+          <SkuFacetChips
+            v-model:selectedColor="selectedColor"
+            v-model:selectedSize="selectedSize"
+            :colors="facetColors"
+            :sizes="facetSizes"
+          />
 
           <div class="overflow-x-auto">
             <table class="min-w-[840px] w-full border-collapse text-xs">
@@ -498,6 +540,16 @@ onMounted(async () => {
               </tbody>
             </table>
           </div>
+          <PaginationNav
+            :page="currentPage"
+            :size="pageSize"
+            :total-pages="totalPages"
+            :total-elements="totalElements"
+            :has-previous="hasPrevious"
+            :has-next="hasNext"
+            @update:page="currentPage = $event"
+            @update:size="pageSize = $event"
+          />
         </section>
 
         <section class="border border-gray-300 bg-white shadow-sm">

@@ -7,10 +7,11 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
+import SkuFacetChips from '@/components/store/SkuFacetChips.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { createStoreOrder, getStoreOrderDetail, updateStoreOrder } from '@/api/store/orders.js'
-import { getStoreInventorySkus } from '@/api/store/inventory.js'
+import { getStoreInventorySkuFacets, getStoreInventorySkus } from '@/api/store/inventory.js'
 
 /**
  * ==============================================================================
@@ -23,8 +24,8 @@ const auth = useAuthStore()
 
 const selectedMainCategory = ref('전체')
 const selectedSubCategory = ref('전체')
-const selectedColor = ref('전체')
-const selectedSize = ref('전체')
+const selectedColor = ref('')
+const selectedSize = ref('')
 const searchTerm = ref('')
 const requestLines = ref([])
 const memo = ref('')
@@ -33,6 +34,8 @@ const feedbackType = ref('info')
 const loading = ref(false)
 const requestSortBy = ref('priority')
 const skuRows = ref([])
+const facetColors = ref([])
+const facetSizes = ref([])
 const editingOrder = ref(null)
 const activeSideMenu = ref('발주 요청')
 
@@ -64,16 +67,13 @@ const availableSubCategories = computed(() => {
   ]
 })
 
-const availableColors = computed(() => ['전체', ...new Set(skuRows.value.map((sku) => sku.color))])
-const availableSizes = computed(() => ['전체', ...new Set(skuRows.value.map((sku) => sku.size))])
-
 const filteredSkus = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase()
   const list = skuRows.value.filter((sku) => {
     const matchMain = selectedMainCategory.value === '전체' || sku.mainCategory === selectedMainCategory.value
     const matchSub = selectedSubCategory.value === '전체' || sku.subCategory === selectedSubCategory.value
-    const matchColor = selectedColor.value === '전체' || sku.color === selectedColor.value
-    const matchSize = selectedSize.value === '전체' || sku.size === selectedSize.value
+    const matchColor = !selectedColor.value || sku.color === selectedColor.value
+    const matchSize = !selectedSize.value || sku.size === selectedSize.value
     const matchKeyword =
       !keyword ||
       [sku.productName, sku.mainCategory, sku.subCategory, sku.color, sku.size]
@@ -222,6 +222,17 @@ function increaseLine(line) {
 function decreaseLine(line) {
   if (line.requestedQuantity <= 1) return
   line.requestedQuantity -= 1
+}
+
+async function loadSkuFacets() {
+  try {
+    const res = await getStoreInventorySkuFacets()
+    facetColors.value = Array.isArray(res?.colors) ? res.colors : []
+    facetSizes.value = Array.isArray(res?.sizes) ? res.sizes : []
+  } catch {
+    facetColors.value = []
+    facetSizes.value = []
+  }
 }
 
 /**
@@ -404,6 +415,7 @@ watch(selectedMainCategory, syncSubCategory)
 onMounted(async () => {
   await loadEditingOrder()
   await loadSkuRows()
+  await loadSkuFacets()
 })
 </script>
 
@@ -480,30 +492,6 @@ onMounted(async () => {
             </label>
 
             <label class="flex flex-col gap-1.5">
-              <span class="text-[11px] font-bold text-gray-500">색상</span>
-              <select
-                v-model="selectedColor"
-                class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
-              >
-                <option v-for="color in availableColors" :key="color" :value="color">
-                  {{ color }}
-                </option>
-              </select>
-            </label>
-
-            <label class="flex flex-col gap-1.5">
-              <span class="text-[11px] font-bold text-gray-500">사이즈</span>
-              <select
-                v-model="selectedSize"
-                class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
-              >
-                <option v-for="size in availableSizes" :key="size" :value="size">
-                  {{ size }}
-                </option>
-              </select>
-            </label>
-
-            <label class="flex flex-col gap-1.5">
               <span class="text-[11px] font-bold text-gray-500">검색</span>
               <input
                 v-model="searchTerm"
@@ -527,6 +515,13 @@ onMounted(async () => {
               </select>
             </label>
           </div>
+          <SkuFacetChips
+            v-model:selectedColor="selectedColor"
+            v-model:selectedSize="selectedSize"
+            :colors="facetColors"
+            :sizes="facetSizes"
+            wrapper-class="flex flex-wrap items-center gap-3 border-b border-gray-200 bg-gray-50/60 px-3 py-2.5"
+          />
 
           <div class="min-w-0">
             <table class="w-full table-fixed border-collapse text-xs">
