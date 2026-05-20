@@ -7,6 +7,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
+import PaginationNav from '@/components/common/PaginationNav.vue'
 import SkuFacetChips from '@/components/store/SkuFacetChips.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
@@ -36,6 +37,12 @@ const requestSortBy = ref('priority')
 const skuRows = ref([])
 const facetColors = ref([])
 const facetSizes = ref([])
+const currentPage = ref(0)
+const pageSize = ref(20)
+const totalElements = ref(0)
+const totalPages = ref(0)
+const hasNext = ref(false)
+const hasPrevious = ref(false)
 const editingOrder = ref(null)
 const activeSideMenu = ref('발주 요청')
 
@@ -226,7 +233,13 @@ function decreaseLine(line) {
 
 async function loadSkuFacets() {
   try {
-    const res = await getStoreInventorySkuFacets()
+    const params = {}
+    const category = selectedSubCategory.value !== '전체'
+      ? selectedSubCategory.value
+      : (selectedMainCategory.value !== '전체' ? selectedMainCategory.value : '')
+    if (category) params.category = category
+    if (searchTerm.value.trim()) params.keyword = searchTerm.value.trim()
+    const res = await getStoreInventorySkuFacets(params)
     facetColors.value = Array.isArray(res?.colors) ? res.colors : []
     facetSizes.value = Array.isArray(res?.sizes) ? res.sizes : []
   } catch {
@@ -348,20 +361,22 @@ async function loadSkuRows() {
 
   loading.value = true
   try {
-    const allSkus = []
-    let page = 0
-    const size = 200
-    let hasNext = false
-    do {
-      const res = await getStoreInventorySkus({ page, size })
-      const pageItems = Array.isArray(res?.items) ? res.items : []
-      allSkus.push(...pageItems)
-      hasNext = Boolean(res?.hasNext)
-      page += 1
-    } while (hasNext)
+    const params = {
+      page: currentPage.value,
+      size: pageSize.value,
+    }
+    const category = selectedSubCategory.value !== '전체'
+      ? selectedSubCategory.value
+      : (selectedMainCategory.value !== '전체' ? selectedMainCategory.value : '')
+    if (category) params.category = category
+    if (selectedColor.value) params.color = selectedColor.value
+    if (selectedSize.value) params.skuSize = selectedSize.value
+    if (searchTerm.value.trim()) params.keyword = searchTerm.value.trim()
 
+    const res = await getStoreInventorySkus(params)
+    const pageItems = Array.isArray(res?.items) ? res.items : []
     const rows = []
-    allSkus.forEach((sku) => {
+    pageItems.forEach((sku) => {
       const stock = Number(sku.actualStock ?? 0)
       const safetyStock = Number(sku.safetyStock ?? 0)
 
@@ -385,9 +400,17 @@ async function loadSkuRows() {
     })
 
     skuRows.value = rows
+    totalElements.value = Number(res?.totalElements ?? 0)
+    totalPages.value = Number(res?.totalPages ?? 0)
+    hasNext.value = Boolean(res?.hasNext)
+    hasPrevious.value = Boolean(res?.hasPrevious)
   } catch (error) {
     showFeedback(error?.message ?? 'SKU 목록을 불러오지 못했습니다.', 'error')
     skuRows.value = []
+    totalElements.value = 0
+    totalPages.value = 0
+    hasNext.value = false
+    hasPrevious.value = false
   } finally {
     loading.value = false
   }
@@ -406,6 +429,17 @@ async function loadSkuRows() {
  * ==============================================================================
  */
 watch(selectedMainCategory, syncSubCategory)
+watch(
+  [selectedMainCategory, selectedSubCategory, selectedColor, selectedSize, searchTerm],
+  async () => {
+    currentPage.value = 0
+    await loadSkuRows()
+    await loadSkuFacets()
+  },
+)
+watch([currentPage, pageSize], async () => {
+  await loadSkuRows()
+})
 
 /**
  * ==============================================================================
@@ -595,6 +629,16 @@ onMounted(async () => {
               </tbody>
             </table>
           </div>
+          <PaginationNav
+            :page="currentPage"
+            :size="pageSize"
+            :total-pages="totalPages"
+            :total-elements="totalElements"
+            :has-previous="hasPrevious"
+            :has-next="hasNext"
+            @update:page="currentPage = $event"
+            @update:size="pageSize = $event"
+          />
         </section>
 
         <section class="border border-gray-300 bg-white shadow-sm">
