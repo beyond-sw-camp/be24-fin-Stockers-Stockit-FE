@@ -429,15 +429,16 @@ function goHome() {
           </div>
           <div class="flex items-center justify-between px-4 py-4">
             <div class="flex flex-col gap-1">
-              <p class="text-[13px] font-medium text-gray-800">비밀번호 변경</p>
+              <p class="text-[13px] font-medium text-gray-400">비밀번호 변경</p>
               <p class="text-[11px] font-medium text-gray-400">
-                보안을 위해 비밀번호 변경 시 모든 디바이스에서 자동 로그아웃됩니다.
+                현재 비밀번호 변경 기능은 점검 중입니다.
               </p>
             </div>
             <button
               type="button"
-              class="inline-flex items-center gap-2 border border-gray-300 bg-white px-4 py-2 text-[13px] font-medium text-gray-700 transition hover:bg-gray-50"
-              @click="openPasswordModal"
+              disabled
+              class="inline-flex items-center gap-2 border border-gray-200 bg-gray-100 px-4 py-2 text-[13px] font-medium text-gray-400 cursor-not-allowed"
+              title="비밀번호 변경 기능 점검 중"
             >
               <KeyRound :size="14" />
               비밀번호 변경

@@ -54,13 +54,14 @@ const previewHasShortage = computed(() => inboundPreview.value.some((row) => row
 // 우측 상세 품목 표 — 행마다 현재 실재고/안전재고 표시용 캐시.
 // 발주 라인 = 단일 SKU 이므로 SKU 단위 lookup (master 합산값과 혼동 방지 —
 // 창고재고조회 화면이 SKU 단위로 보여주는 것과 정합).
+// BE inbound items 응답에 id 필드 없음 — skuCode 를 map key 로 사용 (panel lookup 도 동기화).
 const itemStocks = computed(() => {
   const order = inbound.selectedOrder
   if (!order || !order.warehouseId) return new Map()
   const map = new Map()
   for (const item of order.items ?? []) {
     if (!item.skuCode) continue
-    map.set(item.id, stockStore.getSkuStock(order.warehouseId, item.skuCode))
+    map.set(item.skuCode, stockStore.getSkuStock(order.warehouseId, item.skuCode))
   }
   return map
 })
