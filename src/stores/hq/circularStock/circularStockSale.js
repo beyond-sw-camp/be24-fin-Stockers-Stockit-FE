@@ -255,6 +255,48 @@ function buildSaleEsgSnapshot(sale, buyer, kauPrice, options = {}) {
   }
 }
 
+// 판매 등록 draft 항목을 정규화하고 파생값(수량/금액)을 재계산한다.
+function normalizeDraftField(current = {}, patch = {}) {
+  const merged = { ...current, ...patch }
+  const asNumber = (value, fallback = 0) => {
+    const n = Number(value)
+    return Number.isFinite(n) ? n : fallback
+  }
+
+  const availableQuantity = Math.max(0, asNumber(merged.availableQuantity))
+  const availableWeightKg = Math.max(0, asNumber(merged.availableWeightKg))
+  const computedUnitWeight = availableQuantity > 0 ? roundTo(availableWeightKg / availableQuantity, 4) : 0
+  const unitWeightKg = Math.max(0, asNumber(merged.unitWeightKg, computedUnitWeight) || computedUnitWeight)
+
+  const requestedWeightKgRaw = Math.max(0, asNumber(merged.requestedWeightKg))
+  const requestedWeightKg = Math.min(requestedWeightKgRaw, availableWeightKg)
+
+  const estimatedQuantityRaw = unitWeightKg > 0 ? requestedWeightKg / unitWeightKg : 0
+  const estimatedQuantity = Math.max(0, estimatedQuantityRaw)
+  const deductedQuantity = Math.min(availableQuantity, requestedWeightKg > 0 ? Math.ceil(estimatedQuantity) : 0)
+  const actualWeightKg = Math.min(availableWeightKg, roundTo(deductedQuantity * unitWeightKg, 3))
+
+  const unitPriceSource = asNumber(merged.resolvedUnitPrice) || asNumber(merged.unitPrice) || asNumber(merged.defaultKgUnitPrice)
+  const unitPrice = Math.max(0, roundTo(unitPriceSource, 0))
+  const requestedAmount = roundTo(requestedWeightKg * unitPrice, 0)
+  const actualAmount = roundTo(actualWeightKg * unitPrice, 0)
+
+  return {
+    ...merged,
+    availableQuantity,
+    availableWeightKg: roundTo(availableWeightKg, 3),
+    unitWeightKg: roundTo(unitWeightKg, 4),
+    requestedWeightKg: roundTo(requestedWeightKg, 3),
+    estimatedQuantity: roundTo(estimatedQuantity, 3),
+    deductedQuantity,
+    requestedAmount,
+    actualWeightKg: roundTo(actualWeightKg, 3),
+    actualAmount,
+    unitPrice,
+    lineAmount: actualAmount,
+  }
+}
+
 // 순환재고 판매 도메인 상태/등록 흐름/목록·상세 조회를 관리하는 Store다.
 export const useCircularStockSaleStore = defineStore('circularStockSale', () => {
   const buyerStore = useCircularStockBuyerStore()
