@@ -101,11 +101,11 @@ const finalReviewSummary = computed(() => ({
     0,
   ),
   totalRequestedAmount: draftItems.value.reduce(
-    (sum, item) => sum + (Number(item.requestedAmount) || 0),
+    (sum, item) => sum + ((Number(item.requestedWeightKg) || 0) * (Number(item.unitPrice) || 0)),
     0,
   ),
   totalActualAmount: draftItems.value.reduce(
-    (sum, item) => sum + (Number(item.actualAmount) || 0),
+    (sum, item) => sum + (Number(item.lineAmount) || 0),
     0,
   ),
   totalRequestedWeightKg: draftItems.value.reduce(
@@ -219,7 +219,7 @@ const step3GroupCards = computed(() => {
     const totalAvailableKg = group.items.reduce((sum, item) => sum + (Number(item.availableWeightKg) || 0), 0)
     const totalActualQty = group.items.reduce((sum, item) => sum + (Number(item.deductedQuantity) || 0), 0)
     const totalActualKg = group.items.reduce((sum, item) => sum + (Number(item.actualWeightKg) || 0), 0)
-    const totalActualAmount = group.items.reduce((sum, item) => sum + (Number(item.actualAmount) || 0), 0)
+    const totalActualAmount = group.items.reduce((sum, item) => sum + (Number(item.lineAmount) || 0), 0)
     const completedCount = group.items.filter((item) => Number(item.requestedWeightKg) > 0).length
     const unfilledSkuCount = group.items.filter((item) => Number(item.requestedWeightKg) <= 0).length
     const errorSkuCount = group.items.filter((item) => {
@@ -261,7 +261,7 @@ const step3Summary = computed(() => {
   const inputCompletedCount = draftItems.value.filter((item) => Number(item.requestedWeightKg) > 0).length
   const totalActualQty = draftItems.value.reduce((sum, item) => sum + (Number(item.deductedQuantity) || 0), 0)
   const totalActualKg = draftItems.value.reduce((sum, item) => sum + (Number(item.actualWeightKg) || 0), 0)
-  const totalActualAmount = draftItems.value.reduce((sum, item) => sum + (Number(item.actualAmount) || 0), 0)
+  const totalActualAmount = draftItems.value.reduce((sum, item) => sum + (Number(item.lineAmount) || 0), 0)
   return { totalSku, inputCompletedCount, totalActualQty, totalActualKg, totalActualAmount }
 })
 
@@ -891,7 +891,7 @@ onBeforeRouteLeave((to, _from, next) => {
               </div>
               <div class="flex items-center gap-3">
                 <span class="text-sm font-black text-gray-900">{{
-                  formatCurrency(drawerSummary.totalActualAmount)
+                  formatCurrency(drawerSummary.totalAmount)
                 }}</span>
               </div>
             </div>

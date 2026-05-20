@@ -278,8 +278,7 @@ function normalizeDraftField(current = {}, patch = {}) {
 
   const unitPriceSource = asNumber(merged.resolvedUnitPrice) || asNumber(merged.unitPrice) || asNumber(merged.defaultKgUnitPrice)
   const unitPrice = Math.max(0, roundTo(unitPriceSource, 0))
-  const requestedAmount = roundTo(requestedWeightKg * unitPrice, 0)
-  const actualAmount = roundTo(actualWeightKg * unitPrice, 0)
+  const lineAmount = roundTo(actualWeightKg * unitPrice, 0)
 
   return {
     ...merged,
@@ -289,11 +288,9 @@ function normalizeDraftField(current = {}, patch = {}) {
     requestedWeightKg: roundTo(requestedWeightKg, 3),
     estimatedQuantity: roundTo(estimatedQuantity, 3),
     deductedQuantity,
-    requestedAmount,
     actualWeightKg: roundTo(actualWeightKg, 3),
-    actualAmount,
     unitPrice,
-    lineAmount: actualAmount,
+    lineAmount,
   }
 }
 
@@ -330,7 +327,6 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     totalRequestedWeightKg: roundTo(
       draftItems.value.reduce((sum, item) => sum + (Number(item.requestedWeightKg) || 0), 0),
     ),
-    totalRequestedAmount: draftItems.value.reduce((sum, item) => sum + (Number(item.requestedAmount) || 0), 0),
     totalEstimatedQuantity: roundTo(
       draftItems.value.reduce((sum, item) => sum + (Number(item.estimatedQuantity) || 0), 0),
     ),
@@ -338,11 +334,10 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     totalActualWeightKg: roundTo(
       draftItems.value.reduce((sum, item) => sum + (Number(item.actualWeightKg) || 0), 0),
     ),
-    totalActualAmount: draftItems.value.reduce((sum, item) => sum + (Number(item.actualAmount) || 0), 0),
     totalWeightKg: roundTo(
       draftItems.value.reduce((sum, item) => sum + (Number(item.requestedWeightKg) || 0), 0),
     ),
-    totalAmount: draftItems.value.reduce((sum, item) => sum + (Number(item.requestedAmount) || 0), 0),
+    totalAmount: draftItems.value.reduce((sum, item) => sum + (Number(item.lineAmount) || 0), 0),
   }))
   const hasActiveDraft = computed(() => {
     const hasItems = draftItems.value.length > 0
@@ -413,7 +408,6 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     return {
       saleId: Number(row.saleId),
       saleNo: String(row.saleNo || ''),
-      status: String(row.status || ''),
       outboundNo: row.outboundNo ?? null,
       outboundStatus: row.outboundStatus ?? null,
       soldAt: row.soldAt ?? null,
@@ -465,7 +459,6 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     return {
       saleId: Number(detail.saleId),
       saleNo: String(detail.saleNo || ''),
-      status: String(detail.status || ''),
       outboundNo: detail.outboundNo ?? null,
       outboundStatus: detail.outboundStatus ?? null,
       soldAt: detail.soldAt ?? null,
@@ -660,9 +653,7 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
       requestedWeightKg: '',
       estimatedQuantity: 0,
       deductedQuantity: 0,
-      requestedAmount: 0,
       actualWeightKg: 0,
-      actualAmount: 0,
       unitPrice: defaultKgUnitPrice,
       lineAmount: 0,
     })
@@ -905,7 +896,6 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
       const sale = {
         saleId: Number(created.saleId),
         saleNo: created.saleNo,
-        status: created.status,
         outboundNo: created.outboundNo ?? null,
         outboundStatus: created.outboundStatus ?? null,
       }
