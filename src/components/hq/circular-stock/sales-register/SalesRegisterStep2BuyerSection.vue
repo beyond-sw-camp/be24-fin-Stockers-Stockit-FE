@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { BadgeCheck, Bot, Info, Loader2, Sprout } from 'lucide-vue-next'
 
 defineProps({
@@ -85,7 +85,7 @@ const emit = defineEmits([
         <span>
           출고 창고 {{ outboundWarehouseLabel }} 기준,
           선택된 소재 정보를 기반으로 DB에서 가장 적합한 거래처 5곳을 AI가 분석했습니다.
-          각 거래처를 클릭해 AI 거래처 매칭 추천 상세 이유를 확인하세요
+          각 거래처를 클릭해 AI 거래처 매칭 추천 상세 이유를 확인하세요.
         </span>
       </div>
       <div v-if="buyerPanelMode === 'ai'" class="h-3" />
@@ -207,7 +207,9 @@ const emit = defineEmits([
               </div>
               <p class="mt-1 text-sm font-bold text-gray-500">
                 {{ lockedMaterialType || '-' }} ·
-                {{ rec.industryGroup || '-' }} ·
+                {{ rec.industryGroup || '-' }}
+              </p>
+              <p class="mt-1 text-sm font-bold text-gray-500">
                 {{ recommendationProductLabel(rec, index) }}
               </p>
               <p class="mt-1 text-sm font-bold text-gray-500">
@@ -324,9 +326,9 @@ const emit = defineEmits([
             v-else
             class="flex min-h-[140px] flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 text-center"
           >
-            <p class="text-[28px] leading-none text-gray-300">⌕</p>
+            <p class="text-[28px] leading-none text-gray-300">·</p>
             <p class="mt-2 text-lg font-bold text-gray-500">
-              검색어를 입력하면 전체 거래처 DB에서 조회합니다.
+              검색어를 입력하면 전체 거래처 DB에서 조회됩니다.
             </p>
             <p class="mt-1 text-base font-semibold text-gray-400">
               AI 추천 거래처는 매칭 적합도와 추천 근거가 자동 제공됩니다.
