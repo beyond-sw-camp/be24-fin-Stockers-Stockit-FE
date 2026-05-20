@@ -281,6 +281,7 @@ const changePageSize = (value) => {
   const next = Number(value)
   if (!PAGE_SIZE_OPTIONS.includes(next)) return
   pageSize.value = next
+  // 페이지당 수가 바뀌면 항상 1페이지부터 다시 조회한다.
   requestCandidates({ resetPage: true })
 }
 
@@ -332,6 +333,7 @@ const loadCandidates = async () => {
 }
 
 const requestCandidates = async ({ resetPage = false } = {}) => {
+  // 후보 조회 화면은 내부적으로 1-based 페이지 상태를 사용하므로 리셋 목표는 page=1이다.
   if (resetPage) currentPage.value = 1
   await loadCandidates()
 }
@@ -445,6 +447,7 @@ const toggleAllCurrentPage = () => {
 }
 
 const changePage = (nextPageZeroBased) => {
+  // PaginationNav(0-based) 값을 화면 내부 상태(1-based)로 변환한다.
   const total = Math.max(1, Number(totalPages.value || 1))
   const next = Math.min(Math.max(0, Number(nextPageZeroBased || 0)), total - 1)
   currentPage.value = next + 1
@@ -852,6 +855,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 :deep(.circular-pagination-nav) {
+  /* 순환재고 전환(후보) 화면 전용 페이지네이션 배치 */
   display: grid;
   width: 100%;
   grid-template-columns: 1fr auto 1fr;

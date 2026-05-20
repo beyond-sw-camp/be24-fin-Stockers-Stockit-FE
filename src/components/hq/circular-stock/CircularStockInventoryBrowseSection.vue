@@ -526,6 +526,7 @@ function emitQueryChange() {
 
 function emitPageChange(pageNumber) {
   if (!props.serverMode) return
+  // 어댑터 경계: page 값을 유효 범위로 보정(clamp)한 뒤 섹션의 기존 emit 계약으로 재전달한다.
   const lastPage = Math.max(0, Number(props.totalPages || 1) - 1)
   const nextPage = Math.min(Math.max(0, Number(pageNumber || 0)), lastPage)
   if (nextPage === props.page) return
@@ -534,6 +535,7 @@ function emitPageChange(pageNumber) {
 
 function emitSizeChange(nextSize) {
   if (!props.serverMode) return
+  // 상위로 전달하기 전에 숫자/양수 여부를 검증한다.
   const size = Number(nextSize)
   if (!Number.isFinite(size) || size <= 0) return
   emit('size-change', size)
@@ -924,6 +926,8 @@ function emitSizeChange(nextSize) {
 }
 
 :deep(.circular-pagination-nav) {
+  /* 순환재고 화면 전용 페이지네이션 배치:
+     좌측=총 건수, 중앙=페이지 번호, 우측=페이지당 수 선택 */
   display: grid;
   width: 100%;
   grid-template-columns: 1fr auto 1fr;
