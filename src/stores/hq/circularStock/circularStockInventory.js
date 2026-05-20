@@ -30,11 +30,7 @@ export const useCircularStockInventoryStore = defineStore('circularStockInventor
     const source = liveCircularInventoryRows.value.length > 0
       ? liveCircularInventoryRows.value
       : inventoryItems.value
-    return [...source].sort((a, b) => (
-      a.parentCategory.localeCompare(b.parentCategory, 'ko')
-      || a.childCategory.localeCompare(b.childCategory, 'ko')
-      || a.itemName.localeCompare(b.itemName, 'ko')
-    ))
+    return [...source]
   })
 
   // 현재 재고 캐시를 localStorage에 저장해 새로고침 복원을 지원한다.
