@@ -11,8 +11,6 @@ import { ref } from 'vue'
  * 2. CONSTANTS
  * ==============================================================================
  */
-const DEFAULT_REQUESTED_BY = '김지현'
-
 const INBOUND_STATUS_LABEL = {
   READY_TO_SHIP: '출고 준비중',
   IN_TRANSIT: '배송중',

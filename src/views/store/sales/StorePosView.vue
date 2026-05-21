@@ -4,12 +4,15 @@
  * 1. IMPORTS
  * ==============================================================================
  */
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import AppLayout from '@/components/common/AppLayout.vue'
+import PaginationNav from '@/components/common/PaginationNav.vue'
+import SkuFacetChips from '@/components/store/SkuFacetChips.vue'
 import { roleMenus } from '@/config/roleMenus.js'
+import { STORE_CATEGORY_MAP } from '@/constants/storeCategoryMap.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useSalesStore } from '@/stores/store/storeSales.js'
-import { getStoreInventories, getStoreInventorySkus } from '@/api/store/inventory.js'
+import { getStoreInventorySkuFacets, getStoreInventorySkus } from '@/api/store/inventory.js'
 import { createSale } from '@/api/store/sales.js'
 
 import { Plus, Ban } from 'lucide-vue-next'
@@ -30,16 +33,25 @@ const activeSubMenu = ref('POS / 판매 등록')
 
 const selectedMainCategory = ref('전체')
 const selectedSubCategory = ref('전체')
-const selectedColor = ref('전체')
+const selectedStatus = ref('')
+const selectedColor = ref('')
+const selectedSize = ref('')
 const searchTerm = ref('')
 const salesLines = ref([])
 const saleRequest = reactive({ items: [] })
 const feedbackMessage = ref('')
 const isSuccessModalOpen = ref(false)
 const completedSale = ref(null)
-const loadingSkus = ref(false)
 const submitState = ref('idle')
 const skuRows = ref([])
+const facetColors = ref([])
+const facetSizes = ref([])
+const currentPage = ref(0)
+const pageSize = ref(20)
+const totalElements = ref(0)
+const totalPages = ref(0)
+const hasNext = ref(false)
+const hasPrevious = ref(false)
 
 /**
  * ==============================================================================
@@ -48,41 +60,33 @@ const skuRows = ref([])
  */
 const mainCategories = computed(() => [
   '전체',
-  ...new Set(skuRows.value.map((sku) => sku.mainCategory)),
+  ...Object.keys(STORE_CATEGORY_MAP),
 ])
 
 const subCategoryOptions = computed(() => {
   if (!selectedMainCategory.value || selectedMainCategory.value === '전체') return ['전체']
   return [
     '전체',
-    ...new Set(
-      skuRows.value
-        .filter((sku) => sku.mainCategory === selectedMainCategory.value)
-        .map((sku) => sku.subCategory),
-    ),
+    ...(STORE_CATEGORY_MAP[selectedMainCategory.value] ?? []),
   ]
 })
-
-const colorOptions = computed(() => [
-  '전체',
-  ...new Set(skuRows.value.map((sku) => sku.color)),
-])
 
 const filteredSkus = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase()
   return skuRows.value.filter((sku) => {
     const matchMain =
-      selectedMainCategory.value === '전체' || sku.mainCategory === selectedMainCategory.value
+      selectedMainCategory.value === '전체' || sku.parentCategory === selectedMainCategory.value
     const matchSub =
-      selectedSubCategory.value === '전체' || sku.subCategory === selectedSubCategory.value
-    const matchColor = selectedColor.value === '전체' || sku.color === selectedColor.value
+      selectedSubCategory.value === '전체' || sku.childCategory === selectedSubCategory.value
+    const matchColor = !selectedColor.value || sku.color === selectedColor.value
+    const matchSize = !selectedSize.value || sku.size === selectedSize.value
     const matchKeyword =
       !keyword ||
-      [sku.productName, sku.mainCategory, sku.subCategory, sku.color, sku.size]
+      [sku.itemName, sku.parentCategory, sku.childCategory, sku.color, sku.size]
         .join(' ')
         .toLowerCase()
         .includes(keyword)
-    return matchMain && matchSub && matchColor && matchKeyword
+    return matchMain && matchSub && matchColor && matchSize && matchKeyword
   })
 })
 
@@ -120,14 +124,14 @@ function resetSubCategoryIfNeeded() {
 function addToSalesList(sku) {
   feedbackMessage.value = ''
 
-  if (sku.stock === 0) {
+  if (sku.actualStock === 0) {
     feedbackMessage.value = '품절된 상품은 판매 목록에 추가할 수 없습니다.'
     return
   }
 
-  const existing = salesLines.value.find((line) => line.skuId === sku.skuId)
+  const existing = salesLines.value.find((line) => line.skuCode === sku.skuCode)
   if (existing) {
-    if (existing.quantity + 1 > sku.stock) {
+    if (existing.quantity + 1 > sku.actualStock) {
       feedbackMessage.value = '재고를 초과해 추가할 수 없습니다.'
       return
     }
@@ -138,11 +142,11 @@ function addToSalesList(sku) {
   salesLines.value = [
     ...salesLines.value,
     {
-      skuId: sku.skuId,
-      productId: sku.productId,
-      productName: sku.productName,
-      mainCategory: sku.mainCategory,
-      subCategory: sku.subCategory,
+      skuCode: sku.skuCode,
+      itemCode: sku.itemCode,
+      itemName: sku.itemName,
+      parentCategory: sku.parentCategory,
+      childCategory: sku.childCategory,
       color: sku.color,
       size: sku.size,
       unitPrice: sku.unitPrice,
@@ -152,26 +156,26 @@ function addToSalesList(sku) {
 }
 
 // [함수] SKU 코드로 화면의 SKU 행 데이터를 찾는다.
-function getSkuById(skuId) {
-  return skuRows.value.find((sku) => sku.skuId === skuId) ?? null
+function getSkuById(skuCode) {
+  return skuRows.value.find((sku) => sku.skuCode === skuCode) ?? null
 }
 
 // [함수] 판매 라인의 수량 입력값을 검증 후 반영한다.
 function updateLineQuantity(line, value) {
-  const sku = getSkuById(line.skuId)
+  const sku = getSkuById(line.skuCode)
   const next = Number.parseInt(value, 10)
   if (!sku) return
   if (Number.isNaN(next) || next < 1) {
     line.quantity = 1
     return
   }
-  line.quantity = Math.min(next, sku.stock)
+  line.quantity = Math.min(next, sku.actualStock)
 }
 
 // [함수] 판매 라인의 수량을 1 증가시킨다.
 function increaseLine(line) {
-  const sku = getSkuById(line.skuId)
-  if (!sku || line.quantity >= sku.stock) return
+  const sku = getSkuById(line.skuCode)
+  if (!sku || line.quantity >= sku.actualStock) return
   line.quantity += 1
 }
 
@@ -182,13 +186,31 @@ function decreaseLine(line) {
 }
 
 // [함수] 판매 목록에서 특정 SKU 라인을 제거한다.
-function removeLine(skuId) {
-  salesLines.value = salesLines.value.filter((line) => line.skuId !== skuId)
+function removeLine(skuCode) {
+  salesLines.value = salesLines.value.filter((line) => line.skuCode !== skuCode)
 }
 
 // [함수] 현재 판매 목록을 전체 비운다.
 function clearSalesList() {
   salesLines.value = []
+}
+
+async function loadSkuFacets() {
+  try {
+    const params = {}
+    const category = selectedSubCategory.value !== '전체'
+      ? selectedSubCategory.value
+      : (selectedMainCategory.value !== '전체' ? selectedMainCategory.value : '')
+    if (category) params.category = category
+    if (selectedStatus.value) params.status = selectedStatus.value
+    if (searchTerm.value.trim()) params.keyword = searchTerm.value.trim()
+    const res = await getStoreInventorySkuFacets(params)
+    facetColors.value = Array.isArray(res?.colors) ? res.colors : []
+    facetSizes.value = Array.isArray(res?.sizes) ? res.sizes : []
+  } catch {
+    facetColors.value = []
+    facetSizes.value = []
+  }
 }
 
 /**
@@ -199,7 +221,7 @@ function clearSalesList() {
 // [함수] 판매 등록 API를 호출하고 성공/실패 상태를 처리한다.
 async function confirmSale() {
   feedbackMessage.value = ''
-  saleRequest.items = salesLines.value.map((line) => ({ skuCode: line.skuId, quantity: line.quantity }))
+  saleRequest.items = salesLines.value.map((line) => ({ skuCode: line.skuCode, quantity: line.quantity }))
   if (saleRequest.items.length === 0) {
     feedbackMessage.value = '판매 목록이 비어 있습니다.'
     return
@@ -217,15 +239,14 @@ async function confirmSale() {
       soldAt: created.soldAt,
       totalQuantity: created.totalQuantity,
       totalAmount: created.totalAmount,
-      headline: (created.items?.[0]?.productName ?? '') + ((created.items?.length ?? 0) > 1 ? ` 외 ${created.items.length - 1}건` : ''),
+      headline: (created.items?.[0]?.itemName ?? '') + ((created.items?.length ?? 0) > 1 ? ` 외 ${created.items.length - 1}건` : ''),
       items: (created.items ?? []).map((item) => ({
         skuCode: item.skuCode,
-        skuId: item.skuCode,
         productCode: item.productCode,
-        productId: item.productCode,
-        productName: item.productName,
-        mainCategory: item.mainCategory,
-        subCategory: item.subCategory,
+        itemCode: item.productCode,
+        itemName: item.itemName,
+        parentCategory: item.parentCategory,
+        childCategory: item.childCategory,
         color: item.color,
         size: item.size,
         quantity: item.quantity,
@@ -270,8 +291,8 @@ function closeSuccessModal() {
 
 // [함수] 현재 재고/안전재고 기준으로 재고 상태(out/low/normal)를 계산한다.
 function stockStatus(sku) {
-  if (sku.stock === 0) return 'out'
-  if (sku.stock <= sku.safetyStock) return 'low'
+  if (sku.actualStock === 0) return 'out'
+  if (sku.actualStock <= sku.safetyStock) return 'low'
   return 'normal'
 }
 
@@ -282,39 +303,49 @@ async function loadStoreSkus() {
     return
   }
 
-  loadingSkus.value = true
   feedbackMessage.value = ''
   try {
-    const items = await getStoreInventories()
+    const params = {
+      page: currentPage.value,
+      size: pageSize.value,
+    }
+    const category = selectedSubCategory.value !== '전체'
+      ? selectedSubCategory.value
+      : (selectedMainCategory.value !== '전체' ? selectedMainCategory.value : '')
+    if (category) params.category = category
+    if (selectedStatus.value) params.status = selectedStatus.value
+    if (selectedColor.value) params.color = selectedColor.value
+    if (selectedSize.value) params.skuSize = selectedSize.value
+    if (searchTerm.value.trim()) params.keyword = searchTerm.value.trim()
 
-    const skuLists = await Promise.all(
-      items.map((item) => getStoreInventorySkus(item.itemCode)),
-    )
-
+    const res = await getStoreInventorySkus(params)
+    const pageItems = Array.isArray(res?.items) ? res.items : []
     const rows = []
-    items.forEach((item, idx) => {
-      const skus = skuLists[idx] ?? []
-      skus.forEach((sku) => {
-        rows.push({
-          skuId: sku.skuCode,
-          productId: item.itemCode,
-          productName: item.itemName,
-          mainCategory: item.parentCategory,
-          subCategory: item.childCategory,
-          color: sku.color,
-          size: sku.size,
-          unitPrice: Number(sku.unitPrice ?? 0),
-          stock: Number(sku.actualStock ?? 0),
-          safetyStock: sku.safetyStock ?? 0,
-          status: sku.status,
-        })
+    pageItems.forEach((sku) => {
+      rows.push({
+        skuCode: sku.skuCode,
+        itemCode: sku.itemCode,
+        itemName: sku.itemName,
+        parentCategory: sku.parentCategory,
+        childCategory: sku.childCategory,
+        color: sku.color,
+        size: sku.size,
+        unitPrice: Number(sku.unitPrice ?? 0),
+        actualStock: Number(sku.actualStock ?? 0),
+        safetyStock: sku.safetyStock ?? 0,
       })
     })
     skuRows.value = rows
+    totalElements.value = Number(res?.totalElements ?? 0)
+    totalPages.value = Number(res?.totalPages ?? 0)
+    hasNext.value = Boolean(res?.hasNext)
+    hasPrevious.value = Boolean(res?.hasPrevious)
   } catch (e) {
     feedbackMessage.value = e?.message ?? '상품/재고 조회에 실패했습니다.'
-  } finally {
-    loadingSkus.value = false
+    totalElements.value = 0
+    totalPages.value = 0
+    hasNext.value = false
+    hasPrevious.value = false
   }
 }
 
@@ -331,6 +362,20 @@ async function loadStoreSkus() {
  * ==============================================================================
  */
 onMounted(async () => {
+  await loadStoreSkus()
+  await loadSkuFacets()
+})
+
+watch(
+  [selectedMainCategory, selectedSubCategory, selectedStatus, selectedColor, selectedSize, searchTerm],
+  async () => {
+    currentPage.value = 0
+    await loadStoreSkus()
+    await loadSkuFacets()
+  },
+)
+
+watch([currentPage, pageSize], async () => {
   await loadStoreSkus()
 })
 </script>
@@ -367,7 +412,7 @@ onMounted(async () => {
             <h2 class="text-sm font-black text-gray-900">상품 검색</h2>
           </div>
 
-          <div class="grid gap-3 border-b border-gray-200 bg-gray-50/80 px-4 py-4 md:grid-cols-4">
+          <div class="grid gap-3 border-b border-gray-200 bg-gray-50/80 px-4 py-4 md:grid-cols-[160px_160px_160px_minmax(260px,1fr)]">
             <label class="flex flex-col gap-1.5">
               <span class="text-[11px] font-bold text-gray-500">대분류</span>
               <select
@@ -394,14 +439,15 @@ onMounted(async () => {
             </label>
 
             <label class="flex flex-col gap-1.5">
-              <span class="text-[11px] font-bold text-gray-500">색상</span>
+              <span class="text-[11px] font-bold text-gray-500">상태</span>
               <select
-                v-model="selectedColor"
+                v-model="selectedStatus"
                 class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none focus:border-[#004D3C]"
               >
-                <option v-for="color in colorOptions" :key="color" :value="color">
-                  {{ color }}
-                </option>
+                <option value="">전체</option>
+                <option value="정상">정상</option>
+                <option value="부족">부족</option>
+                <option value="품절">품절</option>
               </select>
             </label>
 
@@ -415,6 +461,12 @@ onMounted(async () => {
               />
             </label>
           </div>
+          <SkuFacetChips
+            v-model:selectedColor="selectedColor"
+            v-model:selectedSize="selectedSize"
+            :colors="facetColors"
+            :sizes="facetSizes"
+          />
 
           <div class="overflow-x-auto">
             <table class="min-w-[840px] w-full border-collapse text-xs">
@@ -433,17 +485,17 @@ onMounted(async () => {
               <tbody class="divide-y divide-gray-100">
                 <tr
                   v-for="sku in filteredSkus"
-                  :key="sku.skuId"
+                  :key="sku.skuCode"
                   class="transition-colors hover:bg-gray-50"
                 >
                   <td class="px-4 py-3 font-mono font-bold text-gray-500">
-                    {{ sku.skuId }}
+                    {{ sku.skuCode }}
                   </td>
                   <td class="px-4 py-3">
-                    <p class="font-black text-gray-900">{{ sku.productName }}</p>
+                    <p class="font-black text-gray-900">{{ sku.itemName }}</p>
                   </td>
                   <td class="px-4 py-3 font-bold text-gray-600">
-                    {{ sku.mainCategory }} &gt; {{ sku.subCategory }}
+                    {{ sku.parentCategory }} &gt; {{ sku.childCategory }}
                   </td>
                   <td class="px-4 py-3 font-bold text-gray-700">
                     {{ sku.color }} / {{ sku.size }}
@@ -451,7 +503,7 @@ onMounted(async () => {
                   <td class="px-4 py-3 text-right font-black text-gray-900">
                     ₩{{ sku.unitPrice.toLocaleString() }}
                   </td>
-                  <td class="px-4 py-3 text-center font-black text-gray-700">{{ sku.stock }}</td>
+                  <td class="px-4 py-3 text-center font-black text-gray-700">{{ sku.actualStock }}</td>
                   <td class="px-4 py-3 text-center">
                     <span
                       class="inline-flex min-w-12 justify-center px-2 py-1 text-[11px] font-black"
@@ -465,25 +517,25 @@ onMounted(async () => {
                       type="button"
                       class="group inline-flex h-8 min-w-[74px] items-center justify-center gap-1.5 rounded-full border px-3 text-[11px] font-semibold transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-100"
                       :class="
-                        sku.stock === 0
+                        sku.actualStock === 0
                           ? 'border-red-100 bg-red-50/50 text-red-400 shadow-none'
                           : 'border-[#97BFB4]/30 bg-[#97BFB4]/10 text-[#6B8E85] hover:border-[#97BFB4]/50 hover:bg-[#97BFB4]/20 hover:text-[#5A7F75] active:scale-95'
                       "
-                      :disabled="sku.stock === 0"
+                      :disabled="sku.actualStock === 0"
                       @click="addToSalesList(sku)"
                     >
                       <span
                         class="flex h-4 w-4 items-center justify-center rounded-full shadow-sm transition-colors"
                         :class="
-                          sku.stock === 0
+                          sku.actualStock === 0
                             ? 'bg-white/50 text-red-300'
                             : 'bg-white text-[#97BFB4] group-hover:bg-[#004D3C] group-hover:text-white'
                         "
                       >
-                        <Plus v-if="sku.stock > 0" :size="10" stroke-width="3" />
+                        <Plus v-if="sku.actualStock > 0" :size="10" stroke-width="3" />
                         <Ban v-else :size="10" stroke-width="3" />
                       </span>
-                      <span>{{ sku.stock === 0 ? '품절' : '담기' }}</span>
+                      <span>{{ sku.actualStock === 0 ? '품절' : '담기' }}</span>
                     </button>
                   </td>
                 </tr>
@@ -495,6 +547,16 @@ onMounted(async () => {
               </tbody>
             </table>
           </div>
+          <PaginationNav
+            :page="currentPage"
+            :size="pageSize"
+            :total-pages="totalPages"
+            :total-elements="totalElements"
+            :has-previous="hasPrevious"
+            :has-next="hasNext"
+            @update:page="currentPage = $event"
+            @update:size="pageSize = $event"
+          />
         </section>
 
         <section class="border border-gray-300 bg-white shadow-sm">
@@ -525,21 +587,21 @@ onMounted(async () => {
 
             <div
               v-for="line in salesLines"
-              :key="line.skuId"
+              :key="line.skuCode"
               class="border-b border-gray-100 px-4 py-4"
             >
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
-                  <p class="truncate text-sm font-black text-gray-900">{{ line.productName }}</p>
+                  <p class="truncate text-sm font-black text-gray-900">{{ line.itemName }}</p>
                   <p class="mt-1 text-[11px] font-bold text-gray-500">
-                    {{ line.mainCategory }} &gt; {{ line.subCategory }} · {{ line.color }} /
+                    {{ line.parentCategory }} &gt; {{ line.childCategory }} · {{ line.color }} /
                     {{ line.size }}
                   </p>
                 </div>
                 <button
                   type="button"
                   class="text-sm font-black text-gray-300 transition hover:text-red-500"
-                  @click="removeLine(line.skuId)"
+                  @click="removeLine(line.skuCode)"
                 >
                   ×
                 </button>
@@ -558,7 +620,7 @@ onMounted(async () => {
                     :value="line.quantity"
                     type="number"
                     min="1"
-                    :max="getSkuById(line.skuId)?.stock ?? 1"
+                    :max="getSkuById(line.skuCode)?.actualStock ?? 1"
                     class="h-8 w-16 border-x border-gray-300 text-center text-xs font-black text-gray-900 outline-none"
                     @input="updateLineQuantity(line, $event.target.value)"
                   />
