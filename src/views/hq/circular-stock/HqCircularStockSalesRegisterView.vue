@@ -1,6 +1,6 @@
 ﻿<script setup>
 import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import SalesRegisterStepper from '@/components/hq/circular-stock/sales-register/SalesRegisterStepper.vue'
 import SalesRegisterStep1SkuTable from '@/components/hq/circular-stock/sales-register/SalesRegisterStep1SkuTable.vue'
@@ -8,15 +8,16 @@ import SalesRegisterStep2BuyerSection from '@/components/hq/circular-stock/sales
 import SalesRegisterStep3ConditionsSection from '@/components/hq/circular-stock/sales-register/SalesRegisterStep3ConditionsSection.vue'
 import SalesRegisterStepFooter from '@/components/hq/circular-stock/sales-register/SalesRegisterStepFooter.vue'
 import SalesRegisterFinalReviewModal from '@/components/hq/circular-stock/sales-register/SalesRegisterFinalReviewModal.vue'
+import SalesRegisterLeaveConfirmModal from '@/components/hq/circular-stock/sales-register/SalesRegisterLeaveConfirmModal.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
 import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
-import { useCircularStockStore } from '@/stores/hq/circularStock/circularStock.js'
+import { useCircularStockSaleStore } from '@/stores/hq/circularStock/circularStockSale.js'
+import { useCircularStockInventoryStore } from '@/stores/hq/circularStock/circularStockInventory.js'
 
 const router = useRouter()
-const auth = useAuthStore()
 const buyerStore = useCircularStockBuyerStore()
-const circularStockStore = useCircularStockStore()
+const circularStockStore = useCircularStockSaleStore()
+const inventoryStore = useCircularStockInventoryStore()
 
 const hqMenus = roleMenus.hq
 const circularStockMenus =
@@ -36,7 +37,13 @@ const step3SkuInputText = ref({})
 const toastMessage = ref('')
 const toastTone = ref('success')
 const inventoryLoadError = ref('')
+const showLeaveConfirmModal = ref(false)
+const pendingNavigationTarget = ref('')
 let toastTimer = null
+const registerRouteNames = new Set([
+  'hq-circular-inventory-sales-register',
+  'hq-circular-inventory-sales-register-workflow',
+])
 
 // ADR-021 AI 거래처 추천 — Step 2 좌측 영역 모드 토글. 'ai' | 'manual'.
 const buyerPanelMode = ref('ai')
@@ -94,11 +101,11 @@ const finalReviewSummary = computed(() => ({
     0,
   ),
   totalRequestedAmount: draftItems.value.reduce(
-    (sum, item) => sum + (Number(item.requestedAmount) || 0),
+    (sum, item) => sum + ((Number(item.requestedWeightKg) || 0) * (Number(item.unitPrice) || 0)),
     0,
   ),
   totalActualAmount: draftItems.value.reduce(
-    (sum, item) => sum + (Number(item.actualAmount) || 0),
+    (sum, item) => sum + (Number(item.lineAmount) || 0),
     0,
   ),
   totalRequestedWeightKg: draftItems.value.reduce(
@@ -120,6 +127,31 @@ const recommendationKey = computed(() =>
     .sort()
     .join('|'),
 )
+const hasActiveDraft = computed(() => circularStockStore.hasActiveDraft)
+
+function isRegisterFlowRoute(routeLike) {
+  return registerRouteNames.has(String(routeLike?.name || ''))
+}
+
+function shouldBlockLeave(to) {
+  return hasActiveDraft.value && !isRegisterFlowRoute(to)
+}
+
+function handleBeforeUnload(event) {
+  if (!hasActiveDraft.value) return
+  event.preventDefault()
+  event.returnValue = ''
+}
+
+async function ensureManualBuyerPoolLoaded() {
+  if (buyerStore.loading) return
+  if (buyerStore.buyers.length > 0) return
+  try {
+    await buyerStore.fetchAll()
+  } catch {
+    // 수동 탭 기본 목록 로드 실패는 토스트 없이 조용히 처리하고, 사용자가 검색으로 재시도 가능하게 둔다.
+  }
+}
 
 async function ensureRecommendationsUpToDate() {
   if (circularStockStore.isRecommendationLoading) return
@@ -187,7 +219,7 @@ const step3GroupCards = computed(() => {
     const totalAvailableKg = group.items.reduce((sum, item) => sum + (Number(item.availableWeightKg) || 0), 0)
     const totalActualQty = group.items.reduce((sum, item) => sum + (Number(item.deductedQuantity) || 0), 0)
     const totalActualKg = group.items.reduce((sum, item) => sum + (Number(item.actualWeightKg) || 0), 0)
-    const totalActualAmount = group.items.reduce((sum, item) => sum + (Number(item.actualAmount) || 0), 0)
+    const totalActualAmount = group.items.reduce((sum, item) => sum + (Number(item.lineAmount) || 0), 0)
     const completedCount = group.items.filter((item) => Number(item.requestedWeightKg) > 0).length
     const unfilledSkuCount = group.items.filter((item) => Number(item.requestedWeightKg) <= 0).length
     const errorSkuCount = group.items.filter((item) => {
@@ -229,7 +261,7 @@ const step3Summary = computed(() => {
   const inputCompletedCount = draftItems.value.filter((item) => Number(item.requestedWeightKg) > 0).length
   const totalActualQty = draftItems.value.reduce((sum, item) => sum + (Number(item.deductedQuantity) || 0), 0)
   const totalActualKg = draftItems.value.reduce((sum, item) => sum + (Number(item.actualWeightKg) || 0), 0)
-  const totalActualAmount = draftItems.value.reduce((sum, item) => sum + (Number(item.actualAmount) || 0), 0)
+  const totalActualAmount = draftItems.value.reduce((sum, item) => sum + (Number(item.lineAmount) || 0), 0)
   return { totalSku, inputCompletedCount, totalActualQty, totalActualKg, totalActualAmount }
 })
 
@@ -571,15 +603,11 @@ function recommendationBonusReason(rec, index) {
 }
 
 function recommendationProductLabel(rec) {
-  const products = Array.isArray(rec?.factoryProduct)
-    ? rec.factoryProduct
-    : Array.isArray(rec?.productTypes)
-      ? rec.productTypes
-      : []
+  const products = Array.isArray(rec?.factoryProduct) ? rec.factoryProduct : []
   if (products.length > 0) {
     return products.join(', ')
   }
-  return String(rec?.productNote || '').trim() || '-'
+  return '-'
 }
 
 function isSocialEnterprise(rec) {
@@ -646,6 +674,21 @@ function goToSkuList() {
   router.push({ name: 'hq-circular-inventory-sales-register', query: { fromWorkflow: '1' } })
 }
 
+function confirmLeaveAndClearDraft() {
+  const target = pendingNavigationTarget.value
+  pendingNavigationTarget.value = ''
+  showLeaveConfirmModal.value = false
+  circularStockStore.clearDraft()
+  if (target) {
+    router.push(target)
+  }
+}
+
+function cancelLeaveAndKeepDraft() {
+  pendingNavigationTarget.value = ''
+  showLeaveConfirmModal.value = false
+}
+
 function updateDraftItemField(draftId, field, value) {
   const normalizedField = field === 'soldWeightKg' ? 'requestedWeightKg' : field
   circularStockStore.updateSaleDraftItem(draftId, {
@@ -699,10 +742,10 @@ function returnToDrawerEdit() {
   showFinalReviewModal.value = false
 }
 
-function submitSale() {
-  const result = circularStockStore.submitCircularStockSale(auth.user?.name ?? '본사 관리자')
+async function submitSale() {
+  const result = await circularStockStore.submitCircularStockSale()
   toastMessage.value = result.success
-    ? `${result.sale.saleId} 판매 등록을 완료했습니다.`
+    ? `${result.sale.saleNo} 판매 등록을 완료했습니다.`
     : result.message
   toastTone.value = result.success ? 'success' : 'error'
 
@@ -728,7 +771,7 @@ function materialFitLabel(value) {
 async function loadCircularInventoryRows() {
   inventoryLoadError.value = ''
   try {
-    await circularStockStore.loadCircularInventoryRows({ page: 0, size: 100, sort: 'skuCode,asc' })
+    await inventoryStore.loadCircularInventoryRows({ page: 0, size: 100, sort: 'skuCode,asc' })
   } catch (e) {
     inventoryLoadError.value = e.message || '순환 재고 불러오기에 실패했습니다.'
   }
@@ -754,15 +797,26 @@ watch(
   },
 )
 
+watch(
+  buyerPanelMode,
+  (mode) => {
+    if (mode === 'manual') {
+      ensureManualBuyerPoolLoaded()
+    }
+  },
+)
+
 // 탭 전환만으로는 이미 표시된 AI 추천 이유를 다시 스켈레톤으로 되돌리지 않는다.
 
 onMounted(() => {
+  window.addEventListener('beforeunload', handleBeforeUnload)
   groupRequestedKg.value = { ...(circularStockStore.step3GroupRequestedKg || {}) }
   groupRequestedInputText.value = Object.fromEntries(
     Object.entries(groupRequestedKg.value).map(([key, value]) => [key, Number(value || 0).toFixed(2)]),
   )
   window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   loadCircularInventoryRows()
+  ensureManualBuyerPoolLoaded()
   circularStockStore.markWorkflowStarted()
   if (saleStep.value >= 2) {
     ensureRecommendationsUpToDate()
@@ -771,8 +825,19 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('beforeunload', handleBeforeUnload)
   if (toastTimer) clearTimeout(toastTimer)
   clearRationaleTimers()
+})
+
+onBeforeRouteLeave((to, _from, next) => {
+  if (!shouldBlockLeave(to)) {
+    next()
+    return
+  }
+  pendingNavigationTarget.value = String(to.fullPath || '')
+  showLeaveConfirmModal.value = true
+  next(false)
 })
 </script>
 
@@ -826,7 +891,7 @@ onBeforeUnmount(() => {
               </div>
               <div class="flex items-center gap-3">
                 <span class="text-sm font-black text-gray-900">{{
-                  formatCurrency(drawerSummary.totalActualAmount)
+                  formatCurrency(drawerSummary.totalAmount)
                 }}</span>
               </div>
             </div>
@@ -945,6 +1010,12 @@ onBeforeUnmount(() => {
         @submit="submitSale"
       />
 
+      <SalesRegisterLeaveConfirmModal
+        :open="showLeaveConfirmModal"
+        @cancel="cancelLeaveAndKeepDraft"
+        @confirm="confirmLeaveAndClearDraft"
+      />
+
       <p
         v-if="toastMessage"
         class="fixed right-4 top-16 z-30 border px-4 py-2 text-sm font-black shadow-lg"
@@ -959,3 +1030,4 @@ onBeforeUnmount(() => {
     </div>
   </AppLayout>
 </template>
+

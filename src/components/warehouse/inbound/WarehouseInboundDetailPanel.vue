@@ -28,7 +28,7 @@ const {
 } = useWarehouseStatusFormat()
 
 function getItemStock(item) {
-  return props.itemStocks.get(item.id) ?? null
+  return props.itemStocks.get(item.skuCode) ?? null
 }
 
 function isItemShortage(item) {

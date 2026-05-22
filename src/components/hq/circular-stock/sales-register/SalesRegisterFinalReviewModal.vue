@@ -92,7 +92,7 @@ const groupedDraftItems = computed(() => {
     group.items.push(item)
     group.totalRequestedWeightKg += Number(item.requestedWeightKg) || 0
     group.totalActualWeightKg += Number(item.actualWeightKg) || 0
-    group.totalActualAmount += Number(item.actualAmount) || 0
+    group.totalActualAmount += Number(item.lineAmount) || 0
   }
 
   return Array.from(groups.values())
@@ -260,7 +260,7 @@ const includedMaterialBadges = computed(() => {
                     </dd>
                   </div>
                   <div class="info-line">
-                    <dt class="info-key">유형</dt>
+                    <dt class="info-key">산업군</dt>
                     <dd class="info-value">{{ selectedBuyer?.industryGroup ?? '-' }}</dd>
                   </div>
                   <div class="info-line">
@@ -272,8 +272,8 @@ const includedMaterialBadges = computed(() => {
                     <dd class="info-value">{{ selectedBuyer?.phone ?? '-' }}</dd>
                   </div>
                   <div class="info-line">
-                    <dt class="info-key">취급 제품</dt>
-                    <dd class="info-value">{{ selectedBuyer?.productTypes?.join(', ') || selectedBuyer?.productNote || '-' }}</dd>
+                    <dt class="info-key">생산품</dt>
+                    <dd class="info-value">{{ selectedBuyer?.factoryProduct?.join(', ') || '-' }}</dd>
                   </div>
                 </dl>
               </article>
@@ -379,7 +379,7 @@ const includedMaterialBadges = computed(() => {
                           <p class="mt-0.5 text-[11px] font-bold text-gray-500">{{ Number(item.estimatedQuantity || 0).toFixed(2) }}벌 올림</p>
                         </td>
                         <td class="cell-body font-black text-gray-900">{{ formatKg(item.actualWeightKg).replace('kg', ' kg') }}</td>
-                        <td class="cell-body font-black text-gray-900">{{ formatCurrency(item.actualAmount) }}</td>
+                        <td class="cell-body font-black text-gray-900">{{ formatCurrency(item.lineAmount) }}</td>
                       </tr>
                       <tr class="bg-[#F6F6F4]">
                         <td class="cell-body !text-left text-sm font-black text-gray-800" style="text-align: left">합계</td>

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, reactive, onMounted } from 'vue'
+import { ref, computed, reactive, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Users,
@@ -72,41 +72,18 @@ const formatDateTime = (iso) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-// ── BE 회원 목록 (활성 + 탈퇴만 표시 — 승인 대기/거절은 회원가입 승인 탭에서 처리)
+// ── BE 응답 페이지 객체 ({ content, totalElements, totalPages, number, size, ... })
+//    PENDING/REJECTED 는 회원가입 승인 탭에서 처리 → 클라이언트에서 1차 필터
 const VISIBLE_STATUSES = ['APPROVED', 'WITHDRAWN']
 
-const allAccounts = ref([]) // 전체 상태 (PENDING 포함) — 탭 뱃지용
+const accountPage = ref(null)        // 서버 페이징 결과
+const pendingCount = ref(0)          // PENDING 뱃지용 별도 카운트
 const loading = ref(false)
 const loadError = ref('')
 
-const members = computed(() => allAccounts.value.filter((m) => VISIBLE_STATUSES.includes(m.status)))
-const pendingCount = computed(() => allAccounts.value.filter((m) => m.status === 'PENDING').length)
-
-async function loadAccounts() {
-  loading.value = true
-  loadError.value = ''
-  try {
-    allAccounts.value = await accountApi.listAll()
-  } catch (err) {
-    loadError.value = extractErrorMessage(err, '계정 목록을 불러오지 못했습니다.')
-  } finally {
-    loading.value = false
-  }
-}
-
-onMounted(() => loadAccounts())
-
-// ── 통계 (활성 / 탈퇴만)
-const stats = computed(() => {
-  const total = members.value.length
-  const approved = members.value.filter(m => m.status === 'APPROVED').length
-  const withdrawn = members.value.filter(m => m.status === 'WITHDRAWN').length
-  return { total, approved, withdrawn }
-})
-
-// ── 필터
+// ── 필터 + 페이징 상태
 const filter = reactive({ keyword: '', role: '', status: '' })
-const PAGE_SIZE = 10
+const PAGE_SIZE = 20
 const currentPage = ref(1)
 
 const roleOptions = [
@@ -121,32 +98,115 @@ const statusOptions = [
   { value: 'WITHDRAWN', label: '탈퇴' },
 ]
 
-const filtered = computed(() =>
-  members.value.filter(m => {
-    if (filter.keyword) {
-      const kw = filter.keyword.trim().toLowerCase()
-      const haystack = `${m.name ?? ''} ${m.email ?? ''} ${m.employeeCode ?? ''}`.toLowerCase()
-      if (!haystack.includes(kw)) return false
-    }
-    if (filter.role && m.role !== filter.role) return false
-    if (filter.status && m.status !== filter.status) return false
-    return true
-  })
+// ── 화면 표시 데이터 — BE content 에서 VISIBLE_STATUSES 만
+const visibleMembers = computed(() =>
+  (accountPage.value?.content ?? []).filter(m => VISIBLE_STATUSES.includes(m.status))
 )
+const totalElements = computed(() => accountPage.value?.totalElements ?? 0)
+const totalPages = computed(() => Math.max(1, accountPage.value?.totalPages ?? 1))
 
-const totalPages = computed(() => Math.max(1, Math.ceil(filtered.value.length / PAGE_SIZE)))
-
-const paginated = computed(() => {
-  const start = (currentPage.value - 1) * PAGE_SIZE
-  return filtered.value.slice(start, start + PAGE_SIZE)
+// 통계 (현재 검색 결과 기준)
+const stats = computed(() => {
+  const members = visibleMembers.value
+  return {
+    total: totalElements.value,
+    approved: members.filter(m => m.status === 'APPROVED').length,
+    withdrawn: members.filter(m => m.status === 'WITHDRAWN').length,
+  }
 })
 
-// 컴포넌트 진입(새로고침/페이지 재방문) 시 필터 강제 초기화 — keep-alive 도입 시에도 정상 동작 보장
+// ── BE 호출 — 현재 필터/페이지로 조회
+async function loadAccounts() {
+  loading.value = true
+  loadError.value = ''
+  try {
+    accountPage.value = await accountApi.listAll({
+      page: currentPage.value - 1,     // BE 는 0-based
+      size: PAGE_SIZE,
+      keyword: filter.keyword.trim(),
+      role: filter.role,
+      status: filter.status,
+    })
+  } catch (err) {
+    loadError.value = extractErrorMessage(err, '계정 목록을 불러오지 못했습니다.')
+  } finally {
+    loading.value = false
+  }
+}
+
+// PENDING 뱃지용 카운트 — size=1 로 totalElements 만 가져옴
+async function loadPendingCount() {
+  try {
+    const result = await accountApi.listAll({ page: 0, size: 1, status: 'PENDING' })
+    pendingCount.value = result?.totalElements ?? 0
+  } catch {
+    pendingCount.value = 0
+  }
+}
+
+// 키워드 입력 — 300ms 디바운스 후 첫 페이지로 BE 호출
+let keywordDebounce = null
+watch(() => filter.keyword, () => {
+  clearTimeout(keywordDebounce)
+  keywordDebounce = setTimeout(() => {
+    currentPage.value = 1
+    loadAccounts()
+  }, 300)
+})
+
+// 권한/상태 필터 — 즉시 첫 페이지로
+watch([() => filter.role, () => filter.status], () => {
+  currentPage.value = 1
+  loadAccounts()
+})
+
+// 페이지 변경 시 — BE 재호출
+watch(currentPage, () => loadAccounts())
+
+/**
+ * 페이지네이션 — 5개씩 그룹으로 표시
+ *  버튼 구성: << <  1 2 3 4 5  > >>
+ *  - <<  : 이전 5페이지 그룹으로 이동
+ *  - <   : 한 페이지 이전
+ *  - >   : 한 페이지 다음
+ *  - >>  : 다음 5페이지 그룹으로 이동
+ *
+ *  예시 (총 82페이지):
+ *   현재 3페이지 → [1 2 3 4 5]
+ *   현재 7페이지 → [6 7 8 9 10]
+ *   현재 82페이지 → [81 82]
+ */
+const PAGES_PER_GROUP = 5
+const currentGroup = computed(() => Math.ceil(currentPage.value / PAGES_PER_GROUP))
+const totalGroups = computed(() => Math.max(1, Math.ceil(totalPages.value / PAGES_PER_GROUP)))
+
+const visiblePages = computed(() => {
+  const start = (currentGroup.value - 1) * PAGES_PER_GROUP + 1
+  const end = Math.min(start + PAGES_PER_GROUP - 1, totalPages.value)
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i)
+})
+
+function goPrevGroup() {
+  // 이전 그룹의 첫 페이지로
+  const prevGroupStart = Math.max(1, (currentGroup.value - 2) * PAGES_PER_GROUP + 1)
+  currentPage.value = prevGroupStart
+}
+
+function goNextGroup() {
+  // 다음 그룹의 첫 페이지로
+  const nextGroupStart = Math.min(totalPages.value, currentGroup.value * PAGES_PER_GROUP + 1)
+  currentPage.value = nextGroupStart
+}
+
+// 컴포넌트 진입(새로고침/페이지 재방문) 시 필터 강제 초기화 + BE 호출
+//  - watch 가 이미 등록되어 있어도 onMounted 시점에는 트리거되지 않으므로 최초 1회 명시 호출
 onMounted(() => {
   filter.keyword = ''
   filter.role = ''
   filter.status = ''
   currentPage.value = 1
+  loadAccounts()       // 첫 페이지 목록 조회
+  loadPendingCount()   // PENDING 뱃지 카운트
 })
 
 // ── 상세 패널
@@ -177,8 +237,8 @@ async function confirmWithdraw() {
     // 로컬 상태 갱신
     selected.value.status = 'WITHDRAWN'
     selected.value.processedAt = result.processedAt
-    // 목록 재조회
-    await loadAccounts()
+    // 목록 + 대기 카운트 재조회 (다른 탭에서 변동되었을 수 있음)
+    await Promise.all([loadAccounts(), loadPendingCount()])
     withdrawConfirm.value = false
   } catch (err) {
     alert(extractErrorMessage(err, '탈퇴 처리에 실패했습니다.'))
@@ -250,24 +310,22 @@ async function confirmWithdraw() {
             type="text"
             placeholder="이름/이메일/사원코드 검색"
             class="h-9 w-64 rounded-none border border-gray-300 bg-gray-50 pl-8 pr-3 text-[13px] text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-[#004D3C] focus:bg-white"
-            @input="currentPage = 1"
           />
         </div>
         <select
           v-model="filter.role"
           class="h-9 rounded-none border border-gray-300 bg-gray-50 px-3 text-[13px] text-gray-700 outline-none transition focus:border-[#004D3C] focus:bg-white"
-          @change="currentPage = 1"
         >
           <option v-for="o in roleOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
         </select>
         <select
           v-model="filter.status"
           class="h-9 rounded-none border border-gray-300 bg-gray-50 px-3 text-[13px] text-gray-700 outline-none transition focus:border-[#004D3C] focus:bg-white"
-          @change="currentPage = 1"
         >
           <option v-for="o in statusOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
         </select>
-        <span class="text-[12px] font-medium text-gray-400">{{ filtered.length }}건</span>
+        <!-- 서버 페이징 총 건수 (검색 결과 기준) -->
+        <span class="text-[12px] font-medium text-gray-400">{{ totalElements }}건</span>
       </section>
 
       <!-- 로딩 / 에러 -->
@@ -303,7 +361,7 @@ async function confirmWithdraw() {
             </thead>
             <tbody class="divide-y divide-gray-100 border-t border-gray-200">
               <tr
-                v-for="m in paginated"
+                v-for="m in visibleMembers"
                 :key="m.id"
                 class="cursor-pointer transition-colors hover:bg-gray-50/50"
                 :class="{
@@ -332,7 +390,7 @@ async function confirmWithdraw() {
                   </span>
                 </td>
               </tr>
-              <tr v-if="paginated.length === 0">
+              <tr v-if="visibleMembers.length === 0">
                 <td colspan="7" class="px-3 py-10 text-center text-[13px] text-gray-400">조회된 계정이 없습니다.</td>
               </tr>
             </tbody>
@@ -342,32 +400,53 @@ async function confirmWithdraw() {
         <!-- 페이지네이션 -->
         <div class="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-3 py-2">
           <span class="text-[11px] font-medium text-gray-400">
-            <template v-if="filtered.length > 0">
-              {{ (currentPage - 1) * PAGE_SIZE + 1 }}–{{ Math.min(currentPage * PAGE_SIZE, filtered.length) }} / 전체 {{ filtered.length }}건
+            <template v-if="totalElements > 0">
+              {{ (currentPage - 1) * PAGE_SIZE + 1 }}–{{ Math.min(currentPage * PAGE_SIZE, totalElements) }} / 전체 {{ totalElements }}건
             </template>
             <template v-else>0건</template>
           </span>
           <div class="flex items-center gap-1">
+            <!-- << 이전 5페이지 그룹 -->
+            <button
+              type="button"
+              :disabled="currentGroup === 1"
+              class="flex h-7 w-7 items-center justify-center border border-gray-300 bg-white text-[12px] text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+              @click="goPrevGroup"
+              title="이전 5페이지"
+            >«</button>
+            <!-- < 한 페이지 이전 -->
             <button
               type="button"
               :disabled="currentPage === 1"
               class="flex h-7 w-7 items-center justify-center border border-gray-300 bg-white text-[12px] text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
               @click="currentPage--"
+              title="이전 페이지"
             >‹</button>
+            <!-- 페이지 번호 (5개씩) -->
             <button
-              v-for="p in totalPages"
+              v-for="p in visiblePages"
               :key="p"
               type="button"
               class="flex h-7 min-w-[28px] items-center justify-center border text-[12px] font-medium transition"
               :class="p === currentPage ? 'border-[#004D3C] bg-[#004D3C] text-white' : 'border-gray-300 bg-white text-gray-500 hover:bg-gray-100'"
               @click="currentPage = p"
             >{{ p }}</button>
+            <!-- > 한 페이지 다음 -->
             <button
               type="button"
               :disabled="currentPage === totalPages"
               class="flex h-7 w-7 items-center justify-center border border-gray-300 bg-white text-[12px] text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
               @click="currentPage++"
+              title="다음 페이지"
             >›</button>
+            <!-- >> 다음 5페이지 그룹 -->
+            <button
+              type="button"
+              :disabled="currentGroup === totalGroups"
+              class="flex h-7 w-7 items-center justify-center border border-gray-300 bg-white text-[12px] text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+              @click="goNextGroup"
+              title="다음 5페이지"
+            >»</button>
           </div>
         </div>
       </section>
@@ -477,39 +556,18 @@ async function confirmWithdraw() {
               </p>
             </div>
 
-            <!-- 탈퇴 처리 (APPROVED 상태에서만) -->
+            <!-- 탈퇴 처리 (APPROVED 상태에서만) — 현재 점검 중으로 비활성화 -->
             <div v-if="selected.status === 'APPROVED'">
-              <p class="mb-2 text-[11px] font-bold uppercase tracking-widest text-red-500">계정 탈퇴 처리</p>
-              <p class="mb-3 text-[13px] text-gray-500">
-                탈퇴 처리 시 해당 사용자의 모든 세션이 즉시 무효화됩니다. 추후 다시 로그인할 수 없습니다.
+              <p class="mb-2 text-[11px] font-bold uppercase tracking-widest text-gray-400">계정 탈퇴 처리</p>
+              <p class="mb-3 text-[13px] text-gray-400">
+                현재 계정 탈퇴 처리 기능은 점검 중입니다.
               </p>
 
-              <div v-if="withdrawConfirm" class="border border-red-200 bg-red-50 p-4">
-                <p class="mb-3 text-[13px] font-medium text-red-700">
-                  정말 탈퇴 처리하시겠습니까? <strong>{{ selected.name }}</strong> 계정이 비활성화됩니다.
-                </p>
-                <div class="flex gap-2">
-                  <button
-                    type="button"
-                    class="h-9 border border-gray-300 bg-white px-4 text-[13px] font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    :disabled="withdrawing"
-                    @click="withdrawConfirm = false"
-                  >취소</button>
-                  <button
-                    type="button"
-                    class="h-9 bg-red-600 px-4 text-[13px] font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                    :disabled="withdrawing"
-                    @click="confirmWithdraw"
-                  >
-                    {{ withdrawing ? '처리 중...' : '탈퇴 확정' }}
-                  </button>
-                </div>
-              </div>
               <button
-                v-else
                 type="button"
-                class="inline-flex h-9 items-center gap-2 border border-red-300 bg-white px-4 text-[13px] font-medium text-red-600 transition hover:bg-red-50"
-                @click="withdrawConfirm = true"
+                disabled
+                class="inline-flex h-9 items-center gap-2 border border-gray-200 bg-gray-100 px-4 text-[13px] font-medium text-gray-400 cursor-not-allowed"
+                title="계정 탈퇴 처리 기능 점검 중"
               >
                 <LogOut :size="14" />
                 계정 탈퇴 처리

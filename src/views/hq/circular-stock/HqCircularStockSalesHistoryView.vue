@@ -1,19 +1,20 @@
-<script setup>
-import { computed, onMounted, ref } from 'vue'
+﻿<script setup>
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
-import { useAuthStore } from '@/stores/auth.js'
-import { useCircularStockStore } from '@/stores/hq/circularStock/circularStock.js'
-import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
+import { useCircularStockSaleStore } from '@/stores/hq/circularStock/circularStockSale.js'
+import {
+  circularSaleOutboundStatusBadgeClass,
+  circularSaleOutboundStatusLabel,
+} from '@/stores/hq/circularStock/circularStockCommon.js'
 
 const router = useRouter()
-const auth = useAuthStore()
-const circularStockStore = useCircularStockStore()
-const buyerStore = useCircularStockBuyerStore()
+const circularStockStore = useCircularStockSaleStore()
 
 const hqMenus = roleMenus.hq
-const circularStockMenus = roleMenus.hq.find((menu) => menu.label === '순환 재고 관리')?.children ?? []
+const circularStockMenus =
+  roleMenus.hq.find((menu) => menu.label === '순환 재고 관리')?.children ?? []
 const periodTabs = [
   { key: 'all', label: '전체' },
   { key: 'week', label: '주별' },
@@ -26,10 +27,7 @@ const activeSideMenu = ref('순환 재고 판매 내역')
 const searchTerm = ref('')
 const activePeriod = ref('all')
 
-const referenceDate = computed(() => {
-  const latestSale = circularStockStore.sortedSales[0]
-  return latestSale?.soldAt ? new Date(latestSale.soldAt) : new Date()
-})
+const referenceDate = ref(new Date())
 
 const periodRange = computed(() => {
   const base = new Date(referenceDate.value)
@@ -72,12 +70,7 @@ const periodRange = computed(() => {
   }
 })
 
-const periodFilteredSales = computed(() =>
-  circularStockStore.sortedSales.filter((sale) => {
-    const soldAt = new Date(sale.soldAt)
-    return soldAt >= periodRange.value.start && soldAt <= periodRange.value.end
-  }),
-)
+const periodFilteredSales = computed(() => circularStockStore.sortedSales)
 
 const filteredSales = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase()
@@ -85,23 +78,28 @@ const filteredSales = computed(() => {
   return periodFilteredSales.value.filter((sale) => {
     if (!keyword) return true
 
-    const headline = sale.items.length > 1
-      ? `${sale.items[0].itemName} 외 ${sale.items.length - 1}건`
-      : sale.items[0]?.itemName ?? ''
+    const headline = sale.headline || ''
 
-    return [
-      sale.saleId,
-      sale.buyerName,
-      headline,
-      ...sale.items.map((item) => [item.itemCode, item.itemName, item.mainCategory, item.subCategory].join(' ')),
-    ].join(' ').toLowerCase().includes(keyword)
+    return [sale.saleNo, sale.buyerName, headline, sale.materialType]
+      .join(' ')
+      .toLowerCase()
+      .includes(keyword)
   })
 })
 
 const filteredSummary = computed(() => ({
-  totalSalesAmount: filteredSales.value.reduce((sum, sale) => sum + (Number(sale.totalActualAmount) || 0), 0),
-  totalDeductedQuantity: filteredSales.value.reduce((sum, sale) => sum + (Number(sale.totalDeductedQuantity) || 0), 0),
-  totalActualWeightKg: filteredSales.value.reduce((sum, sale) => sum + (Number(sale.totalActualWeightKg) || 0), 0),
+  totalSalesAmount: filteredSales.value.reduce(
+    (sum, sale) => sum + (Number(sale.totalAmount) || 0),
+    0,
+  ),
+  totalDeductedQuantity: filteredSales.value.reduce(
+    (sum, sale) => sum + (Number(sale.totalSoldQuantity) || 0),
+    0,
+  ),
+  totalActualWeightKg: filteredSales.value.reduce(
+    (sum, sale) => sum + (Number(sale.totalActualWeightKg) || 0),
+    0,
+  ),
   totalSalesCount: filteredSales.value.length,
 }))
 
@@ -110,22 +108,24 @@ function setPeriod(periodKey) {
 }
 
 function headlineLabel(sale) {
-  if (!sale || sale.items.length === 0) return '-'
-  return sale.items.length > 1 ? `${sale.items[0].itemName} 외 ${sale.items.length - 1}건` : sale.items[0].itemName
+  return sale?.headline || '-'
 }
 
 function materialTypeLabel(sale) {
-  const itemMaterialType = sale?.items?.[0]?.materialType
-  if (itemMaterialType) return itemMaterialType
-
-  if (sale?.buyerPrimaryMaterialFit === 'natural-single') return '천연 단일 섬유'
-  if (sale?.buyerPrimaryMaterialFit === 'synthetic') return '합성 섬유'
-  if (sale?.buyerPrimaryMaterialFit === 'blended') return '혼방'
-  return '-'
+  return sale?.materialType || '-'
 }
 
-function industryGroupLabel(sale) {
-  return sale?.buyerIndustryGroup ?? '-'
+function buyerIndustryGroupLabel(sale) {
+  if (!sale) return '-'
+  return sale.buyerIndustryGroup ?? '-'
+}
+
+function outboundStatusLabel(sale) {
+  return circularSaleOutboundStatusLabel(sale?.outboundStatus)
+}
+
+function outboundStatusBadgeClass(sale) {
+  return circularSaleOutboundStatusBadgeClass(sale?.outboundStatus)
 }
 
 function formatDateTime(iso) {
@@ -141,7 +141,7 @@ function formatDate(date) {
 }
 
 function formatPeriodLabel() {
-  if (activePeriod.value === 'all') return '전체 판매 이력'
+  if (activePeriod.value === 'all') return '전체 판매 내역'
   if (activePeriod.value === 'year') return `${referenceDate.value.getFullYear()}년 기준`
   return `${formatDate(periodRange.value.start)} ~ ${formatDate(periodRange.value.end)}`
 }
@@ -165,10 +165,34 @@ function openSaleDetail(saleId) {
   })
 }
 
-onMounted(() => {
+function toDateParam(date) {
+  const pad = (value) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+async function loadSales() {
+  const range = periodRange.value
+  await circularStockStore.fetchCircularSalesPage({
+    page: 0,
+    size: 50,
+    sort: 'soldAt,desc',
+    from: activePeriod.value === 'all' ? undefined : toDateParam(range.start),
+    to: activePeriod.value === 'all' ? undefined : toDateParam(range.end),
+    keyword: searchTerm.value?.trim() || undefined,
+  })
+  const latest = circularStockStore.sortedSales[0]
+  if (latest?.soldAt) {
+    referenceDate.value = new Date(latest.soldAt)
+  }
+}
+
+watch([activePeriod, searchTerm], () => {
+  loadSales()
 })
 
-
+onMounted(() => {
+  loadSales()
+})
 </script>
 
 <template>
@@ -182,9 +206,13 @@ onMounted(() => {
       <section class="border border-gray-300 bg-white p-4 shadow-sm">
         <div class="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Circular Inventory Sales</p>
+            <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">
+              Circular Inventory Sales
+            </p>
             <h1 class="mt-1 text-lg font-black text-gray-900">순환 재고 판매 내역</h1>
-            <p class="mt-1 text-xs font-bold text-gray-500">판매건 헤더 기준으로 이력을 조회하고, 한 건을 누르면 상세 페이지로 이동합니다.</p>
+            <p class="mt-1 text-xs font-bold text-gray-500">
+              판매건 헤더 기준으로 이력을 조회하고, 한 건을 누르면 상세 페이지로 이동합니다.
+            </p>
           </div>
           <label class="flex min-w-[280px] flex-col gap-1.5">
             <span class="text-[11px] font-bold text-gray-500">검색</span>
@@ -192,7 +220,7 @@ onMounted(() => {
               v-model="searchTerm"
               type="search"
               class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#111827]"
-              placeholder="판매번호, 거래처명, 품목명"
+              placeholder="판매번호, 거래처명, 대표품목"
             />
           </label>
         </div>
@@ -200,15 +228,19 @@ onMounted(() => {
 
       <section class="border border-gray-300 bg-white p-4 shadow-sm">
         <div class="flex flex-wrap items-center justify-between gap-4">
-          <div class="inline-flex flex-wrap items-center gap-1 rounded-[14px] border border-[#E5E7EB] bg-[#F7F7F8] p-1">
+          <div
+            class="inline-flex flex-wrap items-center gap-1 rounded-[14px] border border-[#E5E7EB] bg-[#F7F7F8] p-1"
+          >
             <button
               v-for="tab in periodTabs"
               :key="tab.key"
               type="button"
               class="rounded-[12px] px-2.5 py-1 text-[11px] font-semibold tracking-[0.01em] transition-all duration-150"
-              :class="activePeriod === tab.key
-                ? 'bg-white text-[#111827] shadow-[0_1px_2px_rgba(17,24,39,0.06)]'
-                : 'bg-transparent text-[#6B7280] hover:bg-white hover:text-[#374151]'"
+              :class="
+                activePeriod === tab.key
+                  ? 'bg-white text-[#111827] shadow-[0_1px_2px_rgba(17,24,39,0.06)]'
+                  : 'bg-transparent text-[#6B7280] hover:bg-white hover:text-[#374151]'
+              "
               @click="setPeriod(tab.key)"
             >
               {{ tab.label }}
@@ -216,7 +248,9 @@ onMounted(() => {
           </div>
 
           <div class="text-right">
-            <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">Current Range</p>
+            <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">
+              Current Range
+            </p>
             <p class="mt-1 text-xs font-black text-gray-700">{{ formatPeriodLabel() }}</p>
           </div>
         </div>
@@ -224,20 +258,36 @@ onMounted(() => {
         <div class="pt-3">
           <div class="grid gap-3 md:grid-cols-4">
             <div class="border border-slate-100 bg-slate-50 px-4 py-3">
-              <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">판매건 수</p>
-              <p class="mt-1.5 text-lg font-black text-slate-700">{{ filteredSummary.totalSalesCount.toLocaleString() }}건</p>
+              <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">
+                판매건 수
+              </p>
+              <p class="mt-1.5 text-lg font-black text-slate-700">
+                {{ filteredSummary.totalSalesCount.toLocaleString() }}건
+              </p>
             </div>
             <div class="border border-emerald-100 bg-emerald-50 px-4 py-3">
-              <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">총 판매 KG</p>
-              <p class="mt-1.5 text-lg font-black text-emerald-700">{{ formatKg(filteredSummary.totalActualWeightKg) }}</p>
+              <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">
+                총 판매 KG
+              </p>
+              <p class="mt-1.5 text-lg font-black text-emerald-700">
+                {{ formatKg(filteredSummary.totalActualWeightKg) }}
+              </p>
             </div>
             <div class="border border-amber-100 bg-amber-50 px-4 py-3">
-              <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">총 판매 금액</p>
-              <p class="mt-1.5 text-lg font-black text-amber-700">{{ formatCurrency(filteredSummary.totalSalesAmount) }}</p>
+              <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">
+                총 판매 금액
+              </p>
+              <p class="mt-1.5 text-lg font-black text-amber-700">
+                {{ formatCurrency(filteredSummary.totalSalesAmount) }}
+              </p>
             </div>
             <div class="border border-sky-100 bg-sky-50 px-4 py-3">
-              <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">총 판매 재고 수량</p>
-              <p class="mt-1.5 text-lg font-black text-sky-700">{{ formatQuantity(filteredSummary.totalDeductedQuantity) }}</p>
+              <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">
+                총 판매 재고 수량
+              </p>
+              <p class="mt-1.5 text-lg font-black text-sky-700">
+                {{ formatQuantity(filteredSummary.totalDeductedQuantity) }}
+              </p>
             </div>
           </div>
         </div>
@@ -246,7 +296,9 @@ onMounted(() => {
       <section class="border border-gray-300 bg-white shadow-sm">
         <div class="border-b border-gray-200 px-4 py-3">
           <h2 class="text-sm font-extrabold text-gray-900">판매 이력 목록</h2>
-          <p class="mt-1 text-[11px] font-bold text-gray-400">행을 클릭하면 판매 상세 페이지로 이동합니다.</p>
+          <p class="mt-1 text-[11px] font-bold text-gray-400">
+            행을 클릭하면 판매 상세 페이지로 이동합니다.
+          </p>
         </div>
 
         <div class="overflow-x-auto">
@@ -262,6 +314,7 @@ onMounted(() => {
                 <th class="px-4 py-3 text-right font-black">확정 반영 KG</th>
                 <th class="px-4 py-3 text-right font-black">총 판매 재고 수량</th>
                 <th class="px-4 py-3 text-right font-black">확정 거래 금액</th>
+                <th class="px-4 py-3 text-center font-black">상태</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -272,17 +325,33 @@ onMounted(() => {
                 @click="openSaleDetail(sale.saleId)"
               >
                 <td class="px-4 py-3 font-bold text-gray-600">{{ formatDateTime(sale.soldAt) }}</td>
-                <td class="px-4 py-3 font-mono font-black text-gray-800">{{ sale.saleId }}</td>
+                <td class="px-4 py-3 font-mono font-black text-gray-800">{{ sale.saleNo }}</td>
                 <td class="px-4 py-3 font-black text-gray-900">{{ sale.buyerName }}</td>
-                <td class="px-4 py-3 font-bold text-gray-700">{{ industryGroupLabel(sale) }}</td>
+                <td class="px-4 py-3 font-bold text-gray-700">
+                  {{ buyerIndustryGroupLabel(sale) }}
+                </td>
                 <td class="px-4 py-3 font-black text-gray-700">{{ materialTypeLabel(sale) }}</td>
                 <td class="px-4 py-3 font-black text-gray-900">{{ headlineLabel(sale) }}</td>
-                <td class="px-4 py-3 text-right font-black text-gray-700">{{ formatKg(sale.totalActualWeightKg) }}</td>
-                <td class="px-4 py-3 text-right font-black text-gray-700">{{ formatQuantity(sale.totalDeductedQuantity) }}</td>
-                <td class="px-4 py-3 text-right font-black text-gray-900">{{ formatCurrency(sale.totalActualAmount) }}</td>
+                <td class="px-4 py-3 text-right font-black text-gray-700">
+                  {{ formatKg(sale.totalActualWeightKg) }}
+                </td>
+                <td class="px-4 py-3 text-right font-black text-gray-700">
+                  {{ formatQuantity(sale.totalSoldQuantity) }}
+                </td>
+                <td class="px-4 py-3 text-right font-black text-gray-900">
+                  {{ formatCurrency(sale.totalAmount) }}
+                </td>
+                <td class="px-4 py-3 text-center">
+                  <span
+                    class="inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-extrabold"
+                    :class="outboundStatusBadgeClass(sale)"
+                  >
+                    {{ outboundStatusLabel(sale) }}
+                  </span>
+                </td>
               </tr>
               <tr v-if="filteredSales.length === 0">
-                <td colspan="9" class="px-4 py-12 text-center text-gray-400">조회 가능한 판매 이력이 없습니다.</td>
+                <td colspan="10" class="px-4 py-12 text-center text-gray-400">조회 가능한 판매 이력이 없습니다.</td>
               </tr>
             </tbody>
             <tfoot class="border-t-2 border-gray-200 bg-gray-50 text-xs">
@@ -299,3 +368,4 @@ onMounted(() => {
     </div>
   </AppLayout>
 </template>
+

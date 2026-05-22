@@ -583,11 +583,21 @@ function onInfraChange() {
             <p class="text-[12px] font-black text-[#004D3C]">추가 정보</p>
           </div>
           <label class="flex flex-col gap-1.5">
-            <span class="text-[12px] font-bold text-gray-600">신청 사유 (선택)</span>
+            <div class="flex items-center justify-between">
+              <span class="text-[12px] font-bold text-gray-600">신청 사유 (선택)</span>
+              <!-- 글자수 카운트 (500자 한정) -->
+              <span
+                class="text-[11px] font-medium"
+                :class="(form.reason?.length || 0) > 500 ? 'text-red-600' : 'text-gray-400'"
+              >
+                {{ form.reason?.length || 0 }} / 500
+              </span>
+            </div>
             <textarea
                 v-model="form.reason"
                 placeholder="추가 전달 사항 입력"
                 rows="2"
+                maxlength="500"
                 class="resize-none border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-[#004D3C] focus:bg-white"
             />
           </label>
