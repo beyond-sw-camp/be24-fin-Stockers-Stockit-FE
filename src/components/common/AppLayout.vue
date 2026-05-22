@@ -152,7 +152,7 @@ const isRouteMatch = (menuPath) => {
 const syncOpenTopMenuWithRoute = () => {
   const matchedParent = topMenus.value.find((menu) => {
     if (hasMenuChildren(menu)) {
-      return getMenuChildren(menu).some((item) => isRouteMatch(item.path))
+      return isRouteMatch(menu.path) || getMenuChildren(menu).some((item) => isRouteMatch(item.path))
     }
     return isRouteMatch(menu.path)
   })
