@@ -34,6 +34,7 @@
         { label: '순환 재고 거래처 관리', path: '/hq/circular-inventory/buyers' },
         { label: '순환 재고 판매 등록', path: '/hq/circular-inventory/sales/register' },
         { label: '순환 재고 판매 내역', path: '/hq/circular-inventory/sales/history' },
+        { label: '순환 재고 판매 통계', path: '/hq/analytics/vendors' },
       ],
     },
     {
@@ -56,11 +57,11 @@
       icon: 'check',
     },
     {
-      label: 'ESG 대시보드',
+      label: 'ESG 탄소 성과 관리',
       path: '/hq/esg',
       icon: 'sprout',
       children: [
-        { label: '탄소배출권 관리', path: '/hq/esg' },
+        { label: '탄소 배출 관리', path: '/hq/esg' },
         { label: '친환경 나무 키우기 점수', path: '/hq/esg/tree-score' },
       ],
     },
