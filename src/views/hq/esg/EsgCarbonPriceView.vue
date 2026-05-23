@@ -25,7 +25,7 @@ const auth = useAuthStore()
 // ─────────── AppLayout props ───────────
 const topMenus = computed(() => roleMenus.hq ?? [])
 const sideMenus = computed(
-  () => (roleMenus.hq ?? []).find((menu) => menu.label === 'ESG 대시보드')?.children ?? [],
+  () => (roleMenus.hq ?? []).find((menu) => menu.label === 'ESG 탄소 성과 관리')?.children ?? [],
 )
 const activeSideMenu = ref('배출권 시장 가치')
 
@@ -37,8 +37,9 @@ const PERIOD_OPTIONS = [
 ]
 const selectedPeriod = ref('SEVEN_DAYS')
 
-// ─────────── 페이징 (일자별 상세 테이블) ───────────
+// ─────────── 페이징 (일자별 상세 테이블) — 알림/계정 관리와 동일한 5그룹 패턴 ───────────
 const PAGE_SIZE = 15
+const PAGES_PER_GROUP = 5
 const currentPage = ref(1)
 
 // 최신 → 과거 순 정렬된 전체 데이터 (테이블용)
@@ -55,30 +56,20 @@ const pagedRows = computed(() => {
   return sortedDesc.value.slice(start, start + PAGE_SIZE)
 })
 
-// 표시할 페이지 번호 목록 (현재 ±2, 양 끝 + 줄임표)
-const pageNumbers = computed(() => {
-  const total = totalPages.value
-  const cur = currentPage.value
-  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
-
-  const pages = new Set([1, 2, total - 1, total, cur - 1, cur, cur + 1])
-  const sorted = [...pages].filter(p => p >= 1 && p <= total).sort((a, b) => a - b)
-
-  // 사이에 끊김 있으면 ... 삽입
-  const result = []
-  let prev = 0
-  for (const p of sorted) {
-    if (prev && p - prev > 1) result.push('...')
-    result.push(p)
-    prev = p
-  }
-  return result
+// 페이지 그룹 (5개씩) — 계정 관리/알림 페이지와 동일 패턴
+const currentGroup = computed(() => Math.ceil(currentPage.value / PAGES_PER_GROUP))
+const totalGroups = computed(() => Math.max(1, Math.ceil(totalPages.value / PAGES_PER_GROUP)))
+const visiblePages = computed(() => {
+  const start = (currentGroup.value - 1) * PAGES_PER_GROUP + 1
+  const end = Math.min(start + PAGES_PER_GROUP - 1, totalPages.value)
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i)
 })
 
-function goToPage(p) {
-  if (p === '...') return
-  if (p < 1 || p > totalPages.value) return
-  currentPage.value = p
+function goPrevGroup() {
+  currentPage.value = Math.max(1, (currentGroup.value - 2) * PAGES_PER_GROUP + 1)
+}
+function goNextGroup() {
+  currentPage.value = Math.min(totalPages.value, currentGroup.value * PAGES_PER_GROUP + 1)
 }
 
 // 기간 필터 변경 시 페이지 1로 리셋 (아래 watch 통합)
@@ -232,7 +223,7 @@ const chartOptions = {
 
 <template>
   <AppLayout
-    active-top-menu="ESG 대시보드"
+    active-top-menu="ESG 탄소 성과 관리"
     :top-menus="topMenus"
     :side-menus="sideMenus"
     v-model:active-side-menu="activeSideMenu"
@@ -450,44 +441,47 @@ const chartOptions = {
             </span>
 
             <div class="flex items-center gap-1">
-              <!-- 이전 -->
+              <!-- « 이전 5페이지 그룹 -->
               <button
                 type="button"
-                class="h-7 border border-gray-300 bg-white px-2.5 text-[11px] font-medium text-gray-600 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+                :disabled="currentGroup === 1"
+                class="flex h-7 w-7 items-center justify-center border border-gray-300 bg-white text-[12px] text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+                @click="goPrevGroup"
+                title="이전 5페이지"
+              >«</button>
+              <!-- ‹ 한 페이지 이전 -->
+              <button
+                type="button"
                 :disabled="currentPage === 1"
-                @click="goToPage(currentPage - 1)"
-              >
-                이전
-              </button>
-
-              <!-- 페이지 번호 -->
+                class="flex h-7 w-7 items-center justify-center border border-gray-300 bg-white text-[12px] text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+                @click="currentPage--"
+                title="이전 페이지"
+              >‹</button>
+              <!-- 페이지 번호 (5개씩) -->
               <button
-                v-for="(p, idx) in pageNumbers"
-                :key="idx"
+                v-for="p in visiblePages"
+                :key="p"
                 type="button"
-                :disabled="p === '...'"
-                :class="[
-                  'h-7 min-w-[28px] px-2 text-[11px] font-medium transition',
-                  p === currentPage
-                    ? 'border border-[#004D3C] bg-[#004D3C] text-white'
-                    : p === '...'
-                      ? 'cursor-default text-gray-400'
-                      : 'border border-gray-300 bg-white text-gray-600 hover:bg-gray-100'
-                ]"
-                @click="goToPage(p)"
-              >
-                {{ p }}
-              </button>
-
-              <!-- 다음 -->
+                class="flex h-7 min-w-[28px] items-center justify-center border text-[12px] font-medium transition"
+                :class="p === currentPage ? 'border-[#004D3C] bg-[#004D3C] text-white' : 'border-gray-300 bg-white text-gray-500 hover:bg-gray-100'"
+                @click="currentPage = p"
+              >{{ p }}</button>
+              <!-- › 한 페이지 다음 -->
               <button
                 type="button"
-                class="h-7 border border-gray-300 bg-white px-2.5 text-[11px] font-medium text-gray-600 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
                 :disabled="currentPage === totalPages"
-                @click="goToPage(currentPage + 1)"
-              >
-                다음
-              </button>
+                class="flex h-7 w-7 items-center justify-center border border-gray-300 bg-white text-[12px] text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+                @click="currentPage++"
+                title="다음 페이지"
+              >›</button>
+              <!-- » 다음 5페이지 그룹 -->
+              <button
+                type="button"
+                :disabled="currentGroup === totalGroups"
+                class="flex h-7 w-7 items-center justify-center border border-gray-300 bg-white text-[12px] text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+                @click="goNextGroup"
+                title="다음 5페이지"
+              >»</button>
             </div>
           </div>
         </section>

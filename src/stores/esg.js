@@ -1,22 +1,34 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import { carbonPriceApi, scoreEventsApi } from '@/api/hq/esg.js'
-import {
-  MOCK_DONATION_EVENTS,
-  computeTotalScore,
-  computeCarbonReductionKg,
-  computeMonthlyCarbonReduction,
-  normalizeSaleEvent,
-} from '@/utils/esgScore.js'
+import { carbonPriceApi, scoreEventsApi, materialFactorsApi } from '@/api/hq/esg.js'
+// Phase 3 B 이관 후: 점수 합산/카본 분포는 BE 응답을 그대로 사용 → 계산 함수 import 폐기.
+// MATERIAL_FACTORS 만 시드 fallback 용으로 유지.
+import { MATERIAL_FACTORS } from '@/utils/esgScore.js'
 
-const POINTS_PER_STAGE = 1500
-const MAX_STAGE = 10
+// ESG 나무 단계 임계값 (Curved 곡선, 게임화 자연스러움)
+//  - Lv.1 ~ Lv.10 까지 10단계
+//  - Lv.10 도달 = 1,500,000 pt (만점)
+//  - 초반엔 빠르게 진급 (동기부여), 후반엔 천천히 (도전감)
+//  - 산식: pts >= STAGE_THRESHOLDS[i] 인 가장 큰 i 가 (i+1) 단계
+const STAGE_THRESHOLDS = [
+  0,         // Lv.1 — 씨앗 (시작)
+  5000,      // Lv.2
+  20000,     // Lv.3
+  50000,     // Lv.4
+  100000,    // Lv.5
+  200000,    // Lv.6
+  350000,    // Lv.7
+  600000,    // Lv.8
+  1000000,   // Lv.9
+  1500000,   // Lv.10 — 결실의 나무 (만점)
+]
+const MAX_STAGE = STAGE_THRESHOLDS.length   // 10
 
 // BE 응답 실패 시 폴백 가격 (BE 의 esg.carbon-api.fallback-price 와 동기화: 9,200)
 const KAU_FALLBACK_PRICE = 9200
 
 export const useEsgStore = defineStore('esg', () => {
-  // 초기 0 → fetchTotalPoints() 호출 시 BE sale events + MOCK_DONATION_EVENTS 기반으로 자동 계산
+  // 초기 0 → fetchTotalPoints() 호출 시 BE sale events 기반으로 자동 계산
   const totalPoints = ref(0)
   const totalPointsLoading = ref(false)
   const totalPointsError = ref(null)
@@ -31,10 +43,25 @@ export const useEsgStore = defineStore('esg', () => {
   // 월별 탄소 절감량 (kg CO₂) 12개 — 전월 대비 변동률 계산용
   const carbonReductionMonthly = ref(Array(12).fill(0))
 
+  // 소재 그룹별 탄소 절감량 (kg CO₂)
+  const carbonReductionByGroupKg = ref({ NATURAL_SINGLE: 0, SYNTHETIC: 0, BLEND: 0 })
+
+  // 개별 소재별 탄소 절감량 (kg CO₂) — "순환 활동 탄소 감축 현황" 카드용
+  // 키: COTTON / WOOL / CASHMERE / SILK / LINEN / POLYESTER / ACRYLIC / NYLON / POLYAMIDE / ELASTANE / BLEND
+  const carbonReductionByMaterialKg = ref({})
+
   const kauPrice = ref(KAU_FALLBACK_PRICE)
   const kauPriceUpdatedAt = ref(null)
   const kauPriceLoading = ref(false)
   const kauPriceError = ref(null)
+
+  // Phase 1: 소재 환산 계수 마스터 (BE 응답 캐싱)
+  //  - shape: { COTTON: { label, group, factor }, ... } — FE esgScore.js 의 MATERIAL_FACTORS 와 동일 키 구조
+  //  - 초기값은 FE 상수로 시드 → BE 응답 도착 후 덮어씀 → 첫 페이지 로드 짧은 순간에도 산식 작동
+  const materialFactors = ref({ ...MATERIAL_FACTORS })
+  const materialFactorsLoaded = ref(false)
+  const materialFactorsLoading = ref(false)
+  const materialFactorsError = ref(null)
 
   // 탄소 배출 절감량 (tCO₂) — 보기 쉬운 단위
   const totalCarbonReductionTon = computed(() => totalCarbonReductionKg.value / 1000)
@@ -55,20 +82,29 @@ export const useEsgStore = defineStore('esg', () => {
     return Number((((curr - prev) / prev) * 100).toFixed(1))
   })
 
+  // 현재 단계 — STAGE_THRESHOLDS 배열에서 totalPoints 가 도달한 가장 큰 임계값의 인덱스+1
+  //  - Curved 곡선: 단계별 간격이 다름 (초반 5K→20K, 후반 1M→1.5M)
   const stage = computed(() => {
-    const s = Math.floor(totalPoints.value / POINTS_PER_STAGE) + 1
-    return Math.min(Math.max(s, 1), MAX_STAGE)
+    const pts = totalPoints.value
+    for (let i = STAGE_THRESHOLDS.length - 1; i >= 0; i--) {
+      if (pts >= STAGE_THRESHOLDS[i]) return i + 1
+    }
+    return 1
   })
 
+  // 현재 단계 내 진행률 (%) — 현재 임계값 ~ 다음 임계값 사이에서의 비율
   const stageProgress = computed(() => {
     if (stage.value >= MAX_STAGE) return 100
-    const stageStart = (stage.value - 1) * POINTS_PER_STAGE
-    return Math.min(100, ((totalPoints.value - stageStart) / POINTS_PER_STAGE) * 100)
+    const curr = STAGE_THRESHOLDS[stage.value - 1]
+    const next = STAGE_THRESHOLDS[stage.value]
+    if (next <= curr) return 100  // 안전 폴백 (배열 오류 대비)
+    return Math.min(100, ((totalPoints.value - curr) / (next - curr)) * 100)
   })
 
+  // 다음 단계까지 남은 점수
   const pointsToNext = computed(() => {
     if (stage.value >= MAX_STAGE) return 0
-    return stage.value * POINTS_PER_STAGE - totalPoints.value
+    return Math.max(0, STAGE_THRESHOLDS[stage.value] - totalPoints.value)
   })
 
   /**
@@ -99,22 +135,82 @@ export const useEsgStore = defineStore('esg', () => {
   }
 
   /**
-   * BE sale events + mock donation events 를 합쳐 누적 ESG 점수 계산 후 totalPoints 갱신.
-   *  - ESG 대시보드 헤더 / TreeScore 페이지가 같은 값 공유
-   *  - 점수 룰 변경 시 utils/esgScore.js 만 수정하면 양쪽 자동 반영
+   * 소재 환산 계수 마스터를 BE 에서 1회 조회 (Phase 1 BE 이관).
+   *  - 이미 로드되어 있으면 재요청 X (캐싱)
+   *  - 응답: { factors: [{ code, label, group, factor }, ...] }
+   *  - 내부 shape 으로 변환: { CODE: { label, group, factor } }
+   *
+   * @param {boolean} [force=false] true 이면 캐싱 무시하고 재조회
+   */
+  // BE material.material_group 어휘 → FE MATERIAL_FACTORS group 키 정규화 매핑.
+  //  - BE 는 ProductMasterService.MATERIAL_GROUP_NATURAL='NATURAL' 상수 호환을 위해 'NATURAL' 사용
+  //  - FE 는 'NATURAL_SINGLE' 키로 통일 (esgScore.js MATERIAL_FACTORS / computeCarbonReductionByGroup)
+  //  - 미매핑 그룹은 그대로 통과 (SYNTHETIC, BLEND)
+  const GROUP_NORMALIZATION = {
+    NATURAL: 'NATURAL_SINGLE',
+  }
+
+  async function fetchMaterialFactors(force = false) {
+    if (materialFactorsLoaded.value && !force) return materialFactors.value
+    materialFactorsLoading.value = true
+    materialFactorsError.value = null
+    try {
+      const res = await materialFactorsApi.get()
+      const map = {}
+      for (const it of res?.factors ?? []) {
+        if (!it?.code) continue
+        map[it.code] = {
+          label: it.label,
+          // BE 의 'NATURAL' 을 FE 의 'NATURAL_SINGLE' 로 정규화 (어휘 통일)
+          group: GROUP_NORMALIZATION[it.group] ?? it.group,
+          factor: Number(it.factor) || 0,
+        }
+      }
+      // BE 응답에 RAYON 이 있어도 FE 의 NYLON alias (POLYAMIDE 와 동일 label) 같은 호환성은 유지.
+      // 누락된 키는 FE 상수에서 보강해서 막대 그래프 등 다른 의존부 깨지지 않도록 함.
+      materialFactors.value = { ...MATERIAL_FACTORS, ...map }
+      materialFactorsLoaded.value = true
+      return materialFactors.value
+    } catch (e) {
+      materialFactorsError.value = e?.message ?? '소재 계수 조회 실패'
+      // 실패해도 FE 상수가 fallback 으로 작동
+      return materialFactors.value
+    } finally {
+      materialFactorsLoading.value = false
+    }
+  }
+
+  /**
+   * BE sale events + 통계 + 카본 분포를 한 번에 받아서 store 갱신 (Phase 3 B).
+   *  - 점수 산식 SSOT: BE (summary.totalScore)
+   *  - 카본 분포 SSOT: BE (carbonReduction.{byMaterial,byGroup,monthly,total}) — Phase 3 B 이관
+   *  - 페이지 슬라이스 (events) 는 store 에서 사용하지 않음. 통계/분포 묶음만 사용.
+   *  - 그래서 size=1 로 호출해서 events 페이로드 최소화 + 통계 그대로 받음.
+   *    (BE 가 통계는 "필터 적용 후 전체" 기준이라 페이지 size 와 무관하게 동일 값 반환)
    */
   async function fetchTotalPoints(year) {
     totalPointsLoading.value = true
     totalPointsError.value = null
     try {
       const targetYear = year ?? new Date().getFullYear()
-      const res = await scoreEventsApi.get(targetYear)
-      const saleEvents = (res?.events ?? []).map(normalizeSaleEvent)
-      const allEvents = [...saleEvents, ...MOCK_DONATION_EVENTS]
-      totalPoints.value = computeTotalScore(allEvents)
-      totalSalesKg.value = allEvents.reduce((s, e) => s + (Number(e.weightKg) || 0), 0)
-      totalCarbonReductionKg.value = computeCarbonReductionKg(allEvents)
-      carbonReductionMonthly.value = computeMonthlyCarbonReduction(allEvents)
+      // 소재 마스터 선로딩 (다른 화면에서 라벨/group 표시용으로도 사용)
+      await fetchMaterialFactors()
+      // size=1 → 통계는 받되 events 페이로드는 1건만 (대시보드는 events 불필요)
+      const res = await scoreEventsApi.get({ year: targetYear, size: 1 })
+
+      // 점수/판매량 — BE summary 직접 사용 (FE 자체 합산 폐기)
+      totalPoints.value  = Number(res?.summary?.totalScore || 0)
+      totalSalesKg.value = Number(res?.summary?.totalKg || 0)
+
+      // 카본 분포 — BE carbonReduction 직접 할당
+      const cr = res?.carbonReduction
+      carbonReductionByMaterialKg.value = cr?.byMaterial ?? {}
+      carbonReductionByGroupKg.value    = cr?.byGroup ?? { NATURAL_SINGLE: 0, SYNTHETIC: 0, BLEND: 0 }
+      carbonReductionMonthly.value      = Array.isArray(cr?.monthly) && cr.monthly.length === 12
+                                          ? cr.monthly
+                                          : Array(12).fill(0)
+      // "연간 총 탄소 감축량" = BE 가 직접 계산한 total (= Σ byMaterial 과 일치)
+      totalCarbonReductionKg.value      = Number(cr?.total || 0)
       return totalPoints.value
     } catch (e) {
       totalPointsError.value = e?.message ?? '점수 조회 실패'
@@ -145,11 +241,14 @@ export const useEsgStore = defineStore('esg', () => {
     totalCarbonReductionKg,
     totalCarbonReductionTon,
     carbonReductionMonthly,
+    carbonReductionByGroupKg,
+    carbonReductionByMaterialKg,
     carbonReductionDeltaPct,
     stage,
     stageProgress,
     pointsToNext,
-    pointsPerStage: POINTS_PER_STAGE,
+    // Curved 단계 정책 노출 — EsgTreeWidget 등에서 진척도 표시용
+    stageThresholds: STAGE_THRESHOLDS,
     maxStage: MAX_STAGE,
     kauPrice,
     kauPriceUpdatedAt,
@@ -160,5 +259,11 @@ export const useEsgStore = defineStore('esg', () => {
     fetchTotalPoints,
     setTotalPoints,
     setTotalSalesKg,
+    // Phase 1: 소재 환산 계수 마스터 (BE 응답 캐싱)
+    materialFactors,
+    materialFactorsLoaded,
+    materialFactorsLoading,
+    materialFactorsError,
+    fetchMaterialFactors,
   }
 })
