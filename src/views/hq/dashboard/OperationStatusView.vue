@@ -242,10 +242,18 @@ async function fetchAnalyticsData() {
   statsError.value = ''
   try {
     const { from, to } = resolveDateRange()
-    statsData.value = await dashboardAnalyticsApi.get({
+    const params = {
       period: PERIOD_MAP[periodUnit.value] ?? 'YEAR',
-      from, to,
-    })
+      from,
+      to,
+    }
+    try {
+      statsData.value = await dashboardAnalyticsApi.get(params)
+    } catch {
+      // 일시 지연/경합 상황에서 flaky 완화를 위해 1회 짧은 재시도.
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      statsData.value = await dashboardAnalyticsApi.get(params)
+    }
   } catch (e) {
     console.error('[OperationStatusView] analytics fetch failed', e)
     statsError.value = '분석 데이터를 불러오지 못했습니다.'
