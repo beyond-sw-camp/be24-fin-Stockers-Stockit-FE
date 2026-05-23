@@ -456,7 +456,7 @@ const iconMap = {
                 v-if="unreadCount > 0"
                 class="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold leading-none text-white ring-1 ring-[#004D3C]"
               >
-                {{ unreadCount > 99 ? '99+' : unreadCount }}
+                {{ unreadCount > 9 ? '9+' : unreadCount }}
               </span>
             </button>
 
@@ -470,7 +470,7 @@ const iconMap = {
                   <Bell :size="14" class="text-emerald-700" />
                   <span class="text-xs font-bold">알림</span>
                   <span v-if="unreadCount > 0" class="rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-bold text-red-700">
-                    {{ unreadCount }}
+                    {{ unreadCount > 9 ? '9+' : unreadCount }}
                   </span>
                 </div>
                 <button

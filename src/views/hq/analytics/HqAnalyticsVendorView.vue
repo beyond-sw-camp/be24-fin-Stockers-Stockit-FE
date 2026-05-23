@@ -13,14 +13,17 @@ import BarChart from '@/components/common/charts/BarChart.vue'
 import DoughnutChart from '@/components/common/charts/DoughnutChart.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { useEsgStore } from '@/stores/esg.js'
 import { vendorAnalyticsApi } from '@/api/hq/analytics.js'
+import { MATERIAL_COLORS, MATERIAL_COLOR_FALLBACK } from '@/utils/esgScore.js'
 
 const auth = useAuthStore()
+const esgStore = useEsgStore()
 const hqMenus = roleMenus.hq
 const sideMenus = roleMenus.hq.find((m) => m.label === '정산/통계')?.children ?? []
 
 const activeTopMenu = computed(() => '정산/통계')
-const activeSideMenu = ref('순환재고 거래처 통계')
+const activeSideMenu = ref('순환재고 판매 통계')
 
 const dateLabel = computed(() =>
   new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
@@ -85,7 +88,7 @@ async function fetchVendorStats() {
     })
   } catch (e) {
     console.error('[VendorView] fetch failed', e)
-    loadError.value = '순환재고 거래처 통계를 불러오지 못했습니다.'
+    loadError.value = '순환재고 판매 통계를 불러오지 못했습니다.'
     statsData.value = null
   } finally {
     loading.value = false
@@ -93,7 +96,10 @@ async function fetchVendorStats() {
 }
 
 watch([periodUnit, selectedMonth], fetchVendorStats)
-onMounted(fetchVendorStats)
+onMounted(() => {
+  fetchVendorStats()
+  esgStore.fetchTotalPoints(new Date().getFullYear())
+})
 
 // ─── BE 응답 → FE 데이터 ──────────────────────────────────────────────
 const vendors = computed(() => statsData.value?.vendors ?? [])
@@ -128,6 +134,13 @@ const kpiCards = computed(() => {
       unit: '곳',
       sub: `소재 ${activeMats}종`,
       icon: Handshake, valueCls: 'text-emerald-700', iconBg: 'bg-emerald-50', iconCls: 'text-emerald-600',
+    },
+    {
+      label: '연간 총 탄소 감축량',
+      value: (esgStore.totalCarbonReductionTon ?? 0).toFixed(2),
+      unit: 'tCO₂',
+      sub: '최근 1년 누적',
+      icon: Leaf, valueCls: 'text-teal-700', iconBg: 'bg-teal-50', iconCls: 'text-teal-600',
     },
     {
       label: '총 판매 금액',
@@ -267,13 +280,18 @@ const materialTypeBadge = (type) => {
   return 'bg-gray-100 text-gray-600'
 }
 
-// ─── 소재 매출 순위 막대 (순환재고 모드용) — 도넛과 동일한 소재별 컬러 매핑 ────
+// ─── 소재 매출 순위 막대 (순환재고 모드용) — ESG 카드와 동일한 소재별 컬러 매핑 ────
+function resolveMaterialColor(m) {
+  // BE materialCode 우선 (예: "COTTON" / "POLYESTER" 등), 없으면 fallback
+  return MATERIAL_COLORS[m?.materialCode] ?? MATERIAL_COLOR_FALLBACK
+}
+
 const materialSalesBarData = computed(() => ({
   labels: circularMaterialStats.value.map((m) => m.name),
   datasets: [{
     label: '매출',
     data: circularMaterialStats.value.map((m) => m.sales),
-    backgroundColor: circularMaterialStats.value.map((_, i) => MATERIAL_PALETTE[i % MATERIAL_PALETTE.length]),
+    backgroundColor: circularMaterialStats.value.map(resolveMaterialColor),
     borderRadius: 4,
   }],
 }))
@@ -296,18 +314,13 @@ const totalMaterialSales = computed(() =>
   circularMaterialStats.value.reduce((s, m) => s + m.sales, 0),
 )
 
-// ─── 소재 매출 비중 도넛 (순환재고 모드용) ────────────────────────────
-const MATERIAL_PALETTE = [
-  '#059669', '#0ea5e9', '#f59e0b', '#a855f7', '#ef4444',
-  '#10b981', '#3b82f6', '#eab308', '#c084fc', '#f87171',
-]
-
+// ─── 소재 매출 비중 도넛 (순환재고 모드용) — ESG 카드와 동일한 소재별 컬러 매핑 ────
 const materialShareList = computed(() =>
-  circularMaterialStats.value.map((m, i) => ({
+  circularMaterialStats.value.map((m) => ({
     name: m.name,
     sales: m.sales,
     share: m.sharePct,
-    color: MATERIAL_PALETTE[i % MATERIAL_PALETTE.length],
+    color: resolveMaterialColor(m),
   })),
 )
 
@@ -337,7 +350,7 @@ const materialDoughnutData = computed(() => ({
           <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400">CIRCULAR INVENTORY · VENDOR ANALYTICS</p>
           <h2 class="mt-1 flex items-center gap-2 text-base font-black text-gray-900">
             <Handshake :size="18" class="text-[#004D3C]" />
-            순환재고 거래처 통계
+            순환재고 판매 통계
           </h2>
           <p class="mt-1 text-[11px] text-gray-500">
             기준일: {{ dateLabel }} · 거래처별 매출·의존도·소재 분포 분석
@@ -370,8 +383,8 @@ const materialDoughnutData = computed(() => ({
         </label>
       </section>
 
-      <!-- KPI 2개 -->
-      <section class="grid gap-3 grid-cols-1 sm:grid-cols-2">
+      <!-- KPI 3개 (활성 거래처 · 연간 총 탄소 감축량 · 총 판매 금액) -->
+      <section class="grid gap-3 grid-cols-1 sm:grid-cols-3">
         <article
           v-for="k in kpiCards"
           :key="k.label"
