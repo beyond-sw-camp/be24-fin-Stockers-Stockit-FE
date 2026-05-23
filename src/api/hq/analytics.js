@@ -92,9 +92,13 @@ export const dashboardAnalyticsApi = {
    *           to: string }} params
    * @returns {Promise<object>} BE result (fromDate/toDate/period/kpi/trendCurrent)
    */
-  get: ({ period = 'YEAR', from, to } = {}) => {
+  get: ({ period = 'YEAR', from, to, rid } = {}) => {
+    const requestId = rid ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     return apiClient
-      .get('/api/hq/analytics/dashboard', { params: { period, from, to } })
+      .get('/api/hq/analytics/dashboard', {
+        params: { period, from, to, rid: requestId },
+        timeout: 30000,
+      })
       .then(unwrap)
   },
 }
