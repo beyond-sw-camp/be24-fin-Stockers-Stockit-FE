@@ -29,7 +29,13 @@ const emptyForm = () => buyerStore.createEmptyBuyerForm()
 const form = ref(emptyForm())
 const errors = ref({})
 
-const displayedBuyers = computed(() => buyerStore.sortedBuyers)
+const displayedBuyers = computed(() => {
+  // keyword 검색 시에는 ES relevance(_score) 순서를 유지한다.
+  if (searchKeyword.value.trim()) {
+    return buyerStore.buyers
+  }
+  return buyerStore.sortedBuyers
+})
 
 const selectedBuyer = computed(() => buyerStore.getBuyerById(selectedBuyerId.value) ?? null)
 
