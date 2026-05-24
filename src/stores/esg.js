@@ -23,6 +23,11 @@ const STAGE_THRESHOLDS = [
   1500000,   // Lv.10 — 결실의 나무 (만점)
 ]
 const MAX_STAGE = STAGE_THRESHOLDS.length   // 10
+// Lv.10 만점 임계값 — 1,500,000pt 도달 시 결실의 나무 완성 (Lv.10 표시)
+const MAX_LEVEL_POINTS = STAGE_THRESHOLDS[MAX_STAGE - 1]   // 1,500,000
+// 사이클 한 바퀴 = 1그루 완성 — 만점 1,500,000 + 결실 익는 보너스 500,000 = 2,000,000pt
+// 매 사이클마다 그루 +1 + Lv.1 씨앗으로 리셋
+const FULL_TREE_POINTS = 2_000_000
 
 // BE 응답 실패 시 폴백 가격 (BE 의 esg.carbon-api.fallback-price 와 동기화: 9,200)
 const KAU_FALLBACK_PRICE = 9200
@@ -82,29 +87,46 @@ export const useEsgStore = defineStore('esg', () => {
     return Number((((curr - prev) / prev) * 100).toFixed(1))
   })
 
-  // 현재 단계 — STAGE_THRESHOLDS 배열에서 totalPoints 가 도달한 가장 큰 임계값의 인덱스+1
-  //  - Curved 곡선: 단계별 간격이 다름 (초반 5K→20K, 후반 1M→1.5M)
+  // 키운 나무 그루 수 — 매 사이클 (2,000,000pt) 완료마다 +1
+  // 예: totalPoints=4,500,000 → 2그루 + 사이클 내 500,000pt (Lv.7)
+  const treeCount = computed(() => Math.floor(totalPoints.value / FULL_TREE_POINTS))
+
+  // 사이클 내 점수 — 0 ~ 1,999,999 사이 (2,000,000 도달 시 0 으로 리셋, 그루+1)
+  const cyclePoints = computed(() => totalPoints.value % FULL_TREE_POINTS)
+
+  // 현재 단계 — cyclePoints 기준으로 Lv.1~10 매칭
+  //  - cyclePoints < 1,500,000 : STAGE_THRESHOLDS 기준 Lv.1~Lv.9
+  //  - cyclePoints >= 1,500,000 : Lv.10 만점 (결실 익는 보너스 구간)
   const stage = computed(() => {
-    const pts = totalPoints.value
+    const pts = cyclePoints.value
     for (let i = STAGE_THRESHOLDS.length - 1; i >= 0; i--) {
       if (pts >= STAGE_THRESHOLDS[i]) return i + 1
     }
     return 1
   })
 
-  // 현재 단계 내 진행률 (%) — 현재 임계값 ~ 다음 임계값 사이에서의 비율
+  // 현재 단계 내 진행률 (%)
+  //  - Lv.10 : "결실 익는 진행률" = (cyclePoints - 1,500,000) / 500,000
+  //  - 그 외 : 다음 단계 임계값까지의 비율
   const stageProgress = computed(() => {
-    if (stage.value >= MAX_STAGE) return 100
+    if (stage.value >= MAX_STAGE) {
+      // Lv.10 결실 익는 구간 — cyclePoints 1,500,000~1,999,999 → 0~100%
+      return Math.min(100, ((cyclePoints.value - MAX_LEVEL_POINTS) / (FULL_TREE_POINTS - MAX_LEVEL_POINTS)) * 100)
+    }
     const curr = STAGE_THRESHOLDS[stage.value - 1]
     const next = STAGE_THRESHOLDS[stage.value]
     if (next <= curr) return 100  // 안전 폴백 (배열 오류 대비)
-    return Math.min(100, ((totalPoints.value - curr) / (next - curr)) * 100)
+    return Math.min(100, ((cyclePoints.value - curr) / (next - curr)) * 100)
   })
 
   // 다음 단계까지 남은 점수
+  //  - Lv.10 : 그루+1 (다음 사이클 시작) 까지 남은 점수
+  //  - 그 외 : 다음 단계 임계값까지 남은 점수
   const pointsToNext = computed(() => {
-    if (stage.value >= MAX_STAGE) return 0
-    return Math.max(0, STAGE_THRESHOLDS[stage.value] - totalPoints.value)
+    if (stage.value >= MAX_STAGE) {
+      return Math.max(0, FULL_TREE_POINTS - cyclePoints.value)
+    }
+    return Math.max(0, STAGE_THRESHOLDS[stage.value] - cyclePoints.value)
   })
 
   /**
@@ -247,6 +269,7 @@ export const useEsgStore = defineStore('esg', () => {
     stage,
     stageProgress,
     pointsToNext,
+    treeCount,
     // Curved 단계 정책 노출 — EsgTreeWidget 등에서 진척도 표시용
     stageThresholds: STAGE_THRESHOLDS,
     maxStage: MAX_STAGE,
