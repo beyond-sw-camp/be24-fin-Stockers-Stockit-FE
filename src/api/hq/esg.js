@@ -103,25 +103,64 @@ export const circularRevenueApi = {
 }
 
 /**
- * 친환경 나무 키우기 점수 — 연간 sale 거래 이벤트.
+ * 친환경 나무 키우기 점수 — 연간 sale 거래 이벤트 + 통계/차트 풀세트 (Phase 3 A''-1).
  *
  * 응답 형태:
  *   {
  *     year: 2026,
- *     events: [
- *       { id, date: 'yyyy-MM-dd', type: 'sale', buyer, material, weightKg,
- *         isNewBuyer, isLocalPartner }, ...
- *     ]
+ *     events: [ // 페이지 슬라이스 (필터 적용 후)
+ *       { id, date, type:'sale', buyer, material, weightKg,
+ *         isNewBuyer, isLocalPartner, mainMaterialCode, mainMaterialRatio,
+ *         saleExecution, carbon, newBuyer, localPartner, total, scoreValid }, ...
+ *     ],
+ *     summary:           { totalScore, saleExecutionSum, carbonSum, newBuyerSum, localPartnerSum,
+ *                          totalEventCount, validEventCount, totalKg, avgScore },
+ *     monthlyBreakdown:  [{ month: 1, score: ... }, ... 12개 고정 (필터 적용 후)],
+ *     categoryBreakdown: { saleExecution, carbon, newBuyer, localPartner },
+ *     page, size, totalElements, totalPages
  *   }
  *
- * 기부 이벤트는 BE 에 도메인 없으므로 FE 에서 mock 으로 머지.
+ * 통계(summary/monthly/category)는 "필터 적용 후 전체" 기준 → 페이지 이동 시에도 차트/KPI 유지.
  */
 export const scoreEventsApi = {
   /**
-   * @param {number} [year] — 미지정 시 BE 가 현재 연도 사용
+   * @param {object} [params]
+   * @param {number} [params.year]
+   * @param {number} [params.page=0]    — 0-based 페이지 번호
+   * @param {number} [params.size=20]   — 페이지 크기 (서버에서 1~200 클램프)
+   * @param {string} [params.dateFrom]  — 'yyyy-MM-dd'
+   * @param {string} [params.dateTo]    — 'yyyy-MM-dd'
+   * @param {'ALL'|'saleExecution'|'carbon'|'newBuyer'|'localPartner'} [params.category='ALL']
    */
-  get: (year) =>
-    apiClient
-      .get('/api/hq/esg/score-events', { params: year ? { year } : {} })
-      .then(unwrap),
+  get: (params = {}) => {
+    // 빈 값/undefined 는 url 에 포함하지 않도록 정리 — BE 가 defaultValue 로 처리
+    const query = {}
+    if (params.year != null)               query.year     = params.year
+    if (params.page != null)               query.page     = params.page
+    if (params.size != null)               query.size     = params.size
+    if (params.dateFrom)                   query.dateFrom = params.dateFrom
+    if (params.dateTo)                     query.dateTo   = params.dateTo
+    if (params.category && params.category !== 'ALL') query.category = params.category
+    return apiClient.get('/api/hq/esg/score-events', { params: query }).then(unwrap)
+  },
+}
+
+/**
+ * 소재 환산 계수 마스터 (Phase 1 BE 이관).
+ *  - FE 가 ESG 페이지 진입 시 1회 호출 → esgStore.materialFactors 캐싱
+ *  - 본사 운영자가 material.carbon_factor 만 갱신해도 FE 재배포 없이 즉시 반영
+ *  - Higg MSI v3 / EU PEF 표준값 + 동물성 섬유 cap 적용된 값
+ *
+ * 응답 형태:
+ *   {
+ *     factors: [
+ *       { code: 'COTTON', label: '면', group: 'NATURAL_SINGLE', factor: 6.000 },
+ *       { code: 'POLYESTER', label: '폴리에스터', group: 'SYNTHETIC', factor: 6.500 },
+ *       { code: 'BLEND', label: '혼방', group: 'BLEND', factor: 5.500 },
+ *       ...
+ *     ]
+ *   }
+ */
+export const materialFactorsApi = {
+  get: () => apiClient.get('/api/hq/esg/material-factors').then(unwrap),
 }

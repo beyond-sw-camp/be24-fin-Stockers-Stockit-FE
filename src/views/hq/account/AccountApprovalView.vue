@@ -204,8 +204,12 @@ function closeDetail() {
   modalMode.value = null
 }
 
+// 승인/거절 처리 중 중복 클릭 방지용 가드 (응답 지연 시 사용자가 여러 번 누르는 사고 방지)
+const isProcessing = ref(false)
+
 async function confirmApprove() {
-  if (!selectedRequest.value) return
+  if (!selectedRequest.value || isProcessing.value) return
+  isProcessing.value = true
   try {
     const result = await accountApi.approve(selectedRequest.value.id)
     alert(`승인 완료\n사원코드: ${result.employeeCode}`)
@@ -214,6 +218,8 @@ async function confirmApprove() {
     await Promise.all([loadAccounts(), loadPendingCount()])
   } catch (err) {
     alert(extractErrorMessage(err, '승인에 실패했습니다.'))
+  } finally {
+    isProcessing.value = false
   }
 }
 
@@ -222,13 +228,16 @@ async function confirmReject() {
     rejectReasonError.value = '거절 사유를 입력해주세요.'
     return
   }
-  if (!selectedRequest.value) return
+  if (!selectedRequest.value || isProcessing.value) return
+  isProcessing.value = true
   try {
     await accountApi.reject(selectedRequest.value.id)
     closeDetail()
     await Promise.all([loadAccounts(), loadPendingCount()])
   } catch (err) {
     alert(extractErrorMessage(err, '거절에 실패했습니다.'))
+  } finally {
+    isProcessing.value = false
   }
 }
 </script>
@@ -583,10 +592,10 @@ async function confirmReject() {
                 승인하면 계정이 즉시 생성됩니다. 계속하시겠습니까?
               </div>
               <div class="flex justify-end gap-2">
-                <button type="button" class="h-9 border border-gray-300 bg-white px-5 text-[13px] font-medium text-gray-600 transition hover:bg-gray-50" @click="modalMode = null">취소</button>
-                <button type="button" class="inline-flex h-9 items-center gap-1.5 bg-emerald-50 px-5 text-[13px] font-medium text-emerald-700 border border-emerald-200 transition hover:bg-emerald-100" @click="confirmApprove">
+                <button type="button" :disabled="isProcessing" class="h-9 border border-gray-300 bg-white px-5 text-[13px] font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50" @click="modalMode = null">취소</button>
+                <button type="button" :disabled="isProcessing" class="inline-flex h-9 items-center gap-1.5 bg-emerald-50 px-5 text-[13px] font-medium text-emerald-700 border border-emerald-200 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50" @click="confirmApprove">
                   <CheckCircle2 :size="14" />
-                  최종 승인
+                  {{ isProcessing ? '처리 중...' : '최종 승인' }}
                 </button>
               </div>
             </template>
@@ -594,10 +603,10 @@ async function confirmReject() {
             <!-- PENDING: 거절 확인 -->
             <template v-else-if="modalMode === 'reject'">
               <div class="flex justify-end gap-2">
-                <button type="button" class="h-9 border border-gray-300 bg-white px-5 text-[13px] font-medium text-gray-600 transition hover:bg-gray-50" @click="modalMode = null">취소</button>
-                <button type="button" class="inline-flex h-9 items-center gap-1.5 border border-red-200 bg-red-50 px-5 text-[13px] font-medium text-red-600 transition hover:bg-red-100" @click="confirmReject">
+                <button type="button" :disabled="isProcessing" class="h-9 border border-gray-300 bg-white px-5 text-[13px] font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50" @click="modalMode = null">취소</button>
+                <button type="button" :disabled="isProcessing" class="inline-flex h-9 items-center gap-1.5 border border-red-200 bg-red-50 px-5 text-[13px] font-medium text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50" @click="confirmReject">
                   <XCircle :size="14" />
-                  거절 확정
+                  {{ isProcessing ? '처리 중...' : '거절 확정' }}
                 </button>
               </div>
             </template>
