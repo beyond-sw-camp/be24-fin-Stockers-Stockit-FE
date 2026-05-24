@@ -405,8 +405,8 @@ onMounted(reload)
             <span class="text-[14px] font-bold text-emerald-600">pt</span>
           </div>
           <p class="mt-2 text-[11px] text-emerald-700/70">
-            🌳 {{ Math.floor(totalScore / 1000) }}그루의 나무를 키우는 효과
-            <span class="ml-1 text-gray-500">(1,000 pt = 1그루 환산 mock)</span>
+            🌳 {{ esgStore.treeCount.toLocaleString() }}그루의 나무를 키웠습니다!
+            <span class="ml-1 text-gray-500">(Lv.10 만점 1,500,000pt + 결실 익는 보너스 500,000pt = 2,000,000pt 마다 1그루 + Lv.1 씨앗 재시작)</span>
           </p>
         </div>
 
