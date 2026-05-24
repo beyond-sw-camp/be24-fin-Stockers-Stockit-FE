@@ -14,7 +14,11 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { notificationApi, subscribeNotificationStream } from '@/api/notification.js'
+import {
+  notificationApi,
+  subscribeNotificationStream,
+  closeNotificationStreamBeacon,
+} from '@/api/notification.js'
 
 export const useNotificationStore = defineStore('notification', () => {
   const notifications = ref([])           // 최신순 (id desc)
@@ -24,6 +28,7 @@ export const useNotificationStore = defineStore('notification', () => {
   const error = ref('')
 
   let eventSource = null
+  let sessionId = null                    // BE connect 이벤트로 받은 SSE 세션 UUID — unload 시 sendBeacon 으로 명시적 종료에 사용
 
   const unreadCount = computed(
     () => notifications.value.filter((n) => !n.read).length,
@@ -63,8 +68,9 @@ export const useNotificationStore = defineStore('notification', () => {
   function connectStream() {
     if (eventSource) return
     eventSource = subscribeNotificationStream({
-      onConnect: () => {
-        // 연결 성공
+      onConnect: (sid) => {
+        // BE 가 connect 이벤트 data 로 sessionId 를 전달 — 페이지 unload 시 sendBeacon 으로 명시적 종료에 사용
+        sessionId = sid
       },
       onNotification: (payload) => {
         // BE SsePayload (id/type/severity/title/message/createdAt) — read=false 기본
@@ -118,12 +124,25 @@ export const useNotificationStore = defineStore('notification', () => {
     }
   }
 
-  /** SSE close + 상태 초기화 — 로그아웃 시 호출 */
+  /**
+   * SSE close + 상태 초기화 — 로그아웃 / 페이지 unload (탭 닫기/F5/창 닫기) 시 호출.
+   *
+   * 두 단계 종료:
+   *  1) sendBeacon — 페이지 unload 중에도 보장되는 BE 명시적 종료 호출 (sessionId 보유 시).
+   *     BE 가 emitters Map 에서 즉시 정리 → heartbeat 30초 대기 불필요.
+   *  2) eventSource.close() — 클라이언트 TCP 끊기. BE onError/onCompletion 콜백 발화로 fallback 정리.
+   *
+   * 순서 중요: sendBeacon 을 먼저 호출해야 sessionId 가 살아있는 동안 BE 까지 도달.
+   */
   function dispose() {
+    if (sessionId) {
+      try { closeNotificationStreamBeacon(sessionId) } catch { /* ignore */ }
+    }
     if (eventSource) {
       try { eventSource.close() } catch { /* ignore */ }
       eventSource = null
     }
+    sessionId = null
     notifications.value = []
     totalElements.value = 0
     initialized.value = false
