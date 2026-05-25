@@ -44,7 +44,7 @@ spec:
               port: 80
             initialDelaySeconds: 15
             periodSeconds: 10
-            timeoutSecond: 5
+            timeoutSeconds: 5
             failureThreshold: 3
           readinessProbe:
             httpGet:
@@ -52,7 +52,7 @@ spec:
               port: 80
             initialDelaySeconds: 10
             periodSeconds: 10
-            timeoutSecond: 5
+            timeoutSeconds: 5
             failureThreshold: 3
       volumes:
         - name: nginx-config
