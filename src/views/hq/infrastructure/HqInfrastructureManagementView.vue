@@ -125,7 +125,7 @@ async function loadStores() {
     manager: s.managerName,
     contact: s.contact,
     address: s.address,
-    warehouse: '-',
+    warehouse: s.primaryWarehouseName || '-',
     status: statusToKor[s.status] ?? s.status,
     stockCapacity: 1000,
     remainingStock: 700,
@@ -497,7 +497,7 @@ void quickCreateWarehouse
               <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">담당자</dt><dd class="font-black text-gray-900">{{ selectedDetail.managerName || '-' }}</dd></div>
               <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">연락처</dt><dd class="font-black text-gray-900">{{ selectedDetail.contact || '-' }}</dd></div>
               <div class="grid grid-cols-[9rem_1fr] items-start px-3 py-2.5"><dt class="pt-0.5 font-bold text-gray-500">주소</dt><dd class="font-black text-gray-900">{{ selectedDetail.address || '-' }}</dd></div>
-              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">담당 창고</dt><dd class="font-black text-gray-900">매핑 관리에서 설정</dd></div>
+              <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">담당 창고</dt><dd class="font-black text-gray-900">{{ selectedDetail.primaryWarehouseName || '-' }}</dd></div>
             </template>
             <template v-else>
               <div class="grid grid-cols-[9rem_1fr] items-center px-3 py-2.5"><dt class="font-bold text-gray-500">창고 코드</dt><dd class="font-black text-gray-900">{{ selectedDetail.code }}</dd></div>
