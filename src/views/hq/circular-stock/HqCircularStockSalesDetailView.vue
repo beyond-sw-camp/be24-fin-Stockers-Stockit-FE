@@ -398,7 +398,7 @@ function handleBack() {
               </div>
             </section>
 
-            <section class="grid gap-8 px-7 pt-4 lg:grid-cols-2">
+            <section class="w-full grid gap-8 px-4 pt-4 lg:grid-cols-2">
               <div>
                 <h3 class="info-header"><Building2 :size="13" />거래처 정보</h3>
                 <div class="info-line">
@@ -449,9 +449,9 @@ function handleBack() {
 
             <div class="border-t border-gray-200"></div>
 
-            <section class="sales-material-detail-section flex flex-col items-center space-y-6">
-              <h3 class="sales-material-title w-full max-w-[1190px] text-left text-gray-500">소재별 판매 상세</h3>
-              <div v-for="group in groupedItems" :key="group.key" class="sales-material-accordion w-full max-w-[1190px] overflow-hidden rounded-md border border-gray-300">
+            <section class="sales-material-detail-section w-full space-y-6">
+              <h3 class="sales-material-title w-full text-left text-gray-500">소재별 판매 상세</h3>
+              <div v-for="group in groupedItems" :key="group.key" class="sales-material-accordion w-full overflow-hidden rounded-md border border-gray-300">
                 <button type="button" class="flex w-full flex-wrap items-center justify-between gap-3 border-b border-gray-300 bg-[#F6F6F4] pl-3 px-4 py-3 text-left" @click="toggleGroup(group.key)">
                   <div class="flex items-center gap-2">
                     <span class="inline-flex items-center rounded-full bg-[#D9EFE7] px-2.5 py-1 text-xs font-semibold text-[#1F7A63]">{{ group.materialLabel }}</span>
@@ -514,12 +514,12 @@ function handleBack() {
               </div>
             </section>
 
-            <section class="sales-total-bar self-center w-[1190px] max-w-full flex items-center justify-between border-t border-gray-200 bg-gray-50 px-8 py-5">
+            <section class="sales-total-bar w-full flex items-center justify-between border-t border-gray-200 bg-gray-50 px-8 py-5">
               <p class="text-sm font-semibold text-gray-700">총 실제 무게 {{ formatKg(sale.totalActualWeightKg) }} · 총 판매 수량 {{ formatQuantity(sale.totalSoldQuantity) }}벌 · SKU {{ formatQuantity(sale.totalSkuCount) }}종</p>
               <p class="text-lg !font-semibold text-[#1C8E73]">최종 판매 금액 {{ formatCurrency(sale.totalAmount) }}</p>
             </section>
 
-            <section class="self-center w-[1190px] max-w-full border border-gray-200 bg-white shadow-sm">
+            <section class="w-full border border-gray-200 bg-white shadow-sm">
               <div class="border-b border-gray-100 px-4 py-3">
                 <div class="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -1031,7 +1031,6 @@ function handleBack() {
   font-weight: 600 !important;
   margin-bottom: 10px;
   padding-left: 0 !important;
-  align-self: center;
 }
 
 .sales-material-accordion + .sales-material-accordion {
