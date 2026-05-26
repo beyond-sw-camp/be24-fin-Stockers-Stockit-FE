@@ -1,7 +1,7 @@
 ﻿<script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ChevronDown, CircleDollarSign, Info, Scale, Settings2, Shirt, Tag } from 'lucide-vue-next'
+import { Building2, ChevronDown, CircleDollarSign, Scale, Settings2, Shirt, Tag, Truck } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useCircularStockSaleStore } from '@/stores/hq/circularStock/circularStockSale.js'
@@ -76,6 +76,19 @@ const includedMaterialBadges = computed(() => {
   }
   return badges
 })
+const totalRequestedAmount = computed(() =>
+  (sale.value?.items ?? []).reduce(
+    (sum, item) => sum + ((Number(item.requestedWeightKg) || 0) * (Number(item.unitPrice) || 0)),
+    0,
+  ),
+)
+const outboundWarehouseLabel = computed(() =>
+  sale.value?.outboundWarehouseName
+  || sale.value?.outboundWarehouseCode
+  || sale.value?.items?.[0]?.warehouseName
+  || sale.value?.items?.[0]?.warehouseCode
+  || '-',
+)
 
 const includedMaterialNames = computed(() => {
   const names = sale.value?.items?.flatMap((item) => item.materials?.map((material) => material.name) ?? []) ?? []
@@ -343,15 +356,18 @@ function handleBack() {
                 <article class="kpi-card">
                   <p class="kpi-title"><Shirt :size="14" />판매 수량</p>
                   <p class="kpi-content-gap text-2xl font-black text-gray-900">{{ formatQuantity(sale.totalSoldQuantity) }}벌</p>
-                  <p class="kpi-subtext">환산 {{ Number(sale.totalEstimatedQuantity || 0).toFixed(2) }}벌 → 올림 {{ formatQuantity(sale.totalSoldQuantity) }}벌</p>
+                  <p class="kpi-subtext"><Info :size="12" class="kpi-subtext-icon" />환산 {{ Number(sale.totalEstimatedQuantity || 0).toFixed(2) }}벌 <span class="kpi-emphasis">→ 올림 {{ formatQuantity(sale.totalSoldQuantity) }}벌</span></p>
                 </article>
                 <article class="kpi-card">
                   <p class="kpi-title"><Scale :size="14" />실제 무게</p>
                   <p class="kpi-content-gap text-2xl font-black text-gray-900">{{ formatKg(sale.totalActualWeightKg) }}</p>
                   <p class="kpi-subtext">
+                    <Info :size="12" class="kpi-subtext-icon" />
                     요청 {{ formatKg(sale.totalRequestedWeightKg) }} 대비
-                    {{ Number(sale.totalActualWeightKg || 0) - Number(sale.totalRequestedWeightKg || 0) >= 0 ? '+' : '' }}
-                    {{ formatKg(Number(sale.totalActualWeightKg || 0) - Number(sale.totalRequestedWeightKg || 0)) }}
+                    <span class="kpi-emphasis">
+                      {{ Number(sale.totalActualWeightKg || 0) - Number(sale.totalRequestedWeightKg || 0) >= 0 ? '+' : '' }}
+                      {{ formatKg(Number(sale.totalActualWeightKg || 0) - Number(sale.totalRequestedWeightKg || 0)) }}
+                    </span>
                   </p>
                 </article>
                 <article class="kpi-card">
@@ -364,7 +380,7 @@ function handleBack() {
                 <article class="kpi-card">
                   <p class="kpi-title"><CircleDollarSign :size="14" />최종 금액</p>
                   <p class="kpi-content-gap text-2xl font-black text-[#1C8E73]">{{ formatCurrency(sale.totalAmount) }}</p>
-                  <p class="kpi-subtext text-gray-500">판매번호 {{ sale.saleNo || '-' }}</p>
+                  <p class="kpi-subtext"><Info :size="12" class="kpi-subtext-icon" />요청 기준 <span class="line-through">{{ formatCurrency(totalRequestedAmount) }}</span></p>
                 </article>
               </div>
               <div
@@ -372,7 +388,11 @@ function handleBack() {
                 class="mt-3 flex items-center gap-2 rounded-md border border-[#EADFC8] bg-[#FFFBEB] px-3 py-3 text-sm text-[#8b5e34]"
               >
                 <Settings2 :size="16" class="shrink-0" />
-                <span>kg → 벌 수 환산시 올림 처리로 요청/실출고 차이가 발생할 수 있습니다.</span>
+                <span>
+                  kg → 벌 수 환산시 올림 처리로 요청 {{ formatKg(sale.totalRequestedWeightKg) }}보다
+                  {{ formatKg(Math.abs(Number(sale.totalActualWeightKg || 0) - Number(sale.totalRequestedWeightKg || 0))) }}
+                  더 출고됩니다. 금액은 실제 출고 무게({{ formatKg(sale.totalActualWeightKg) }}) 기준으로 산정됩니다.
+                </span>
               </div>
             </section>
 
@@ -380,7 +400,7 @@ function handleBack() {
 
             <section class="grid gap-8 px-5 lg:grid-cols-2">
               <div>
-                <h3 class="info-header"><Info :size="15" />거래처 정보</h3>
+                <h3 class="info-header"><Building2 :size="13" />거래처 정보</h3>
                 <div class="info-line">
                   <p class="info-key">거래처명</p>
                   <p class="info-value">{{ sale.buyerName }}<span class="buyer-code">{{ sale.buyerCode || '-' }}</span></p>
@@ -403,10 +423,10 @@ function handleBack() {
                 </div>
               </div>
               <div>
-                <h3 class="info-header"><Info :size="15" />출고 정보</h3>
+                <h3 class="info-header"><Truck :size="13" />출고 정보</h3>
                 <div class="info-line">
                   <p class="info-key">출고 창고</p>
-                  <p class="info-value">{{ sale.outboundNo || '-' }}</p>
+                  <p class="info-value">{{ outboundWarehouseLabel }}</p>
                 </div>
                 <div class="info-line">
                   <p class="info-key">소재 구분</p>
@@ -429,22 +449,22 @@ function handleBack() {
 
             <div class="border-t border-gray-200"></div>
 
-            <section class="space-y-3">
+            <section class="space-y-4">
               <h3 class="px-5 text-sm font-semibold text-gray-500">소재별 판매 상세</h3>
               <div v-for="group in groupedItems" :key="group.key" class="overflow-hidden rounded-md border border-gray-300">
-                <button type="button" class="flex w-full items-center justify-between bg-white px-4 py-3 text-left" @click="toggleGroup(group.key)">
-                  <div>
+                <button type="button" class="flex w-full flex-wrap items-end justify-between gap-3 border-b border-gray-300 bg-[#F6F6F4] pl-3 px-4 py-3 text-left" @click="toggleGroup(group.key)">
+                  <div class="flex items-center gap-2">
                     <span class="inline-flex items-center rounded-full bg-[#D9EFE7] px-2.5 py-1 text-xs font-semibold text-[#1F7A63]">{{ group.materialLabel }}</span>
-                    <p class="mt-2 text-sm font-medium text-gray-700">{{ formatQuantity(group.items.length) }}종 · {{ formatCurrency(group.items[0]?.unitPrice || 0) }}/kg</p>
+                    <p class="text-[13px] font-bold text-gray-500">SKU {{ formatQuantity(group.items.length) }}종 · {{ formatCurrency(group.items[0]?.unitPrice || 0) }}/kg</p>
                   </div>
-                  <div class="flex items-center gap-4">
+                  <div class="flex flex-wrap items-end gap-5 text-right">
                     <div class="group-kpi"><p class="group-kpi-label">요청</p><p class="group-kpi-value">{{ formatKg(group.totalRequestedWeightKg) }}</p></div>
                     <div class="group-kpi"><p class="group-kpi-label">실출고</p><p class="group-kpi-value">{{ formatKg(group.totalActualWeightKg) }}</p></div>
                     <div class="group-kpi"><p class="group-kpi-label">금액</p><p class="group-kpi-value group-kpi-value-amount">{{ formatCurrency(group.totalActualAmount) }}</p></div>
                     <ChevronDown :size="18" class="text-gray-600 transition-transform" :class="openGroups.has(group.key) ? 'rotate-180' : ''" />
                   </div>
                 </button>
-                <div v-show="openGroups.has(group.key)" class="overflow-x-auto border-t border-gray-200 bg-white">
+                <div v-show="openGroups.has(group.key)" class="overflow-x-auto bg-white">
                   <table class="min-w-[700px] w-full table-fixed text-xs">
                     <colgroup>
                       <col style="width: 18%" /><col style="width: 13%" /><col style="width: 13%" /><col style="width: 7%" /><col style="width: 14%" /><col style="width: 13%" /><col style="width: 15%" />
