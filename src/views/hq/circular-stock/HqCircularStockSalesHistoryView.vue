@@ -27,6 +27,8 @@ const activeTopMenu = computed(() => '순환 재고 관리')
 const activeSideMenu = ref('순환 재고 판매 내역')
 const searchTerm = ref('')
 const activePeriod = ref('all')
+const currentPage = ref(1)
+const pageSize = ref(20)
 
 const referenceDate = ref(new Date())
 
@@ -103,6 +105,23 @@ const filteredSummary = computed(() => ({
   ),
   totalSalesCount: filteredSales.value.length,
 }))
+
+const pagination = computed(() => circularStockStore.salesPage || {})
+const totalPages = computed(() => Math.max(1, Number(pagination.value.totalPages || 0)))
+const pageNumbers = computed(() => {
+  const total = totalPages.value
+  const page = currentPage.value
+  const windowSize = 5
+  const half = Math.floor(windowSize / 2)
+  let start = Math.max(1, page - half)
+  let end = Math.min(total, start + windowSize - 1)
+  if (end - start + 1 < windowSize) {
+    start = Math.max(1, end - windowSize + 1)
+  }
+  const pages = []
+  for (let p = start; p <= end; p += 1) pages.push(p)
+  return pages
+})
 
 function setPeriod(periodKey) {
   activePeriod.value = periodKey
@@ -189,11 +208,17 @@ function toDateParam(date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
-async function loadSales() {
+async function loadSales(options = {}) {
+  const { preserveScroll = false } = options
+  const scrollRoot = preserveScroll
+    ? (document.scrollingElement || document.documentElement)
+    : null
+  const scrollY = preserveScroll ? window.scrollY : null
+  const scrollTop = preserveScroll ? Number(scrollRoot?.scrollTop || 0) : null
   const range = periodRange.value
   await circularStockStore.fetchCircularSalesPage({
-    page: 0,
-    size: 50,
+    page: currentPage.value - 1,
+    size: pageSize.value,
     sort: 'soldAt,desc',
     from: activePeriod.value === 'all' ? undefined : toDateParam(range.start),
     to: activePeriod.value === 'all' ? undefined : toDateParam(range.end),
@@ -203,9 +228,39 @@ async function loadSales() {
   if (latest?.soldAt) {
     referenceDate.value = new Date(latest.soldAt)
   }
+  const serverPage = Number(circularStockStore.salesPage?.page ?? 0) + 1
+  if (serverPage !== currentPage.value) currentPage.value = serverPage
+  if (preserveScroll && scrollY !== null) {
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: scrollY })
+      if (scrollRoot && scrollTop !== null) scrollRoot.scrollTop = scrollTop
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: scrollY })
+        if (scrollRoot && scrollTop !== null) scrollRoot.scrollTop = scrollTop
+      })
+    })
+  }
+}
+
+function goToPage(page) {
+  const safePage = Math.min(totalPages.value, Math.max(1, Number(page || 1)))
+  if (safePage === currentPage.value) return
+  currentPage.value = safePage
+  loadSales({ preserveScroll: true })
+}
+
+function goToPrevPage() {
+  if (currentPage.value <= 1) return
+  goToPage(currentPage.value - 1)
+}
+
+function goToNextPage() {
+  if (currentPage.value >= totalPages.value) return
+  goToPage(currentPage.value + 1)
 }
 
 watch([activePeriod, searchTerm], () => {
+  currentPage.value = 1
   loadSales()
 })
 
@@ -396,6 +451,46 @@ onMounted(() => {
               </tr>
             </tfoot>
           </table>
+        </div>
+
+        <div class="border-t border-gray-200 px-4 py-3">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <p class="text-[11px] font-bold text-gray-500">
+              총 {{ Number(pagination.totalElements || 0).toLocaleString() }}건
+            </p>
+            <div class="inline-flex items-center gap-1">
+              <button
+                type="button"
+                class="h-8 min-w-8 rounded border border-gray-300 px-2 text-xs font-bold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
+                :disabled="currentPage <= 1"
+                @click="goToPrevPage"
+              >
+                이전
+              </button>
+              <button
+                v-for="page in pageNumbers"
+                :key="page"
+                type="button"
+                class="h-8 min-w-8 rounded border px-2 text-xs font-bold"
+                :class="
+                  currentPage === page
+                    ? 'border-[#0F7C62] bg-[#EAF8F3] text-[#0F7C62]'
+                    : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                "
+                @click="goToPage(page)"
+              >
+                {{ page }}
+              </button>
+              <button
+                type="button"
+                class="h-8 min-w-8 rounded border border-gray-300 px-2 text-xs font-bold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
+                :disabled="currentPage >= totalPages"
+                @click="goToNextPage"
+              >
+                다음
+              </button>
+            </div>
+          </div>
         </div>
       </section>
     </div>
