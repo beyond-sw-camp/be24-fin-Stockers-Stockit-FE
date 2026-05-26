@@ -442,6 +442,8 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
         actualWeightKg: Number(item.actualWeightKg || 0),
         estimatedQuantity: Number(item.estimatedQuantity || 0),
         soldQuantity: Number(item.soldQuantity || 0),
+        availableQuantity: Number(item.availableQuantity || 0),
+        availableWeightKg: Number(item.availableWeightKg || 0),
         unitPrice: Number(item.unitPrice || 0),
         lineAmount: Number(item.lineAmount || 0),
         memo: item.memo ?? null,
