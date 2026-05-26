@@ -339,12 +339,13 @@ function handleBack() {
             </button>
           </div>
 
-          <div v-if="activeTab === 'sales'" class="flex flex-col gap-4 p-4">
-            <section class="border border-gray-200 bg-white p-4 pr-6 pl-6 shadow-sm">
-              <div class="flex flex-wrap items-start justify-between gap-3">
+          <div v-if="activeTab === 'sales'" class="flex flex-col gap-4 px-8 pb-8 pt-7">
+            <section class="border border-gray-200 bg-white p-5 pr-7 pl-7 shadow-sm">
+              <div class="sales-summary-stack">
+                <div class="sales-summary-head flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p class="text-2xl font-medium text-gray-900">{{ sale.buyerName }}</p>
-                  <p class="mt-1 text-xs text-gray-500">
+                  <p class="sales-buyer-subline text-xs text-gray-500">
                     {{ sale.buyerIndustryGroup || linkedBuyer?.industryGroup || '-' }} · SKU {{ formatQuantity(sale.totalSkuCount) }}종
                   </p>
                 </div>
@@ -352,7 +353,7 @@ function handleBack() {
                   {{ outboundStatusLabel(sale.outboundStatus) }}
                 </span>
               </div>
-              <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div class="sales-summary-kpi grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <article class="kpi-card">
                   <p class="kpi-title"><Shirt :size="14" />판매 수량</p>
                   <p class="kpi-content-gap text-2xl font-black text-gray-900">{{ formatQuantity(sale.totalSoldQuantity) }}벌</p>
@@ -385,7 +386,7 @@ function handleBack() {
               </div>
               <div
                 v-if="Math.abs(Number(sale.totalActualWeightKg || 0) - Number(sale.totalRequestedWeightKg || 0)) >= 0.01"
-                class="mt-3 flex items-center gap-2 rounded-md border border-[#EADFC8] bg-[#FFFBEB] px-3 py-3 text-sm text-[#8b5e34]"
+                class="sales-summary-alert flex items-center gap-2 rounded-md border border-[#EADFC8] bg-[#FFFBEB] px-3 py-3 text-sm text-[#8b5e34]"
               >
                 <Settings2 :size="16" class="shrink-0" />
                 <span>
@@ -394,11 +395,10 @@ function handleBack() {
                   더 출고됩니다. 금액은 실제 출고 무게({{ formatKg(sale.totalActualWeightKg) }}) 기준으로 산정됩니다.
                 </span>
               </div>
+              </div>
             </section>
 
-            <div class="border-t border-gray-200"></div>
-
-            <section class="grid gap-8 px-5 lg:grid-cols-2">
+            <section class="grid gap-8 px-7 pt-4 lg:grid-cols-2">
               <div>
                 <h3 class="info-header"><Building2 :size="13" />거래처 정보</h3>
                 <div class="info-line">
@@ -449,55 +449,64 @@ function handleBack() {
 
             <div class="border-t border-gray-200"></div>
 
-            <section class="space-y-4">
-              <h3 class="px-5 text-sm font-semibold text-gray-500">소재별 판매 상세</h3>
-              <div v-for="group in groupedItems" :key="group.key" class="overflow-hidden rounded-md border border-gray-300">
-                <button type="button" class="flex w-full flex-wrap items-end justify-between gap-3 border-b border-gray-300 bg-[#F6F6F4] pl-3 px-4 py-3 text-left" @click="toggleGroup(group.key)">
+            <section class="sales-material-detail-section flex flex-col items-center space-y-6">
+              <h3 class="sales-material-title w-full max-w-[1190px] text-left text-gray-500">소재별 판매 상세</h3>
+              <div v-for="group in groupedItems" :key="group.key" class="sales-material-accordion w-full max-w-[1190px] overflow-hidden rounded-md border border-gray-300">
+                <button type="button" class="flex w-full flex-wrap items-center justify-between gap-3 border-b border-gray-300 bg-[#F6F6F4] pl-3 px-4 py-3 text-left" @click="toggleGroup(group.key)">
                   <div class="flex items-center gap-2">
                     <span class="inline-flex items-center rounded-full bg-[#D9EFE7] px-2.5 py-1 text-xs font-semibold text-[#1F7A63]">{{ group.materialLabel }}</span>
                     <p class="text-[13px] font-bold text-gray-500">SKU {{ formatQuantity(group.items.length) }}종 · {{ formatCurrency(group.items[0]?.unitPrice || 0) }}/kg</p>
                   </div>
-                  <div class="flex flex-wrap items-end gap-5 text-right">
+                  <div class="flex flex-wrap items-center gap-5 text-right">
                     <div class="group-kpi"><p class="group-kpi-label">요청</p><p class="group-kpi-value">{{ formatKg(group.totalRequestedWeightKg) }}</p></div>
                     <div class="group-kpi"><p class="group-kpi-label">실출고</p><p class="group-kpi-value">{{ formatKg(group.totalActualWeightKg) }}</p></div>
                     <div class="group-kpi"><p class="group-kpi-label">금액</p><p class="group-kpi-value group-kpi-value-amount">{{ formatCurrency(group.totalActualAmount) }}</p></div>
                     <ChevronDown :size="18" class="text-gray-600 transition-transform" :class="openGroups.has(group.key) ? 'rotate-180' : ''" />
                   </div>
                 </button>
-                <div v-show="openGroups.has(group.key)" class="overflow-x-auto bg-white">
-                  <table class="min-w-[700px] w-full table-fixed text-xs">
+                <div v-show="openGroups.has(group.key)" class="overflow-hidden bg-white">
+                  <table class="w-full table-fixed text-xs">
                     <colgroup>
-                      <col style="width: 18%" /><col style="width: 13%" /><col style="width: 13%" /><col style="width: 7%" /><col style="width: 14%" /><col style="width: 13%" /><col style="width: 15%" />
+                      <col style="width: 15%" />
+                      <col style="width: 18%" />
+                      <col style="width: 15%" />
+                      <col style="width: 10%" />
+                      <col style="width: 8%" />
+                      <col style="width: 10%" />
+                      <col style="width: 10%" />
+                      <col style="width: 15%" />
                     </colgroup>
                     <thead class="bg-[#f3f4f6] text-[11px] text-gray-500">
                       <tr>
-                        <th class="cell-head !text-left">SKU</th>
+                        <th class="cell-head !text-left">SKU 코드</th>
+                        <th class="cell-head !text-left">품목명</th>
                         <th class="cell-head text-right">재고</th>
                         <th class="cell-head text-right">요청 kg</th>
                         <th class="cell-head text-right"></th>
                         <th class="cell-head text-right">판매 벌 수</th>
-                        <th class="cell-head text-right">실제 무게</th>
-                        <th class="cell-head text-right">금액</th>
+                        <th class="cell-head !text-right">실제 무게</th>
+                        <th class="cell-head !text-right">금액</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr v-for="item in group.items" :key="`${group.key}-${item.itemId || item.skuCode || item.inventoryId}`" class="border-t border-gray-100">
-                        <td class="cell-body !text-left"><p class="font-black text-gray-900">{{ item.productName }}</p><p class="font-mono text-[11px] text-gray-500">{{ item.skuCode || '-' }}</p></td>
+                        <td class="cell-body !text-left"><p class="font-mono text-[11px] font-bold text-gray-500">{{ item.skuCode || '-' }}</p></td>
+                        <td class="cell-body !text-left"><p class="font-black text-gray-900">{{ item.productName }}</p></td>
                         <td class="cell-body font-black text-gray-700">{{ formatQuantity(item.availableQuantity) }}벌 / {{ formatKg(item.availableWeightKg) }}</td>
                         <td class="cell-body font-black text-gray-800">{{ formatKg(item.requestedWeightKg) }}</td>
                         <td class="cell-body text-right text-lg font-black text-gray-700">→</td>
                         <td class="cell-body"><p class="font-black text-[#0F7C62]">{{ formatQuantity(item.soldQuantity) }}벌</p><p class="text-[11px] text-gray-500">{{ Number(item.estimatedQuantity || 0).toFixed(2) }}벌 올림</p></td>
-                        <td class="cell-body font-black text-gray-900">{{ formatKg(item.actualWeightKg) }}</td>
-                        <td class="cell-body font-black text-gray-900">{{ formatCurrency(item.lineAmount) }}</td>
+                        <td class="cell-body !text-right font-black text-gray-900">{{ formatKg(item.actualWeightKg) }}</td>
+                        <td class="cell-body !text-right font-black text-gray-900">{{ formatCurrency(item.lineAmount) }}</td>
                       </tr>
                     </tbody>
                     <tfoot>
                       <tr class="border-t border-gray-200 bg-[#F6F6F4]">
                         <td class="cell-body !text-left text-sm font-black text-gray-800">합계</td>
-                        <td class="cell-body"></td><td class="cell-body"></td><td class="cell-body"></td>
+                        <td class="cell-body"></td><td class="cell-body"></td><td class="cell-body"></td><td class="cell-body"></td>
                         <td class="cell-body font-black text-gray-900">{{ formatQuantity(group.items.reduce((sum, item) => sum + (Number(item.soldQuantity) || 0), 0)) }}벌</td>
-                        <td class="cell-body font-black text-gray-900">{{ formatKg(group.totalActualWeightKg) }}</td>
-                        <td class="cell-body font-black text-gray-900">{{ formatCurrency(group.totalActualAmount) }}</td>
+                        <td class="cell-body !text-right font-black text-gray-900">{{ formatKg(group.totalActualWeightKg) }}</td>
+                        <td class="cell-body !text-right font-black text-gray-900">{{ formatCurrency(group.totalActualAmount) }}</td>
                       </tr>
                     </tfoot>
                   </table>
@@ -505,12 +514,12 @@ function handleBack() {
               </div>
             </section>
 
-            <section class="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-6 py-4">
-              <p class="text-sm font-semibold text-gray-700">총 판매 수량 {{ formatQuantity(sale.totalSoldQuantity) }}벌 · 총 실제 무게 {{ formatKg(sale.totalActualWeightKg) }} · SKU {{ formatQuantity(sale.totalSkuCount) }}종</p>
-              <p class="text-lg font-black text-[#1C8E73]">예상 판매 금액 (실제 무게 기준) {{ formatCurrency(sale.totalAmount) }}</p>
+            <section class="sales-total-bar self-center w-[1190px] max-w-full flex items-center justify-between border-t border-gray-200 bg-gray-50 px-8 py-5">
+              <p class="text-sm font-semibold text-gray-700">총 실제 무게 {{ formatKg(sale.totalActualWeightKg) }} · 총 판매 수량 {{ formatQuantity(sale.totalSoldQuantity) }}벌 · SKU {{ formatQuantity(sale.totalSkuCount) }}종</p>
+              <p class="text-lg !font-semibold text-[#1C8E73]">최종 판매 금액 {{ formatCurrency(sale.totalAmount) }}</p>
             </section>
 
-            <section class="border border-gray-200 bg-white shadow-sm">
+            <section class="self-center w-[1190px] max-w-full border border-gray-200 bg-white shadow-sm">
               <div class="border-b border-gray-100 px-4 py-3">
                 <div class="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -526,7 +535,7 @@ function handleBack() {
                 </div>
               </div>
 
-              <div class="space-y-4 p-4">
+              <div class="sales-esg-stack p-4">
                 <section class="overflow-hidden border border-[#D7E9E3] bg-[linear-gradient(135deg,#F6FBF8_0%,#FFFFFF_55%,#F2F8FF_100%)]">
                   <div class="grid gap-4 px-4 py-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
                     <div>
@@ -537,7 +546,7 @@ function handleBack() {
                         <span class="text-sky-700">{{ formatCarbonKg(carbonReductionKpi) }}</span>의 탄소 감축으로 이어졌습니다.
                       </p>
 
-                      <div class="mt-4 grid gap-3 md:grid-cols-3">
+                      <div class="sales-esg-story-cards grid gap-3 md:grid-cols-3">
                         <div
                           v-for="impactItem in impactNarrative"
                           :key="impactItem.key"
@@ -619,7 +628,7 @@ function handleBack() {
             </section>
           </div>
 
-          <div v-else-if="activeTab === 'esg'" class="p-4">
+          <div v-else-if="activeTab === 'esg'" class="p-8">
             <section class="border border-gray-200 bg-white shadow-sm">
               <div class="border-b border-gray-100 px-4 py-3">
                 <div class="flex flex-wrap items-start justify-between gap-3">
@@ -642,7 +651,7 @@ function handleBack() {
                     <div>
                       <p class="text-[10px] font-black uppercase tracking-[0.16em] text-sky-700">Environmental Story</p>
                       <h3 class="mt-2 text-xl font-black text-gray-900">이번 판매는 환경적으로 어떤 의미가 있었나</h3>
-                      <div class="mt-4 grid gap-3 md:grid-cols-3">
+                      <div class="sales-esg-performance-story-cards grid gap-3 md:grid-cols-3">
                         <div class="border border-sky-100 bg-white/90 px-4 py-4">
                           <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">탄소 감축</p>
                           <p class="mt-2 text-2xl font-black text-sky-700">{{ formatCarbonKg(carbonReductionKpi) }}</p>
@@ -765,8 +774,8 @@ function handleBack() {
                     <div class="border-b border-gray-100 px-4 py-3">
                       <h3 class="text-sm font-black text-gray-900">인증 / 추적 완료 점수 상세</h3>
                     </div>
-                    <div class="overflow-x-auto">
-                      <table class="min-w-[680px] w-full border-collapse text-xs">
+                    <div class="overflow-hidden">
+                      <table class="w-full table-fixed border-collapse text-xs">
                         <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
                           <tr>
                             <th class="px-3 py-3 text-left font-black">항목</th>
@@ -796,8 +805,8 @@ function handleBack() {
                     <div class="border-b border-gray-100 px-4 py-3">
                       <h3 class="text-sm font-black text-gray-900">소재별 자원 순환 반영 상세</h3>
                     </div>
-                    <div class="overflow-x-auto">
-                      <table class="min-w-[720px] w-full border-collapse text-xs">
+                    <div class="overflow-hidden">
+                      <table class="w-full table-fixed border-collapse text-xs">
                         <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
                           <tr>
                             <th class="px-3 py-3 text-left font-black">소재명</th>
@@ -822,8 +831,8 @@ function handleBack() {
                     <div class="border-b border-gray-100 px-4 py-3">
                       <h3 class="text-sm font-black text-gray-900">소재별 탄소 절감 반영 상세</h3>
                     </div>
-                    <div class="overflow-x-auto">
-                      <table class="min-w-[720px] w-full border-collapse text-xs">
+                    <div class="overflow-hidden">
+                      <table class="w-full table-fixed border-collapse text-xs">
                         <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
                           <tr>
                             <th class="px-3 py-3 text-left font-black">소재명</th>
@@ -994,6 +1003,62 @@ function handleBack() {
 .cell-body {
   padding: 0.5rem;
   text-align: inherit;
+}
+
+.sales-summary-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.sales-summary-head,
+.sales-summary-kpi,
+.sales-summary-alert {
+  margin: 0;
+}
+
+.sales-buyer-subline {
+  margin-top: 3px !important;
+}
+
+.sales-material-detail-section {
+  margin-top: 24px !important;
+  margin-bottom: 8px !important;
+}
+
+.sales-material-title {
+  font-size: 14px;
+  font-weight: 600 !important;
+  margin-bottom: 10px;
+  padding-left: 0 !important;
+  align-self: center;
+}
+
+.sales-material-accordion + .sales-material-accordion {
+  margin-top: 23px !important;
+}
+
+.sales-info-divider {
+  margin-top: 16px !important;
+  margin-bottom: 16px !important;
+}
+
+.sales-total-bar {
+  margin-bottom: 24px !important;
+}
+
+.sales-esg-stack > section + div,
+.sales-esg-stack > div + section,
+.sales-esg-stack > section + section {
+  margin-top: 18px !important;
+}
+
+.sales-esg-story-cards {
+  margin-top: 10px !important;
+}
+
+.sales-esg-performance-story-cards {
+  margin-top: 10px !important;
 }
 
 th.cell-head:first-child,
