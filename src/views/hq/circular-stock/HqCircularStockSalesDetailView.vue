@@ -100,71 +100,127 @@ const esgMaterialNames = computed(() => {
   return [...new Set(names)]
 })
 
-const treeGrowPoints = computed(() =>
-  saleEsgSnapshot.value?.scoreBreakdown?.reduce((sum, item) => sum + (Number(item.points) || 0), 0) ?? 0,
-)
-
 const carbonReductionKpi = computed(() => Number(saleEsgSnapshot.value?.kpiSnapshot?.savedCarbonKg) || 0)
 const carbonCreditValueKpi = computed(() => Number(saleEsgSnapshot.value?.kpiSnapshot?.carbonCreditValue) || 0)
 const tradableCarbonCreditValueKpi = computed(() => Number(saleEsgSnapshot.value?.kpiSnapshot?.tradableCarbonCreditValue) || 0)
 const salesRevenueKpi = computed(() => Number(saleEsgSnapshot.value?.kpiSnapshot?.salesRevenue) || 0)
 const wasteLossRecoveredValueKpi = computed(() => Number(saleEsgSnapshot.value?.kpiSnapshot?.wasteLossRecoveredValue) || 0)
 
-const maxScorePoints = computed(() =>
-  Math.max(...(saleEsgSnapshot.value?.scoreBreakdown?.map((item) => Number(item.points) || 0) ?? [0]), 1),
-)
+function readNumericScore(...candidates) {
+  for (const value of candidates) {
+    const num = Number(value)
+    if (Number.isFinite(num)) return num
+  }
+  return null
+}
 
-const scoreSummaryCards = computed(() => {
-  const scoreItems = saleEsgSnapshot.value?.scoreBreakdown ?? []
-  const scoreMeta = {
-    execution: {
+function findScoreBreakdownPoint(scoreTypes = []) {
+  const found = (saleEsgSnapshot.value?.scoreBreakdown ?? []).find((item) =>
+    scoreTypes.includes(item.scoreType),
+  )
+  return Number(found?.points)
+}
+
+const normalizedScoreItems = computed(() => {
+  const totalActualWeightKg = Number(sale.value?.totalActualWeightKg) || 0
+  const executionPoints = readNumericScore(
+    saleEsgSnapshot.value?.circularSaleExecutionScore,
+    saleEsgSnapshot.value?.esgMeta?.circularSaleExecutionScore,
+    totalActualWeightKg >= 10 ? 100 : 0,
+  ) ?? 0
+  const carbonReductionPoints = readNumericScore(
+    saleEsgSnapshot.value?.carbonReductionScore,
+    saleEsgSnapshot.value?.esgMeta?.carbonReductionScore,
+    findScoreBreakdownPoint(['carbonReduction', 'carbonContribution']),
+    carbonReductionKpi.value,
+  ) ?? 0
+  const localPartnerPoints = readNumericScore(
+    saleEsgSnapshot.value?.localPartnerScore,
+    saleEsgSnapshot.value?.esgMeta?.localPartnerScore,
+    0,
+  ) ?? 0
+  const newBuyerExpansionPoints = readNumericScore(
+    saleEsgSnapshot.value?.newBuyerExpansionScore,
+    saleEsgSnapshot.value?.esgMeta?.newBuyerExpansionScore,
+    0,
+  ) ?? 0
+
+  const baseItems = [
+    {
+      scoreType: 'circularSaleExecution',
+      label: '순환 재고 판매 실행 점수',
+      points: executionPoints,
+      formulaSummary: '판매 1건 최종 등록 완료 시 기본 100pt',
+      insight: '판매 행동 자체가 순환 활동으로 인정된 점수입니다.',
       accent: 'text-emerald-700',
       bar: 'bg-emerald-600',
-      bg: 'bg-emerald-50',
-      border: 'border-emerald-100',
-      insight: '판매 행동 자체가 순환 활동으로 인정된 점수입니다.',
+      activeBg: 'bg-emerald-50',
+      activeBorder: 'border-emerald-100',
     },
-    resourceCirculation: {
-      accent: 'text-teal-700',
-      bar: 'bg-teal-600',
-      bg: 'bg-teal-50',
-      border: 'border-teal-100',
-      insight: '폐기 예정 재고를 다시 순환 자산으로 전환한 기여분입니다.',
-    },
-    carbonContribution: {
+    {
+      scoreType: 'carbonReduction',
+      label: '탄소 감축 기여 점수',
+      points: carbonReductionPoints,
+      formulaSummary: `실제 탄소 절감량 ${carbonReductionKpi.value.toFixed(2)}kgCO2 × 1`,
+      insight: '실제 탄소 감축량과 직접 연결되는 핵심 환경 점수입니다.',
       accent: 'text-sky-700',
       bar: 'bg-sky-600',
-      bg: 'bg-sky-50',
-      border: 'border-sky-100',
-      insight: '실제 탄소 감축량과 직접 연결되는 핵심 환경 점수입니다.',
+      activeBg: 'bg-sky-50',
+      activeBorder: 'border-sky-100',
     },
-    traceability: {
+    {
+      scoreType: 'localPartner',
+      label: '지역 상생 점수',
+      points: localPartnerPoints,
+      formulaSummary: '지역 파트너/소규모 기업/사회적 기업과의 거래 시 +150pt가 적립됩니다.',
+      insight: '지역 파트너/소규모 기업/사회적 기업과의 거래 시 +150pt가 적립됩니다.',
+      accent: 'text-teal-700',
+      bar: 'bg-teal-600',
+      activeBg: 'bg-teal-50',
+      activeBorder: 'border-teal-100',
+    },
+    {
+      scoreType: 'newBuyerExpansion',
+      label: '순환 거래 확산 점수',
+      points: newBuyerExpansionPoints,
+      formulaSummary: '신규 거래처와의 첫 거래 시 +150pt가 적립됩니다.',
+      insight: '신규 거래처와의 첫 거래 시 +150pt가 적립됩니다.',
       accent: 'text-violet-700',
       bar: 'bg-violet-600',
-      bg: 'bg-violet-50',
-      border: 'border-violet-100',
-      insight: '근거 데이터와 추적 정보가 얼마나 잘 남았는지 보여줍니다.',
+      activeBg: 'bg-violet-50',
+      activeBorder: 'border-violet-100',
     },
-  }
-
-  return scoreItems.map((item) => {
+  ]
+  const maxScoreBase = Math.max(...baseItems.map((item) => Number(item.points) || 0), 150, 1)
+  return baseItems.map((item) => {
     const points = Number(item.points) || 0
-    const ratio = Math.min((points / maxScorePoints.value) * 100, 100)
-    const meta = scoreMeta[item.scoreType] ?? {
-      accent: 'text-gray-700',
-      bar: 'bg-gray-500',
-      bg: 'bg-gray-50',
-      border: 'border-gray-200',
-      insight: '이번 판매 활동에 반영된 점수입니다.',
-    }
-
+    const isInactive = points <= 0 && ['localPartner', 'newBuyerExpansion'].includes(item.scoreType)
     return {
       ...item,
-      ...meta,
-      ratio,
+      points,
+      isInactive,
+      ratio: isInactive ? 0 : Math.min((points / maxScoreBase) * 100, 100),
+      bg: isInactive ? 'score-secondary-card' : item.activeBg,
+      border: isInactive ? 'score-secondary-border' : item.activeBorder,
+      badgeText: isInactive ? '이번 거래 해당 없음' : '',
     }
   })
 })
+
+const treeGrowPoints = computed(() => {
+  const explicit = readNumericScore(
+    saleEsgSnapshot.value?.totalEsgScore,
+    saleEsgSnapshot.value?.esgMeta?.totalEsgScore,
+  )
+  if (explicit !== null) return explicit
+  return normalizedScoreItems.value.reduce((sum, item) => sum + (Number(item.points) || 0), 0)
+})
+
+const scoreFormulaSummary = computed(
+  () => '나무 키우기 점수 = 순환 판매 실행 + 탄소 감축 기여 + 지역 상생 + 순환 거래 확산',
+)
+
+const scoreSummaryCards = computed(() => normalizedScoreItems.value)
 
 const kpiSummaryCards = computed(() => [
   {
@@ -563,14 +619,14 @@ function handleBack() {
                       <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">ESG 나무 키우기 점수</p>
                       <p class="mt-2 text-3xl font-black text-emerald-700">+{{ formatQuantity(treeGrowPoints) }} pt</p>
                       <p class="mt-2 text-xs font-bold leading-5 text-gray-500">
-                        {{ topScoreContributor?.label || '주요 점수요소' }}가 가장 큰 비중을 차지했고, 전체 점수는 환경 성과와 추적 근거를 합산해 반영됩니다.
+                        {{ topScoreContributor?.label || '주요 점수요소' }}가 가장 큰 비중을 차지했고, 전체 점수는 4개 점수 항목 합산으로 반영됩니다.
                       </p>
 
                       <div class="mt-4 space-y-3">
                         <div v-for="scoreItem in scoreSummaryCards" :key="scoreItem.scoreType">
                           <div class="flex items-center justify-between gap-3 text-[11px] font-black">
                             <span class="text-gray-700">{{ scoreItem.label }}</span>
-                            <span :class="scoreItem.accent">+{{ formatQuantity(scoreItem.points) }} pt</span>
+                            <span :class="scoreItem.isInactive ? 'score-muted-text' : scoreItem.accent">+{{ formatQuantity(scoreItem.points) }} pt</span>
                           </div>
                           <div class="mt-1 h-2 overflow-hidden rounded-full bg-gray-100">
                             <div class="h-full rounded-full" :class="scoreItem.bar" :style="{ width: `${scoreItem.ratio}%` }"></div>
@@ -598,8 +654,14 @@ function handleBack() {
                           <div>
                             <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">{{ scoreItem.label }}</p>
                             <p class="mt-2 text-[11px] font-bold leading-5 text-gray-600">{{ scoreItem.insight }}</p>
+                            <span
+                              v-if="scoreItem.badgeText"
+                              class="score-inactive-badge mt-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold"
+                            >
+                              {{ scoreItem.badgeText }}
+                            </span>
                           </div>
-                          <p class="text-lg font-black" :class="scoreItem.accent">+{{ formatQuantity(scoreItem.points) }} pt</p>
+                          <p class="text-lg font-black" :class="scoreItem.isInactive ? 'score-muted-text' : scoreItem.accent">+{{ formatQuantity(scoreItem.points) }} pt</p>
                         </div>
                       </div>
                     </div>
@@ -674,19 +736,30 @@ function handleBack() {
                       <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">점수 구조 한눈에 보기</p>
                       <p class="mt-2 text-3xl font-black text-emerald-700">+{{ formatQuantity(treeGrowPoints) }} pt</p>
                       <p class="mt-2 text-xs font-bold leading-5 text-gray-500">
-                        가장 큰 비중은 {{ topScoreContributor?.label || '점수 요소' }}에서 발생했고, 각 점수는 아래 활동과 연결됩니다.
+                        가장 큰 비중은 {{ topScoreContributor?.label || '점수 요소' }}에서 발생했고, 점수는 순환 판매/탄소 감축/지역 상생/거래 확산 기준으로 반영됩니다.
                       </p>
 
                       <div class="mt-4 space-y-3">
-                        <div v-for="scoreItem in scoreSummaryCards" :key="scoreItem.scoreType" class="rounded-md border border-gray-100 bg-gray-50 px-3 py-3">
+                        <div
+                          v-for="scoreItem in scoreSummaryCards"
+                          :key="scoreItem.scoreType"
+                          class="rounded-md border px-3 py-3"
+                          :class="scoreItem.isInactive ? 'score-secondary-border score-secondary-card' : 'border-gray-100 bg-gray-50'"
+                        >
                           <div class="flex items-center justify-between gap-3">
                             <p class="text-[11px] font-black text-gray-800">{{ scoreItem.label }}</p>
-                            <p class="text-sm font-black" :class="scoreItem.accent">+{{ formatQuantity(scoreItem.points) }} pt</p>
+                            <p class="text-sm font-black" :class="scoreItem.isInactive ? 'score-muted-text' : scoreItem.accent">+{{ formatQuantity(scoreItem.points) }} pt</p>
                           </div>
                           <div class="mt-2 h-2 overflow-hidden rounded-full bg-white">
                             <div class="h-full rounded-full" :class="scoreItem.bar" :style="{ width: `${scoreItem.ratio}%` }"></div>
                           </div>
                           <p class="mt-2 text-[11px] font-bold leading-5 text-gray-500">{{ scoreItem.insight }}</p>
+                          <span
+                            v-if="scoreItem.badgeText"
+                            class="score-inactive-badge mt-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold"
+                          >
+                            {{ scoreItem.badgeText }}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -710,9 +783,20 @@ function handleBack() {
                           <div>
                             <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">{{ scoreItem.label }}</p>
                             <p class="mt-2 text-[11px] font-bold leading-5 text-gray-600">{{ scoreItem.insight }}</p>
-                            <p class="mt-2 text-[11px] font-bold leading-5 text-gray-500">{{ scoreItem.formulaSummary }}</p>
+                            <p
+                              v-if="scoreItem.formulaSummary && scoreItem.formulaSummary !== scoreItem.insight"
+                              class="mt-2 text-[11px] font-bold leading-5 text-gray-500"
+                            >
+                              {{ scoreItem.formulaSummary }}
+                            </p>
+                            <span
+                              v-if="scoreItem.badgeText"
+                              class="score-inactive-badge mt-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold"
+                            >
+                              {{ scoreItem.badgeText }}
+                            </span>
                           </div>
-                          <p class="text-lg font-black" :class="scoreItem.accent">+{{ formatQuantity(scoreItem.points) }} pt</p>
+                          <p class="text-lg font-black" :class="scoreItem.isInactive ? 'score-muted-text' : scoreItem.accent">+{{ formatQuantity(scoreItem.points) }} pt</p>
                         </div>
                       </div>
                     </div>
@@ -734,16 +818,11 @@ function handleBack() {
                         <p class="mt-2 text-xl font-black" :class="kpiItem.accent">{{ kpiItem.value }}</p>
                         <p class="mt-2 text-[11px] font-bold leading-5 text-gray-600">{{ kpiItem.insight }}</p>
                       </div>
-                      <div class="border border-indigo-100 bg-indigo-50 px-4 py-4 md:col-span-2">
-                        <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">거래 가능 탄소배출권 추정치</p>
-                        <p class="mt-2 text-xl font-black text-indigo-700">{{ formatCurrency(tradableCarbonCreditValueKpi) }}</p>
-                        <p class="mt-2 text-[11px] font-bold leading-5 text-gray-600">현재 기준으로 거래 가치까지 확장해 본 참고 수치입니다.</p>
-                      </div>
                     </div>
                   </section>
                 </div>
 
-                <div class="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(20rem,0.85fr)]">
+                <div class="grid gap-4">
                   <section class="border border-gray-200 bg-gray-50 px-4 py-4">
                     <h3 class="text-sm font-black text-gray-900">점수 / KPI 산정 근거</h3>
                     <div class="mt-3 grid gap-3 md:grid-cols-2">
@@ -766,44 +845,15 @@ function handleBack() {
                     </div>
                     <div class="mt-4 border-t border-gray-200 pt-3">
                       <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">점수 체계 요약</p>
-                      <p class="mt-1 text-xs font-bold leading-5 text-gray-700">{{ saleEsgSnapshot?.esgMeta?.formulaSummary || '-' }}</p>
-                    </div>
-                  </section>
-
-                  <section class="border border-gray-200 bg-white">
-                    <div class="border-b border-gray-100 px-4 py-3">
-                      <h3 class="text-sm font-black text-gray-900">인증 / 추적 완료 점수 상세</h3>
-                    </div>
-                    <div class="overflow-hidden">
-                      <table class="w-full table-fixed border-collapse text-xs">
-                        <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
-                          <tr>
-                            <th class="px-3 py-3 text-left font-black">항목</th>
-                            <th class="px-3 py-3 text-left font-black">결과</th>
-                            <th class="px-3 py-3 text-right font-black">점수</th>
-                          </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100">
-                          <tr
-                            v-for="traceItem in saleEsgSnapshot?.esgMeta?.traceabilityBreakdown ?? []"
-                            :key="traceItem.scoreType"
-                          >
-                            <td class="px-3 py-3 font-black text-gray-900">{{ traceItem.label }}</td>
-                            <td class="px-3 py-3 font-bold text-gray-600">{{ traceItem.formulaSummary }}</td>
-                            <td class="px-3 py-3 text-right font-black" :class="traceItem.points > 0 ? 'text-emerald-700' : 'text-gray-400'">
-                              +{{ formatQuantity(traceItem.points) }} pt
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
+                      <p class="mt-1 text-xs font-bold leading-5 text-gray-700">{{ scoreFormulaSummary }}</p>
                     </div>
                   </section>
                 </div>
 
-                <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                <div class="grid gap-4">
                   <section class="border border-gray-200 bg-white">
                     <div class="border-b border-gray-100 px-4 py-3">
-                      <h3 class="text-sm font-black text-gray-900">소재별 자원 순환 반영 상세</h3>
+                      <h3 class="text-sm font-black text-gray-900">소재별 탄소 감축 반영 상세</h3>
                     </div>
                     <div class="overflow-hidden">
                       <table class="w-full table-fixed border-collapse text-xs">
@@ -811,38 +861,12 @@ function handleBack() {
                           <tr>
                             <th class="px-3 py-3 text-left font-black">소재명</th>
                             <th class="px-3 py-3 text-right font-black">반영 무게</th>
-                            <th class="px-3 py-3 text-right font-black">순환 전환 계수</th>
-                            <th class="px-3 py-3 text-right font-black">적용 비중</th>
+                            <th class="px-3 py-3 text-right font-black">탄소 감축 계수</th>
+                            <th class="px-3 py-3 text-right font-black">점수 비중</th>
                           </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
                           <tr v-for="material in saleEsgSnapshot?.esgMeta?.materialBreakdown ?? []" :key="`resource-${material.materialName}`">
-                            <td class="px-3 py-3 font-black text-gray-900">{{ material.materialName }}</td>
-                            <td class="px-3 py-3 text-right font-black text-gray-700">{{ formatKg(material.weightKg) }}</td>
-                            <td class="px-3 py-3 text-right font-black text-gray-900">{{ Number(material.resourceCirculationFactor || 0).toFixed(1) }}</td>
-                            <td class="px-3 py-3 text-right font-black text-gray-700">{{ formatPercent(material.appliedWeightRatio) }}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  </section>
-
-                  <section class="border border-gray-200 bg-white">
-                    <div class="border-b border-gray-100 px-4 py-3">
-                      <h3 class="text-sm font-black text-gray-900">소재별 탄소 절감 반영 상세</h3>
-                    </div>
-                    <div class="overflow-hidden">
-                      <table class="w-full table-fixed border-collapse text-xs">
-                        <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
-                          <tr>
-                            <th class="px-3 py-3 text-left font-black">소재명</th>
-                            <th class="px-3 py-3 text-right font-black">반영 무게</th>
-                            <th class="px-3 py-3 text-right font-black">탄소 절감 계수</th>
-                            <th class="px-3 py-3 text-right font-black">적용 비중</th>
-                          </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100">
-                          <tr v-for="material in saleEsgSnapshot?.esgMeta?.materialBreakdown ?? []" :key="`carbon-${material.materialName}`">
                             <td class="px-3 py-3 font-black text-gray-900">{{ material.materialName }}</td>
                             <td class="px-3 py-3 text-right font-black text-gray-700">{{ formatKg(material.weightKg) }}</td>
                             <td class="px-3 py-3 text-right font-black text-gray-900">{{ Number(material.carbonReductionFactor || 0).toFixed(1) }}</td>
@@ -1058,6 +1082,24 @@ function handleBack() {
 
 .sales-esg-performance-story-cards {
   margin-top: 10px !important;
+}
+
+.score-muted-text {
+  color: #9ca3af !important;
+}
+
+.score-secondary-card {
+  background-color: #f9fafb !important;
+}
+
+.score-secondary-border {
+  border-color: #e5e7eb !important;
+}
+
+.score-inactive-badge {
+  color: #6b7280;
+  background-color: #f3f4f6;
+  border: 1px solid #d1d5db;
 }
 
 th.cell-head:first-child,
