@@ -5,6 +5,7 @@ import { Building2, ChevronDown, CircleDollarSign, Scale, Settings2, Shirt, Tag,
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useCircularStockSaleStore } from '@/stores/hq/circularStock/circularStockSale.js'
+import { getCircularSales } from '@/api/hq/circularSale.js'
 import { circularBuyerApi } from '@/api/hq/circularBuyer.js'
 import {
   circularSaleOutboundStatusBadgeClass,
@@ -30,6 +31,7 @@ const saleId = computed(() => String(route.params.saleId ?? ''))
 const sale = computed(() => circularStockStore.getSaleById(saleId.value))
 const saleEsgSnapshot = computed(() => circularStockStore.getSaleEsgSnapshot(sale.value))
 const linkedBuyer = ref(null)
+const buyerSalesTotalCount = ref(null)
 const openGroups = ref(new Set())
 
 function toggleGroup(key) {
@@ -121,6 +123,19 @@ function findScoreBreakdownPoint(scoreTypes = []) {
   return Number(found?.points)
 }
 
+const isScoreValidSale = computed(() => (Number(sale.value?.totalActualWeightKg) || 0) >= 10)
+
+const linkedBuyerPartnerType = computed(() => String(linkedBuyer.value?.partnerType || '').toLowerCase())
+
+const localPartnerScoreFallback = computed(() => {
+  return ['local_small', 'social_enterprise'].includes(linkedBuyerPartnerType.value) ? 150 : 0
+})
+
+const newBuyerExpansionScoreFallback = computed(() => {
+  if (buyerSalesTotalCount.value === null) return 0
+  return Number(buyerSalesTotalCount.value) === 1 ? 150 : 0
+})
+
 const normalizedScoreItems = computed(() => {
   const totalActualWeightKg = Number(sale.value?.totalActualWeightKg) || 0
   const executionPoints = readNumericScore(
@@ -137,12 +152,12 @@ const normalizedScoreItems = computed(() => {
   const localPartnerPoints = readNumericScore(
     saleEsgSnapshot.value?.localPartnerScore,
     saleEsgSnapshot.value?.esgMeta?.localPartnerScore,
-    0,
+    localPartnerScoreFallback.value,
   ) ?? 0
   const newBuyerExpansionPoints = readNumericScore(
     saleEsgSnapshot.value?.newBuyerExpansionScore,
     saleEsgSnapshot.value?.esgMeta?.newBuyerExpansionScore,
-    0,
+    newBuyerExpansionScoreFallback.value,
   ) ?? 0
 
   const baseItems = [
@@ -153,7 +168,7 @@ const normalizedScoreItems = computed(() => {
       formulaSummary: '판매 1건 최종 등록 완료 시 기본 100pt',
       insight: '판매 행동 자체가 순환 활동으로 인정된 점수입니다.',
       accent: 'text-emerald-700',
-      bar: 'bg-emerald-600',
+      bar: 'bg-[#8FD3B6]',
       activeBg: 'bg-emerald-50',
       activeBorder: 'border-emerald-100',
     },
@@ -164,7 +179,7 @@ const normalizedScoreItems = computed(() => {
       formulaSummary: `실제 탄소 절감량 ${carbonReductionKpi.value.toFixed(2)}kgCO2 × 1`,
       insight: '실제 탄소 감축량과 직접 연결되는 핵심 환경 점수입니다.',
       accent: 'text-sky-700',
-      bar: 'bg-sky-600',
+      bar: 'bg-[#9FC5F8]',
       activeBg: 'bg-sky-50',
       activeBorder: 'border-sky-100',
     },
@@ -175,7 +190,7 @@ const normalizedScoreItems = computed(() => {
       formulaSummary: '지역 파트너/소규모 기업/사회적 기업과의 거래 시 +150pt가 적립됩니다.',
       insight: '지역 파트너/소규모 기업/사회적 기업과의 거래 시 +150pt가 적립됩니다.',
       accent: 'text-teal-700',
-      bar: 'bg-teal-600',
+      bar: 'bg-[#F3A6C9]',
       activeBg: 'bg-teal-50',
       activeBorder: 'border-teal-100',
     },
@@ -186,7 +201,7 @@ const normalizedScoreItems = computed(() => {
       formulaSummary: '신규 거래처와의 첫 거래 시 +150pt가 적립됩니다.',
       insight: '신규 거래처와의 첫 거래 시 +150pt가 적립됩니다.',
       accent: 'text-violet-700',
-      bar: 'bg-violet-600',
+      bar: 'bg-[#B79AF7]',
       activeBg: 'bg-violet-50',
       activeBorder: 'border-violet-100',
     },
@@ -337,9 +352,20 @@ onMounted(async () => {
   openGroups.value = new Set(groupedItems.value.map(group => group.key))
   if (sale.value?.buyerCode) {
     try {
-      linkedBuyer.value = await circularBuyerApi.detail(sale.value.buyerCode)
+      const [buyerDetail, buyerSalesPage] = await Promise.all([
+        circularBuyerApi.detail(sale.value.buyerCode),
+        getCircularSales({
+          page: 0,
+          size: 1,
+          sort: 'soldAt,asc',
+          buyerCode: sale.value.buyerCode,
+        }),
+      ])
+      linkedBuyer.value = buyerDetail
+      buyerSalesTotalCount.value = Number(buyerSalesPage?.totalElements ?? 0)
     } catch {
       linkedBuyer.value = null
+      buyerSalesTotalCount.value = null
     }
   }
 })
