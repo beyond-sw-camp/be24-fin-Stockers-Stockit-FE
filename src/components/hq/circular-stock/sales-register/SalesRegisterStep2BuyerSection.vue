@@ -1,5 +1,5 @@
 ﻿<script setup>
-import { BadgeCheck, Bot, Info, Loader2, Sprout } from 'lucide-vue-next'
+import { BadgeCheck, Bot, Building2, Info, Layers3, Loader2, Sprout, Truck } from 'lucide-vue-next'
 
 defineProps({
   buyerPanelMode: { type: String, required: true },
@@ -34,6 +34,32 @@ const emit = defineEmits([
   'select-recommendation',
   'select-buyer',
 ])
+
+const rationaleSectionLabels = {
+  companyRationale: '어떤 거래처 인가요?',
+  materialRationale: '소재 매칭 리포트',
+  distanceRationale: '물류 및 이동 최적화 분석',
+}
+
+const rationaleSectionIcons = {
+  companyRationale: Building2,
+  materialRationale: Layers3,
+  distanceRationale: Truck,
+}
+
+function recommendationRationaleSections(rec) {
+  const keys = ['companyRationale', 'materialRationale', 'distanceRationale']
+  const sections = keys
+    .map((key) => ({
+      key,
+      title: rationaleSectionLabels[key],
+      icon: rationaleSectionIcons[key],
+      body: String(rec?.[key] ?? '').trim(),
+    }))
+    .filter((section) => section.body)
+
+  return sections.length === keys.length ? sections : []
+}
 </script>
 
 <template>
@@ -182,11 +208,6 @@ const emit = defineEmits([
                 </p>
                 <span class="pt-[1px] text-xs font-bold leading-none text-gray-400">{{ rec.code }}</span>
                 <span
-                  class="rounded-full border border-[#BFDFFF] bg-[#EAF6FF] px-2.5 py-1.5 text-[11px] font-black leading-none text-[#1F6FAE]"
-                >
-                  소재 적합도 상
-                </span>
-                <span
                   v-if="isSocialEnterprise(rec)"
                   class="rounded-full border border-[#D9C6F7] bg-[#F1EAFE] px-2.5 py-1.5 text-[11px] font-black leading-none text-[#6C3FB4]"
                 >
@@ -241,18 +262,41 @@ const emit = defineEmits([
           </div>
           <div
             v-if="expandedRecommendationCode === rec.code"
-            class="border-t border-[#E5EEEA] bg-[#F8FBFA] px-4 py-3 text-xs"
+            class="border-t border-[#E5EEEA] bg-[#F8FBFA] px-5 py-5 text-xs"
           >
-            <div class="pl-[calc(28px+40px+0.75rem)] pr-20">
-              <p class="font-black text-[#0F5C4D]" style="font-weight: 700; margin-top: 5px; margin-bottom: 5px">
+            <div class="pl-[calc(28px+40px+0.75rem)] pr-16">
+              <p class="font-black text-[#0F5C4D]" style="font-weight: 700; margin-top: 2px; margin-bottom: 12px">
                 AI 추천 이유
               </p>
-              <div v-if="!visibleRationaleCodes[rec.code]" class="mt-2 space-y-1.5">
-                <div class="h-3 w-[92%] animate-pulse rounded bg-gray-200" />
-                <div class="h-3 w-[86%] animate-pulse rounded bg-gray-200" />
-                <div class="h-3 w-[74%] animate-pulse rounded bg-gray-200" />
+              <div v-if="!visibleRationaleCodes[rec.code]" class="mt-4 space-y-3">
+                <div
+                  v-for="label in ['어떤 거래처 인가요?', '소재 매칭 리포트', '물류 및 이동 최적화 분석']"
+                  :key="label"
+                  class="space-y-2"
+                >
+                  <div class="h-4 w-32 animate-pulse rounded bg-[#D3E4DE]" />
+                  <div class="h-5 w-[94%] animate-pulse rounded bg-gray-200" />
+                  <div class="h-5 w-[88%] animate-pulse rounded bg-gray-200" />
+                  <div class="h-5 w-[72%] animate-pulse rounded bg-gray-200" />
+                </div>
               </div>
-              <p v-else class="mt-2 whitespace-pre-line font-bold leading-5 text-gray-700">
+              <div v-else-if="recommendationRationaleSections(rec).length > 0" class="mt-4 space-y-0">
+                <section
+                  v-for="(section, sectionIndex) in recommendationRationaleSections(rec)"
+                  :key="section.key"
+                  class="py-1.5 pl-0"
+                  :style="{ marginTop: sectionIndex === 0 ? '0px' : '9px' }"
+                >
+                  <div class="flex items-center gap-1.5 text-sm font-black leading-none text-[#0F5C4D]">
+                    <component :is="section.icon" class="h-4 w-4 shrink-0" :stroke-width="2.2" />
+                    <span>{{ section.title }}</span>
+                  </div>
+                  <p class="mt-3 text-sm font-bold leading-6 text-gray-700">
+                    {{ section.body }}
+                  </p>
+                </section>
+              </div>
+              <p v-else class="mt-3 whitespace-pre-line text-sm font-bold leading-6 text-gray-700">
                 {{ rec.rationale || '추천 근거 데이터가 없습니다.' }}
               </p>
             </div>
