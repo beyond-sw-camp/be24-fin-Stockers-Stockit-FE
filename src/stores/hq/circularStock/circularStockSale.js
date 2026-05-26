@@ -57,12 +57,17 @@ function buyerMaterialFitValue(materialType) {
 }
 
 const CARBON_REDUCTION_FACTORS = {
-  면: 6.5,
-  폴리에스터: 6.8,
-  나일론: 5.5,
-  혼방: 6.5,
-  울: 20.0,
-  default: 6.0,
+  면: 1.8,
+  울: 1.2,
+  캐시미어: 1.3,
+  실크: 1.3,
+  리넨: 1.7,
+  폴리에스터: 2.3,
+  아크릴: 2.4,
+  나일론: 2.5,
+  스판덱스: 2.2,
+  혼방: 2.0,
+  default: 2.0,
 }
 
 const RESOURCE_CIRCULATION_FACTORS = {
@@ -172,10 +177,16 @@ function buildSaleEsgSnapshot(sale, buyer, kauPrice, options = {}) {
     }
   }
 
+  const totalBreakdownWeightKg = [...materialBreakdownMap.values()]
+    .reduce((sum, entry) => sum + (Number(entry.weightKg) || 0), 0)
   const normalizedBreakdown = [...materialBreakdownMap.values()].map(entry => ({
     ...entry,
     weightKg: roundTo(entry.weightKg, 4),
-    appliedWeightRatio: roundTo(entry.appliedWeightRatio, 4),
+    // 소재별 반영 비중은 전체 반영 무게 합계 대비 비율(합계 100%)로 표기한다.
+    appliedWeightRatio: roundTo(
+      totalBreakdownWeightKg > 0 ? (Number(entry.weightKg) || 0) / totalBreakdownWeightKg : 0,
+      4,
+    ),
   }))
 
   const roundedSavedCarbonKg = roundTo(savedCarbonKg, 2)
