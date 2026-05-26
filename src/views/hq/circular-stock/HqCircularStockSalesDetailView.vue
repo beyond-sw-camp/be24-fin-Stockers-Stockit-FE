@@ -396,6 +396,57 @@ function handleBack() {
           </div>
 
           <div v-if="activeTab === 'sales'" class="flex flex-col gap-4 px-8 pb-8 pt-7">
+            <section class="w-full">
+              <div class="sales-esg-stack">
+                <section class="overflow-hidden border border-[#D7E9E3] bg-[linear-gradient(135deg,#F6FBF8_0%,#FFFFFF_55%,#F2F8FF_100%)]">
+                  <div class="grid gap-4 px-6 py-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+                    <div>
+                      <div class="flex flex-wrap items-center gap-2">
+                        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-[#4D7A6F]">ESG 요약 · Impact Snapshot</p>
+                      </div>
+                      <h3 class="mt-2 text-xl font-black text-gray-900">한 번의 판매가 만든 성과를 한눈에</h3>
+                      <p class="mt-2 text-sm font-bold leading-6 text-gray-600">
+                        이번 판매는 <span class="text-[#0F5C4D]">{{ formatCurrency(wasteLossRecoveredValueKpi) }}</span>의 수익 전환과
+                        <span class="text-sky-700">{{ formatCarbonKg(carbonReductionKpi) }}</span>의 탄소 감축으로 이어졌습니다.
+                      </p>
+
+                      <div class="sales-esg-story-cards grid gap-3 md:grid-cols-3">
+                        <div
+                          v-for="impactItem in impactNarrative"
+                          :key="impactItem.key"
+                          class="border border-white/80 bg-white/80 px-3 py-3 backdrop-blur"
+                        >
+                          <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">{{ impactItem.title }}</p>
+                          <p class="mt-2 text-sm font-black text-gray-900">{{ impactItem.value }}</p>
+                          <p class="mt-1 text-[11px] font-bold leading-5 text-gray-500">{{ impactItem.detail }}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="border border-white/80 bg-white/90 px-4 py-4">
+                      <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">ESG 나무 키우기 점수</p>
+                      <p class="mt-2 text-3xl font-black text-emerald-700">+{{ formatQuantity(treeGrowPoints) }} pt</p>
+                      <p class="mt-2 text-xs font-bold leading-5 text-gray-500">
+                        {{ topScoreContributor?.label || '주요 점수요소' }}가 가장 큰 비중을 차지했고, 전체 점수는 4개 점수 항목 합산으로 반영됩니다.
+                      </p>
+
+                      <div class="mt-4 space-y-3">
+                        <div v-for="scoreItem in scoreSummaryCards" :key="scoreItem.scoreType">
+                          <div class="flex items-center justify-between gap-3 text-[11px] font-black">
+                            <span class="text-gray-700">{{ scoreItem.label }}</span>
+                            <span :class="scoreItem.isInactive ? 'score-muted-text' : scoreItem.accent">+{{ formatQuantity(scoreItem.points) }} pt</span>
+                          </div>
+                          <div class="mt-1 h-2 overflow-hidden rounded-full bg-gray-100">
+                            <div class="h-full rounded-full" :class="scoreItem.bar" :style="{ width: `${scoreItem.ratio}%` }"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </section>
+
             <section class="border border-gray-200 bg-white p-5 pr-7 pl-7 shadow-sm">
               <div class="sales-summary-stack">
                 <div class="sales-summary-head flex flex-wrap items-start justify-between gap-3">
@@ -575,119 +626,6 @@ function handleBack() {
               <p class="text-lg !font-semibold text-[#1C8E73]">최종 판매 금액 {{ formatCurrency(sale.totalAmount) }}</p>
             </section>
 
-            <section class="w-full border border-gray-200 bg-white shadow-sm">
-              <div class="border-b border-gray-100 px-4 py-3">
-                <div class="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h2 class="text-sm font-black text-gray-900">ESG 요약</h2>
-                    <p class="mt-1 text-xs font-bold text-gray-500">점수와 KPI를 한 번에 읽을 수 있도록 성과 중심으로 요약했습니다.</p>
-                  </div>
-                  <p
-                    v-if="saleEsgSnapshot?.isEstimated"
-                    class="border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-black text-amber-700"
-                  >
-                    과거 판매건 기준 추정치
-                  </p>
-                </div>
-              </div>
-
-              <div class="sales-esg-stack p-4">
-                <section class="overflow-hidden border border-[#D7E9E3] bg-[linear-gradient(135deg,#F6FBF8_0%,#FFFFFF_55%,#F2F8FF_100%)]">
-                  <div class="grid gap-4 px-4 py-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-                    <div>
-                      <p class="text-[10px] font-black uppercase tracking-[0.18em] text-[#4D7A6F]">Impact Snapshot</p>
-                      <h3 class="mt-2 text-xl font-black text-gray-900">한 번의 판매가 만든 성과를 한눈에</h3>
-                      <p class="mt-2 text-sm font-bold leading-6 text-gray-600">
-                        이번 판매는 <span class="text-[#0F5C4D]">{{ formatCurrency(wasteLossRecoveredValueKpi) }}</span>의 수익 전환과
-                        <span class="text-sky-700">{{ formatCarbonKg(carbonReductionKpi) }}</span>의 탄소 감축으로 이어졌습니다.
-                      </p>
-
-                      <div class="sales-esg-story-cards grid gap-3 md:grid-cols-3">
-                        <div
-                          v-for="impactItem in impactNarrative"
-                          :key="impactItem.key"
-                          class="border border-white/80 bg-white/80 px-3 py-3 backdrop-blur"
-                        >
-                          <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">{{ impactItem.title }}</p>
-                          <p class="mt-2 text-sm font-black text-gray-900">{{ impactItem.value }}</p>
-                          <p class="mt-1 text-[11px] font-bold leading-5 text-gray-500">{{ impactItem.detail }}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div class="border border-white/80 bg-white/90 px-4 py-4">
-                      <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">ESG 나무 키우기 점수</p>
-                      <p class="mt-2 text-3xl font-black text-emerald-700">+{{ formatQuantity(treeGrowPoints) }} pt</p>
-                      <p class="mt-2 text-xs font-bold leading-5 text-gray-500">
-                        {{ topScoreContributor?.label || '주요 점수요소' }}가 가장 큰 비중을 차지했고, 전체 점수는 4개 점수 항목 합산으로 반영됩니다.
-                      </p>
-
-                      <div class="mt-4 space-y-3">
-                        <div v-for="scoreItem in scoreSummaryCards" :key="scoreItem.scoreType">
-                          <div class="flex items-center justify-between gap-3 text-[11px] font-black">
-                            <span class="text-gray-700">{{ scoreItem.label }}</span>
-                            <span :class="scoreItem.isInactive ? 'score-muted-text' : scoreItem.accent">+{{ formatQuantity(scoreItem.points) }} pt</span>
-                          </div>
-                          <div class="mt-1 h-2 overflow-hidden rounded-full bg-gray-100">
-                            <div class="h-full rounded-full" :class="scoreItem.bar" :style="{ width: `${scoreItem.ratio}%` }"></div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </section>
-
-                <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                  <section class="border border-gray-200 bg-white">
-                    <div class="border-b border-gray-100 px-4 py-3">
-                      <h3 class="text-sm font-black text-gray-900">점수 요소</h3>
-                      <p class="mt-1 text-[11px] font-bold text-gray-500">어떤 활동이 점수로 이어졌는지 한눈에 볼 수 있게 정리했습니다.</p>
-                    </div>
-                    <div class="grid gap-3 p-4">
-                      <div
-                        v-for="scoreItem in scoreSummaryCards"
-                        :key="scoreItem.scoreType"
-                        class="border px-4 py-4"
-                        :class="[scoreItem.border, scoreItem.bg]"
-                      >
-                        <div class="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">{{ scoreItem.label }}</p>
-                            <p class="mt-2 text-[11px] font-bold leading-5 text-gray-600">{{ scoreItem.insight }}</p>
-                            <span
-                              v-if="scoreItem.badgeText"
-                              class="score-inactive-badge mt-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold"
-                            >
-                              {{ scoreItem.badgeText }}
-                            </span>
-                          </div>
-                          <p class="text-lg font-black" :class="scoreItem.isInactive ? 'score-muted-text' : scoreItem.accent">+{{ formatQuantity(scoreItem.points) }} pt</p>
-                        </div>
-                      </div>
-                    </div>
-                  </section>
-
-                  <section class="border border-gray-200 bg-white">
-                    <div class="border-b border-gray-100 px-4 py-3">
-                      <h3 class="text-sm font-black text-gray-900">KPI 지표</h3>
-                      <p class="mt-1 text-[11px] font-bold text-gray-500">숫자가 실제로 무엇을 의미하는지 읽기 쉽게 풀어 보여줍니다.</p>
-                    </div>
-                    <div class="grid gap-3 p-4 md:grid-cols-2">
-                      <div
-                        v-for="kpiItem in kpiSummaryCards"
-                        :key="kpiItem.key"
-                        class="border px-4 py-4"
-                        :class="[kpiItem.border, kpiItem.bg]"
-                      >
-                        <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">{{ kpiItem.label }}</p>
-                        <p class="mt-2 text-xl font-black" :class="kpiItem.accent">{{ kpiItem.value }}</p>
-                        <p class="mt-2 text-[11px] font-bold leading-5 text-gray-600">{{ kpiItem.insight }}</p>
-                      </div>
-                    </div>
-                  </section>
-                </div>
-              </div>
-            </section>
           </div>
 
           <div v-else-if="activeTab === 'esg'" class="p-8">
@@ -698,12 +636,6 @@ function handleBack() {
                     <h2 class="text-sm font-black text-gray-900">ESG 성과</h2>
                     <p class="mt-1 text-xs font-bold text-gray-500">환경 임팩트, 점수 구조, 산정 근거를 읽기 쉽게 풀어 보여줍니다.</p>
                   </div>
-                  <p
-                    v-if="saleEsgSnapshot?.isEstimated"
-                    class="border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-black text-amber-700"
-                  >
-                    과거 판매건 기준 추정치
-                  </p>
                 </div>
               </div>
 
@@ -766,42 +698,7 @@ function handleBack() {
                   </div>
                 </section>
 
-                <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                  <section class="border border-gray-200 bg-white">
-                    <div class="border-b border-gray-100 px-4 py-3">
-                      <h3 class="text-sm font-black text-gray-900">점수 요소 상세</h3>
-                      <p class="mt-1 text-[11px] font-bold text-gray-500">각 점수가 어떤 활동과 연결되는지 설명과 함께 확인합니다.</p>
-                    </div>
-                    <div class="grid gap-3 p-4">
-                      <div
-                        v-for="scoreItem in scoreSummaryCards"
-                        :key="scoreItem.scoreType"
-                        class="border px-4 py-4"
-                        :class="[scoreItem.border, scoreItem.bg]"
-                      >
-                        <div class="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">{{ scoreItem.label }}</p>
-                            <p class="mt-2 text-[11px] font-bold leading-5 text-gray-600">{{ scoreItem.insight }}</p>
-                            <p
-                              v-if="scoreItem.formulaSummary && scoreItem.formulaSummary !== scoreItem.insight"
-                              class="mt-2 text-[11px] font-bold leading-5 text-gray-500"
-                            >
-                              {{ scoreItem.formulaSummary }}
-                            </p>
-                            <span
-                              v-if="scoreItem.badgeText"
-                              class="score-inactive-badge mt-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold"
-                            >
-                              {{ scoreItem.badgeText }}
-                            </span>
-                          </div>
-                          <p class="text-lg font-black" :class="scoreItem.isInactive ? 'score-muted-text' : scoreItem.accent">+{{ formatQuantity(scoreItem.points) }} pt</p>
-                        </div>
-                      </div>
-                    </div>
-                  </section>
-
+                <div>
                   <section class="border border-gray-200 bg-white">
                     <div class="border-b border-gray-100 px-4 py-3">
                       <h3 class="text-sm font-black text-gray-900">KPI 지표 상세</h3>
