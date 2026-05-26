@@ -53,12 +53,12 @@ export const circularBuyerApi = {
   /**
    * ADR-021 AI 거래처 추천 — 3층 RAG (SQL 룰 → 임베딩 코사인 → LLM 사유).
    * 판매 등록 페이지 Step 1 → Step 2 [다음] 클릭 1회 호출.
-   * LLM 실패 시에도 200 OK + rationale fallback 텍스트 (BE 책임).
+   * LLM 실패 시에도 200 OK + 섹션별 fallback 텍스트 (BE 책임).
    *
    * timeout 120초 — OpenAI 임베딩 + Chat 호출의 cold start / 네트워크 지연 대응.
    *
-   * @param {{materialFit: 'natural-single'|'synthetic'|'blended', productName?: string, description?: string, quantityHint?: string}} payload
-   * @returns {Promise<{recommendations: Array<{code, companyName, primaryMaterialFit, industryGroup, rationale}>}>}
+   * @param {{materialFit: 'natural-single'|'synthetic'|'blended', productName?: string, description?: string, quantityHint?: string, productCode?: string, warehouseCode?: string}} payload
+   * @returns {Promise<{recommendations: Array<{code, companyName, primaryMaterialFit, industryGroup, companyRationale, materialRationale, distanceRationale, rationale}>}>}
    */
   recommend: (payload) =>
     apiClient.post(`${BASE}/recommend`, payload, { timeout: 120000 }).then(unwrap),

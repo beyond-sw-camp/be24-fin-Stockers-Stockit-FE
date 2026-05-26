@@ -11,7 +11,7 @@
       icon: 'warehouse',
     },
     {
-      label: '물류 창고 발주',
+      label: '공급처 발주',
       path: '/hq/purchase-orders',
       icon: 'truck',
     },
@@ -52,7 +52,7 @@
       icon: 'store',
     },
     {
-      label: '매장 발주 배치 처리',
+      label: '매장 발주 승인 처리',
       path: '/hq/batch/store-order-approve',
       icon: 'check',
     },

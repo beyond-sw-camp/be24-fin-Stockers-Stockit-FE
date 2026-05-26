@@ -113,7 +113,7 @@ function addItemToDraft(row) {
     } else if (!hasWarehouse) {
       showToast('창고를 먼저 선택해주세요.', 'error')
     } else {
-      showToast('소재구분을 먼저 선택해주세요.', 'error')
+      showToast('소재 구분을 먼저 선택해주세요.', 'error')
     }
     return
   }

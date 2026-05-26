@@ -364,17 +364,23 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     if (items.length === 0 || !lockedMaterialType.value) return null
     const materialFit = buyerMaterialFitValue(lockedMaterialType.value)
     const head = items[0]
-    const productName = items.length > 1
-      ? `${head.itemName} 외 ${items.length - 1}건`
-      : head.itemName
-    const materialsLabel = (head.materials ?? [])
-      .map(m => `${m.name} ${m.ratio}%`)
-      .join(', ')
+    const productNames = [...new Set(items.map(item => item.itemName).filter(Boolean))]
+    const productName = productNames.join(', ')
+    const itemSummaries = items.map((item, index) => {
+      const materialsLabel = (item.materials ?? [])
+        .map(m => `${m.name} ${m.ratio}%`)
+        .join(', ')
+      const categoryLabel = [item.mainCategory, item.subCategory].filter(Boolean).join(' > ')
+      const weight = Number(item.availableWeightKg) || 0
+      const quantity = Number(item.availableQuantity) || 0
+      return `${index + 1}) ${item.itemName}${materialsLabel ? ` / 소재 ${materialsLabel}` : ''}${categoryLabel ? ` / 카테고리 ${categoryLabel}` : ''} / 약 ${weight.toFixed(1)}kg, ${quantity}벌`
+    })
     const categories = [...new Set(items.map(item => item.mainCategory).filter(Boolean))].join(', ')
     const description = [
-      `${lockedMaterialType.value} 잔재고`,
-      materialsLabel ? `${materialsLabel}.` : '',
-      categories ? `${categories} 카테고리.` : '',
+      `${lockedMaterialType.value} 잔재고 ${items.length}건`,
+      productNames.length > 0 ? `선택 품목: ${productNames.join(', ')}.` : '',
+      itemSummaries.length > 0 ? `품목별 상세: ${itemSummaries.join(' | ')}.` : '',
+      categories ? `대표 카테고리: ${categories}.` : '',
     ].filter(Boolean).join(' ')
     const totalKg = items.reduce((sum, item) => sum + (Number(item.availableWeightKg) || 0), 0)
     const totalQty = items.reduce((sum, item) => sum + (Number(item.availableQuantity) || 0), 0)
@@ -384,7 +390,7 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
       productName,
       description,
       quantityHint,
-      productCode: head.itemCode ?? null,
+      productCode: items.length === 1 ? (head.itemCode ?? null) : null,
       warehouseCode: selectedWarehouseCode.value || head.warehouseCode || null,
     }
   })
@@ -409,6 +415,8 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
       saleId: Number(row.saleId),
       saleNo: String(row.saleNo || ''),
       outboundNo: row.outboundNo ?? null,
+      outboundWarehouseCode: row.outboundWarehouseCode ?? null,
+      outboundWarehouseName: row.outboundWarehouseName ?? null,
       outboundStatus: row.outboundStatus ?? null,
       soldAt: row.soldAt ?? null,
       completedAt: row.completedAt ?? null,
@@ -442,6 +450,10 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
         actualWeightKg: Number(item.actualWeightKg || 0),
         estimatedQuantity: Number(item.estimatedQuantity || 0),
         soldQuantity: Number(item.soldQuantity || 0),
+        availableQuantity: Number(item.availableQuantity || 0),
+        availableWeightKg: Number(item.availableWeightKg || 0),
+        warehouseCode: String(item.warehouseCode ?? ''),
+        warehouseName: String(item.warehouseName ?? ''),
         unitPrice: Number(item.unitPrice || 0),
         lineAmount: Number(item.lineAmount || 0),
         memo: item.memo ?? null,
@@ -466,6 +478,8 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
       soldByMemberId: detail.soldByMemberId ?? null,
       soldByName: detail.soldByName ?? null,
       outboundHeaderId: detail.outboundHeaderId ?? null,
+      outboundWarehouseCode: detail.outboundWarehouseCode ?? null,
+      outboundWarehouseName: detail.outboundWarehouseName ?? null,
       buyerCode: detail.buyerCode ?? null,
       buyerName: detail.buyerName ?? null,
       buyerIndustryGroup: detail.buyerIndustryGroup ?? null,

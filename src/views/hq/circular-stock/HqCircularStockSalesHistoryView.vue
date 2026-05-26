@@ -1,6 +1,7 @@
 ﻿<script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { Search } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useCircularStockSaleStore } from '@/stores/hq/circularStock/circularStockSale.js'
@@ -26,6 +27,8 @@ const activeTopMenu = computed(() => '순환 재고 관리')
 const activeSideMenu = ref('순환 재고 판매 내역')
 const searchTerm = ref('')
 const activePeriod = ref('all')
+const currentPage = ref(1)
+const pageSize = ref(20)
 
 const referenceDate = ref(new Date())
 
@@ -103,6 +106,23 @@ const filteredSummary = computed(() => ({
   totalSalesCount: filteredSales.value.length,
 }))
 
+const pagination = computed(() => circularStockStore.salesPage || {})
+const totalPages = computed(() => Math.max(1, Number(pagination.value.totalPages || 0)))
+const pageNumbers = computed(() => {
+  const total = totalPages.value
+  const page = currentPage.value
+  const windowSize = 5
+  const half = Math.floor(windowSize / 2)
+  let start = Math.max(1, page - half)
+  let end = Math.min(total, start + windowSize - 1)
+  if (end - start + 1 < windowSize) {
+    start = Math.max(1, end - windowSize + 1)
+  }
+  const pages = []
+  for (let p = start; p <= end; p += 1) pages.push(p)
+  return pages
+})
+
 function setPeriod(periodKey) {
   activePeriod.value = periodKey
 }
@@ -112,7 +132,25 @@ function headlineLabel(sale) {
 }
 
 function materialTypeLabel(sale) {
-  return sale?.materialType || '-'
+  const type = String(sale?.materialType || '').trim()
+  if (type === '혼방') return '혼방'
+  if (type === '합성 섬유') return '합성섬유'
+  if (type === '천연 단일 섬유') return '천연 단일 섬유'
+  return '-'
+}
+
+function materialTypeBadgeClass(sale) {
+  const type = String(sale?.materialType || '').trim()
+  if (type === '혼방') {
+    return 'border-[#FBCFE8] bg-[#FDF2F8] text-[#9D174D]'
+  }
+  if (type === '합성 섬유') {
+    return 'border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]'
+  }
+  if (type === '천연 단일 섬유') {
+    return 'border-[#E5D5FF] bg-[#F5EEFF] text-[#6D28D9]'
+  }
+  return 'border-gray-200 bg-gray-100 text-gray-500'
 }
 
 function buyerIndustryGroupLabel(sale) {
@@ -170,11 +208,17 @@ function toDateParam(date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
-async function loadSales() {
+async function loadSales(options = {}) {
+  const { preserveScroll = false } = options
+  const scrollRoot = preserveScroll
+    ? (document.scrollingElement || document.documentElement)
+    : null
+  const scrollY = preserveScroll ? window.scrollY : null
+  const scrollTop = preserveScroll ? Number(scrollRoot?.scrollTop || 0) : null
   const range = periodRange.value
   await circularStockStore.fetchCircularSalesPage({
-    page: 0,
-    size: 50,
+    page: currentPage.value - 1,
+    size: pageSize.value,
     sort: 'soldAt,desc',
     from: activePeriod.value === 'all' ? undefined : toDateParam(range.start),
     to: activePeriod.value === 'all' ? undefined : toDateParam(range.end),
@@ -184,9 +228,39 @@ async function loadSales() {
   if (latest?.soldAt) {
     referenceDate.value = new Date(latest.soldAt)
   }
+  const serverPage = Number(circularStockStore.salesPage?.page ?? 0) + 1
+  if (serverPage !== currentPage.value) currentPage.value = serverPage
+  if (preserveScroll && scrollY !== null) {
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: scrollY })
+      if (scrollRoot && scrollTop !== null) scrollRoot.scrollTop = scrollTop
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: scrollY })
+        if (scrollRoot && scrollTop !== null) scrollRoot.scrollTop = scrollTop
+      })
+    })
+  }
+}
+
+function goToPage(page) {
+  const safePage = Math.min(totalPages.value, Math.max(1, Number(page || 1)))
+  if (safePage === currentPage.value) return
+  currentPage.value = safePage
+  loadSales({ preserveScroll: true })
+}
+
+function goToPrevPage() {
+  if (currentPage.value <= 1) return
+  goToPage(currentPage.value - 1)
+}
+
+function goToNextPage() {
+  if (currentPage.value >= totalPages.value) return
+  goToPage(currentPage.value + 1)
 }
 
 watch([activePeriod, searchTerm], () => {
+  currentPage.value = 1
   loadSales()
 })
 
@@ -214,15 +288,6 @@ onMounted(() => {
               판매건 헤더 기준으로 이력을 조회하고, 한 건을 누르면 상세 페이지로 이동합니다.
             </p>
           </div>
-          <label class="flex min-w-[280px] flex-col gap-1.5">
-            <span class="text-[11px] font-bold text-gray-500">검색</span>
-            <input
-              v-model="searchTerm"
-              type="search"
-              class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#111827]"
-              placeholder="판매번호, 거래처명, 대표품목"
-            />
-          </label>
         </div>
       </section>
 
@@ -295,25 +360,38 @@ onMounted(() => {
 
       <section class="border border-gray-300 bg-white shadow-sm">
         <div class="border-b border-gray-200 px-4 py-3">
-          <h2 class="text-sm font-extrabold text-gray-900">판매 이력 목록</h2>
-          <p class="mt-1 text-[11px] font-bold text-gray-400">
-            행을 클릭하면 판매 상세 페이지로 이동합니다.
-          </p>
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 class="text-sm font-extrabold text-gray-900">판매 이력 목록</h2>
+              <p class="mt-1 text-[11px] font-bold text-gray-400">
+                행을 클릭하면 판매 상세 페이지로 이동합니다.
+              </p>
+            </div>
+            <label class="flex min-w-[300px] items-center gap-2">
+              <Search class="h-4 w-4 text-gray-500" />
+              <input
+                v-model="searchTerm"
+                type="search"
+                class="h-9 flex-1 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#111827]"
+                placeholder="판매번호, 거래처명, 대표품목"
+              />
+            </label>
+          </div>
         </div>
 
         <div class="overflow-x-auto">
           <table class="min-w-[1200px] w-full border-collapse text-xs">
             <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
               <tr>
-                <th class="px-4 py-3 text-left font-black">판매일시</th>
-                <th class="px-4 py-3 text-left font-black">판매번호</th>
-                <th class="px-4 py-3 text-left font-black">거래처</th>
-                <th class="px-4 py-3 text-left font-black">산업군</th>
-                <th class="px-4 py-3 text-left font-black">소재 분류</th>
+                <th class="px-3 py-3 text-left font-black">판매번호</th>
+                <th class="px-3 py-3 text-left font-black">출고 창고</th>
+                <th class="px-3 py-3 text-left font-black">거래처</th>
+                <th class="pl-5 pr-4 py-3 text-left font-black">산업군</th>
+                <th class="px-4 py-3 text-center font-black">소재 분류</th>
                 <th class="px-4 py-3 text-left font-black">대표 품목</th>
-                <th class="px-4 py-3 text-right font-black">확정 반영 KG</th>
-                <th class="px-4 py-3 text-right font-black">총 판매 재고 수량</th>
-                <th class="px-4 py-3 text-right font-black">확정 거래 금액</th>
+                <th class="px-4 py-3 text-right font-black">판매 KG</th>
+                <th class="px-4 py-3 text-right font-black">판매 수량</th>
+                <th class="px-4 py-3 text-right font-black">판매 금액</th>
                 <th class="px-4 py-3 text-center font-black">상태</th>
               </tr>
             </thead>
@@ -324,13 +402,22 @@ onMounted(() => {
                 class="cursor-pointer transition-colors hover:bg-gray-50"
                 @click="openSaleDetail(sale.saleId)"
               >
-                <td class="px-4 py-3 font-bold text-gray-600">{{ formatDateTime(sale.soldAt) }}</td>
-                <td class="px-4 py-3 font-mono font-black text-gray-800">{{ sale.saleNo }}</td>
-                <td class="px-4 py-3 font-black text-gray-900">{{ sale.buyerName }}</td>
-                <td class="px-4 py-3 font-bold text-gray-700">
+                <td class="px-3 py-3 font-mono font-black text-gray-800">{{ sale.saleNo }}</td>
+                <td class="px-3 py-3 font-bold text-gray-700">
+                  {{ sale.outboundWarehouseName || '-' }}
+                </td>
+                <td class="px-3 py-3 font-black text-gray-900">{{ sale.buyerName }}</td>
+                <td class="pl-5 pr-4 py-3 font-bold text-gray-700">
                   {{ buyerIndustryGroupLabel(sale) }}
                 </td>
-                <td class="px-4 py-3 font-black text-gray-700">{{ materialTypeLabel(sale) }}</td>
+                <td class="px-4 py-3 text-center">
+                  <span
+                    class="inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-extrabold"
+                    :class="materialTypeBadgeClass(sale)"
+                  >
+                    {{ materialTypeLabel(sale) }}
+                  </span>
+                </td>
                 <td class="px-4 py-3 font-black text-gray-900">{{ headlineLabel(sale) }}</td>
                 <td class="px-4 py-3 text-right font-black text-gray-700">
                   {{ formatKg(sale.totalActualWeightKg) }}
@@ -360,9 +447,50 @@ onMounted(() => {
                 <td class="px-4 py-4 text-right font-black text-emerald-700">{{ formatKg(filteredSummary.totalActualWeightKg) }}</td>
                 <td class="px-4 py-4 text-right font-black text-sky-700">{{ formatQuantity(filteredSummary.totalDeductedQuantity) }}</td>
                 <td class="px-4 py-4 text-right font-black text-amber-700">{{ formatCurrency(filteredSummary.totalSalesAmount) }}</td>
+                <td class="px-4 py-4"></td>
               </tr>
             </tfoot>
           </table>
+        </div>
+
+        <div class="border-t border-gray-200 px-4 py-3">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <p class="text-[11px] font-bold text-gray-500">
+              총 {{ Number(pagination.totalElements || 0).toLocaleString() }}건
+            </p>
+            <div class="inline-flex items-center gap-1">
+              <button
+                type="button"
+                class="h-8 min-w-8 rounded border border-gray-300 px-2 text-xs font-bold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
+                :disabled="currentPage <= 1"
+                @click="goToPrevPage"
+              >
+                이전
+              </button>
+              <button
+                v-for="page in pageNumbers"
+                :key="page"
+                type="button"
+                class="h-8 min-w-8 rounded border px-2 text-xs font-bold"
+                :class="
+                  currentPage === page
+                    ? 'border-[#0F7C62] bg-[#EAF8F3] text-[#0F7C62]'
+                    : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                "
+                @click="goToPage(page)"
+              >
+                {{ page }}
+              </button>
+              <button
+                type="button"
+                class="h-8 min-w-8 rounded border border-gray-300 px-2 text-xs font-bold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
+                :disabled="currentPage >= totalPages"
+                @click="goToNextPage"
+              >
+                다음
+              </button>
+            </div>
+          </div>
         </div>
       </section>
     </div>

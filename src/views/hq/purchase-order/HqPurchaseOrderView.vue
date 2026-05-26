@@ -18,7 +18,7 @@ const { statusClass, statusLabel, historyDotClass, historyTextClass, formatDate 
 
 // ─── 레이아웃 설정 ───────────────────────────────────────────────────────────
 const hqMenus = roleMenus.hq
-const activeTopMenu = computed(() => '물류 창고 발주')
+const activeTopMenu = computed(() => '공급처 발주')
 
 
 // ─── 상태 탭 ────────────────────────────────────────────────────────────────

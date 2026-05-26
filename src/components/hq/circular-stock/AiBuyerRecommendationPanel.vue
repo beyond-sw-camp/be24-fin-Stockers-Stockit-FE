@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { Building2, Layers3, Truck } from 'lucide-vue-next'
 
 const props = defineProps({
   recommendations: { type: Array, required: true },
@@ -19,6 +20,32 @@ const hasResults = computed(
 const isEmpty = computed(
   () => !props.loading && !hasError.value && props.recommendations.length === 0,
 )
+
+const rationaleSectionLabels = {
+  companyRationale: '어떤 거래처 인가요?',
+  materialRationale: '소재 매칭 리포트',
+  distanceRationale: '물류 및 이동 최적화 분석',
+}
+
+const rationaleSectionIcons = {
+  companyRationale: Building2,
+  materialRationale: Layers3,
+  distanceRationale: Truck,
+}
+
+function recommendationRationaleSections(rec) {
+  const keys = ['companyRationale', 'materialRationale', 'distanceRationale']
+  const sections = keys
+    .map((key) => ({
+      key,
+      title: rationaleSectionLabels[key],
+      icon: rationaleSectionIcons[key],
+      body: String(rec?.[key] ?? '').trim(),
+    }))
+    .filter((section) => section.body)
+
+  return sections.length === keys.length ? sections : []
+}
 </script>
 
 <template>
@@ -137,10 +164,24 @@ const isEmpty = computed(
 
           <div class="mt-3">
             <p class="text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">AI 사유</p>
-            <p
-              class="mt-1 border-l-2 border-[#0F5C4D] pl-2.5 text-[11px] font-medium leading-5 text-gray-700"
-            >
-              {{ rec.rationale }}
+            <div v-if="recommendationRationaleSections(rec).length > 0" class="mt-3 space-y-0">
+              <section
+                v-for="(section, sectionIndex) in recommendationRationaleSections(rec)"
+                :key="section.key"
+                class="py-1 pl-0"
+                :style="{ marginTop: sectionIndex === 0 ? '0px' : '9px' }"
+              >
+                <div class="flex items-center gap-1 text-[11px] font-black leading-none text-[#0F5C4D]">
+                  <component :is="section.icon" class="h-3.5 w-3.5 shrink-0" :stroke-width="2.1" />
+                  <span>{{ section.title }}</span>
+                </div>
+                <p class="mt-2 text-sm font-medium leading-6 text-gray-700">
+                  {{ section.body }}
+                </p>
+              </section>
+            </div>
+            <p v-else class="mt-2 text-sm font-medium leading-6 text-gray-700">
+              {{ rec.rationale || '추천 근거 데이터가 없습니다.' }}
             </p>
           </div>
         </button>
