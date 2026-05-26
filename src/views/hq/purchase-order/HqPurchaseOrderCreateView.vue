@@ -31,7 +31,7 @@ const editingOrderId = computed(() => route.params.id ?? null)
 
 // ─── 레이아웃 ────────────────────────────────────────────────────────────────
 const hqMenus = roleMenus.hq
-const activeTopMenu = computed(() => '물류 창고 발주')
+const activeTopMenu = computed(() => '공급처 발주')
 
 // ─── state ───────────────────────────────────────────────────────────────────
 const selectedWarehouseCode = ref('')
