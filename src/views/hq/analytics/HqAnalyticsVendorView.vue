@@ -227,7 +227,7 @@ const doughnutOptions = {
   cutout: '60%',
 }
 
-// 소재 매출 비중 도넛 전용 — 판매량(units) 함께 표시
+// 소재 판매량 비중 도넛 전용 — 판매량(kg) 함께 표시
 const materialDoughnutOptions = {
   responsive: true,
   maintainAspectRatio: false,
@@ -238,7 +238,7 @@ const materialDoughnutOptions = {
         label: (ctx) => {
           const item = circularMaterialStats.value[ctx.dataIndex]
           const lines = [`${ctx.label}: ${ctx.parsed}%`]
-          if (item) lines.push(`판매량: ${Number(item.units ?? 0).toLocaleString()}건`)
+          if (item) lines.push(`판매량: ${Number(item.units ?? 0).toLocaleString()}kg`)
           return lines
         },
       },
@@ -256,6 +256,8 @@ const detailView = ref('circular') // 'circular' 고정 (거래처 상세 제거
 const detailExpanded = ref(false) // 하단 상세 영역 펼침 상태 (기본 접힘)
 
 // ─── 순환재고 상세 (BE 응답 기반) ─────────────────────────────────────
+//   정렬/비중 기준을 매출(sales) → 판매량(units, kg) 로 전환.
+//   소재 매출 순위가 판매한 kg 수로 노출되도록 한다.
 const circularMaterialStats = computed(() => {
   const list = circularMaterialsRaw.value.map((m) => ({
     name: m.name,
@@ -265,11 +267,11 @@ const circularMaterialStats = computed(() => {
     sales: Number(m.sales ?? 0),
     eco: !!m.eco,
   }))
-  const sorted = [...list].sort((a, b) => b.sales - a.sales)
-  const total = sorted.reduce((s, x) => s + x.sales, 0) || 1
+  const sorted = [...list].sort((a, b) => b.units - a.units)
+  const total = sorted.reduce((s, x) => s + x.units, 0) || 1
   return sorted.map((item) => ({
     ...item,
-    sharePct: parseFloat(((item.sales / total) * 100).toFixed(1)),
+    sharePct: parseFloat(((item.units / total) * 100).toFixed(1)),
   }))
 })
 
@@ -286,11 +288,12 @@ function resolveMaterialColor(m) {
   return MATERIAL_COLORS[m?.materialCode] ?? MATERIAL_COLOR_FALLBACK
 }
 
+// 막대 데이터/옵션 — 매출(원) → 판매량(kg) 기준으로 전환.
 const materialSalesBarData = computed(() => ({
   labels: circularMaterialStats.value.map((m) => m.name),
   datasets: [{
-    label: '매출',
-    data: circularMaterialStats.value.map((m) => m.sales),
+    label: '판매량(kg)',
+    data: circularMaterialStats.value.map((m) => m.units),
     backgroundColor: circularMaterialStats.value.map(resolveMaterialColor),
     borderRadius: 4,
   }],
@@ -302,23 +305,24 @@ const materialSalesBarOptions = {
   indexAxis: 'y',
   plugins: {
     legend: { display: false },
-    tooltip: { callbacks: { label: (ctx) => formatKoreanMoney(ctx.parsed.x) } },
+    tooltip: { callbacks: { label: (ctx) => `${Number(ctx.parsed.x).toLocaleString()} kg` } },
   },
   scales: {
-    x: { grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, callback: (v) => formatKoreanMoney(v) } },
+    x: { grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, callback: (v) => `${Number(v).toLocaleString()} kg` } },
     y: { grid: { display: false }, ticks: { font: { size: 10 } } },
   },
 }
 
-const totalMaterialSales = computed(() =>
-  circularMaterialStats.value.reduce((s, m) => s + m.sales, 0),
+// 전체 판매량(kg) — 헤더 요약 표시용. (이전: 전체 매출 sum)
+const totalMaterialWeight = computed(() =>
+  circularMaterialStats.value.reduce((s, m) => s + m.units, 0),
 )
 
-// ─── 소재 매출 비중 도넛 (순환재고 모드용) — ESG 카드와 동일한 소재별 컬러 매핑 ────
+// ─── 소재 판매량 비중 도넛 (순환재고 모드용) — ESG 카드와 동일한 소재별 컬러 매핑 ────
 const materialShareList = computed(() =>
   circularMaterialStats.value.map((m) => ({
     name: m.name,
-    sales: m.sales,
+    units: m.units,
     share: m.sharePct,
     color: resolveMaterialColor(m),
   })),
@@ -418,15 +422,15 @@ const materialDoughnutData = computed(() => ({
             </header>
             <BarChart :data="top10ChartData" :options="top10ChartOptions" :height="380" />
           </template>
-          <!-- 순환재고 모드 -->
+          <!-- 순환재고 모드 — 매출(원) 기준에서 판매량(kg) 기준으로 전환 -->
           <template v-else>
             <header class="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-2">
               <h3 class="flex items-center gap-1.5 text-xs font-black text-gray-800">
                 <Award :size="14" :style="{ color: '#047857' }" />
-                소재 매출 순위
+                소재 판매량 순위
               </h3>
               <span class="text-[10px] font-bold text-gray-400">
-                전체 매출 <span :style="{ color: '#047857' }" class="font-black">{{ formatKoreanMoney(totalMaterialSales) }}</span> · {{ circularMaterialStats.length }}개 소재
+                전체 판매량 <span :style="{ color: '#047857' }" class="font-black">{{ totalMaterialWeight.toLocaleString() }} kg</span> · {{ circularMaterialStats.length }}개 소재
               </span>
             </header>
             <BarChart :data="materialSalesBarData" :options="materialSalesBarOptions" :height="380" />
@@ -463,11 +467,11 @@ const materialDoughnutData = computed(() => ({
               ⚠️ 최대 의존도 {{ maxDependency }}% — 분산 검토 필요
             </p>
           </template>
-          <!-- 순환재고 모드: 소재 매출 비중 -->
+          <!-- 순환재고 모드: 소재 판매량 비중 (매출 → kg 기준 전환) -->
           <template v-else>
             <header class="mb-3 border-b border-gray-100 pb-2">
               <h3 class="flex items-center gap-1.5 text-xs font-black text-gray-800">
-                🥧 소재 매출 비중
+                🥧 소재 판매량 비중
               </h3>
             </header>
             <DoughnutChart :data="materialDoughnutData" :options="materialDoughnutOptions" :height="220" />
@@ -515,7 +519,7 @@ const materialDoughnutData = computed(() => ({
                 <th class="w-12 px-3 py-2 text-center font-bold">순위</th>
                 <th class="px-3 py-2 text-left font-bold">소재명</th>
                 <th class="w-28 px-3 py-2 text-center font-bold">소재 유형</th>
-                <th class="w-20 px-3 py-2 text-right font-bold">판매수</th>
+                <th class="w-24 px-3 py-2 text-right font-bold">판매량(kg)</th>
                 <th class="w-24 px-3 py-2 text-right font-bold">매출</th>
                 <th class="w-20 px-3 py-2 text-right font-bold">비중</th>
               </tr>
@@ -534,8 +538,8 @@ const materialDoughnutData = computed(() => ({
                     {{ item.materialType }}
                   </span>
                 </td>
-                <td class="px-3 py-2 text-right font-mono text-gray-700">{{ item.units.toLocaleString() }}</td>
-                <td class="px-3 py-2 text-right font-mono font-bold text-gray-800">{{ formatKoreanMoney(item.sales) }}</td>
+                <td class="px-3 py-2 text-right font-mono font-bold text-gray-800">{{ item.units.toLocaleString() }} kg</td>
+                <td class="px-3 py-2 text-right font-mono text-gray-700">{{ formatKoreanMoney(item.sales) }}</td>
                 <td class="px-3 py-2 text-right font-bold text-gray-700">{{ item.sharePct }}%</td>
               </tr>
             </tbody>
