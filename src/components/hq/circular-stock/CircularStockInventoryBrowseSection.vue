@@ -57,6 +57,18 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  noHorizontalScroll: {
+    type: Boolean,
+    default: false,
+  },
+  defaultShowColorColumn: {
+    type: Boolean,
+    default: true,
+  },
+  defaultShowSizeColumn: {
+    type: Boolean,
+    default: true,
+  },
   serverMode: {
     type: Boolean,
     default: false,
@@ -109,8 +121,8 @@ const sortKey = ref('')
 const sortDirection = ref('asc')
 const hoveredRowId = ref(null)
 const visibleColumns = ref({
-  color: true,
-  size: true,
+  color: props.defaultShowColorColumn,
+  size: props.defaultShowSizeColumn,
   perItemWeight: true,
 })
 
@@ -725,11 +737,18 @@ function emitSizeChange(nextSize) {
         <table
           class="w-full table-fixed border-collapse text-left text-xs"
           :class="[
-            props.useFixedColumnWidths ? 'min-w-max' : 'min-w-[980px]',
-            { 'compact-rows': props.compactRows },
+            props.noHorizontalScroll
+              ? 'min-w-full no-horizontal-scroll-table'
+              : props.useFixedColumnWidths
+                ? 'min-w-max'
+                : 'min-w-[980px]',
+            {
+              'compact-rows': props.compactRows,
+              'no-horizontal-scroll-cells': props.noHorizontalScroll,
+            },
           ]"
         >
-          <colgroup v-if="props.useFixedColumnWidths">
+          <colgroup v-if="props.useFixedColumnWidths && !props.noHorizontalScroll">
             <col v-if="hasActionColumn && actionColumnPosition === 'start'" class="w-[96px]" />
             <col class="w-[170px]" />
             <col class="w-[170px]" />
@@ -774,7 +793,10 @@ function emitSizeChange(nextSize) {
               </th>
               <th
                 class="pl-3 pr-6 py-3 font-black"
-                :class="props.pinLeadColumns ? 'sticky left-0 z-20 bg-gray-50' : ''"
+                :class="[
+                  props.pinLeadColumns ? 'sticky left-0 z-20 bg-gray-50' : '',
+                  { 'pr-3': props.noHorizontalScroll },
+                ]"
               >
                 <button type="button" class="inline-flex items-center gap-1 hover:text-gray-900" @click="toggleSort('skuCode')">
                   SKU 코드
@@ -783,40 +805,72 @@ function emitSizeChange(nextSize) {
               </th>
               <th
                 class="pl-5 pr-3 py-3 font-black"
-                :class="props.pinLeadColumns ? 'sticky left-[170px] z-20 bg-gray-50' : ''"
+                :class="[
+                  props.pinLeadColumns ? 'sticky left-[170px] z-20 bg-gray-50' : '',
+                  { 'pl-3': props.noHorizontalScroll },
+                ]"
               >
                 품목명
               </th>
-              <th class="px-3 py-3 font-black">창고</th>
+              <th
+                class="px-3 py-3 font-black"
+                :class="props.noHorizontalScroll ? 'w-[15%]' : ''"
+              >
+                창고
+              </th>
               <th v-if="visibleColumns.color" class="px-3 py-3 text-center font-black">색상</th>
               <th v-if="visibleColumns.size" class="px-3 py-3 text-center font-black">사이즈</th>
               <th class="px-3 py-3 text-center font-black">소재 구분</th>
-              <th class="px-3 py-3 font-black">소재 상세</th>
-              <th class="px-3 py-3 text-center font-black">
+              <th
+                class="px-3 py-3 font-black"
+                :class="props.noHorizontalScroll ? 'w-[10%] px-1' : ''"
+              >
+                소재 상세
+              </th>
+              <th
+                class="px-3 py-3 text-center font-black"
+                :class="props.noHorizontalScroll ? 'w-[5%] px-1' : ''"
+              >
                 <button type="button" class="flex w-full items-center justify-center gap-1 hover:text-gray-900" @click="toggleSort('quantity')">
                   수량
                   <span class="text-[9px]">{{ sortIcon('quantity') }}</span>
                 </button>
               </th>
-              <th class="px-3 py-3 text-right font-black">
+              <th
+                class="px-3 py-3 text-right font-black"
+                :class="props.noHorizontalScroll ? 'w-[7%] px-1' : ''"
+              >
                 <button type="button" class="flex w-full items-center justify-end gap-1 hover:text-gray-900" @click="toggleSort('materialKgPrice')">
                   kg 당 단가
                   <span class="text-[9px]">{{ sortIcon('materialKgPrice') }}</span>
                 </button>
               </th>
-              <th v-if="props.showCircularSalePriceColumn" class="px-3 py-3 text-right font-black">
+              <th
+                v-if="props.showCircularSalePriceColumn"
+                class="px-3 py-3 text-right font-black"
+                :class="props.noHorizontalScroll ? 'w-[7%] px-1' : ''"
+              >
                 <button type="button" class="flex w-full items-center justify-end gap-1 hover:text-gray-900" @click="toggleSort('circularSalePrice')">
                   환산 금액
                   <span class="text-[9px]">{{ sortIcon('circularSalePrice') }}</span>
                 </button>
               </th>
-              <th class="px-3 py-3 text-right font-black">
+              <th
+                class="px-3 py-3 text-right font-black"
+                :class="props.noHorizontalScroll ? 'w-[7%] px-1' : ''"
+              >
                 <button type="button" class="flex w-full items-center justify-end gap-1 hover:text-gray-900" @click="toggleSort('weight')">
                   총 무게
                   <span class="text-[9px]">{{ sortIcon('weight') }}</span>
                 </button>
               </th>
-              <th v-if="visibleColumns.perItemWeight" class="px-3 py-3 text-right font-black">개당 무게</th>
+              <th
+                v-if="visibleColumns.perItemWeight"
+                class="px-3 py-3 text-right font-black"
+                :class="props.noHorizontalScroll ? 'w-[7%] px-1' : ''"
+              >
+                개당 무게
+              </th>
               <th v-if="hasActionColumn && actionColumnPosition === 'end'" class="px-3 py-3 text-center font-black">
                 <slot name="header-action" :rows="filteredRows" :is-all-visible-selected="isAllVisibleSelected">
                   {{ actionColumnLabel }}
@@ -869,18 +923,53 @@ function emitSizeChange(nextSize) {
                       : 'sticky left-[170px] z-10 bg-white')
                   : ''"
               >{{ item.itemName }}</td>
-              <td class="px-3 py-3 font-bold text-gray-700">{{ item.warehouseName || '-' }}</td>
+              <td
+                class="px-3 py-3 font-bold text-gray-700"
+                :class="props.noHorizontalScroll ? 'w-[18%]' : ''"
+              >
+                {{ item.warehouseName || '-' }}
+              </td>
               <td v-if="visibleColumns.color" class="px-3 py-3 text-center font-black text-gray-900">{{ item.colorLabel }}</td>
               <td v-if="visibleColumns.size" class="px-3 py-3 text-center font-black text-gray-900">{{ item.size }}</td>
               <td class="px-3 py-3 text-center font-black text-gray-900">{{ item.materialType }}</td>
-              <td class="truncate px-3 py-3 font-black text-gray-900">{{ item.materialDetail }}</td>
-              <td class="px-3 py-3 text-center font-black text-gray-900">{{ item.quantity.toLocaleString() }}</td>
-              <td class="px-3 py-3 text-right font-black text-gray-900">{{ formatCurrency(item.materialKgPrice) }}</td>
-              <td v-if="props.showCircularSalePriceColumn" class="px-3 py-3 text-right font-black text-gray-900">
+              <td
+                class="truncate px-3 py-3 font-black text-gray-900"
+                :class="props.noHorizontalScroll ? 'w-[10%] px-1' : ''"
+              >
+                {{ item.materialDetail }}
+              </td>
+              <td
+                class="px-3 py-3 text-center font-black text-gray-900"
+                :class="props.noHorizontalScroll ? 'w-[5%] px-1' : ''"
+              >
+                {{ item.quantity.toLocaleString() }}
+              </td>
+              <td
+                class="px-3 py-3 text-right font-black text-gray-900"
+                :class="props.noHorizontalScroll ? 'w-[7%] px-1' : ''"
+              >
+                {{ formatCurrency(item.materialKgPrice) }}
+              </td>
+              <td
+                v-if="props.showCircularSalePriceColumn"
+                class="px-3 py-3 text-right font-black text-gray-900"
+                :class="props.noHorizontalScroll ? 'w-[7%] px-1' : ''"
+              >
                 {{ formatCurrency(item.circularSalePrice) }}
               </td>
-              <td class="px-3 py-3 text-right font-black text-gray-900">{{ item.weight }}</td>
-              <td v-if="visibleColumns.perItemWeight" class="px-3 py-3 text-right font-black text-gray-900">{{ formatPerItemWeight(item.weight, item.quantity) }}</td>
+              <td
+                class="px-3 py-3 text-right font-black text-gray-900"
+                :class="props.noHorizontalScroll ? 'w-[7%] px-1' : ''"
+              >
+                {{ item.weight }}
+              </td>
+              <td
+                v-if="visibleColumns.perItemWeight"
+                class="px-3 py-3 text-right font-black text-gray-900"
+                :class="props.noHorizontalScroll ? 'w-[7%] px-1' : ''"
+              >
+                {{ formatPerItemWeight(item.weight, item.quantity) }}
+              </td>
               <td v-if="hasActionColumn && actionColumnPosition === 'end'" class="px-3 py-3 text-center">
                 <slot
                   name="row-action"
@@ -923,6 +1012,22 @@ function emitSizeChange(nextSize) {
 .compact-rows tbody td {
   padding-top: 0.45rem !important;
   padding-bottom: 0.45rem !important;
+}
+
+.no-horizontal-scroll-table {
+  table-layout: fixed;
+}
+
+.no-horizontal-scroll-cells th,
+.no-horizontal-scroll-cells td {
+  padding-left: 0.55rem !important;
+  padding-right: 0.55rem !important;
+}
+
+:deep(.no-horizontal-scroll-cells td) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 :deep(.circular-pagination-nav) {
