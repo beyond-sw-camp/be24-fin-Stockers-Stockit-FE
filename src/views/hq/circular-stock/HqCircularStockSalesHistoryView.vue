@@ -1,6 +1,7 @@
 ﻿<script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { Search } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useCircularStockSaleStore } from '@/stores/hq/circularStock/circularStockSale.js'
@@ -112,7 +113,25 @@ function headlineLabel(sale) {
 }
 
 function materialTypeLabel(sale) {
-  return sale?.materialType || '-'
+  const type = String(sale?.materialType || '').trim()
+  if (type === '혼방') return '혼방'
+  if (type === '합성 섬유') return '합성섬유'
+  if (type === '천연 단일 섬유') return '천연 단일 섬유'
+  return '-'
+}
+
+function materialTypeBadgeClass(sale) {
+  const type = String(sale?.materialType || '').trim()
+  if (type === '혼방') {
+    return 'border-[#FBCFE8] bg-[#FDF2F8] text-[#9D174D]'
+  }
+  if (type === '합성 섬유') {
+    return 'border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]'
+  }
+  if (type === '천연 단일 섬유') {
+    return 'border-[#E5D5FF] bg-[#F5EEFF] text-[#6D28D9]'
+  }
+  return 'border-gray-200 bg-gray-100 text-gray-500'
 }
 
 function buyerIndustryGroupLabel(sale) {
@@ -214,15 +233,6 @@ onMounted(() => {
               판매건 헤더 기준으로 이력을 조회하고, 한 건을 누르면 상세 페이지로 이동합니다.
             </p>
           </div>
-          <label class="flex min-w-[280px] flex-col gap-1.5">
-            <span class="text-[11px] font-bold text-gray-500">검색</span>
-            <input
-              v-model="searchTerm"
-              type="search"
-              class="h-9 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#111827]"
-              placeholder="판매번호, 거래처명, 대표품목"
-            />
-          </label>
         </div>
       </section>
 
@@ -295,25 +305,38 @@ onMounted(() => {
 
       <section class="border border-gray-300 bg-white shadow-sm">
         <div class="border-b border-gray-200 px-4 py-3">
-          <h2 class="text-sm font-extrabold text-gray-900">판매 이력 목록</h2>
-          <p class="mt-1 text-[11px] font-bold text-gray-400">
-            행을 클릭하면 판매 상세 페이지로 이동합니다.
-          </p>
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 class="text-sm font-extrabold text-gray-900">판매 이력 목록</h2>
+              <p class="mt-1 text-[11px] font-bold text-gray-400">
+                행을 클릭하면 판매 상세 페이지로 이동합니다.
+              </p>
+            </div>
+            <label class="flex min-w-[300px] items-center gap-2">
+              <Search class="h-4 w-4 text-gray-500" />
+              <input
+                v-model="searchTerm"
+                type="search"
+                class="h-9 flex-1 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#111827]"
+                placeholder="판매번호, 거래처명, 대표품목"
+              />
+            </label>
+          </div>
         </div>
 
         <div class="overflow-x-auto">
           <table class="min-w-[1200px] w-full border-collapse text-xs">
             <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
               <tr>
-                <th class="px-4 py-3 text-left font-black">판매일시</th>
-                <th class="px-4 py-3 text-left font-black">판매번호</th>
-                <th class="px-4 py-3 text-left font-black">거래처</th>
-                <th class="px-4 py-3 text-left font-black">산업군</th>
-                <th class="px-4 py-3 text-left font-black">소재 분류</th>
+                <th class="px-3 py-3 text-left font-black">판매번호</th>
+                <th class="px-3 py-3 text-left font-black">출고 창고</th>
+                <th class="px-3 py-3 text-left font-black">거래처</th>
+                <th class="pl-5 pr-4 py-3 text-left font-black">산업군</th>
+                <th class="px-4 py-3 text-center font-black">소재 분류</th>
                 <th class="px-4 py-3 text-left font-black">대표 품목</th>
-                <th class="px-4 py-3 text-right font-black">확정 반영 KG</th>
-                <th class="px-4 py-3 text-right font-black">총 판매 재고 수량</th>
-                <th class="px-4 py-3 text-right font-black">확정 거래 금액</th>
+                <th class="px-4 py-3 text-right font-black">판매 KG</th>
+                <th class="px-4 py-3 text-right font-black">판매 수량</th>
+                <th class="px-4 py-3 text-right font-black">판매 금액</th>
                 <th class="px-4 py-3 text-center font-black">상태</th>
               </tr>
             </thead>
@@ -324,13 +347,22 @@ onMounted(() => {
                 class="cursor-pointer transition-colors hover:bg-gray-50"
                 @click="openSaleDetail(sale.saleId)"
               >
-                <td class="px-4 py-3 font-bold text-gray-600">{{ formatDateTime(sale.soldAt) }}</td>
-                <td class="px-4 py-3 font-mono font-black text-gray-800">{{ sale.saleNo }}</td>
-                <td class="px-4 py-3 font-black text-gray-900">{{ sale.buyerName }}</td>
-                <td class="px-4 py-3 font-bold text-gray-700">
+                <td class="px-3 py-3 font-mono font-black text-gray-800">{{ sale.saleNo }}</td>
+                <td class="px-3 py-3 font-bold text-gray-700">
+                  {{ sale.outboundWarehouseName || '-' }}
+                </td>
+                <td class="px-3 py-3 font-black text-gray-900">{{ sale.buyerName }}</td>
+                <td class="pl-5 pr-4 py-3 font-bold text-gray-700">
                   {{ buyerIndustryGroupLabel(sale) }}
                 </td>
-                <td class="px-4 py-3 font-black text-gray-700">{{ materialTypeLabel(sale) }}</td>
+                <td class="px-4 py-3 text-center">
+                  <span
+                    class="inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-extrabold"
+                    :class="materialTypeBadgeClass(sale)"
+                  >
+                    {{ materialTypeLabel(sale) }}
+                  </span>
+                </td>
                 <td class="px-4 py-3 font-black text-gray-900">{{ headlineLabel(sale) }}</td>
                 <td class="px-4 py-3 text-right font-black text-gray-700">
                   {{ formatKg(sale.totalActualWeightKg) }}
@@ -360,6 +392,7 @@ onMounted(() => {
                 <td class="px-4 py-4 text-right font-black text-emerald-700">{{ formatKg(filteredSummary.totalActualWeightKg) }}</td>
                 <td class="px-4 py-4 text-right font-black text-sky-700">{{ formatQuantity(filteredSummary.totalDeductedQuantity) }}</td>
                 <td class="px-4 py-4 text-right font-black text-amber-700">{{ formatCurrency(filteredSummary.totalSalesAmount) }}</td>
+                <td class="px-4 py-4"></td>
               </tr>
             </tfoot>
           </table>

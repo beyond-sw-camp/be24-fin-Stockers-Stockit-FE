@@ -409,6 +409,8 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
       saleId: Number(row.saleId),
       saleNo: String(row.saleNo || ''),
       outboundNo: row.outboundNo ?? null,
+      outboundWarehouseCode: row.outboundWarehouseCode ?? null,
+      outboundWarehouseName: row.outboundWarehouseName ?? null,
       outboundStatus: row.outboundStatus ?? null,
       soldAt: row.soldAt ?? null,
       completedAt: row.completedAt ?? null,
