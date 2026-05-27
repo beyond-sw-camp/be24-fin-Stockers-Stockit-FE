@@ -515,11 +515,11 @@ watch([currentPage, pageSize], async () => {
                   <td class="px-4 py-3 text-center">
                     <button
                       type="button"
-                      class="group inline-flex h-8 min-w-[74px] items-center justify-center gap-1.5 rounded-full border px-3 text-[11px] font-semibold transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-100"
+                      class="group inline-flex h-8 min-w-[70px] items-center justify-center gap-1.5 rounded-full border px-3 text-[11px] font-bold transition-all duration-200 cursor-pointer"
                       :class="
                         sku.actualStock === 0
-                          ? 'border-red-100 bg-red-50/50 text-red-400 shadow-none'
-                          : 'border-[#97BFB4]/30 bg-[#97BFB4]/10 text-[#6B8E85] hover:border-[#97BFB4]/50 hover:bg-[#97BFB4]/20 hover:text-[#5A7F75] active:scale-95'
+                          ? 'cursor-not-allowed border-red-100 bg-red-50/50 text-red-400 shadow-none'
+                          : 'border-[#97BFB4]/30 bg-[#97BFB4]/10 text-[#6B8E85] hover:scale-105 hover:border-[#97BFB4]/50 hover:bg-[#97BFB4]/20 hover:text-[#5A7F75] active:scale-95'
                       "
                       :disabled="sku.actualStock === 0"
                       @click="addToSalesList(sku)"
@@ -666,11 +666,11 @@ watch([currentPage, pageSize], async () => {
 
             <button
               type="button"
-              class="mt-4 h-11 w-full text-sm font-black transition-colors"
+              class="mt-4 h-11 w-full text-sm font-black transition-all duration-200"
               :class="
                 salesLines.length === 0
                   ? 'cursor-not-allowed bg-gray-200 text-gray-400'
-                  : 'bg-[#004D3C] text-white hover:bg-[#003d30]'
+                  : 'cursor-pointer bg-[#004D3C] text-white hover:bg-[#003d30] hover:shadow-lg active:scale-[0.98]'
               "
               :disabled="salesLines.length === 0"
               @click="confirmSale"
