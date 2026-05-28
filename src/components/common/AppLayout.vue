@@ -320,6 +320,15 @@ const showNotifPanel = ref(false)
 const notifPanelRef = ref(null)
 const notifButtonRef = ref(null)
 
+const dashboardPath = computed(() => {
+  switch (auth.user?.role) {
+    case 'hq':        return '/hq/dashboard'
+    case 'store':     return '/store/dashboard'
+    case 'warehouse': return '/warehouse/dashboard'
+    default:          return null
+  }
+})
+
 const notificationPagePath = computed(() => {
   switch (auth.user?.role) {
     case 'hq':        return '/hq/notifications'
@@ -421,12 +430,15 @@ const iconMap = {
       class="sticky top-0 z-20 flex min-h-12 items-center justify-between gap-4 border-b border-gray-700 bg-[#004D3C] px-4 shadow-[0_4px_12px_rgba(15,23,42,0.14)] max-[980px]:static max-[980px]:flex-col max-[980px]:items-stretch max-[980px]:px-4 max-[980px]:py-3"
     >
       <div class="flex items-center gap-4 max-[980px]:flex-col max-[980px]:items-stretch">
-        <div
-          class="mr-2 flex items-center gap-2 max-[980px]:mr-0"
+        <button
+          type="button"
+          class="mr-2 flex items-center gap-2 rounded px-1 py-0.5 transition-colors hover:bg-white/10 active:bg-white/20 max-[980px]:mr-0"
+          title="대시보드로 이동"
+          @click="dashboardPath && router.push(dashboardPath)"
         >
           <Leaf :size="20" :stroke-width="2.5" class="text-white" />
           <span class="text-sm font-black text-white">Stockit</span>
-        </div>
+        </button>
       </div>
 
       <div class="flex items-center gap-4 max-[980px]:flex-col max-[980px]:items-stretch">

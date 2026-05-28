@@ -619,7 +619,7 @@ onMounted(async () => {
                   <td class="px-2 py-2.5 text-center">
                     <button
                       type="button"
-                      class="group inline-flex h-8 min-w-[70px] items-center justify-center gap-1.5 rounded-full border border-[#97BFB4]/30 bg-[#97BFB4]/10 px-3 text-[11px] font-bold text-[#5A7F75] transition-all duration-200 hover:border-[#97BFB4]/50 hover:bg-[#97BFB4]/20 hover:text-[#4A6860] active:scale-95"
+                      class="group inline-flex h-8 min-w-[70px] items-center justify-center gap-1.5 rounded-full border border-[#97BFB4]/30 bg-[#97BFB4]/10 px-3 text-[11px] font-bold text-[#5A7F75] transition-all duration-200 cursor-pointer hover:scale-105 hover:border-[#97BFB4]/50 hover:bg-[#97BFB4]/20 hover:text-[#4A6860] active:scale-95"
                       @click="addToRequest(sku)"
                     >
                       <span class="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[10px] text-[#97BFB4] shadow-sm transition-colors group-hover:bg-[#004D3C] group-hover:text-white">+</span>
@@ -782,11 +782,11 @@ onMounted(async () => {
               </button>
               <button
                 type="button"
-                class="h-11 text-sm font-black transition-colors"
+                class="h-11 text-sm font-black transition-all duration-200"
                 :class="
                   requestLines.length === 0
                     ? 'cursor-not-allowed bg-gray-200 text-gray-400'
-                    : 'bg-[#004D3C] text-white hover:bg-[#003d30]'
+                    : 'cursor-pointer bg-[#004D3C] text-white hover:bg-[#003d30] hover:shadow-lg active:scale-[0.98]'
                 "
                 :disabled="requestLines.length === 0"
                 @click="submitRequest"

@@ -456,7 +456,7 @@ const moveBack = () => {
         </div>
       </section>
 
-      <div class="fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 bg-white/95 backdrop-blur">
+      <div class="fixed bottom-0 left-52 right-0 z-40 border-t border-gray-200 bg-white/95 backdrop-blur max-[980px]:left-0">
         <div class="flex items-center gap-3 px-4 py-3">
           <div class="min-w-0 flex-1">
             <p class="text-[11px] font-black text-gray-500">선택 창고</p>

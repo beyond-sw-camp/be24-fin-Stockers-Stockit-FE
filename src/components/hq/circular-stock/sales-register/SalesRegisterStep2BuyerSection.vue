@@ -346,12 +346,25 @@ function recommendationRationaleSections(rec) {
               v-for="buyer in filteredBuyers"
               :key="buyer.id"
               type="button"
-              class="flex w-full flex-col items-start rounded-lg border border-gray-200 px-3 py-2 text-left transition hover:border-[#CFE2DA] hover:bg-[#F6FBF9]"
+              class="flex w-full flex-col items-start rounded-lg border px-3 py-2 text-left transition-all duration-150 active:scale-[0.98]"
+              :class="
+                selectedBuyer?.id === buyer.id
+                  ? 'border-[#2D5B35] bg-[#EBF5EE] shadow-[0_2px_10px_-4px_rgba(45,91,53,0.25)]'
+                  : 'border-gray-200 hover:border-[#CFE2DA] hover:bg-[#F6FBF9] hover:shadow-sm'
+              "
               @click="emit('select-buyer', buyer)"
             >
-              <div class="flex items-center gap-2">
-                <span class="text-sm font-black leading-none text-gray-900">{{ buyer.companyName }}</span>
+              <div class="flex w-full items-center gap-2">
+                <span
+                  class="text-sm font-black leading-none transition-colors duration-150"
+                  :class="selectedBuyer?.id === buyer.id ? 'text-[#1B4228]' : 'text-gray-900'"
+                >{{ buyer.companyName }}</span>
                 <span class="pt-[1px] text-xs font-bold leading-none text-gray-500">{{ buyer.code }}</span>
+                <BadgeCheck
+                  v-if="selectedBuyer?.id === buyer.id"
+                  class="ml-auto h-4 w-4 flex-shrink-0 text-[#2D5B35]"
+                  :stroke-width="2.5"
+                />
               </div>
               <div class="h-1.5" />
               <span class="block text-xs font-bold text-gray-400">
