@@ -602,7 +602,7 @@ https://github.com/user-attachments/assets/d9933389-f1e8-4733-865c-2fcc5f5c11d1
 #### 🚚 매장 발주 → 창고 입고 → 매장 입고 흐름
 > 매장 발주 요청 → 창고 출고 → 매장 입고 확정 전체 흐름
 
-<video src="assets/videos/store_order_flow.mp4" controls width="100%"></video>
+<video src="https://github.com/user-attachments/assets/6baa4908-5185-4edc-b2d5-b000422169a1" controls width="100%"></video>
 
 <!-- 💡 대체:
 [![매장 발주 → 창고 입고 → 매장 입고 흐름](https://img.shields.io/badge/▶_시연_영상_보기-store__order__flow-4FC08D?style=for-the-badge)](assets/videos/store_order_flow.mp4)
