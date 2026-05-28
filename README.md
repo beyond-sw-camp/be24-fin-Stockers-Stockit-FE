@@ -350,7 +350,7 @@ Backend (연동)
 <br></br>
 
 > 순환 재고 판매 등록 (AI 거래처 매칭)
-<img width="6202" height="2956" alt="image" src="https://github.com/user-attachments/assets/03b933ac-957b-4c22-94d7-b2732e75b2b1" />
+<img width="6142" height="2938" alt="image" src="https://github.com/user-attachments/assets/2922faf5-818b-4f8f-94f8-d1662e2ddba1" />
 <br></br>
 
 > 순환 재고 판매 등록 (Step3 판매 조건 확정)
