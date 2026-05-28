@@ -333,45 +333,52 @@ Backend (연동)
 #### 본사 대시보드 — 전사 통합 관제
 <!-- 📷 캡처 이미지 삽입 -->
 <img width="6110" height="3010" alt="image" src="https://github.com/user-attachments/assets/dbe0f5ef-bd27-4234-b47e-038ca3a94cab" />
+<br></br>
 
 #### 순환 재고 조회 — 소재 조건 필터링 + AI 거래처 매칭
 <!-- 📷 캡처 이미지 삽입 -->
-순환 재고 판매 등록 (SKU 선택)
+> 순환 재고 판매 등록 (SKU 선택)
 <img width="6142" height="2934" alt="image" src="https://github.com/user-attachments/assets/5cabc4b7-2a04-4c40-8eb2-bc760f3ae1af" />
+<br></br>
 
-순환 재고 판매 등록 (Step1 선택 SKU 확인)
+>순환 재고 판매 등록 (Step1 선택 SKU 확인)
 <img width="6142" height="2944" alt="image" src="https://github.com/user-attachments/assets/612a8378-6c69-46c2-9f7c-a807b313e6dc" />
+<br></br>
 
-순환 재고 판매 등록 (Step2 거래처 선택)
+>순환 재고 판매 등록 (Step2 거래처 선택)
 <img width="6216" height="2952" alt="image" src="https://github.com/user-attachments/assets/d65a4e7e-afa7-4a5e-87d5-44b90df1fec3" />
+<br></br>
 
-순환 재고 판매 등록 (AI 거래처 매칭)
+> 순환 재고 판매 등록 (AI 거래처 매칭)
 <img width="6202" height="2956" alt="image" src="https://github.com/user-attachments/assets/03b933ac-957b-4c22-94d7-b2732e75b2b1" />
+<br></br>
 
-
-순환 재고 판매 등록 (Step3 판매 조건 확정)
+> 순환 재고 판매 등록 (Step3 판매 조건 확정)
 <img width="6202" height="2956" alt="image" src="https://github.com/user-attachments/assets/82bbfa3b-6246-4389-b455-957e404944b6" />
+<br></br>
 
+---
 
 #### ESG 대시보드 — 탄소 감축 지표 & 나무 성장 인터페이스
 <!-- 📷 캡처 이미지 삽입 -->
 <img width="6392" height="3046" alt="image" src="https://github.com/user-attachments/assets/c9c50945-cd63-4784-b306-9319d0064a17" />
 <img width="6548" height="3106" alt="image" src="https://github.com/user-attachments/assets/d6f76468-0c11-4cab-bee3-f9d1a854656f" />
-
+<br></br>
 
 #### 순환 재고 판매 통계
 <!-- 📷 캡처 이미지 삽입 -->
 <img width="6084" height="2866" alt="image" src="https://github.com/user-attachments/assets/c86a186a-7c7e-4dde-9730-3e0f294f189b" />
-
+<br></br>
 
 #### 창고별 재고 비교 화면
 <!-- 📷 캡처 이미지 삽입 -->
 <img width="6084" height="2984" alt="image" src="https://github.com/user-attachments/assets/c6e2d53f-3c0b-4027-bed4-4b80faacb45a" />
-
+<br></br>
 
 #### 매장 발주 화면
 <!-- 📷 캡처 이미지 삽입 -->
 <img width="6482" height="3104" alt="image" src="https://github.com/user-attachments/assets/764bd56a-09cf-481e-84b9-78dba01b1f13" />
+<br></br>
 
 ---
 
