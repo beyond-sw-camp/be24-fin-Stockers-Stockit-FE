@@ -421,9 +421,7 @@ https://github.com/user-attachments/assets/97c48a2b-73ba-49ec-a469-cab561414222
 ---
 > SSE 기반 실시간 재고 품절 알림 수신
 
-<video src="
-https://github.com/user-attachments/assets/44522eb6-0e3c-49e7-9d9e-2f6153b83e0f
-" controls width="100%"></video>
+<video src="https://github.com/user-attachments/assets/44522eb6-0e3c-49e7-9d9e-2f6153b83e0f" controls width="100%"></video>
 
 <!-- 💡 대체:
 [![실시간 재고 알림](https://img.shields.io/badge/▶_시연_영상_보기-realtime__alert-4FC08D?style=for-the-badge)](assets/videos/realtime_alert.mp4)
