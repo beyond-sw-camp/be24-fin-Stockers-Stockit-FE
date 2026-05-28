@@ -613,12 +613,11 @@ https://github.com/user-attachments/assets/d9933389-f1e8-4733-865c-2fcc5f5c11d1
 #### 🔁 순환 재고 판매 흐름
 > 순환재고 판매 등록 → 창고 출고 → 판매 내역 조회 → 통계 분석 전체 흐름
 
-<video src="assets/videos/circular_sale_flow.mp4" controls width="100%"></video>
+<video src="https://github.com/user-attachments/assets/582a541c-3935-46ad-9895-07447a5d61f3" controls width="100%"></video>
 
 <!-- 💡 대체:
 [![순환 재고 판매 흐름](https://img.shields.io/badge/▶_시연_영상_보기-circular__sale__flow-4FC08D?style=for-the-badge)](assets/videos/circular_sale_flow.mp4)
 -->
-https://github.com/user-attachments/assets/여기에_순환재고판매흐름_영상링크_붙여넣기
 
 ---
 
