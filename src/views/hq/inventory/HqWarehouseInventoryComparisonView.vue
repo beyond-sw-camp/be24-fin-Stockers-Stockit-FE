@@ -1,7 +1,8 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
+import PaginationNav from '@/components/common/PaginationNav.vue'
 import WarehouseTransferCartDrawer from '@/components/hq/WarehouseTransferCartDrawer.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
@@ -75,26 +76,41 @@ const sizeOptions = computed(() =>
 const filteredSkuRows = computed(() => {
   const keyword = searchTerm.value.trim().toLowerCase()
 
-  return [...skuRows.value]
-    .filter((row) => {
-      if (selectedParentCategory.value && row.parentCategory !== selectedParentCategory.value) return false
-      if (selectedChildCategory.value && row.childCategory !== selectedChildCategory.value) return false
-      if (selectedColor.value && row.colorLabel !== selectedColor.value) return false
-      if (selectedSize.value && row.size !== selectedSize.value) return false
-      if (!keyword) return true
-
-      return [row.skuCode, row.itemCode, row.itemName].join(' ').toLowerCase().includes(keyword)
-    })
-    .sort((a, b) => {
-      if (b.shortageWarehouseCount !== a.shortageWarehouseCount) {
-        return b.shortageWarehouseCount - a.shortageWarehouseCount
-      }
-      if (b.totalShortageQty !== a.totalShortageQty) {
-        return b.totalShortageQty - a.totalShortageQty
-      }
-      return a.skuCode.localeCompare(b.skuCode)
-    })
+  // BE가 이미 shortage_warehouse_count DESC → total_shortage_qty DESC → sku_code ASC 순으로 반환하므로
+  // 클라이언트 재정렬 불필요 — 필터만 수행
+  return skuRows.value.filter((row) => {
+    if (selectedParentCategory.value && row.parentCategory !== selectedParentCategory.value) return false
+    if (selectedChildCategory.value && row.childCategory !== selectedChildCategory.value) return false
+    if (selectedColor.value && row.colorLabel !== selectedColor.value) return false
+    if (selectedSize.value && row.size !== selectedSize.value) return false
+    if (!keyword) return true
+    return [row.skuCode, row.itemCode, row.itemName].join(' ').toLowerCase().includes(keyword)
+  })
 })
+
+// ---- 페이지네이션 ----
+const currentPage = ref(0)
+const pageSize = ref(30)
+
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredSkuRows.value.length / pageSize.value)))
+const hasPrevious = computed(() => currentPage.value > 0)
+const hasNext = computed(() => currentPage.value < totalPages.value - 1)
+
+const pagedSkuRows = computed(() => {
+  const start = currentPage.value * pageSize.value
+  return filteredSkuRows.value.slice(start, start + pageSize.value)
+})
+
+// 필터·검색어 변경 시 첫 페이지로 리셋
+watch(
+  [searchTerm, selectedParentCategory, selectedChildCategory, selectedColor, selectedSize],
+  () => { currentPage.value = 0 },
+)
+
+const handlePageSizeChange = (newSize) => {
+  pageSize.value = newSize
+  currentPage.value = 0
+}
 const ctaSkuCode = computed(() => cartStore.lines[0]?.skuCode || filteredSkuRows.value[0]?.skuCode || '')
 
 const loadImbalancedSkus = async () => {
@@ -236,7 +252,7 @@ const executeCartTransfers = async () => {
     :side-menus="inventoryMenus"
     v-model:active-side-menu="activeSideMenu"
   >
-    <div class="flex flex-col gap-4">
+    <div class="flex flex-col gap-4 pb-24">
       <section class="border border-gray-200 bg-white p-4 shadow-sm">
         <div class="mb-4">
           <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Inventory</p>
@@ -316,6 +332,9 @@ const executeCartTransfers = async () => {
         <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
           <h2 class="text-sm font-black text-gray-900">불균형 SKU 리스트</h2>
           <p class="text-[11px] font-black text-gray-500">총 {{ filteredSkuRows.length }}건</p>
+          <p v-if="filteredSkuRows.length > 0" class="text-[11px] font-bold text-gray-400">
+            {{ currentPage * pageSize + 1 }}~{{ Math.min((currentPage + 1) * pageSize, filteredSkuRows.length) }}번째 표시 중
+          </p>
         </div>
 
         <div class="overflow-x-auto">
@@ -336,7 +355,7 @@ const executeCartTransfers = async () => {
             </thead>
             <tbody class="divide-y divide-gray-100">
               <tr
-                v-for="row in filteredSkuRows"
+                v-for="row in pagedSkuRows"
                 :key="row.skuCode"
                 class="cursor-pointer transition hover:bg-[#EBF5F5]/60"
                 @click="moveToSkuDetail(row)"
@@ -366,9 +385,21 @@ const executeCartTransfers = async () => {
             </tbody>
           </table>
         </div>
+
+        <PaginationNav
+          :page="currentPage"
+          :size="pageSize"
+          :total-pages="totalPages"
+          :total-elements="filteredSkuRows.length"
+          :has-previous="hasPrevious"
+          :has-next="hasNext"
+          :size-options="[20, 30, 50, 100]"
+          @update:page="currentPage = $event"
+          @update:size="handlePageSizeChange"
+        />
       </section>
 
-      <div class="fixed bottom-0 left-0 right-0 z-40 border-t border-gray-200 bg-white/95 backdrop-blur">
+      <div class="fixed bottom-0 left-52 right-0 z-40 border-t border-gray-200 bg-white/95 backdrop-blur max-[980px]:left-0">
         <div class="flex flex-wrap items-center gap-2 px-4 py-3">
           <div class="min-w-0 flex-1">
             <p class="text-[11px] font-black text-gray-500">재고 이동 장바구니</p>
