@@ -322,7 +322,7 @@ Backend (연동)
 
 ## 🏗 시스템 아키텍처
 
-<img width="1399" height="847" alt="image" src="https://github.com/user-attachments/assets/b5b82c97-e07b-4025-9a28-40882e1ed6ab" />
+<img width="1399" height="846" alt="image" src="https://github.com/user-attachments/assets/75005ffa-88dc-4288-bb4b-f98a65c273ec" />
 
 ---
 
