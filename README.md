@@ -439,28 +439,14 @@ https://github.com/user-attachments/assets/97c48a2b-73ba-49ec-a469-cab561414222
 
 ---
 
-#### 🏭 피킹 리스트 처리
-> 창고 관리자의 피킹 → 출고 처리 흐름
-
-<video src="assets/videos/picking_list.mp4" controls width="100%"></video>
-
-<!-- 💡 대체:
-[![피킹 리스트 처리](https://img.shields.io/badge/▶_시연_영상_보기-picking__list-4FC08D?style=for-the-badge)](assets/videos/picking_list.mp4)
--->
-
----
-
-
 #### 🛒 공급처 발주
 > 본사가 거래처에 상품 발주 → 승인 → 배송 상태 추적
 
-<video src="" controls width="100%"></video>
+<video src="https://github.com/user-attachments/assets/0c69d749-fc28-49f9-94ff-bfebebbe2e25" controls width="100%"></video>
 
 <!-- 💡 대체:
 [![공급처 발주](https://img.shields.io/badge/▶_시연_영상_보기-purchase__order-4FC08D?style=for-the-badge)](assets/videos/purchase_order.mp4)
 -->
-
-
 
 ---
 
