@@ -48,8 +48,6 @@
 |:---:|:---:|:---:|:---:|
 | <a href="https://github.com/saralove20"><img src="https://github.com/saralove20.png" width="80" height="80" style="border-radius:50%"/></a> | <a href="https://github.com/pbgodsoo"><img src="https://github.com/pbgodsoo.png" width="80" height="80" style="border-radius:50%"/></a> | <a href="https://github.com/sarapoba"><img src="https://github.com/sarapoba.png" width="80" height="80" style="border-radius:50%"/></a> | <a href="https://github.com/sunyeoplee0"><img src="https://github.com/sunyeoplee0.png" width="80" height="80" style="border-radius:50%"/></a> |
 | **김사라** | **박범수** | **이후경** | **이선엽** |
-| PM · 기획 · 프론트엔드 | 백엔드 개발 | 백엔드 개발 | DevOps · 인프라 |
-| 요구사항 관리, WBS<br/>화면설계, 발표 | Spring Boot MSA<br/>API 설계 | Kafka · Redis 연동<br/>동시성 제어 | Docker · K8s<br/>Jenkins · AWS |
 | [![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat-square&logo=github&logoColor=white)](https://github.com/saralove20) | [![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat-square&logo=github&logoColor=white)](https://github.com/pbgodsoo) | [![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat-square&logo=github&logoColor=white)](https://github.com/sarapoba) | [![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat-square&logo=github&logoColor=white)](https://github.com/sunyeoplee0) |
 
 </div>
