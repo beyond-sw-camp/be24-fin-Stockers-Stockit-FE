@@ -398,12 +398,12 @@ Backend (연동)
 #### 📦 실시간 재고 알림
 > SSE 기반 실시간 재고 부족 알림 수신
 
-<video src="assets/videos/realtime_alert.mp4" controls width="100%"></video>
+<video src="https://github.com/user-attachments/assets/c4cc7866-f568-412b-8656-6e17ab6df80e" controls width="100%"></video>
 
 <!-- 💡 대체:
 [![실시간 재고 알림](https://img.shields.io/badge/▶_시연_영상_보기-realtime__alert-4FC08D?style=for-the-badge)](assets/videos/realtime_alert.mp4)
 -->
-https://github.com/user-attachments/assets/c4cc7866-f568-412b-8656-6e17ab6df80e
+
 ---
 
 #### 🏭 피킹 리스트 처리
