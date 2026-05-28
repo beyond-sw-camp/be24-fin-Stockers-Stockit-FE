@@ -386,6 +386,8 @@ Backend (연동)
 
 ### 🎬 기능 시연 영상
 
+### 👤 사용자 인증
+
 #### 🔐 로그인 · 회원가입
 > 회원가입 → 본사 승인 → 사번 기반 로그인 흐름
 
@@ -399,9 +401,10 @@ https://github.com/user-attachments/assets/97c48a2b-73ba-49ec-a469-cab561414222
 
 ---
 
-#### 🌿 ESG 대시보드 
-> 탄소 감축량 시각화, KAU 환산 가치, 나무 성장 인터페이스 전체적인 흐름
+### 🏢 본사 (HQ)
 
+#### 🌿 ESG 대시보드
+> 탄소 감축량 시각화, KAU 환산 가치, 나무 성장 인터페이스 전체적인 흐름
 
 <video src="https://github.com/user-attachments/assets/5bb8821c-1f82-4f11-ab72-33eeeee1261c" controls width="100%"></video>
 
@@ -411,7 +414,7 @@ https://github.com/user-attachments/assets/97c48a2b-73ba-49ec-a469-cab561414222
 
 ---
 
-#### 📦 실시간 알림
+#### 📦 실시간 알림 — 재고 부족
 > SSE 기반 실시간 재고 부족 알림 수신
 
 <video src="https://github.com/user-attachments/assets/c4cc7866-f568-412b-8656-6e17ab6df80e" controls width="100%"></video>
@@ -421,6 +424,8 @@ https://github.com/user-attachments/assets/97c48a2b-73ba-49ec-a469-cab561414222
 -->
 
 ---
+
+#### 📦 실시간 알림 — 재고 품절
 > SSE 기반 실시간 재고 품절 알림 수신
 
 <video src="https://github.com/user-attachments/assets/e0d38680-78ed-488f-aeb6-a83f1cd2d069" controls width="100%"></video>
@@ -430,12 +435,47 @@ https://github.com/user-attachments/assets/97c48a2b-73ba-49ec-a469-cab561414222
 -->
 
 ---
+
+#### 📦 실시간 알림 — 계정 신청
 > SSE 기반 실시간 계정 신청 알림 수신
 
 <video src="https://github.com/user-attachments/assets/263eaeea-937e-4c55-9629-c33ee6352c27" controls width="100%"></video>
 
 <!-- 💡 대체:
 [![실시간 재고 알림](https://img.shields.io/badge/▶_시연_영상_보기-realtime__alert-4FC08D?style=for-the-badge)](assets/videos/realtime_alert.mp4)
+-->
+
+---
+
+#### 🗺️ 매장-창고 정보 관리
+> 매장별 주 물류창고·예비 창고 매핑 + 발주 라우팅 기준 관리
+
+<video src="https://github.com/user-attachments/assets/1e94191e-caf0-4c49-994e-74b2bfc7adfc" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![매장-창고 정보 관리](https://img.shields.io/badge/▶_시연_영상_보기-store__warehouse__map-4FC08D?style=for-the-badge)](assets/videos/store_warehouse_map.mp4)
+-->
+
+---
+
+#### 🧾 제품 마스터 관리
+> 상품 기본정보 · 소재 구성 · SKU 옵션 등록 · 수정 관리
+
+<video src="https://github.com/user-attachments/assets/17c12952-8f01-42a9-91de-ac1a80c4523c" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![제품 마스터 관리](https://img.shields.io/badge/▶_시연_영상_보기-product__master-4FC08D?style=for-the-badge)](assets/videos/product_master.mp4)
+-->
+
+---
+
+#### 🗂️ 카테고리 관리
+> 상품 대 / 중분류 카테고리 등록 · 수정 및 계층 구조 관리
+
+<video src="https://github.com/user-attachments/assets/ca282ab9-4928-4b40-a1cd-64bbd4adf44b" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![카테고리 관리](https://img.shields.io/badge/▶_시연_영상_보기-category__management-4FC08D?style=for-the-badge)](assets/videos/category_management.mp4)
 -->
 
 ---
@@ -451,17 +491,6 @@ https://github.com/user-attachments/assets/97c48a2b-73ba-49ec-a469-cab561414222
 
 ---
 
-#### 🏬 매장 재고 조회
-> 매장별 SKU 재고 및 판매 가능 상태 실시간 조회
-
-<video src="https://github.com/user-attachments/assets/6cf7fa99-78bd-4b11-9c0e-5b99ff30a1ee" controls width="100%"></video>
-
-<!-- 💡 대체:
-[![매장 재고 조회](https://img.shields.io/badge/▶_시연_영상_보기-store__inventory-4FC08D?style=for-the-badge)](assets/videos/store_inventory.mp4)
--->
-
----
-
 #### 🏢 전사 재고 조회
 > 본사 전사 차원의 매장·창고 통합 재고 현황 조회
 
@@ -469,51 +498,6 @@ https://github.com/user-attachments/assets/97c48a2b-73ba-49ec-a469-cab561414222
 
 <!-- 💡 대체:
 [![전사 재고 조회](https://img.shields.io/badge/▶_시연_영상_보기-company__inventory-4FC08D?style=for-the-badge)](assets/videos/company_inventory.mp4)
--->
-
----
-
-#### 📥 창고 입고 관리
-> 본사 발주·이동 지시 기반 창고 입고 예정 확인 및 입고 확정
-
-<video src="https://github.com/user-attachments/assets/bdef0a20-8c0b-406b-a2dc-dee6b038305c" controls width="100%"></video>
-
-<!-- 💡 대체:
-[![창고 입고 관리](https://img.shields.io/badge/▶_시연_영상_보기-warehouse__inbound-4FC08D?style=for-the-badge)](assets/videos/warehouse_inbound.mp4)
--->
-
----
-
-#### 🏭 창고 재고 조회
-> 개별 물류창고 내 상품 보관 상태 및 실시간 가용 재고 상세 조회
-
-<video src="https://github.com/user-attachments/assets/feed38e8-30e3-4224-8dc1-a51713c03028" controls width="100%"></video>
-
-<!-- 💡 대체:
-[![창고 재고 조회](https://img.shields.io/badge/▶_시연_영상_보기-warehouse__inventory-4FC08D?style=for-the-badge)](assets/videos/warehouse_inventory.mp4)
--->
-
----
-
-#### 🔀 창고 간 재고 이동
-> 창고 A 과잉 → 창고 B 부족 재고 이동 지시
-
-<video src="assets/videos/stock_transfer.mp4" controls width="100%"></video>
-
-<!-- 💡 대체:
-[![창고 간 재고 이동](https://img.shields.io/badge/▶_시연_영상_보기-stock__transfer-4FC08D?style=for-the-badge)](assets/videos/stock_transfer.mp4)
--->
-https://github.com/user-attachments/assets/d9933389-f1e8-4733-865c-2fcc5f5c11d1
-
----
-
-#### 🗺️ 매장-창고 정보 관리
-> 매장별 주 물류창고·예비 창고 매핑 + 발주 라우팅 기준 관리
-
-<video src="https://github.com/user-attachments/assets/1e94191e-caf0-4c49-994e-74b2bfc7adfc" controls width="100%"></video>
-
-<!-- 💡 대체:
-[![매장-창고 정보 관리](https://img.shields.io/badge/▶_시연_영상_보기-store__warehouse__map-4FC08D?style=for-the-badge)](assets/videos/store_warehouse_map.mp4)
 -->
 
 ---
@@ -551,49 +535,15 @@ https://github.com/user-attachments/assets/d9933389-f1e8-4733-865c-2fcc5f5c11d1
 
 ---
 
-#### 🧾 제품 마스터 관리
-> 상품 기본정보 · 소재 구성 · SKU 옵션 등록 · 수정 관리
+#### 🔀 창고 간 재고 이동
+> 창고 A 과잉 → 창고 B 부족 재고 이동 지시
 
-<video src="https://github.com/user-attachments/assets/17c12952-8f01-42a9-91de-ac1a80c4523c" controls width="100%"></video>
-
-<!-- 💡 대체:
-[![제품 마스터 관리](https://img.shields.io/badge/▶_시연_영상_보기-product__master-4FC08D?style=for-the-badge)](assets/videos/product_master.mp4)
--->
-
----
-
-
-#### 🗂️ 카테고리 관리
-> 상품 대 / 중분류 카테고리 등록 · 수정 및 계층 구조 관리
-
-<video src="https://github.com/user-attachments/assets/ca282ab9-4928-4b40-a1cd-64bbd4adf44b" controls width="100%"></video>
+<video src="assets/videos/stock_transfer.mp4" controls width="100%"></video>
 
 <!-- 💡 대체:
-[![카테고리 관리](https://img.shields.io/badge/▶_시연_영상_보기-category__management-4FC08D?style=for-the-badge)](assets/videos/category_management.mp4)
+[![창고 간 재고 이동](https://img.shields.io/badge/▶_시연_영상_보기-stock__transfer-4FC08D?style=for-the-badge)](assets/videos/stock_transfer.mp4)
 -->
-
----
-
-#### 💰 매장 판매 등록 및 판매 내역 조회
-> 매장 POS 판매 등록 → 재고 자동 차감 → 판매 이력 조회
-
-<video src="https://github.com/user-attachments/assets/09c9369e-0756-4791-9e74-5fa965a937b4" controls width="100%"></video>
-
-<!-- 💡 대체:
-[![매장 판매 등록 및 판매 내역 조회](https://img.shields.io/badge/▶_시연_영상_보기-store__sale-4FC08D?style=for-the-badge)](assets/videos/store_sale.mp4)
--->
-
-
----
-
-#### 🚚 매장 발주 → 창고 입고 → 매장 입고 흐름
-> 매장 발주 요청 → 창고 출고 → 매장 입고 확정 전체 흐름
-
-<video src="https://github.com/user-attachments/assets/6baa4908-5185-4edc-b2d5-b000422169a1" controls width="100%"></video>
-
-<!-- 💡 대체:
-[![매장 발주 → 창고 입고 → 매장 입고 흐름](https://img.shields.io/badge/▶_시연_영상_보기-store__order__flow-4FC08D?style=for-the-badge)](assets/videos/store_order_flow.mp4)
--->
+https://github.com/user-attachments/assets/d9933389-f1e8-4733-865c-2fcc5f5c11d1
 
 ---
 
@@ -608,6 +558,65 @@ https://github.com/user-attachments/assets/d9933389-f1e8-4733-865c-2fcc5f5c11d1
 
 ---
 
+### 🏬 매장 (Store)
+
+#### 🏬 매장 재고 조회
+> 매장별 SKU 재고 및 판매 가능 상태 실시간 조회
+
+<video src="https://github.com/user-attachments/assets/6cf7fa99-78bd-4b11-9c0e-5b99ff30a1ee" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![매장 재고 조회](https://img.shields.io/badge/▶_시연_영상_보기-store__inventory-4FC08D?style=for-the-badge)](assets/videos/store_inventory.mp4)
+-->
+
+---
+
+#### 💰 매장 판매 등록 및 판매 내역 조회
+> 매장 POS 판매 등록 → 재고 자동 차감 → 판매 이력 조회
+
+<video src="https://github.com/user-attachments/assets/09c9369e-0756-4791-9e74-5fa965a937b4" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![매장 판매 등록 및 판매 내역 조회](https://img.shields.io/badge/▶_시연_영상_보기-store__sale-4FC08D?style=for-the-badge)](assets/videos/store_sale.mp4)
+-->
+
+---
+
+#### 🚚 매장 발주 → 창고 입고 → 매장 입고 흐름
+> 매장 발주 요청 → 창고 출고 → 매장 입고 확정 전체 흐름
+
+<video src="https://github.com/user-attachments/assets/6baa4908-5185-4edc-b2d5-b000422169a1" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![매장 발주 → 창고 입고 → 매장 입고 흐름](https://img.shields.io/badge/▶_시연_영상_보기-store__order__flow-4FC08D?style=for-the-badge)](assets/videos/store_order_flow.mp4)
+-->
+
+---
+
+### 🏭 물류창고 (Warehouse)
+
+#### 📥 창고 입고 관리
+> 본사 발주·이동 지시 기반 창고 입고 예정 확인 및 입고 확정
+
+<video src="https://github.com/user-attachments/assets/bdef0a20-8c0b-406b-a2dc-dee6b038305c" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![창고 입고 관리](https://img.shields.io/badge/▶_시연_영상_보기-warehouse__inbound-4FC08D?style=for-the-badge)](assets/videos/warehouse_inbound.mp4)
+-->
+
+---
+
+#### 🏭 창고 재고 조회
+> 개별 물류창고 내 상품 보관 상태 및 실시간 가용 재고 상세 조회
+
+<video src="https://github.com/user-attachments/assets/feed38e8-30e3-4224-8dc1-a51713c03028" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![창고 재고 조회](https://img.shields.io/badge/▶_시연_영상_보기-warehouse__inventory-4FC08D?style=for-the-badge)](assets/videos/warehouse_inventory.mp4)
+-->
+
+---
+
 #### 📤 창고 출고
 > 창고 출고 처리 — 배송 준비 → 배송 중 → 도착 상태 관리
 
@@ -618,6 +627,8 @@ https://github.com/user-attachments/assets/d9933389-f1e8-4733-865c-2fcc5f5c11d1
 -->
 
 ---
+
+
 
 
 
