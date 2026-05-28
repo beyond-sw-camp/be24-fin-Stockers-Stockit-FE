@@ -388,12 +388,12 @@ Backend (연동)
 #### 🔐 로그인 · 회원가입
 > 회원가입 → 본사 승인 → 사번 기반 로그인 흐름
 
-<video src="assets/videos/auth.mp4" controls width="100%"></video>
+<video src="[assets/videos/auth.mp4](https://github.com/user-attachments/assets/97c48a2b-73ba-49ec-a469-cab561414222)" controls width="100%"></video>
 
 <!-- 💡 대체:
 [![로그인 · 회원가입](https://img.shields.io/badge/▶_시연_영상_보기-auth-4FC08D?style=for-the-badge)](assets/videos/auth.mp4)
 -->
-https://github.com/user-attachments/assets/97c48a2b-73ba-49ec-a469-cab561414222
+
 ---
 
 #### 🌿 ESG 대시보드
