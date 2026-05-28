@@ -733,6 +733,19 @@ stockit-frontend/
 
 ## ⚡ 시작하기
 
+### 🚀 한 줄 시작 (Docker Compose · 풀스택)
+
+Docker Desktop 만 있으면 DB · ES · Kibana · Logstash · BE · FE 를 한 번에 띄울 수 있습니다.
+
+```bash
+cp .env.example .env     # OPENAI_API_KEY 채우기
+docker compose up -d
+```
+
+→ http://localhost:8888 접속. 시드 계정: `hq0001` / `st0001` / `wh0001` (비밀번호 `Stockit!2026`).
+
+---
+
 ### 사전 요구사항
 
 - Node.js 18.x 이상
