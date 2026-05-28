@@ -113,7 +113,10 @@ function buildCommonParams() {
   if (selectedLocationIds.value.length > 0) params.locationIds = selectedLocationIds.value
   if (selectedParentCategory.value) params.parentCategory = selectedParentCategory.value
   if (selectedChildCategory.value) params.childCategory = selectedChildCategory.value
-  if (selectedStatus.value) params.status = selectedStatus.value
+  // 마스터 모드 status 는 클라 필터(filteredInventory computed)에서 처리. SKU 모드만 BE 전송.
+  // 마스터 endpoint 의 status 파라미터는 InventoryStatus enum (NORMAL/CIRCULAR_CANDIDATE/CIRCULAR) 으로
+  // 한글 라벨("정상"/"부족"/"품절") 전송 시 변환 실패 → 400 Bad Request.
+  if (selectedStatus.value && currentMode.value === 'sku') params.status = selectedStatus.value
   if (debouncedSearchTerm.value.trim()) params.keyword = debouncedSearchTerm.value.trim()
   return params
 }
