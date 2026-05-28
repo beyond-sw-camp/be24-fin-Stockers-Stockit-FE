@@ -452,6 +452,66 @@ https://github.com/user-attachments/assets/d9933389-f1e8-4733-865c-2fcc5f5c11d1
 
 ---
 
+#### 📦 공급처 발주
+> 안전재고 미달 품목 자동 감지 및 공급사 발주 요청 처리
+
+<video src="assets/videos/vendor_order.mp4" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![공급처 발주](https://img.shields.io/badge/▶_시연_영상_보기-vendor__order-4FC08D?style=for-the-badge)](assets/videos/vendor_order.mp4)
+-->
+https://github.com/user-attachments/assets/여기에_공급처발주_영상링크_붙여넣기
+
+---
+
+#### 🏪 매장 재고 조회
+> 오프라인 매장별 실시간 가용 재고 및 안전재고 현황 모니터링
+
+<video src="assets/videos/store_inventory.mp4" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![매장 재고 조회](https://img.shields.io/badge/▶_시연_영상_보기-store__inventory-4FC08D?style=for-the-badge)](assets/videos/store_inventory.mp4)
+-->
+https://github.com/user-attachments/assets/여기에_매장재고조회_영상링크_붙여넣기
+
+---
+
+#### 🌐 전사 재고 조회
+> 본사 관점의 전체 물류창고 및 전국 매장 통합 재고 현황 조회
+
+<video src="assets/videos/global_inventory.mp4" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![전사 재고 조회](https://img.shields.io/badge/▶_시연_영상_보기-global__inventory-4FC08D?style=for-the-badge)](assets/videos/global_inventory.mp4)
+-->
+https://github.com/user-attachments/assets/여기에_전사재고조회_영상링크_붙여넣기
+
+---
+
+#### 📥 창고 입고 관리
+> 공급처로부터 도착한 발주 물품 검수 및 물류창고 입고 승인
+
+<video src="assets/videos/warehouse_inbound.mp4" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![창고 입고 관리](https://img.shields.io/badge/▶_시연_영상_보기-warehouse__inbound-4FC08D?style=for-the-badge)](assets/videos/warehouse_inbound.mp4)
+-->
+https://github.com/user-attachments/assets/여기에_창고입고관리_영상링크_붙여넣기
+
+---
+
+#### 🏭 창고 재고 조회
+> 개별 물류창고 내 상품 보관 상태 및 실시간 가용 재고 상세 조회
+
+<video src="assets/videos/warehouse_inventory.mp4" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![창고 재고 조회](https://img.shields.io/badge/▶_시연_영상_보기-warehouse__inventory-4FC08D?style=for-the-badge)](assets/videos/warehouse_inventory.mp4)
+-->
+https://github.com/user-attachments/assets/여기에_창고재고조회_영상링크_붙여넣기
+
+---
+
 ## 🚀 무중단 배포 (Blue-Green)
 
 STOCKIT은 **서비스 중단 없는 배포**를 위해 Kubernetes 기반 **Blue-Green Deployment** 전략을 채택했습니다.
