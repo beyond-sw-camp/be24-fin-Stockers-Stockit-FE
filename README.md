@@ -370,7 +370,7 @@ Backend (연동)
 <img width="6084" height="2866" alt="image" src="https://github.com/user-attachments/assets/c86a186a-7c7e-4dde-9730-3e0f294f189b" />
 <br></br>
 
-#### 창고별 재고 비교 화면
+#### 창고별 재고 이동 화면
 <!-- 📷 캡처 이미지 삽입 -->
 <img width="6084" height="2984" alt="image" src="https://github.com/user-attachments/assets/c6e2d53f-3c0b-4027-bed4-4b80faacb45a" />
 <br></br>
