@@ -453,12 +453,13 @@ https://github.com/user-attachments/assets/97c48a2b-73ba-49ec-a469-cab561414222
 #### 🛒 공급처 발주
 > 본사가 거래처에 상품 발주 → 승인 → 배송 상태 추적
 
-<video src="assets/videos/purchase_order.mp4" controls width="100%"></video>
+<video src="" controls width="100%"></video>
 
 <!-- 💡 대체:
 [![공급처 발주](https://img.shields.io/badge/▶_시연_영상_보기-purchase__order-4FC08D?style=for-the-badge)](assets/videos/purchase_order.mp4)
 -->
-https://github.com/user-attachments/assets/여기에_공급처발주_영상링크_붙여넣기
+
+
 
 ---
 
@@ -581,6 +582,52 @@ https://github.com/user-attachments/assets/d9933389-f1e8-4733-865c-2fcc5f5c11d1
 
 <!-- 💡 대체:
 [![카테고리 관리](https://img.shields.io/badge/▶_시연_영상_보기-category__management-4FC08D?style=for-the-badge)](assets/videos/category_management.mp4)
+-->
+
+---
+
+#### 💰 매장 판매 등록 및 판매 내역 조회
+> 매장 POS 판매 등록 → 재고 자동 차감 → 판매 이력 조회
+
+<video src="https://github.com/user-attachments/assets/09c9369e-0756-4791-9e74-5fa965a937b4" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![매장 판매 등록 및 판매 내역 조회](https://img.shields.io/badge/▶_시연_영상_보기-store__sale-4FC08D?style=for-the-badge)](assets/videos/store_sale.mp4)
+-->
+
+
+---
+
+#### 🚚 매장 발주 → 창고 입고 → 매장 입고 흐름
+> 매장 발주 요청 → 창고 출고 → 매장 입고 확정 전체 흐름
+
+<video src="assets/videos/store_order_flow.mp4" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![매장 발주 → 창고 입고 → 매장 입고 흐름](https://img.shields.io/badge/▶_시연_영상_보기-store__order__flow-4FC08D?style=for-the-badge)](assets/videos/store_order_flow.mp4)
+-->
+
+---
+
+#### 🔁 순환 재고 판매 흐름
+> 순환재고 판매 등록 → 창고 출고 → 판매 내역 조회 → 통계 분석 전체 흐름
+
+<video src="assets/videos/circular_sale_flow.mp4" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![순환 재고 판매 흐름](https://img.shields.io/badge/▶_시연_영상_보기-circular__sale__flow-4FC08D?style=for-the-badge)](assets/videos/circular_sale_flow.mp4)
+-->
+https://github.com/user-attachments/assets/여기에_순환재고판매흐름_영상링크_붙여넣기
+
+---
+
+#### 📤 창고 출고
+> 창고 출고 처리 — 배송 준비 → 배송 중 → 도착 상태 관리
+
+<video src="https://github.com/user-attachments/assets/1545cdbc-a91d-482b-a59f-ceb0ccb3fded" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![창고 출고](https://img.shields.io/badge/▶_시연_영상_보기-warehouse__outbound-4FC08D?style=for-the-badge)](assets/videos/warehouse_outbound.mp4)
 -->
 
 ---
