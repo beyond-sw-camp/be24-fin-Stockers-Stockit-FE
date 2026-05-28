@@ -361,44 +361,69 @@ Backend (연동)
 
 #### ESG 대시보드 — 탄소 감축 지표 & 나무 성장 인터페이스
 <!-- 📷 캡처 이미지 삽입 -->
-```
 <img width="6392" height="3046" alt="image" src="https://github.com/user-attachments/assets/c9c50945-cd63-4784-b306-9319d0064a17" />
 <img width="6548" height="3106" alt="image" src="https://github.com/user-attachments/assets/d6f76468-0c11-4cab-bee3-f9d1a854656f" />
 
-```
 
 #### 순환 재고 판매 통계
 <!-- 📷 캡처 이미지 삽입 -->
-```
 <img width="6084" height="2866" alt="image" src="https://github.com/user-attachments/assets/c86a186a-7c7e-4dde-9730-3e0f294f189b" />
 
-```
 
 #### 창고별 재고 비교 화면
 <!-- 📷 캡처 이미지 삽입 -->
-```
-[창고별_재고비교_캡처.png]
+<img width="6084" height="2984" alt="image" src="https://github.com/user-attachments/assets/c6e2d53f-3c0b-4027-bed4-4b80faacb45a" />
 
-```
 
 #### 매장 발주 화면
 <!-- 📷 캡처 이미지 삽입 -->
-```
 <img width="6482" height="3104" alt="image" src="https://github.com/user-attachments/assets/764bd56a-09cf-481e-84b9-78dba01b1f13" />
-
-```
 
 ---
 
 ### 🎬 기능 시연 영상
 
-| 기능 | 영상 링크 | 설명 |
-|------|-----------|------|
-| 🔄 순환 재고 전환 전체 플로우 | [▶ 시연 영상](#) | 악성 재고 감지 → 소재 필터 → AI 거래처 매칭 → 업체 판매 등록 |
-| 🌿 ESG 대시보드 | [▶ 시연 영상](#) | 탄소 감축량 시각화, KAU 환산 가치, 나무 성장 인터페이스 |
-| 📦 실시간 재고 알림 | [▶ 시연 영상](#) | SSE 기반 실시간 재고 부족 알림 수신 |
-| 🏭 피킹 리스트 처리 | [▶ 시연 영상](#) | 창고 관리자의 피킹 → 출고 처리 흐름 |
-| 🔀 창고 간 재고 이동 | [▶ 시연 영상](#) | 창고 A 과잉 → 창고 B 부족 재고 이동 지시 |
+#### 🌿 ESG 대시보드
+> 탄소 감축량 시각화, KAU 환산 가치, 나무 성장 인터페이스
+
+<video src="assets/videos/esg_dashboard.mp4" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![ESG 대시보드](https://img.shields.io/badge/▶_시연_영상_보기-esg__dashboard-4FC08D?style=for-the-badge)](assets/videos/esg_dashboard.mp4)
+-->
+
+---
+
+#### 📦 실시간 재고 알림
+> SSE 기반 실시간 재고 부족 알림 수신
+
+<video src="assets/videos/realtime_alert.mp4" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![실시간 재고 알림](https://img.shields.io/badge/▶_시연_영상_보기-realtime__alert-4FC08D?style=for-the-badge)](assets/videos/realtime_alert.mp4)
+-->
+
+---
+
+#### 🏭 피킹 리스트 처리
+> 창고 관리자의 피킹 → 출고 처리 흐름
+
+<video src="assets/videos/picking_list.mp4" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![피킹 리스트 처리](https://img.shields.io/badge/▶_시연_영상_보기-picking__list-4FC08D?style=for-the-badge)](assets/videos/picking_list.mp4)
+-->
+
+---
+
+#### 🔀 창고 간 재고 이동
+> 창고 A 과잉 → 창고 B 부족 재고 이동 지시
+
+<video src="assets/videos/stock_transfer.mp4" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![창고 간 재고 이동](https://img.shields.io/badge/▶_시연_영상_보기-stock__transfer-4FC08D?style=for-the-badge)](assets/videos/stock_transfer.mp4)
+-->
 
 ---
 
@@ -406,22 +431,20 @@ Backend (연동)
 
 STOCKIT은 **서비스 중단 없는 배포**를 위해 Kubernetes 기반 **Blue-Green Deployment** 전략을 채택했습니다.
 
-### 배포 전략 개요
+### Blue-Green 방식을 선택한 이유
 
-```
-                    ┌─────────────────────┐
-                    │    Load Balancer     │
-                    │   (K8s Service)      │
-                    └──────────┬──────────┘
-                               │
-              ┌────────────────┴────────────────┐
-              │                                 │
-    ┌─────────▼──────────┐           ┌──────────▼──────────┐
-    │   🟦 Blue (Active) │          │  🟩 Green (Standby) │
-    │   현재 서비스 중    │          │   새 버전 배포 대기  │
-    │   v1.0.0           │           │   v1.1.0            │
-    └────────────────────┘           └─────────────────────┘
-```
+| 이유 | 설명 |
+|------|------|
+| **다운타임 Zero** | Blue가 트래픽을 유지하는 동안 Green을 준비 → K8s Service selector 한 줄 변경으로 즉시 전환, 사용자 입장에서 중단 없음 |
+| **즉각 롤백** | 문제 발생 시 selector를 Blue로 되돌리면 끝 — 롤링 방식처럼 파드를 순차 교체할 필요 없음 |
+| **버전 혼재 없음** | 항상 한 버전만 트래픽을 처리 → 구버전·신버전이 동시에 요청을 받는 상황 자체가 발생하지 않음 |
+| **배포 전 충분한 검증** | Green을 띄운 상태에서 트래픽 전환 전에 Readiness Probe · Smoke Test를 충분히 수행 가능 |
+| **배포 타이밍 리스크 최소화** | 트래픽 집중 시간대에도 배포 가능 — Green 준비가 완료된 시점에 스위칭하므로 타이밍에 자유로움 |
+
+### Blue-Green 무중단 배포 시연 영상
+
+https://github.com/user-attachments/assets/eda0b0f8-1787-4872-b0bc-e74ee383d204
+
 
 ### 배포 프로세스
 
@@ -455,24 +478,6 @@ Jenkins Pipeline
             ├── Readiness Probe 헬스체크
             └── Service selector 전환 (Blue → Green)
 ```
-
-## 🔍 경쟁사 분석 및 차별점
-
-| 비교 항목 | SAP S/4HANA Retail | Centric PLM / Winddle | **STOCKIT** |
-|-----------|-------------------|-----------------------|-------------|
-| 대상 기업 규모 | 대기업 전용 | 중견~대기업 | **중견~대기업 전체** |
-| 도입 비용 | 수억~수십억 원 | 비교적 낮음 | **SaaS 구독 (티어별)** |
-| 실시간 매장-창고 연동 | ✅ | 제한적 | ✅ |
-| 악성 재고 순환 처리 | ❌ | ❌ | **✅ 핵심 기능** |
-| AI 기반 거래처 자동 매칭 | ❌ | ❌ | **✅ AX 매칭 엔진** |
-| ESG 탄소 감축 정량화 | ❌ | ❌ | **✅ Net-Impact 엔진** |
-| KOC 탄소 배출권 연동 | ❌ | ❌ | **✅ KAU 실시간 연동** |
-| GRI/GHG/SASB 공시 자동화 | ❌ | ❌ | **✅ 3개 표준 자동 매핑** |
-| 게이미피케이션 ESG 시각화 | ❌ | ❌ | **✅ 디지털 나무 성장** |
-
-> 기존 시스템들은 재고 흐름 관리에 집중되어 있으며, **팔리지 않은 악성 재고의 '이후'를 책임지는 시스템은 존재하지 않습니다.** STOCKIT은 이 공백을 채웁니다.
-
----
 
 ## 📁 프로젝트 구조
 
