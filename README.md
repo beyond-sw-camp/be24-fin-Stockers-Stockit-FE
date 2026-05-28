@@ -423,6 +423,7 @@ Backend (연동)
 <!-- 💡 대체:
 [![창고 간 재고 이동](https://img.shields.io/badge/▶_시연_영상_보기-stock__transfer-4FC08D?style=for-the-badge)](assets/videos/stock_transfer.mp4)
 -->
+https://github.com/user-attachments/assets/d9933389-f1e8-4733-865c-2fcc5f5c11d1
 
 ---
 
