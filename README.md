@@ -409,7 +409,7 @@ https://github.com/user-attachments/assets/97c48a2b-73ba-49ec-a469-cab561414222
 
 ---
 
-#### 📦 실시간 재고 알림
+#### 📦 실시간 알림
 > SSE 기반 실시간 재고 부족 알림 수신
 
 <video src="https://github.com/user-attachments/assets/c4cc7866-f568-412b-8656-6e17ab6df80e" controls width="100%"></video>
@@ -422,6 +422,15 @@ https://github.com/user-attachments/assets/97c48a2b-73ba-49ec-a469-cab561414222
 > SSE 기반 실시간 재고 품절 알림 수신
 
 <video src="https://github.com/user-attachments/assets/e0d38680-78ed-488f-aeb6-a83f1cd2d069" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![실시간 재고 알림](https://img.shields.io/badge/▶_시연_영상_보기-realtime__alert-4FC08D?style=for-the-badge)](assets/videos/realtime_alert.mp4)
+-->
+
+---
+> SSE 기반 실시간 계정 신청 알림 수신
+
+<video src="https://github.com/user-attachments/assets/263eaeea-937e-4c55-9629-c33ee6352c27" controls width="100%"></video>
 
 <!-- 💡 대체:
 [![실시간 재고 알림](https://img.shields.io/badge/▶_시연_영상_보기-realtime__alert-4FC08D?style=for-the-badge)](assets/videos/realtime_alert.mp4)
