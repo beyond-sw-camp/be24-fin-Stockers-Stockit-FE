@@ -322,8 +322,7 @@ Backend (연동)
 
 ## 🏗 시스템 아키텍처
 
-<img width="1452" height="842" alt="image" src="https://github.com/user-attachments/assets/6d2a30d4-aff3-4dfa-aca7-c510b6840172" />
-
+<img width="1399" height="847" alt="image" src="https://github.com/user-attachments/assets/b5b82c97-e07b-4025-9a28-40882e1ed6ab" />
 
 ---
 
