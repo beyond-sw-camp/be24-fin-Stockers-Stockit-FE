@@ -399,10 +399,11 @@ https://github.com/user-attachments/assets/97c48a2b-73ba-49ec-a469-cab561414222
 
 ---
 
-#### 🌿 ESG 대시보드
-> 탄소 감축량 시각화, KAU 환산 가치, 나무 성장 인터페이스
+#### 🌿 ESG 대시보드 
+> 탄소 감축량 시각화, KAU 환산 가치, 나무 성장 인터페이스 전체적인 흐름
 
-<video src="assets/videos/esg_dashboard.mp4" controls width="100%"></video>
+
+<video src="https://github.com/user-attachments/assets/5bb8821c-1f82-4f11-ab72-33eeeee1261c" controls width="100%"></video>
 
 <!-- 💡 대체:
 [![ESG 대시보드](https://img.shields.io/badge/▶_시연_영상_보기-esg__dashboard-4FC08D?style=for-the-badge)](assets/videos/esg_dashboard.mp4)
