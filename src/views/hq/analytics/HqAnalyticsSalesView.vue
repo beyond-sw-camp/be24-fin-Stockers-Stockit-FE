@@ -31,9 +31,9 @@ const activeTopMenu = computed(() => '정산/통계')
 const activeSideMenu = ref('판매량 통계')
 
 
-// 하단 상세 테이블 펼침/접힘 (기본 접힘)
-const overviewDetailExpanded = ref(false)
-const productDetailExpanded = ref(false)
+// 하단 상세 테이블 펼침/접힘 (기본 열림)
+const overviewDetailExpanded = ref(true)
+const productDetailExpanded = ref(true)
 
 // ─── 공통 필터 바 ──────────────────────────────────────────────────────
 // ─── 기간 단위별 dateRange 헬퍼 ──────────────────────────────────────

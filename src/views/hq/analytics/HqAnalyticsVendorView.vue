@@ -253,7 +253,7 @@ const maxDependency = computed(() =>
 
 // ─── 순환재고 상세 토글 ────────────────────────────────────────────
 const detailView = ref('circular') // 'circular' 고정 (거래처 상세 제거됨)
-const detailExpanded = ref(false) // 하단 상세 영역 펼침 상태 (기본 접힘)
+const detailExpanded = ref(true) // 하단 상세 영역 펼침 상태 (기본 열림)
 
 // ─── 순환재고 상세 (BE 응답 기반) ─────────────────────────────────────
 //   정렬/비중 기준을 매출(sales) → 판매량(units, kg) 로 전환.

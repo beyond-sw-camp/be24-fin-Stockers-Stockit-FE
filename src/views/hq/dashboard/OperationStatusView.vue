@@ -61,7 +61,7 @@ const kpiOps = computed(() => [
       ? '실시간 · 출고 준비중 + 배송중'
       : (transferCardState.value === 'error' ? '불러오기 실패' : '불러오는 중…'),
     tone: 'blue',
-    route: '/hq/inventory/warehouse-comparison',
+    route: '/hq/inventory/warehouse-transfer-history',
     hoverCls: 'hover:border-blue-400',
   },
 ])
