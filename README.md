@@ -328,19 +328,14 @@ Backend (연동)
 
 ## 📸 화면 캡처 및 기능 시연
 
-> 💡 아래 섹션에 실제 화면 캡처 이미지와 시연 영상 링크를 삽입해 주세요.
-
 ### 🖥 주요 화면
 
 #### 본사 대시보드 — 전사 통합 관제
 <!-- 📷 캡처 이미지 삽입 -->
-```
 <img width="6110" height="3010" alt="image" src="https://github.com/user-attachments/assets/dbe0f5ef-bd27-4234-b47e-038ca3a94cab" />
-```
 
 #### 순환 재고 조회 — 소재 조건 필터링 + AI 거래처 매칭
 <!-- 📷 캡처 이미지 삽입 -->
-```
 순환 재고 판매 등록 (SKU 선택)
 <img width="6142" height="2934" alt="image" src="https://github.com/user-attachments/assets/5cabc4b7-2a04-4c40-8eb2-bc760f3ae1af" />
 
@@ -357,7 +352,6 @@ Backend (연동)
 순환 재고 판매 등록 (Step3 판매 조건 확정)
 <img width="6202" height="2956" alt="image" src="https://github.com/user-attachments/assets/82bbfa3b-6246-4389-b455-957e404944b6" />
 
-```
 
 #### ESG 대시보드 — 탄소 감축 지표 & 나무 성장 인터페이스
 <!-- 📷 캡처 이미지 삽입 -->
