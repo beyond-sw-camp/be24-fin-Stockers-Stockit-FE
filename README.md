@@ -344,7 +344,10 @@ Backend (연동)
 ## 🚀 무중단 배포 (Blue-Green)
 
 STOCKIT은 **서비스 중단 없는 배포**를 위해 Kubernetes 기반 **Blue-Green Deployment** 전략을 채택했습니다.
-- 무중단 배포 관련 위키 넣
+
+### Blue-Green 무중단 배포 시연 영상
+
+https://github.com/user-attachments/assets/eda0b0f8-1787-4872-b0bc-e74ee383d204
 
 ### Blue-Green 방식을 선택한 이유
 
@@ -355,10 +358,6 @@ STOCKIT은 **서비스 중단 없는 배포**를 위해 Kubernetes 기반 **Blue
 | **버전 혼재 없음** | 항상 한 버전만 트래픽을 처리 → 구버전·신버전이 동시에 요청을 받는 상황 자체가 발생하지 않음 |
 | **배포 전 충분한 검증** | Green을 띄운 상태에서 트래픽 전환 전에 Readiness Probe · Smoke Test를 충분히 수행 가능 |
 | **배포 타이밍 리스크 최소화** | 트래픽 집중 시간대에도 배포 가능 — Green 준비가 완료된 시점에 스위칭하므로 타이밍에 자유로움 |
-
-### Blue-Green 무중단 배포 시연 영상
-
-https://github.com/user-attachments/assets/eda0b0f8-1787-4872-b0bc-e74ee383d204
 
 
 ### 배포 프로세스
