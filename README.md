@@ -540,6 +540,53 @@ https://github.com/user-attachments/assets/d9933389-f1e8-4733-865c-2fcc5f5c11d1
 
 ---
 
+#### ♻️ 순환 재고 조회
+> 전사 순환재고 SKU · 창고별 분포 및 상태 조회
+
+<video src="https://github.com/user-attachments/assets/1d97aa65-ade2-46ea-9df5-969c1ea75a46" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![순환 재고 조회](https://img.shields.io/badge/▶_시연_영상_보기-circular__inventory-4FC08D?style=for-the-badge)](assets/videos/circular_inventory.mp4)
+-->
+
+---
+
+#### 🔍 순환 재고 후보 조회 및 전환
+> 장기 미이동 · 과잉 · 편중 SKU 자동 탐지 → 후보 전환 → 순환재고 분리
+
+<video src="assets/videos/circular_candidate.mp4" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![순환 재고 후보 조회 및 전환](https://img.shields.io/badge/▶_시연_영상_보기-circular__candidate-4FC08D?style=for-the-badge)](assets/videos/circular_candidate.mp4)
+-->
+https://github.com/user-attachments/assets/여기에_순환재고후보조회및전환_영상링크_붙여넣기
+
+---
+
+#### 🧾 제품 마스터 관리
+> 상품 기본정보 · 소재 구성 · SKU 옵션 등록 · 수정 관리
+
+<video src="assets/videos/product_master.mp4" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![제품 마스터 관리](https://img.shields.io/badge/▶_시연_영상_보기-product__master-4FC08D?style=for-the-badge)](assets/videos/product_master.mp4)
+-->
+https://github.com/user-attachments/assets/여기에_제품마스터관리_영상링크_붙여넣기
+
+---
+
+
+#### 🗂️ 카테고리 관리
+> 상품 대 / 중분류 카테고리 등록 · 수정 및 계층 구조 관리
+
+<video src="assets/videos/category_management.mp4" controls width="100%"></video>
+
+<!-- 💡 대체:
+[![카테고리 관리](https://img.shields.io/badge/▶_시연_영상_보기-category__management-4FC08D?style=for-the-badge)](assets/videos/category_management.mp4)
+-->
+https://github.com/user-attachments/assets/여기에_카테고리관리_영상링크_붙여넣기
+
+---
 
 
 
