@@ -323,6 +323,7 @@ Backend (연동)
 ---
 
 ## 🏗 시스템 아키텍처
+> 📖 **[03. 프로젝트 구조 & 아키텍처 Wiki →](https://github.com/beyond-sw-camp/be24-fin-Stockers-Stockit-FE/wiki/03-%ED%94%84%EB%A1%9C%EC%A0%9D%ED%8A%B8-%EA%B5%AC%EC%A1%B0-%EC%95%84%ED%82%A4%ED%85%8D%EC%B2%98) 위키 바로가기** 
 
 <img width="1399" height="846" alt="image" src="https://github.com/user-attachments/assets/75005ffa-88dc-4288-bb4b-f98a65c273ec" />
 
@@ -330,12 +331,13 @@ Backend (연동)
 
 ## 📸 화면 캡처 및 기능 시연
 
-- 캡처 위키 바로가기 넣기
+### 🎬 서비스 화면 캡쳐 위키 바로가기
+[![Wiki](https://img.shields.io/badge/📸_Wiki-상세_서비스_화면_캡처-4A90D9?style=for-the-badge)](https://github.com/beyond-sw-camp/be24-fin-Stockers-Stockit-FE/wiki/04-%ED%95%B5%EC%8B%AC-%EA%B8%B0%EB%8A%A5-%EA%B5%AC%ED%98%84-%EA%B0%80%EC%9D%B4%EB%93%9C#5-%EC%83%81%EC%84%B8-%EC%84%9C%EB%B9%84%EC%8A%A4-%ED%99%94%EB%A9%B4-%EC%BA%A1%EC%B2%98) 
 
 ---
 
-### 🎬 기능 시연 영상
-- 영상 위키 바로가기 넣기
+### 🎬 기능 시연 영상 위키 바로가기
+[![Wiki](https://img.shields.io/badge/🎬_Wiki-기능별_시연_영상_모음-4A90D9?style=for-the-badge)](https://github.com/beyond-sw-camp/be24-fin-Stockers-Stockit-FE/wiki/06-%EC%8B%9C%EC%97%B0-%EC%98%81%EC%83%81-&-%EC%82%B0%EC%B6%9C%EB%AC%BC#1-%EA%B8%B0%EB%8A%A5%EB%B3%84-%EC%8B%9C%EC%97%B0-%EC%98%81%EC%83%81-%EB%AA%A8%EC%9D%8C) 
 
 ---
 
