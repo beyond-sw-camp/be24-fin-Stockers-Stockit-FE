@@ -75,6 +75,7 @@
 ---
 
 ## 🌿 프로젝트 소개
+🌐 **Web Service** : [STOCKIT 공식 서비스 접속하기](https://www.stockit.kro.kr)<br/>
 
 **STOCKIT**은 SPA(Specialty store retailer of Private label Apparel) 브랜드의 고질적인 재고 문제를 **데이터**와 **ESG** 관점으로 풀어낸 차세대 통합 재고관리 시스템입니다.
 
