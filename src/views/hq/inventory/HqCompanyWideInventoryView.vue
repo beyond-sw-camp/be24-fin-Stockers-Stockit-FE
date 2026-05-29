@@ -20,6 +20,8 @@ const categoryMap = {
   아우터: ['패딩', '후드집업', '자켓', '가디건'],
 }
 
+// 지역: '' = 전체, 그 외 한글 지역명 (BE locationOptions 의 region)
+const selectedRegion = ref('')
 // 거점 유형: '' = 전체, 'STORE' = 매장, 'WAREHOUSE' = 창고
 const locationType = ref('')
 const selectedLocationIds = ref([])
@@ -64,17 +66,43 @@ const locationTypeOptions = [
   { value: 'WAREHOUSE', label: '창고' },
 ]
 
-// LocationTreeFilter 에 넘길 옵션 — 거점 유형 필터에 따라 거른 후 region 포함.
-const treeOptions = computed(() => {
-  const list = locationOptionsRaw.value
-  if (!locationType.value) return list
-  return list.filter(o => o.locationType === locationType.value)
+// 지역 옵션 — BE locationOptions 의 distinct region (가나다 정렬)
+const regionOptions = computed(() => {
+  const set = new Set()
+  for (const o of locationOptionsRaw.value) {
+    if (o.region) set.add(o.region)
+  }
+  return [...set].sort((a, b) => a.localeCompare(b))
 })
+
+// LocationTreeFilter 에 넘길 옵션 — 지역 + 거점 유형 필터로 거른 후 전달.
+const treeOptions = computed(() => {
+  let list = locationOptionsRaw.value
+  if (selectedRegion.value) list = list.filter(o => o.region === selectedRegion.value)
+  if (locationType.value) list = list.filter(o => o.locationType === locationType.value)
+  return list
+})
+
+// BE 로 보낼 locationIds 결정 — 개별 거점 선택이 우선, 없으면 지역(+유형)으로 좁힌 거점 전체.
+// 지역만 선택한 경우 해당 지역 거점 id 를 모아 보내 BE region 파라미터 없이도 지역 단위 조회가 된다.
+function resolveLocationIds() {
+  if (selectedLocationIds.value.length > 0) return selectedLocationIds.value
+  if (selectedRegion.value) {
+    const ids = treeOptions.value.map(o => o.id)
+    return ids.length > 0 ? ids : null
+  }
+  return null
+}
 
 // 소분류 옵션 — 대분류 선택 시 활성화
 const childCategoryOptions = computed(() =>
   selectedParentCategory.value ? (categoryMap[selectedParentCategory.value] ?? []) : [],
 )
+
+// 지역 변경 시 선택된 거점 리셋 (다른 지역 거점 id 가 남으면 안 됨)
+function handleRegionChange() {
+  selectedLocationIds.value = []
+}
 
 // 거점 유형 변경 시 선택된 거점 리셋 (다른 type 의 id 가 그대로 남으면 의미 X)
 function handleLocationTypeChange() {
@@ -87,6 +115,7 @@ function handleParentCategoryChange() {
 }
 
 function resetFilters() {
+  selectedRegion.value = ''
   locationType.value = ''
   selectedLocationIds.value = []
   selectedParentCategory.value = ''
@@ -110,7 +139,8 @@ function buildCommonParams() {
     size: pageSize.value,
   }
   if (locationType.value) params.locationType = locationType.value
-  if (selectedLocationIds.value.length > 0) params.locationIds = selectedLocationIds.value
+  const locIds = resolveLocationIds()
+  if (locIds) params.locationIds = locIds
   if (selectedParentCategory.value) params.parentCategory = selectedParentCategory.value
   if (selectedChildCategory.value) params.childCategory = selectedChildCategory.value
   // 마스터 모드 status 는 클라 필터(filteredInventory computed)에서 처리. SKU 모드만 BE 전송.
@@ -228,7 +258,8 @@ async function fetchFacets() {
   try {
     const params = {}
     if (locationType.value) params.locationType = locationType.value
-    if (selectedLocationIds.value.length > 0) params.locationIds = selectedLocationIds.value
+    const locIds = resolveLocationIds()
+    if (locIds) params.locationIds = locIds
     if (selectedParentCategory.value) params.parentCategory = selectedParentCategory.value
     if (selectedChildCategory.value) params.childCategory = selectedChildCategory.value
     if (debouncedSearchTerm.value.trim()) params.keyword = debouncedSearchTerm.value.trim()
@@ -242,20 +273,21 @@ async function fetchFacets() {
 }
 
 const locationSummary = computed(() => {
+  const regionLabel = selectedRegion.value ? `${selectedRegion.value} ` : ''
   if (selectedLocationIds.value.length === 0) {
-    if (!locationType.value) return '전체 거점'
-    return locationType.value === 'WAREHOUSE' ? '전체 창고' : '전체 매장'
+    if (!locationType.value) return `${regionLabel}전체 거점`
+    return `${regionLabel}전체 ${locationType.value === 'WAREHOUSE' ? '창고' : '매장'}`
   }
   return `${selectedLocationIds.value.length}개 거점`
 })
 
 // 메인 fetch 트리거 — searchTerm 대신 debouncedSearchTerm 사용 (300ms 디바운스)
-watch([locationType, selectedLocationIds, selectedParentCategory, selectedChildCategory, debouncedSearchTerm, currentMode, selectedColor, selectedSize], () => {
+watch([selectedRegion, locationType, selectedLocationIds, selectedParentCategory, selectedChildCategory, debouncedSearchTerm, currentMode, selectedColor, selectedSize], () => {
   resetPageOrFetch()
 })
 
 // facets 갱신 — sku 모드 전환 또는 facets-relevant 필터 변경 시 (color/size 자체 변경은 facets 갱신 X — 자기 칩 사라지면 어색)
-watch([currentMode, locationType, selectedLocationIds, selectedParentCategory, selectedChildCategory, debouncedSearchTerm], () => {
+watch([currentMode, selectedRegion, locationType, selectedLocationIds, selectedParentCategory, selectedChildCategory, debouncedSearchTerm], () => {
   fetchFacets()
 })
 
@@ -303,8 +335,20 @@ const statusClass = (status) => ({
           </div>
         </div>
 
-        <!-- 필터 영역 (한 줄, 7칸) — 창/매와 동일 grid 패턴 (거점 2칸만 전사 전용) -->
-        <div class="grid gap-3 xl:grid-cols-[120px_minmax(200px,1.4fr)_120px_120px_120px_minmax(160px,1.3fr)_auto]">
+        <!-- 필터 영역 (한 줄, 8칸) — 지역 → 거점 유형 → 거점 선택 순 (큰 단위 → 작은 단위) -->
+        <div class="grid gap-3 xl:grid-cols-[120px_120px_minmax(200px,1.4fr)_120px_120px_120px_minmax(160px,1.3fr)_auto]">
+          <label class="flex flex-col gap-1.5">
+            <span class="text-[11px] font-black uppercase tracking-wider text-gray-400">지역</span>
+            <select
+              v-model="selectedRegion"
+              class="h-9 border border-gray-300 bg-white px-3 text-sm font-bold text-gray-900 outline-none focus:border-[#004D3C]"
+              @change="handleRegionChange"
+            >
+              <option value="">전체</option>
+              <option v-for="r in regionOptions" :key="r" :value="r">{{ r }}</option>
+            </select>
+          </label>
+
           <label class="flex flex-col gap-1.5">
             <span class="text-[11px] font-black uppercase tracking-wider text-gray-400">거점 유형</span>
             <select
