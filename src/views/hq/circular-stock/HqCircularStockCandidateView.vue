@@ -777,7 +777,6 @@ onBeforeUnmount(() => {
     <div
       v-if="isConvertModalOpen"
       class="fixed inset-0 z-50 flex items-end justify-center bg-black/35 p-4 md:items-center"
-      @click.self="closeConvertModal"
     >
       <div class="w-full max-w-4xl border border-gray-200 bg-white shadow-xl">
         <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
