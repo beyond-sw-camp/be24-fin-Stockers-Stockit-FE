@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import WarehouseTransferCartDrawer from '@/components/hq/WarehouseTransferCartDrawer.vue'
+import WarehouseTransferResultModal from '@/components/hq/WarehouseTransferResultModal.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useWarehouseTransferCartStore } from '@/stores/hq/warehouseTransferCart.js'
@@ -32,6 +33,12 @@ const toastMessage = ref('')
 const toastShowHistoryAction = ref(false)
 const failedTransfers = ref([])
 const failedModalOpen = ref(false)
+const resultModalOpen = ref(false)
+const resultModalTitle = ref('')
+const resultModalMessage = ref('')
+const resultModalTone = ref('success')
+const resultModalShowHistoryAction = ref(false)
+const resultModalDetailActionLabel = ref('')
 const warehouseLoading = ref(false)
 let toastTimer = null
 
@@ -216,6 +223,30 @@ const closeFailedModal = () => {
   failedModalOpen.value = false
 }
 
+const openResultModal = ({
+  title,
+  message,
+  tone = 'success',
+  showHistoryAction = false,
+  detailActionLabel = '',
+}) => {
+  resultModalTitle.value = title
+  resultModalMessage.value = message
+  resultModalTone.value = tone
+  resultModalShowHistoryAction.value = showHistoryAction
+  resultModalDetailActionLabel.value = detailActionLabel
+  resultModalOpen.value = true
+}
+
+const closeResultModal = () => {
+  resultModalOpen.value = false
+}
+
+const openFailedDetailFromResult = () => {
+  resultModalOpen.value = false
+  failedModalOpen.value = true
+}
+
 const resetTransferForm = () => {
   selectedFromWarehouseCode.value = ''
   selectedToWarehouseCode.value = ''
@@ -247,6 +278,7 @@ const addToCart = () => {
 const executeCartTransfers = async () => {
   if (!cartLineCount.value) return
   try {
+    const beforeCount = cartLineCount.value
     const payload = {
       requestedBy: auth.user?.name || '본사 관리자',
       lines: cartStore.lines.map((line) => ({
@@ -269,16 +301,31 @@ const executeCartTransfers = async () => {
     failedTransfers.value = failed
 
     const successCount = Number(result?.successCount || successLineIds.length || 0)
-    const failureCount = Number(result?.failureCount || Math.max(0, cartLineCount.value - successCount))
+    const failureCount = Number(result?.failureCount || Math.max(0, beforeCount - successCount))
     if (failureCount === 0) {
-      showToast(`장바구니 실행 완료: ${successCount}건 처리됨`, true)
+      openResultModal({
+        title: '재고 이동 실행 완료',
+        message: `장바구니 실행이 완료되었습니다.\n성공 ${successCount}건이 처리되었습니다.`,
+        tone: 'success',
+        showHistoryAction: true,
+      })
+      closeCartDrawer()
     } else {
-      showToast(`부분 완료: 성공 ${successCount}건 / 실패 ${failureCount}건`)
-      failedModalOpen.value = failed.length > 0
+      openResultModal({
+        title: '재고 이동 부분 완료',
+        message: `일부 항목만 처리되었습니다.\n성공 ${successCount}건 / 실패 ${failureCount}건`,
+        tone: 'warning',
+        showHistoryAction: successCount > 0,
+        detailActionLabel: failed.length > 0 ? '실패 상세 보기' : '',
+      })
     }
   } catch (error) {
     failedTransfers.value = []
-    showToast(extractErrorMessage(error, '재고 이동 실행에 실패했습니다.'))
+    openResultModal({
+      title: '재고 이동 실행 실패',
+      message: extractErrorMessage(error, '재고 이동 실행에 실패했습니다.'),
+      tone: 'error',
+    })
   }
 }
 
@@ -631,6 +678,18 @@ const moveBack = () => {
         @execute="executeCartTransfers"
         @remove-line="cartStore.removeLine($event)"
         @update-line-qty="updateCartLineQty"
+      />
+
+      <WarehouseTransferResultModal
+        :open="resultModalOpen"
+        :title="resultModalTitle"
+        :message="resultModalMessage"
+        :tone="resultModalTone"
+        :show-history-action="resultModalShowHistoryAction"
+        :detail-action-label="resultModalDetailActionLabel"
+        @close="closeResultModal"
+        @history="moveHistory"
+        @detail="openFailedDetailFromResult"
       />
     </div>
 
