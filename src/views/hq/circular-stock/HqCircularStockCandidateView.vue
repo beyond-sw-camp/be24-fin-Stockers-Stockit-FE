@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { Info } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import PaginationNav from '@/components/common/PaginationNav.vue'
 import { roleMenus } from '@/config/roleMenus.js'
@@ -49,14 +50,24 @@ const sortDirection = ref('desc')
 const isBulkUpdatingFilters = ref(false)
 
 const conditionItems = [
-  '최근 24개월 이상 판매 이력이 없는 SKU',
-  '안전재고 대비 초과 누적 SKU',
-  '극단 사이즈 재고 또는 특정 컬러 재고에 편중된 SKU',
+  {
+    label: '최근 24개월 이상 판매 이력이 없는 SKU',
+    description: '마지막 재고 이동일 기준 730일 이상 경과한 SKU입니다.',
+  },
+  {
+    label: '안전재고 대비 초과 누적 SKU',
+    description: '가용재고가 창고 안전재고의 2.5배를 초과하면 후보로 선별됩니다.',
+  },
+  {
+    label: '극단 사이즈 재고 또는 특정 컬러 재고에 편중된 SKU',
+    description: '같은 상품·창고 기준으로 특정 사이즈나 컬러의 가용재고 비중이 60%를 초과하면 후보로 선별됩니다.',
+  },
 ]
 const conditionOptions = computed(() =>
-  conditionItems.map((label, index) => ({
+  conditionItems.map((item, index) => ({
     code: String(index + 1),
-    label,
+    label: item.label,
+    description: item.description,
   })),
 )
 const selectedConditionLabels = computed(() =>
@@ -87,7 +98,7 @@ const buildMatchedConditionIndexes = (matchedConditionCodes = []) =>
 
 const buildMatchedConditionTooltip = (matchedConditionIndexes = []) =>
   matchedConditionIndexes
-    .map(index => `${index}. ${conditionItems[index - 1]}`)
+    .map(index => `${index}. ${conditionItems[index - 1]?.label ?? ''}`)
     .join(' / ')
 
 const mapCandidateRow = (row) => {
@@ -511,10 +522,26 @@ onBeforeUnmount(() => {
           <div class="mt-2 flex flex-wrap gap-1.5">
             <span
               v-for="(condition, index) in conditionItems"
-              :key="condition"
+              :key="condition.label"
               class="inline-flex items-center gap-1 bg-white px-2 py-1 text-[11px] font-bold text-gray-700 ring-1 ring-[#D6EAEA]"
             >
-              {{ index + 1 }}. {{ condition }}
+              {{ index + 1 }}. {{ condition.label }}
+              <span class="group relative inline-flex">
+                <button
+                  type="button"
+                  class="inline-flex h-4 w-4 items-center justify-center text-gray-400 outline-none hover:text-[#004D3C] focus:text-[#004D3C]"
+                  aria-label="후보 조건 기준 보기"
+                  @click.stop.prevent
+                >
+                  <Info class="h-3.5 w-3.5" :stroke-width="2.2" />
+                </button>
+                <span
+                  class="invisible absolute left-1/2 top-full z-30 mt-1 w-[17.5rem] -translate-x-1/2 rounded bg-gray-900 px-3 py-2 text-[11px] font-bold leading-relaxed text-white opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+                  role="tooltip"
+                >
+                  {{ condition.description }}
+                </span>
+              </span>
             </span>
           </div>
         </div>
@@ -631,19 +658,37 @@ onBeforeUnmount(() => {
                   전체 해제
                 </button>
               </div>
-              <label
+              <div
                 v-for="option in conditionOptions"
                 :key="option.code"
-                class="flex cursor-pointer items-start gap-2 rounded px-2 py-1.5 hover:bg-[#EBF5F5]/60"
+                class="flex items-start justify-between gap-2 rounded px-2 py-1.5 hover:bg-[#EBF5F5]/60"
               >
-                <input
-                  type="checkbox"
-                  class="mt-0.5 h-3.5 w-3.5 accent-[#004D3C]"
-                  :checked="selectedConditionCodes.includes(option.code)"
-                  @change="toggleConditionCode(option.code)"
-                />
-                <span class="text-[11px] font-bold text-gray-700">{{ option.code }}. {{ option.label }}</span>
-              </label>
+                <label class="flex min-w-0 flex-1 cursor-pointer items-start gap-2">
+                  <input
+                    type="checkbox"
+                    class="mt-0.5 h-3.5 w-3.5 shrink-0 accent-[#004D3C]"
+                    :checked="selectedConditionCodes.includes(option.code)"
+                    @change="toggleConditionCode(option.code)"
+                  />
+                  <span class="text-[11px] font-bold text-gray-700">{{ option.code }}. {{ option.label }}</span>
+                </label>
+                <span class="group relative shrink-0">
+                  <button
+                    type="button"
+                    class="mt-0.5 inline-flex h-4 w-4 items-center justify-center text-gray-400 outline-none hover:text-[#004D3C] focus:text-[#004D3C]"
+                    aria-label="후보 조건 기준 보기"
+                    @click.stop.prevent
+                  >
+                    <Info class="h-3.5 w-3.5" :stroke-width="2.2" />
+                  </button>
+                  <span
+                    class="invisible absolute right-0 top-full z-30 mt-1 w-[17.5rem] rounded bg-gray-900 px-3 py-2 text-[11px] font-bold leading-relaxed text-white opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+                    role="tooltip"
+                  >
+                    {{ option.description }}
+                  </span>
+                </span>
+              </div>
             </div>
 
           </div>
