@@ -67,7 +67,7 @@ const selectedConditionLabels = computed(() =>
 const conditionSummaryLabel = computed(() => {
   if (selectedConditionCodes.value.length === 0) return '전체 조건'
   if (selectedConditionCodes.value.length === 1) return selectedConditionLabels.value[0]
-  return `${selectedConditionCodes.value.length}개 조건 선택됨`
+  return `${selectedConditionCodes.value.length}개 조건 모두 만족`
 })
 const selectedWarehouseNames = computed(() =>
   warehouseOptions.value
@@ -606,7 +606,7 @@ onBeforeUnmount(() => {
           </div>
 
           <div ref="conditionDropdownRef" class="relative flex flex-col gap-1.5">
-            <span class="text-[11px] font-bold text-gray-500">후보 조건</span>
+            <span class="text-[11px] font-bold text-gray-500">후보 조건 (모두 만족)</span>
             <button
               type="button"
               class="h-9 border border-gray-300 bg-white px-3 text-left text-xs font-bold text-gray-900 outline-none hover:bg-gray-50 focus:border-[#004D3C]"
@@ -622,7 +622,7 @@ onBeforeUnmount(() => {
               @click.stop
             >
               <div class="mb-2 flex items-center justify-between">
-                <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-500">Condition</p>
+                <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-500">AND 조건</p>
                 <button
                   type="button"
                   class="text-[10px] font-black text-gray-500 hover:text-gray-700"
