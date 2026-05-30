@@ -514,7 +514,7 @@ const dateLabel = computed(() =>
             <h3 class="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm font-medium text-gray-800">
               <span class="inline-flex items-center gap-2">
                 <Coins :size="15" class="text-amber-600" />
-                순환재고 판매 시장 가치 환산
+                탄소 감축량 시장 가치 환산
               </span>
               <span class="text-[10.5px] font-normal text-amber-700/80">
                 ⓘ 순환 활동 탄소 감축량 × KAU25 시세
@@ -527,7 +527,7 @@ const dateLabel = computed(() =>
           <!--   = 연간 누적 탄소 감축량(tCO₂) × KAU25 현재 시세(원/톤) -->
           <!--   "보유 자산" 이 아니라 "탄소 감축 효과를 KAU 시세로 환산한 누적 가치" 라는 의미 -->
           <div class="border-b border-amber-100 bg-gradient-to-br from-amber-50 to-yellow-50 px-3 py-3">
-            <p class="text-[10px] font-medium text-amber-700/80">순환재고 판매 누적 환산 가치</p>
+            <p class="text-[10px] font-medium text-amber-700/80">탄소 감축량 누적 환산 가치</p>
             <div class="mt-1 flex items-baseline gap-1.5">
               <span class="text-[24px] font-black text-amber-700">
                 ₩{{ carbonAssetValue.toLocaleString('ko-KR') }}

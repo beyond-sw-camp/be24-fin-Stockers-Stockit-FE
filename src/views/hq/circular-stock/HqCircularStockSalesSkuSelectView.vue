@@ -1,13 +1,14 @@
 ﻿<script setup>
 import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
-import { Info, X } from 'lucide-vue-next'
+import { AlertCircle, ArrowRight, Info, Tag, Warehouse, X } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
 import SalesRegisterLeaveConfirmModal from '@/components/hq/circular-stock/sales-register/SalesRegisterLeaveConfirmModal.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useCircularStockSaleStore } from '@/stores/hq/circularStock/circularStockSale.js'
 import { useCircularStockInventoryStore } from '@/stores/hq/circularStock/circularStockInventory.js'
+import { getInfrastructures } from '@/api/hq/infrastructure.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -29,6 +30,41 @@ const showResetConfirmModal = ref(false)
 const pendingQuery = ref(null)
 const showLeaveConfirmModal = ref(false)
 const pendingNavigationTarget = ref('')
+// null | 'both' | 'warehouse' | 'material'
+const filterGuideType = ref(null)
+
+const filterGuideConfig = computed(() => {
+  switch (filterGuideType.value) {
+    case 'both':
+      return {
+        titleParts: [
+          { text: '출고 창고', highlight: true },
+          { text: '와 ' },
+          { text: '소재 구분', highlight: true },
+          { text: '을 먼저 선택해 주세요.' },
+        ],
+        description: null,
+      }
+    case 'warehouse':
+      return {
+        titleParts: [
+          { text: '출고 창고', highlight: true },
+          { text: '를 먼저 선택해 주세요.' },
+        ],
+        description: null,
+      }
+    case 'material':
+      return {
+        titleParts: [
+          { text: '소재 구분', highlight: true },
+          { text: '을 먼저 선택해 주세요.' },
+        ],
+        description: '한 건의 판매에서는 같은 소재 구분의 SKU만 함께 선택할 수 있습니다.',
+      }
+    default:
+      return null
+  }
+})
 let toastTimer = null
 const registerRouteNames = new Set([
   'hq-circular-inventory-sales-register',
@@ -49,6 +85,9 @@ const showReturnToWorkflowButton = computed(
       String(route.query.fromWorkflow || '') === '1'),
 )
 const selectedWarehouseCode = computed(() => String(circularStockStore.selectedWarehouseCode || ''))
+const selectedWarehouseName = ref('')
+const selectedWarehouseCodeFromFilter = ref('')
+const selectedMaterialGroupLabel = ref('')
 const selectedMaterialGroup = computed(() =>
   String(inventoryStore.inventoryMaterialGroup || ''),
 )
@@ -77,6 +116,9 @@ function hasRequiredFilters() {
 }
 
 function applyQuery(query) {
+  selectedWarehouseName.value = Array.isArray(query.warehouseNames) && query.warehouseNames.length === 1
+    ? query.warehouseNames[0]
+    : ''
   loadCircularInventoryRowsWithOverrides({
     page: 0,
     keyword: query.keyword,
@@ -109,11 +151,11 @@ function addItemToDraft(row) {
   const hasMaterialGroup = Boolean(String(inventoryStore.inventoryMaterialGroup || '').trim())
   if (!hasWarehouse || !hasMaterialGroup) {
     if (!hasWarehouse && !hasMaterialGroup) {
-      showToast('창고와 소재 구분을 먼저 선택해 주세요.', 'error')
+      filterGuideType.value = 'both'
     } else if (!hasWarehouse) {
-      showToast('창고를 먼저 선택해주세요.', 'error')
+      filterGuideType.value = 'warehouse'
     } else {
-      showToast('소재 구분을 먼저 선택해주세요.', 'error')
+      filterGuideType.value = 'material'
     }
     return
   }
@@ -200,6 +242,13 @@ function handleQueryChange(query) {
     nextWarehouseCode !== selectedWarehouseCode.value ||
     nextMaterialGroup !== selectedMaterialGroup.value
 
+  // 하단 바 즉시 반영 — 데이터 로드와 무관하게 선택 즉시 업데이트
+  selectedWarehouseCodeFromFilter.value = nextWarehouseCode
+  selectedWarehouseName.value = Array.isArray(query.warehouseNames) && query.warehouseNames.length === 1
+    ? query.warehouseNames[0]
+    : ''
+  selectedMaterialGroupLabel.value = nextMaterialGroup
+
   if (draftItems.value.length > 0 && isConditionChanged) {
     pendingQuery.value = query
     showResetConfirmModal.value = true
@@ -266,8 +315,27 @@ watch(toastMessage, (message) => {
   }, 3000)
 })
 
+async function restoreFilterLabels() {
+  const code = inventoryStore.inventoryWarehouseCodes?.[0] ?? ''
+  const group = String(inventoryStore.inventoryMaterialGroup || '')
+
+  selectedWarehouseCodeFromFilter.value = code
+  selectedMaterialGroupLabel.value = group
+
+  if (code) {
+    try {
+      const rows = await getInfrastructures({ type: 'WAREHOUSE', status: 'ACTIVE' })
+      const match = Array.isArray(rows) ? rows.find((r) => r.code === code) : null
+      selectedWarehouseName.value = match?.name ?? code
+    } catch {
+      selectedWarehouseName.value = code
+    }
+  }
+}
+
 onMounted(() => {
   window.addEventListener('beforeunload', handleBeforeUnload)
+  restoreFilterLabels()
   loadCircularInventoryRows()
 })
 
@@ -313,10 +381,10 @@ onBeforeRouteLeave((to, _from, next) => {
       </section>
 
       <div
-        class="flex items-start gap-2 rounded-lg border border-[#CFE0FF] bg-[#F5F9FF] px-4 py-2 text-xs font-bold text-[#2E4C86]"
+        class="flex items-start gap-2 rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-xs font-bold text-blue-700"
       >
-        <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#4F78C6]" :stroke-width="2" />
-        <span>한 건의 판매에서는 같은 소재 구분의 SKU만 함께 선택할 수 있습니다. 판매 등록을 시작하려면 창고를 먼저 선택해 주세요.</span>
+        <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-500" :stroke-width="2" />
+        <span>판매 등록을 시작하려면 창고와 소재 구분을 먼저 선택해 주세요.</span>
       </div>
       <CircularStockInventoryBrowseSection
         title="판매 대상 순환 재고 리스트"
@@ -385,29 +453,45 @@ onBeforeRouteLeave((to, _from, next) => {
         </template>
       </CircularStockInventoryBrowseSection>
 
-      <div
-        class="fixed bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-full border border-gray-200/80 bg-white/95 px-3 py-2 shadow-[0_16px_30px_-16px_rgba(15,23,42,0.45)] backdrop-blur-md"
-      >
-        <span class="inline-flex h-8 items-center pl-1 text-xs font-extrabold text-gray-500">
-          선택된 SKU {{ drawerSummary.totalItems }}건
-        </span>
-
-        <button
-          type="button"
-          class="inline-flex h-8 items-center rounded-full border border-[#8FB7A9] bg-[#DCEEE7] px-4 text-xs font-extrabold text-[#2A5348] transition-colors duration-200 hover:bg-[#CFE6DD]"
-          @click="openSkuModal"
-        >
-          선택 SKU 보기
-        </button>
-
-        <button
-          v-if="showReturnToWorkflowButton"
-          type="button"
-          class="inline-flex h-8 items-center rounded-full border border-[#8FB7A9] bg-[#DCEEE7] px-4 text-xs font-extrabold text-[#2A5348] transition-colors duration-200 hover:bg-[#CFE6DD]"
-          @click="returnToWorkflowPage"
-        >
-          판매 등록 진행
-        </button>
+      <div class="fixed bottom-0 left-52 right-0 z-20 border-t border-gray-200 bg-white/95 backdrop-blur max-[980px]:left-0">
+        <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <div class="flex min-w-0 flex-wrap items-center gap-3">
+            <span class="text-xs font-black text-gray-700">
+              SKU {{ drawerSummary.totalItems }}건 선택됨
+            </span>
+            <template v-if="selectedWarehouseCodeFromFilter || selectedMaterialGroupLabel">
+              <span class="h-3.5 w-px bg-gray-200" />
+              <span v-if="selectedWarehouseCodeFromFilter" class="inline-flex items-center gap-1.5">
+                <Warehouse :size="13" :stroke-width="2" class="text-gray-500" />
+                <span class="text-[11px] font-bold text-gray-400">출고 창고 선택</span>
+                <span class="text-xs font-black text-gray-700">{{ selectedWarehouseName || selectedWarehouseCode }}</span>
+              </span>
+              <span v-if="selectedMaterialGroupLabel" class="inline-flex items-center gap-1.5">
+                <Tag :size="13" :stroke-width="2" class="text-[#2A5348]" />
+                <span class="text-[11px] font-bold text-gray-400">소재 구분 선택</span>
+                <span class="text-xs font-black text-[#2A5348]">{{ selectedMaterialGroupLabel }}</span>
+              </span>
+            </template>
+          </div>
+          <div class="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              class="inline-flex h-9 items-center rounded border border-[#8FB7A9] bg-[#DCEEE7] px-4 text-xs font-extrabold text-[#2A5348] transition-colors duration-200 hover:bg-[#CFE6DD]"
+              @click="openSkuModal"
+            >
+              선택 SKU 보기
+            </button>
+            <button
+              v-if="showReturnToWorkflowButton"
+              type="button"
+              class="inline-flex h-9 items-center gap-1.5 rounded bg-[#004D3C] px-4 text-xs font-extrabold text-white transition-colors duration-200 hover:bg-[#00382c]"
+              @click="returnToWorkflowPage"
+            >
+              {{ circularStockStore.hasStartedWorkflow ? '판매 등록 돌아가기' : '판매 등록 진행' }}
+              <ArrowRight :size="13" :stroke-width="2.5" />
+            </button>
+          </div>
+        </div>
       </div>
 
       <div v-if="showSkuModal" class="fixed inset-0 z-40 bg-black/45 backdrop-blur-sm">
@@ -564,6 +648,45 @@ onBeforeRouteLeave((to, _from, next) => {
         @cancel="cancelLeaveAndKeepDraft"
         @confirm="confirmLeaveAndClearDraft"
       />
+
+      <div
+        v-if="filterGuideType && filterGuideConfig"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4"
+        @click.self="filterGuideType = null"
+      >
+        <section class="flex w-full max-w-sm flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl">
+          <div class="flex flex-col items-center gap-6 px-6 pb-6 pt-8">
+            <div class="flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 ring-2 ring-amber-100">
+              <AlertCircle class="h-6 w-6 text-amber-500" :stroke-width="2" />
+            </div>
+            <p class="text-center text-base font-black leading-snug text-gray-900">
+              <template v-for="part in filterGuideConfig.titleParts" :key="part.text">
+                <span
+                  v-if="part.highlight"
+                  class="text-amber-600"
+                >{{ part.text }}</span>
+                <span v-else>{{ part.text }}</span>
+              </template>
+            </p>
+          </div>
+
+          <div v-if="filterGuideConfig.description" class="mx-5 mb-6 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+            <p class="text-xs font-bold leading-relaxed text-gray-500">
+              {{ filterGuideConfig.description }}
+            </p>
+          </div>
+
+          <div class="flex justify-end border-t border-gray-100 bg-gray-50/60 px-5 py-4">
+            <button
+              type="button"
+              class="h-9 rounded-lg border border-[#004D3C] bg-[#004D3C] px-6 text-xs font-black text-white hover:bg-[#00382c]"
+              @click="filterGuideType = null"
+            >
+              확인
+            </button>
+          </div>
+        </section>
+      </div>
 
       <p
         v-if="toastMessage"

@@ -1,7 +1,9 @@
 ﻿<script setup>
-import { BadgeCheck, Bot, Building2, Info, Layers3, Loader2, Sprout, Truck } from 'lucide-vue-next'
+import { computed, ref, watch } from 'vue'
+import { BadgeCheck, Bot, Building2, Info, Layers3, Loader2, MapPin, Package, Phone, Sprout, Truck, User } from 'lucide-vue-next'
+import PaginationNav from '@/components/common/PaginationNav.vue'
 
-defineProps({
+const props = defineProps({
   buyerPanelMode: { type: String, required: true },
   buyerSearchTerm: { type: String, required: true },
   outboundWarehouseLabel: { type: String, required: true },
@@ -60,6 +62,27 @@ function recommendationRationaleSections(rec) {
 
   return sections.length === keys.length ? sections : []
 }
+
+// ---- 수동 선택 페이지네이션 ----
+const manualPage = ref(0)
+const manualPageSize = ref(10)
+
+const manualTotalPages = computed(() =>
+  Math.max(1, Math.ceil(props.filteredBuyers.length / manualPageSize.value)),
+)
+const manualHasPrevious = computed(() => manualPage.value > 0)
+const manualHasNext = computed(() => manualPage.value < manualTotalPages.value - 1)
+const pagedBuyers = computed(() => {
+  const start = manualPage.value * manualPageSize.value
+  return props.filteredBuyers.slice(start, start + manualPageSize.value)
+})
+
+watch(() => props.filteredBuyers, () => { manualPage.value = 0 })
+
+const handleManualPageSize = (size) => {
+  manualPageSize.value = size
+  manualPage.value = 0
+}
 </script>
 
 <template>
@@ -105,9 +128,9 @@ function recommendationRationaleSections(rec) {
       <div class="h-4" />
       <div
         v-if="buyerPanelMode === 'ai'"
-        class="flex items-start gap-2 rounded-lg border border-[#F1E7CF] bg-[#FFFBF3] px-4 py-2 text-xs font-bold text-[#7D6432]"
+        class="flex items-start gap-2 rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-xs font-bold text-blue-700"
       >
-        <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#B38A3A]" :stroke-width="2" />
+        <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-500" :stroke-width="2" />
         <span>
           출고 창고 {{ outboundWarehouseLabel }} 기준,
           선택된 소재 정보를 기반으로 DB에서 가장 적합한 거래처 5곳을 AI가 분석했습니다.
@@ -181,68 +204,55 @@ function recommendationRationaleSections(rec) {
           }"
         >
           <div
-            class="grid cursor-pointer grid-cols-[28px_40px_minmax(0,1fr)_auto] items-start gap-3 px-4 py-3"
+            class="cursor-pointer px-5 py-4"
             @click="emit('toggle-recommendation-detail', rec.code)"
           >
-            <span
-              class="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black leading-none"
-              :class="
-                selectedBuyer?.id === rec.code || selectedBuyer?.code === rec.code
-                  ? 'bg-[#234D31] text-white'
-                  : 'bg-gray-100 text-gray-500'
-              "
-            >
-              {{ index + 1 }}
-            </span>
-            <span
-              class="inline-flex h-10 w-10 items-center justify-center rounded-xl text-sm font-black tracking-tight"
-              :class="companyBadgeClass(index)"
-              style="font-weight: 700"
-            >
-              {{ companyBadgeText(rec.companyName) }}
-            </span>
-            <div class="min-w-0">
-              <div class="flex min-h-10 flex-wrap items-center gap-2">
-                <p class="text-base font-black leading-none text-gray-900" style="font-weight: 600">
+            <!-- 상단 행: 순위 + 뱃지 + 회사명 + 선택 버튼 -->
+            <div class="flex items-center gap-3">
+              <span
+                class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black leading-none"
+                :class="
+                  selectedBuyer?.id === rec.code || selectedBuyer?.code === rec.code
+                    ? 'bg-[#234D31] text-white'
+                    : 'bg-gray-100 text-gray-500'
+                "
+              >
+                {{ index + 1 }}
+              </span>
+              <span
+                class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-black tracking-tight"
+                :class="companyBadgeClass(index)"
+                style="font-weight: 700"
+              >
+                {{ companyBadgeText(rec.companyName) }}
+              </span>
+              <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                <p class="text-base font-black leading-none text-gray-900">
                   {{ rec.companyName }}
                 </p>
-                <span class="pt-[1px] text-xs font-bold leading-none text-gray-400">{{ rec.code }}</span>
+                <span class="font-mono text-xs font-bold leading-none text-gray-400">{{ rec.code }}</span>
                 <span
                   v-if="isSocialEnterprise(rec)"
-                  class="rounded-full border border-[#D9C6F7] bg-[#F1EAFE] px-2.5 py-1.5 text-[11px] font-black leading-none text-[#6C3FB4]"
+                  class="rounded-full border border-[#D9C6F7] bg-[#F1EAFE] px-2.5 py-1 text-[11px] font-black leading-none text-[#6C3FB4]"
                 >
                   사회적기업
                 </span>
                 <span
                   v-if="isLocalSmallPartner(rec)"
-                  class="rounded-full border border-[#F3C8D1] bg-[#FCECEF] px-2.5 py-1.5 text-[11px] font-black leading-none text-[#B24563]"
+                  class="rounded-full border border-[#F3C8D1] bg-[#FCECEF] px-2.5 py-1 text-[11px] font-black leading-none text-[#B24563]"
                 >
                   소규모 기업
                 </span>
                 <span
                   v-if="isNewPartner(rec, index)"
-                  class="rounded-full border border-[#F2DE9C] bg-[#FFF8DC] px-2.5 py-1.5 text-[11px] font-black leading-none text-[#9A6A00]"
+                  class="rounded-full border border-[#F2DE9C] bg-[#FFF8DC] px-2.5 py-1 text-[11px] font-black leading-none text-[#9A6A00]"
                 >
                   신규 거래처
                 </span>
               </div>
-              <p class="mt-1 text-sm font-bold text-gray-500">
-                {{ lockedMaterialType || '-' }} ·
-                {{ rec.industryGroup || '-' }}
-              </p>
-              <p class="mt-1 text-sm font-bold text-gray-500">
-                {{ recommendationProductLabel(rec, index) }}
-              </p>
-              <p class="mt-1 text-sm font-bold text-gray-500">
-                담당자 {{ recommendationManagerLabel(rec, index) }} ·
-                {{ recommendationPhoneLabel(rec, index) }} ·
-                {{ recommendationLocationLabel(rec) }}
-              </p>
-            </div>
-            <div class="flex shrink-0 flex-col items-end gap-3">
               <button
                 type="button"
-                class="inline-flex h-9 items-center rounded-xl px-4 text-sm font-extrabold tracking-[0.01em] transition-all duration-200 active:scale-[0.98]"
+                class="inline-flex h-9 shrink-0 items-center rounded-xl px-4 text-sm font-extrabold tracking-[0.01em] transition-all duration-200 active:scale-[0.98]"
                 :class="
                   selectedBuyer?.id === rec.code || selectedBuyer?.code === rec.code
                     ? 'border border-[#7FA28A] bg-[#F3FAF4] text-[#285734] font-black shadow-[0_3px_10px_-8px_rgba(34,84,52,0.45)]'
@@ -258,6 +268,43 @@ function recommendationRationaleSections(rec) {
                 </template>
                 <template v-else>선택</template>
               </button>
+            </div>
+
+            <!-- 하단 정보: 순위(28)+gap(12)+뱃지(40)+gap(12) = 92px 들여쓰기 -->
+            <div style="padding-left: 92px">
+              <!-- 업종 + 소재 -->
+              <div class="flex flex-wrap items-center gap-x-5 gap-y-2" style="margin-top: 1px">
+                <span class="flex items-center gap-1.5 text-sm font-bold text-gray-600">
+                  <Building2 class="h-3.5 w-3.5 shrink-0 text-gray-400" :stroke-width="2" />
+                  {{ rec.industryGroup || '-' }}
+                </span>
+                <span class="flex items-center gap-1.5 text-sm font-bold text-gray-600">
+                  <Layers3 class="h-3.5 w-3.5 shrink-0 text-gray-400" :stroke-width="2" />
+                  {{ lockedMaterialType || '-' }}
+                </span>
+              </div>
+
+              <!-- 취급 제품 -->
+              <div class="flex items-center gap-1.5 text-sm font-bold text-gray-400" style="margin-top: 4px">
+                <Package class="h-3.5 w-3.5 shrink-0 text-gray-300" :stroke-width="2" />
+                {{ recommendationProductLabel(rec, index) }}
+              </div>
+
+              <!-- 담당자 + 연락처 + 위치 -->
+              <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5" style="margin-top: 6px">
+                <span class="flex items-center gap-1 text-xs font-bold text-gray-500">
+                  <User class="h-3 w-3 shrink-0 text-gray-400" :stroke-width="2" />
+                  {{ recommendationManagerLabel(rec, index) }}
+                </span>
+                <span class="flex items-center gap-1 text-xs font-bold text-gray-400">
+                  <Phone class="h-3 w-3 shrink-0" :stroke-width="2" />
+                  {{ recommendationPhoneLabel(rec, index) }}
+                </span>
+                <span class="flex items-center gap-1 text-xs font-bold text-gray-400">
+                  <MapPin class="h-3 w-3 shrink-0" :stroke-width="2" />
+                  {{ recommendationLocationLabel(rec) }}
+                </span>
+              </div>
             </div>
           </div>
           <div
@@ -319,87 +366,149 @@ function recommendationRationaleSections(rec) {
         </article>
       </div>
 
-      <div v-else class="mt-4">
-        <div class="flex items-center gap-6">
+      <div v-else class="mt-4 flex flex-col gap-3">
+        <!-- 검색 -->
+        <div class="flex items-center gap-3">
           <input
             :value="buyerSearchTerm"
             type="search"
             class="h-10 w-full rounded-xl border border-gray-300 bg-white px-4 text-sm font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#004D3C]"
-            placeholder="거래처명, 거래처 코드, 담당자명, 연락처, 처리 소재, 지역으로 검색..."
+            placeholder="거래처명, 코드, 담당자, 연락처, 소재, 지역으로 검색..."
             @input="emit('update:buyer-search-term', $event.target.value)"
           />
-          <button
-            type="button"
-            class="h-10 min-w-[80px] rounded-xl bg-[#2D5B35] px-5 text-sm font-black text-white transition hover:bg-[#244B2B]"
-          >
-            검색
-          </button>
         </div>
 
-        <div class="h-4" />
-        <div class="min-h-[240px] rounded-xl border border-gray-200 bg-[#FBFCFB] px-2 py-2">
-          <div
-            v-if="filteredBuyers.length > 0"
-            class="max-h-[24rem] space-y-1.5 overflow-y-auto pr-1"
-          >
-            <button
-              v-for="buyer in filteredBuyers"
-              :key="buyer.id"
-              type="button"
-              class="flex w-full flex-col items-start rounded-lg border px-3 py-2 text-left transition-all duration-150 active:scale-[0.98]"
-              :class="
-                selectedBuyer?.id === buyer.id
-                  ? 'border-[#2D5B35] bg-[#EBF5EE] shadow-[0_2px_10px_-4px_rgba(45,91,53,0.25)]'
-                  : 'border-gray-200 hover:border-[#CFE2DA] hover:bg-[#F6FBF9] hover:shadow-sm'
-              "
-              @click="emit('select-buyer', buyer)"
-            >
-              <div class="flex w-full items-center gap-2">
-                <span
-                  class="text-sm font-black leading-none transition-colors duration-150"
-                  :class="selectedBuyer?.id === buyer.id ? 'text-[#1B4228]' : 'text-gray-900'"
-                >{{ buyer.companyName }}</span>
-                <span class="pt-[1px] text-xs font-bold leading-none text-gray-500">{{ buyer.code }}</span>
-                <BadgeCheck
-                  v-if="selectedBuyer?.id === buyer.id"
-                  class="ml-auto h-4 w-4 flex-shrink-0 text-[#2D5B35]"
-                  :stroke-width="2.5"
-                />
-              </div>
-              <div class="h-1.5" />
-              <span class="block text-xs font-bold text-gray-400">
-                {{ materialFitLabel(buyer.primaryMaterialFit) }} ·
-                {{ buyer.industryGroup || '-' }} ·
-                {{
-                  Array.isArray(buyer.factoryProduct) && buyer.factoryProduct.length > 0
-                    ? buyer.factoryProduct.join(', ')
-                    : '-'
-                }}
-              </span>
-              <div class="h-1.5" />
-              <span class="block text-xs font-bold text-gray-500">
-                담당자 {{ buyer.managerName || '-' }} · {{ buyer.phone || '-' }} ·
-                {{ recommendationLocationLabel(buyer) }}
-              </span>
-            </button>
-          </div>
+        <p class="text-right text-xs font-bold text-gray-400">
+          현재 선택된 소재 구분에 맞는 거래처만 표시됩니다.
+        </p>
+
+        <!-- 테이블 -->
+        <div class="overflow-hidden rounded-xl border border-gray-200">
+          <table v-if="filteredBuyers.length > 0" class="w-full border-collapse text-left text-sm">
+            <thead>
+              <tr class="border-b border-gray-200 bg-gray-50 text-[11px] font-black uppercase tracking-[0.1em] text-gray-400">
+                <th class="w-[13%] px-4 py-3">거래처</th>
+                <th class="w-[18%] px-2 py-3 text-center">취급 소재</th>
+                <th class="w-[27%] px-4 py-3">업종 · 제품</th>
+                <th class="w-[18%] px-4 py-3">담당자</th>
+                <th class="w-[14%] px-4 py-3">소재지</th>
+                <th class="w-[10%] px-4 py-3" />
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr
+                v-for="buyer in pagedBuyers"
+                :key="buyer.id"
+                class="transition-colors duration-100"
+                :class="
+                  selectedBuyer?.id === buyer.id
+                    ? 'bg-[#EBF5EE]'
+                    : 'hover:bg-[#F6FBF9]'
+                "
+              >
+                <!-- 거래처명 + 코드 -->
+                <td class="px-4 py-3">
+                  <div class="flex items-center gap-1.5">
+                    <span
+                      class="font-black"
+                      :class="selectedBuyer?.id === buyer.id ? 'text-[#1B4228]' : 'text-gray-900'"
+                    >{{ buyer.companyName }}</span>
+                    <BadgeCheck
+                      v-if="selectedBuyer?.id === buyer.id"
+                      class="h-4 w-4 shrink-0 text-[#2D5B35]"
+                      :stroke-width="2.5"
+                    />
+                  </div>
+                  <p class="mt-0.5 font-mono text-xs font-bold text-gray-400">{{ buyer.code }}</p>
+                </td>
+
+                <!-- 취급 소재 -->
+                <td class="px-2 py-3 text-center">
+                  <span
+                    class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-black"
+                    :class="
+                      selectedBuyer?.id === buyer.id
+                        ? 'bg-[#D4E8D4] text-[#1B4228]'
+                        : 'bg-gray-100 text-gray-600'
+                    "
+                  >
+                    {{ materialFitLabel(buyer.primaryMaterialFit) || '-' }}
+                  </span>
+                </td>
+
+                <!-- 업종 + 제품 -->
+                <td class="px-4 py-3">
+                  <p class="font-bold text-gray-800">{{ buyer.industryGroup || '-' }}</p>
+                  <p class="mt-0.5 text-xs font-bold text-gray-400">
+                    {{
+                      Array.isArray(buyer.factoryProduct) && buyer.factoryProduct.length > 0
+                        ? buyer.factoryProduct.join(', ')
+                        : '-'
+                    }}
+                  </p>
+                </td>
+
+                <!-- 담당자 + 연락처 -->
+                <td class="px-4 py-3">
+                  <div class="flex items-center gap-1 text-xs font-bold text-gray-700">
+                    <User class="h-3 w-3 shrink-0 text-gray-400" :stroke-width="2" />
+                    {{ buyer.managerName || '-' }}
+                  </div>
+                  <div class="mt-0.5 flex items-center gap-1 text-xs font-bold text-gray-400">
+                    <Phone class="h-3 w-3 shrink-0" :stroke-width="2" />
+                    {{ buyer.phone || '-' }}
+                  </div>
+                </td>
+
+                <!-- 위치 -->
+                <td class="px-4 py-3">
+                  <div class="flex items-center gap-1 text-xs font-bold text-gray-500">
+                    <MapPin class="h-3 w-3 shrink-0 text-gray-400" :stroke-width="2" />
+                    {{ recommendationLocationLabel(buyer) }}
+                  </div>
+                </td>
+
+                <!-- 선택 버튼 -->
+                <td class="px-4 py-3 text-right">
+                  <button
+                    type="button"
+                    class="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-black transition-all duration-150 active:scale-[0.97]"
+                    :class="
+                      selectedBuyer?.id === buyer.id
+                        ? 'border border-[#7FA28A] bg-[#F3FAF4]'
+                        : 'border border-[#315E3B] bg-[#315E3B] hover:bg-[#2A5032]'
+                    "
+                    :style="selectedBuyer?.id === buyer.id ? { color: '#285734' } : { color: 'white' }"
+                    @click="emit('select-buyer', buyer)"
+                  >
+                    <BadgeCheck v-if="selectedBuyer?.id === buyer.id" class="h-3.5 w-3.5" :stroke-width="2.2" />
+                    {{ selectedBuyer?.id === buyer.id ? '선택됨' : '선택' }}
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
           <div
             v-else
-            class="flex min-h-[140px] flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 text-center"
+            class="flex min-h-[160px] flex-col items-center justify-center gap-2 text-center"
           >
-            <p class="text-[28px] leading-none text-gray-300">·</p>
-            <p class="mt-2 text-lg font-bold text-gray-500">
-              검색어를 입력하면 전체 거래처 DB에서 조회됩니다.
-            </p>
-            <p class="mt-1 text-base font-semibold text-gray-400">
-              AI 추천 거래처는 매칭 적합도와 추천 근거가 자동 제공됩니다.
-            </p>
+            <p class="text-sm font-bold text-gray-400">검색어를 입력하면 전체 거래처에서 조회됩니다.</p>
+            <p class="text-xs font-bold text-gray-300">AI 추천 탭에서 매칭 분석을 확인하세요.</p>
           </div>
-        </div>
-        <div class="pt-3">
-          <p class="text-right text-xs font-bold text-gray-500">
-            현재 선택된 소재 구분(천연 단일 섬유/합성 섬유/혼방)에 맞는 거래처만 표시됩니다.
-          </p>
+
+          <PaginationNav
+            v-if="filteredBuyers.length > 0"
+            :page="manualPage"
+            :size="manualPageSize"
+            :total-pages="manualTotalPages"
+            :total-elements="filteredBuyers.length"
+            :has-previous="manualHasPrevious"
+            :has-next="manualHasNext"
+            :size-options="[10, 20, 30]"
+            @update:page="manualPage = $event"
+            @update:size="handleManualPageSize"
+          />
         </div>
       </div>
     </section>
