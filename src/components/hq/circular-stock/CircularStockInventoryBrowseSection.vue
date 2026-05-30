@@ -530,6 +530,10 @@ function emitQueryChange() {
   emit('query-change', {
     keyword: searchTerm.value.trim(),
     warehouseCodes: [...selectedWarehouseCodes.value],
+    warehouseNames: selectedWarehouseCodes.value.map((code) => {
+      const opt = warehouseOptions.value.find((o) => o.code === code)
+      return opt?.name ?? code
+    }),
     materialGroup: selectedMaterialGroup.value,
     materialName,
     materialNames: [...selectedMaterialNames.value],

@@ -36,13 +36,13 @@ const emit = defineEmits([
 <template>
   <div class="mt-0 space-y-4">
     <div
-      class="flex items-start gap-2 rounded-lg border border-[#CFE0FF] bg-[#F5F9FF] px-4 py-2 text-xs font-bold text-[#2E4E8C]"
+      class="flex items-start gap-2 rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-2 text-xs font-bold text-indigo-700"
       style="margin-bottom: 1.4%;"
     >
-      <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#4A74C9]" :stroke-width="2" />
+      <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-indigo-500" :stroke-width="2" />
       <span>
         거래처는 kg 단위로 요청합니다. 벌 수 환산 시 요청값과 실제 kg 합계가 다를 수
-        있으며, 재고 한도(수량/무게) 초과 판매는 제한됩니다.
+        있으며, 재고 한도(수량/무게) 초과 판매은 제한됩니다.
       </span>
     </div>
 
@@ -124,7 +124,7 @@ const emit = defineEmits([
                   class="inline-flex items-center self-center -translate-y-[1px] rounded-lg border border-[#D9CCF5] bg-[#F6F1FF] px-3 py-1.5 text-xs font-bold leading-none text-[#5B4A7A]"
                 >
                   <span class="font-black text-[#6E4BB8]">kg 입력 시</span>
-                  <span>&nbsp;재고 많은 순으로&nbsp;</span>
+                  <span>&nbsp;재고 많은 순으로 SKU 별 무게 비율&nbsp;</span>
                   <span class="font-black text-[#6E4BB8]">자동 배분</span>
                 </div>
                 <button
@@ -207,7 +207,7 @@ const emit = defineEmits([
                           class="ml-2 text-[#0F5C4D] underline"
                           @click="emit('reset-sku-auto', group.key, item.draftId)"
                         >
-                          자동으로 되돌리기
+                          되돌리기
                         </button>
                       </div>
                       <p class="mt-0.5 text-[11px] font-bold text-gray-400">
