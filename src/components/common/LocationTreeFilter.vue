@@ -32,6 +32,16 @@ const allGroups = computed(() => {
     .map(([region, items]) => ({ region, items }))
 })
 
+// 표시할 지역 그룹이 1개뿐이면 자동으로 펼친다 — 지역 필터로 단일 지역만 남은 경우
+// 거점 목록이 바로 보이도록 (사용자가 직접 접는 건 그대로 유지: options 가 바뀔 때만 재평가)
+watch(allGroups, (groups) => {
+  if (groups.length === 1) {
+    const next = new Set(expanded.value)
+    next.add(groups[0].region)
+    expanded.value = next
+  }
+}, { immediate: true })
+
 // 검색 필터 적용 — region 매칭 시 전체 항목 보임, 항목 매칭 시 그 항목만 보임 + region 자동 펼침
 const groups = computed(() => {
   const q = searchTerm.value.trim().toLowerCase()
