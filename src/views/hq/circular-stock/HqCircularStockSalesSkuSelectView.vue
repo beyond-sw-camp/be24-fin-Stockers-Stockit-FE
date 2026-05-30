@@ -1,13 +1,14 @@
 ﻿<script setup>
 import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
-import { AlertCircle, ArrowRight, Info, X } from 'lucide-vue-next'
+import { AlertCircle, ArrowRight, Info, Tag, Warehouse, X } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
 import SalesRegisterLeaveConfirmModal from '@/components/hq/circular-stock/sales-register/SalesRegisterLeaveConfirmModal.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useCircularStockSaleStore } from '@/stores/hq/circularStock/circularStockSale.js'
 import { useCircularStockInventoryStore } from '@/stores/hq/circularStock/circularStockInventory.js'
+import { getInfrastructures } from '@/api/hq/infrastructure.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -84,6 +85,9 @@ const showReturnToWorkflowButton = computed(
       String(route.query.fromWorkflow || '') === '1'),
 )
 const selectedWarehouseCode = computed(() => String(circularStockStore.selectedWarehouseCode || ''))
+const selectedWarehouseName = ref('')
+const selectedWarehouseCodeFromFilter = ref('')
+const selectedMaterialGroupLabel = ref('')
 const selectedMaterialGroup = computed(() =>
   String(inventoryStore.inventoryMaterialGroup || ''),
 )
@@ -112,6 +116,9 @@ function hasRequiredFilters() {
 }
 
 function applyQuery(query) {
+  selectedWarehouseName.value = Array.isArray(query.warehouseNames) && query.warehouseNames.length === 1
+    ? query.warehouseNames[0]
+    : ''
   loadCircularInventoryRowsWithOverrides({
     page: 0,
     keyword: query.keyword,
@@ -235,6 +242,13 @@ function handleQueryChange(query) {
     nextWarehouseCode !== selectedWarehouseCode.value ||
     nextMaterialGroup !== selectedMaterialGroup.value
 
+  // 하단 바 즉시 반영 — 데이터 로드와 무관하게 선택 즉시 업데이트
+  selectedWarehouseCodeFromFilter.value = nextWarehouseCode
+  selectedWarehouseName.value = Array.isArray(query.warehouseNames) && query.warehouseNames.length === 1
+    ? query.warehouseNames[0]
+    : ''
+  selectedMaterialGroupLabel.value = nextMaterialGroup
+
   if (draftItems.value.length > 0 && isConditionChanged) {
     pendingQuery.value = query
     showResetConfirmModal.value = true
@@ -301,8 +315,27 @@ watch(toastMessage, (message) => {
   }, 3000)
 })
 
+async function restoreFilterLabels() {
+  const code = inventoryStore.inventoryWarehouseCodes?.[0] ?? ''
+  const group = String(inventoryStore.inventoryMaterialGroup || '')
+
+  selectedWarehouseCodeFromFilter.value = code
+  selectedMaterialGroupLabel.value = group
+
+  if (code) {
+    try {
+      const rows = await getInfrastructures({ type: 'WAREHOUSE', status: 'ACTIVE' })
+      const match = Array.isArray(rows) ? rows.find((r) => r.code === code) : null
+      selectedWarehouseName.value = match?.name ?? code
+    } catch {
+      selectedWarehouseName.value = code
+    }
+  }
+}
+
 onMounted(() => {
   window.addEventListener('beforeunload', handleBeforeUnload)
+  restoreFilterLabels()
   loadCircularInventoryRows()
 })
 
@@ -420,32 +453,45 @@ onBeforeRouteLeave((to, _from, next) => {
         </template>
       </CircularStockInventoryBrowseSection>
 
-      <div
-        class="fixed bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full border border-gray-200/80 bg-white/95 px-4 py-2 shadow-[0_16px_30px_-16px_rgba(15,23,42,0.45)] backdrop-blur-md"
-      >
-        <span class="whitespace-nowrap pl-1 text-xs font-extrabold text-gray-500">
-          선택된 SKU {{ drawerSummary.totalItems }}건
-        </span>
-
-        <span class="mx-1 h-4 w-px bg-gray-200" />
-
-        <button
-          type="button"
-          class="inline-flex h-8 items-center rounded-full border border-[#8FB7A9] bg-[#DCEEE7] px-4 text-xs font-extrabold text-[#2A5348] transition-colors duration-200 hover:bg-[#CFE6DD]"
-          @click="openSkuModal"
-        >
-          선택 SKU 보기
-        </button>
-
-        <button
-          v-if="showReturnToWorkflowButton"
-          type="button"
-          class="inline-flex h-8 items-center gap-1.5 rounded-full bg-[#004D3C] px-4 text-xs font-extrabold text-white transition-colors duration-200 hover:bg-[#00382c]"
-          @click="returnToWorkflowPage"
-        >
-          판매 등록 진행
-          <ArrowRight :size="13" :stroke-width="2.5" />
-        </button>
+      <div class="fixed bottom-0 left-52 right-0 z-20 border-t border-gray-200 bg-white/95 backdrop-blur max-[980px]:left-0">
+        <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <div class="flex min-w-0 flex-wrap items-center gap-3">
+            <span class="text-xs font-black text-gray-700">
+              SKU {{ drawerSummary.totalItems }}건 선택됨
+            </span>
+            <template v-if="selectedWarehouseCodeFromFilter || selectedMaterialGroupLabel">
+              <span class="h-3.5 w-px bg-gray-200" />
+              <span v-if="selectedWarehouseCodeFromFilter" class="inline-flex items-center gap-1.5">
+                <Warehouse :size="13" :stroke-width="2" class="text-gray-500" />
+                <span class="text-[11px] font-bold text-gray-400">출고 창고 선택</span>
+                <span class="text-xs font-black text-gray-700">{{ selectedWarehouseName || selectedWarehouseCode }}</span>
+              </span>
+              <span v-if="selectedMaterialGroupLabel" class="inline-flex items-center gap-1.5">
+                <Tag :size="13" :stroke-width="2" class="text-[#2A5348]" />
+                <span class="text-[11px] font-bold text-gray-400">소재 구분 선택</span>
+                <span class="text-xs font-black text-[#2A5348]">{{ selectedMaterialGroupLabel }}</span>
+              </span>
+            </template>
+          </div>
+          <div class="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              class="inline-flex h-9 items-center rounded border border-[#8FB7A9] bg-[#DCEEE7] px-4 text-xs font-extrabold text-[#2A5348] transition-colors duration-200 hover:bg-[#CFE6DD]"
+              @click="openSkuModal"
+            >
+              선택 SKU 보기
+            </button>
+            <button
+              v-if="showReturnToWorkflowButton"
+              type="button"
+              class="inline-flex h-9 items-center gap-1.5 rounded bg-[#004D3C] px-4 text-xs font-extrabold text-white transition-colors duration-200 hover:bg-[#00382c]"
+              @click="returnToWorkflowPage"
+            >
+              {{ circularStockStore.hasStartedWorkflow ? '판매 등록 돌아가기' : '판매 등록 진행' }}
+              <ArrowRight :size="13" :stroke-width="2.5" />
+            </button>
+          </div>
+        </div>
       </div>
 
       <div v-if="showSkuModal" class="fixed inset-0 z-40 bg-black/45 backdrop-blur-sm">
