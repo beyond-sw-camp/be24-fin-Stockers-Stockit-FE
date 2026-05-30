@@ -332,6 +332,13 @@ function distributeGroupRequestedKg(groupKey, requestedValue, options = {}) {
   const nextManual = { ...manualAdjustedKgBySku.value }
   const nextInputText = { ...step3SkuInputText.value }
 
+  // 그룹 kg 변경 시 해당 그룹의 수동 조정 전체 해제
+  if (options?.clearManual) {
+    for (const item of group.items) {
+      delete nextManual[item.draftId]
+    }
+  }
+
   for (const item of group.items) {
     const manual = nextManual[item.draftId]
     if (Number.isFinite(manual)) {
@@ -365,7 +372,12 @@ function distributeGroupRequestedKg(groupKey, requestedValue, options = {}) {
     nextInputText[preserveDraftId] = preserveDraftText
   }
   autoAllocatedKgBySku.value = nextAuto
+  manualAdjustedKgBySku.value = nextManual
   step3SkuInputText.value = nextInputText
+}
+
+function onGroupRequestedKgInput(groupKey, rawValue) {
+  distributeGroupRequestedKg(groupKey, rawValue, { clearManual: true })
 }
 
 function onGroupRequestedKgBlur(groupKey) {
@@ -962,7 +974,7 @@ onBeforeRouteLeave((to, _from, next) => {
                 :format-kg="formatKg"
                 :format-currency="formatCurrency"
                 :rounded-up-quantity-label="roundedUpQuantityLabel"
-                @group-requested-input="distributeGroupRequestedKg"
+                @group-requested-input="onGroupRequestedKgInput"
                 @group-requested-blur="onGroupRequestedKgBlur"
                 @toggle-group="toggleStep3Group"
                 @sku-kg-input="onStep3SkuKgInput"
