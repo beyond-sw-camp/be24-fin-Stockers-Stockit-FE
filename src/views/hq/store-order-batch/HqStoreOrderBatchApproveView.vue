@@ -121,26 +121,23 @@ async function loadPendingStores() {
 
 function mapBatchErrorMessage(error) {
   const code = error?.response?.data?.code
-  if (code === 4609) return 'STORE ????? storeCode? ?????.'
-  if (code === 4610) return '???? ?? ?? ?? ?????.'
-  if (code === 4611) return '?? ?? ???? ?? ?? ??? ??????.'
-  if (error?.response?.status === 403) return '?? ???? ?? ??? ??? ? ????.'
-  return extractErrorMessage(error, '?? ?? ? ??? ??????.')
+  if (code === 4609) return 'STORE 코드에 해당하는 매장을 찾을 수 없습니다.'
+  if (code === 4610) return '승인 대기 발주 건이 존재하지 않습니다.'
+  if (code === 4611) return '이미 처리된 발주건이 포함되어 처리할 수 없습니다.'
+  if (error?.response?.status === 403) return '해당 기능을 실행할 권한이 없습니다.'
+  return extractErrorMessage(error, '배치 실행 중 오류가 발생했습니다.')
 }
 
 async function runAllBatch() {
   feedbackMessage.value = ''
-  const ok = window.confirm('?? ?? ?? ??? ?? ??????')
-  if (!ok) return
-
   runningAll.value = true
   try {
     const res = await runStoreOrderBatchApprove({ mode: 'ALL' })
     result.value = res
     if ((res?.failCount ?? 0) > 0) {
-      showFeedback(`??? ?? ???? ???????. ?? ${res.successCount ?? 0}?, ?? ${res.failCount ?? 0}?`, 'info')
+      showFeedback(`일부 매장 발주 승인 처리에 실패했습니다. 성공 ${res.successCount ?? 0}건, 실패 ${res.failCount ?? 0}건`, 'info')
     } else {
-      showFeedback('?? ?? ?? ??? ???????.', 'success')
+      showFeedback('전체 매장 발주 승인이 완료되었습니다.', 'success')
       pendingStores.value.forEach((store) => markStoreCompleted(store.storeCode))
     }
   } catch (e) {
@@ -159,9 +156,9 @@ async function runStoreBatch(store) {
     const res = await runStoreOrderBatchApprove({ mode: 'STORE', storeCode: store.storeCode })
     result.value = res
     if ((res?.failCount ?? 0) > 0) {
-      showFeedback(`${store.storeName} ?? ??? ?? ???? ???????. ?? ${res.successCount ?? 0}?, ?? ${res.failCount ?? 0}?`, 'info')
+      showFeedback(`${store.storeName} 일부 발주 승인 처리에 실패했습니다. 성공 ${res.successCount ?? 0}건, 실패 ${res.failCount ?? 0}건`, 'info')
     } else {
-      showFeedback(`${store.storeName} ?? ?? ?? ??? ???????.`, 'success')
+      showFeedback(`${store.storeName} 매장 발주 승인이 완료되었습니다.`, 'success')
       markStoreCompleted(store.storeCode)
     }
   } catch (e) {
@@ -201,18 +198,23 @@ onMounted(async () => {
         </div>
       </section>
 
-      <section class="border border-gray-300 bg-white p-4 shadow-sm">
-        <div class="flex items-center justify-between gap-3">
-          <h2 class="text-lg font-black text-gray-900">승인 대기 발주 보유 매장</h2>
-          <p class="text-[11px] font-bold text-gray-500">전체 {{ pendingStores.length }}개 매장</p>
+      <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <!-- 헤더 -->
+        <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+          <div>
+            <h2 class="text-base font-black text-gray-900">승인 대기 발주 보유 매장</h2>
+            <p class="text-xs font-bold text-gray-400" style="margin-top: 2px">승인이 필요한 발주건을 보유한 매장 목록입니다.</p>
+          </div>
+          <span class="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-black text-gray-600">
+            총 {{ pendingStores.length }}개 매장
+          </span>
         </div>
 
-        <div class="pt-4 flex w-full flex-wrap items-center gap-4">
-          <span class="text-[11px] font-black tracking-wide text-gray-500">매장 검색</span>
-
+        <!-- 필터 + 전체 실행 -->
+        <div class="flex w-full flex-wrap items-center gap-3 border-b border-gray-100 px-6 py-4">
           <select
             v-model="selectedRegion"
-            class="h-9 min-w-[170px] rounded-xl border border-gray-200 bg-white px-3 text-xs font-bold text-gray-900 outline-none transition-colors focus:border-[#004D3C]"
+            class="h-9 min-w-[150px] rounded-lg border border-gray-200 bg-gray-50 px-3 text-xs font-bold text-gray-700 outline-none transition-colors focus:border-[#2D5B35] focus:bg-white"
             :disabled="loadingStores"
           >
             <option value="">전체 지역</option>
@@ -223,7 +225,7 @@ onMounted(async () => {
 
           <select
             v-model="selectedStoreCode"
-            class="h-9 min-w-[240px] rounded-xl border border-gray-200 bg-white px-3 text-xs font-bold text-gray-900 outline-none transition-colors focus:border-[#004D3C]"
+            class="h-9 min-w-[220px] rounded-lg border border-gray-200 bg-gray-50 px-3 text-xs font-bold text-gray-700 outline-none transition-colors focus:border-[#2D5B35] focus:bg-white"
             :disabled="loadingStores"
           >
             <option value="">전체 지점</option>
@@ -235,72 +237,95 @@ onMounted(async () => {
           <input
             v-model="searchKeyword"
             type="search"
-            placeholder="매장명, 매장코드, 지역 검색"
-            class="h-9 min-w-[280px] flex-1 rounded-xl border border-gray-200 bg-white px-3 text-xs font-bold text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-[#004D3C]"
+            placeholder="매장명, 코드, 지역 검색"
+            class="h-9 min-w-[220px] flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 text-xs font-bold text-gray-700 outline-none transition-colors placeholder:text-gray-400 focus:border-[#2D5B35] focus:bg-white"
           />
 
           <button
             type="button"
-            class="h-9 shrink-0 rounded-xl border px-4 text-xs font-black tracking-wide shadow-sm transition-colors"
+            class="h-9 shrink-0 rounded-lg px-5 text-xs font-black tracking-wide transition-all duration-150 active:scale-[0.98]"
             :class="
-              runningAll
-                ? 'cursor-not-allowed border-gray-200 bg-gray-200 text-gray-400'
-                : 'border-[#1e3a5f] bg-[#27496d] text-white hover:border-[#152b46] hover:bg-[#1f3b59]'
+              runningAll || !!runningStoreCode
+                ? 'cursor-not-allowed bg-gray-100 text-gray-400'
+                : 'bg-[#2D5B35] text-white hover:bg-[#234D29] shadow-[0_4px_12px_-6px_rgba(45,91,53,0.5)]'
             "
-            :disabled="runningAll || runningStoreCode"
+            :disabled="runningAll || !!runningStoreCode"
             @click="runAllBatch"
           >
-            {{ runningAll ? '전체 실행 중...' : '전체 승인 실행' }}
+            {{ runningAll ? '실행 중...' : '전체 승인 실행' }}
           </button>
         </div>
 
-        <div v-if="loadingPendingStores" class="pt-4 text-xs font-bold text-gray-500">
-          승인 대기 매장 목록을 불러오는 중입니다.
-        </div>
+        <!-- 목록 -->
+        <div class="px-6 py-5">
+          <div v-if="loadingPendingStores" class="py-8 text-center text-xs font-bold text-gray-400">
+            승인 대기 매장 목록을 불러오는 중입니다.
+          </div>
 
-        <div
-          v-else-if="filteredPendingStores.length === 0"
-          class="mt-5 border border-gray-200 bg-gray-50 px-3 py-6 text-center text-xs font-bold text-gray-500"
-        >
-          조건에 맞는 승인 대기 매장이 없습니다.
-        </div>
-        <div v-else class="pt-4 grid gap-4 md:grid-cols-2">
           <div
-            v-for="store in filteredPendingStores"
-            :key="store.storeCode"
-            class="group flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-5 py-5 shadow-sm transition-colors duration-200 hover:border-[#8cb5a9]/70"
+            v-else-if="filteredPendingStores.length === 0"
+            class="rounded-xl border border-dashed border-gray-200 py-10 text-center text-sm font-bold text-gray-400"
           >
-            <div class="min-w-0 pr-6">
-              <p class="text-[11px] font-bold tracking-wide text-gray-500">{{ store.region }} · {{ store.storeCode }}</p>
-              <div class="mt-2 flex items-center gap-2">
-                <p class="text-[18px] leading-none font-black text-gray-900">{{ store.storeName }}</p>
-                <p class="inline-flex items-center gap-1 rounded-full border border-[#cfe6de] bg-[#EAF6F2] px-3 py-1 text-[11px] font-black text-[#004D3C]">
-                  승인 대기 <span class="text-blue-700">{{ store.requestedCount }}</span>건
-                </p>
-              </div>
-            </div>
+            조건에 맞는 승인 대기 매장이 없습니다.
+          </div>
 
-            <button
-              type="button"
-              class="h-11 min-w-[138px] rounded-xl border px-2 text-xs font-black tracking-wide shadow-sm transition-colors duration-200"
+          <div v-else class="grid gap-3 md:grid-cols-2">
+            <div
+              v-for="store in filteredPendingStores"
+              :key="store.storeCode"
+              class="flex items-center justify-between rounded-xl border px-5 py-4 transition-all duration-150"
               :class="
                 isStoreCompleted(store.storeCode)
-                  ? 'cursor-not-allowed border-gray-200 bg-gray-200 text-gray-500'
-                  : isStoreRunning(store.storeCode)
-                  ? 'cursor-not-allowed border-gray-200 bg-gray-200 text-gray-400'
-                  : 'border-[#1e3a5f] bg-[#27496d] text-white hover:border-[#152b46] hover:bg-[#1f3b59]'
+                  ? 'border-[#C8DDD0] bg-white'
+                  : 'border-gray-200 bg-white hover:border-[#9DBCAF] hover:shadow-sm'
               "
-              :disabled="isStoreCompleted(store.storeCode) || runningAll || !!runningStoreCode"
-              @click="runStoreBatch(store)"
             >
-              {{
-                isStoreCompleted(store.storeCode)
-                  ? '처리 완료'
-                  : isStoreRunning(store.storeCode)
-                  ? '실행 중...'
-                  : '수동 배치 실행'
-              }}
-            </button>
+              <div class="min-w-0">
+                <p class="text-[11px] font-bold text-gray-400">{{ store.region }} · {{ store.storeCode }}</p>
+                <div class="flex items-center gap-2" style="margin-top: 4px">
+                  <p
+                    class="text-base font-black leading-none"
+                    :class="isStoreCompleted(store.storeCode) ? 'text-[#2D5B35]' : 'text-gray-900'"
+                  >
+                    {{ store.storeName }}
+                  </p>
+                  <span
+                    class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-black"
+                    :class="
+                      isStoreCompleted(store.storeCode)
+                        ? 'border border-[#C8DDD0] bg-[#E8F2EC] text-[#2D5B35]'
+                        : 'border border-[#cfe6de] bg-[#EAF6F2] text-[#004D3C]'
+                    "
+                  >
+                    {{ isStoreCompleted(store.storeCode) ? '처리 완료' : `대기 ${store.requestedCount}건` }}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                class="h-9 shrink-0 rounded-lg px-4 text-xs font-black transition-all duration-150 active:scale-[0.97]"
+                :class="
+                  isStoreCompleted(store.storeCode)
+                    ? 'cursor-default border border-[#C8DDD0] bg-[#E8F2EC] text-[#2D5B35]'
+                    : isStoreRunning(store.storeCode)
+                    ? 'cursor-not-allowed border border-gray-200 bg-gray-100 text-gray-400'
+                    : runningAll || !!runningStoreCode
+                    ? 'cursor-not-allowed border border-gray-200 bg-gray-100 text-gray-400'
+                    : 'border border-[#2D5B35] bg-white text-[#2D5B35] hover:bg-[#F0F7F3]'
+                "
+                :disabled="isStoreCompleted(store.storeCode) || runningAll || !!runningStoreCode"
+                @click="runStoreBatch(store)"
+              >
+                {{
+                  isStoreCompleted(store.storeCode)
+                    ? '✓ 완료'
+                    : isStoreRunning(store.storeCode)
+                    ? '실행 중...'
+                    : '배치 실행'
+                }}
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -316,9 +341,9 @@ onMounted(async () => {
             <p class="text-[11px] font-bold text-gray-500">요청 건수</p>
             <p class="mt-1 text-lg font-black text-gray-900">{{ result.requestedCount ?? 0 }}</p>
           </div>
-          <div class="border border-emerald-200 bg-emerald-50 p-3">
-            <p class="text-[11px] font-bold text-emerald-700">성공 건수</p>
-            <p class="mt-1 text-lg font-black text-emerald-800">{{ result.successCount ?? 0 }}</p>
+          <div class="border border-[#C8DDD0] bg-[#F2F7F4] p-3">
+            <p class="text-[11px] font-bold text-[#2D5B35]">성공 건수</p>
+            <p class="mt-1 text-lg font-black text-[#1E4228]">{{ result.successCount ?? 0 }}</p>
           </div>
           <div class="border border-red-200 bg-red-50 p-3">
             <p class="text-[11px] font-bold text-red-700">실패 건수</p>
@@ -332,7 +357,7 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div class="mt-4 overflow-x-auto">
+        <div class="overflow-x-auto" style="margin-top: 8px">
           <table class="w-full min-w-[680px] border-collapse text-xs">
             <thead class="bg-gray-100 text-[10px] uppercase tracking-[0.12em] text-gray-500">
               <tr>
@@ -361,7 +386,7 @@ onMounted(async () => {
                 <td class="px-3 py-2.5 font-bold text-gray-700">{{ row.message }}</td>
               </tr>
               <tr v-if="!(result?.results ?? []).length">
-                <td colspan="4" class="px-4 py-8 text-center text-gray-400">실행 결과가 없습니다.</td>
+                <td colspan="4" class="px-4 py-8 text-center text-sm text-gray-400">실행 결과가 없습니다.</td>
               </tr>
             </tbody>
           </table>
