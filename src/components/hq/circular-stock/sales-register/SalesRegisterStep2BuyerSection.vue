@@ -1,6 +1,6 @@
 ﻿<script setup>
 import { computed, ref, watch } from 'vue'
-import { BadgeCheck, Bot, Building2, Info, Layers3, Loader2, MapPin, Phone, Sprout, Truck, User } from 'lucide-vue-next'
+import { BadgeCheck, Bot, Building2, Info, Layers3, Loader2, MapPin, Package, Phone, Sprout, Truck, User } from 'lucide-vue-next'
 import PaginationNav from '@/components/common/PaginationNav.vue'
 
 const props = defineProps({
@@ -204,68 +204,55 @@ const handleManualPageSize = (size) => {
           }"
         >
           <div
-            class="grid cursor-pointer grid-cols-[28px_40px_minmax(0,1fr)_auto] items-start gap-3 px-4 py-3"
+            class="cursor-pointer px-5 py-4"
             @click="emit('toggle-recommendation-detail', rec.code)"
           >
-            <span
-              class="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black leading-none"
-              :class="
-                selectedBuyer?.id === rec.code || selectedBuyer?.code === rec.code
-                  ? 'bg-[#234D31] text-white'
-                  : 'bg-gray-100 text-gray-500'
-              "
-            >
-              {{ index + 1 }}
-            </span>
-            <span
-              class="inline-flex h-10 w-10 items-center justify-center rounded-xl text-sm font-black tracking-tight"
-              :class="companyBadgeClass(index)"
-              style="font-weight: 700"
-            >
-              {{ companyBadgeText(rec.companyName) }}
-            </span>
-            <div class="min-w-0">
-              <div class="flex min-h-10 flex-wrap items-center gap-2">
-                <p class="text-base font-black leading-none text-gray-900" style="font-weight: 600">
+            <!-- 상단 행: 순위 + 뱃지 + 회사명 + 선택 버튼 -->
+            <div class="flex items-center gap-3">
+              <span
+                class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black leading-none"
+                :class="
+                  selectedBuyer?.id === rec.code || selectedBuyer?.code === rec.code
+                    ? 'bg-[#234D31] text-white'
+                    : 'bg-gray-100 text-gray-500'
+                "
+              >
+                {{ index + 1 }}
+              </span>
+              <span
+                class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-black tracking-tight"
+                :class="companyBadgeClass(index)"
+                style="font-weight: 700"
+              >
+                {{ companyBadgeText(rec.companyName) }}
+              </span>
+              <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                <p class="text-base font-black leading-none text-gray-900">
                   {{ rec.companyName }}
                 </p>
-                <span class="pt-[1px] text-xs font-bold leading-none text-gray-400">{{ rec.code }}</span>
+                <span class="font-mono text-xs font-bold leading-none text-gray-400">{{ rec.code }}</span>
                 <span
                   v-if="isSocialEnterprise(rec)"
-                  class="rounded-full border border-[#D9C6F7] bg-[#F1EAFE] px-2.5 py-1.5 text-[11px] font-black leading-none text-[#6C3FB4]"
+                  class="rounded-full border border-[#D9C6F7] bg-[#F1EAFE] px-2.5 py-1 text-[11px] font-black leading-none text-[#6C3FB4]"
                 >
                   사회적기업
                 </span>
                 <span
                   v-if="isLocalSmallPartner(rec)"
-                  class="rounded-full border border-[#F3C8D1] bg-[#FCECEF] px-2.5 py-1.5 text-[11px] font-black leading-none text-[#B24563]"
+                  class="rounded-full border border-[#F3C8D1] bg-[#FCECEF] px-2.5 py-1 text-[11px] font-black leading-none text-[#B24563]"
                 >
                   소규모 기업
                 </span>
                 <span
                   v-if="isNewPartner(rec, index)"
-                  class="rounded-full border border-[#F2DE9C] bg-[#FFF8DC] px-2.5 py-1.5 text-[11px] font-black leading-none text-[#9A6A00]"
+                  class="rounded-full border border-[#F2DE9C] bg-[#FFF8DC] px-2.5 py-1 text-[11px] font-black leading-none text-[#9A6A00]"
                 >
                   신규 거래처
                 </span>
               </div>
-              <p class="mt-1 text-sm font-bold text-gray-500">
-                {{ lockedMaterialType || '-' }} ·
-                {{ rec.industryGroup || '-' }}
-              </p>
-              <p class="mt-1 text-sm font-bold text-gray-500">
-                {{ recommendationProductLabel(rec, index) }}
-              </p>
-              <p class="mt-1 text-sm font-bold text-gray-500">
-                담당자 {{ recommendationManagerLabel(rec, index) }} ·
-                {{ recommendationPhoneLabel(rec, index) }} ·
-                {{ recommendationLocationLabel(rec) }}
-              </p>
-            </div>
-            <div class="flex shrink-0 flex-col items-end gap-3">
               <button
                 type="button"
-                class="inline-flex h-9 items-center rounded-xl px-4 text-sm font-extrabold tracking-[0.01em] transition-all duration-200 active:scale-[0.98]"
+                class="inline-flex h-9 shrink-0 items-center rounded-xl px-4 text-sm font-extrabold tracking-[0.01em] transition-all duration-200 active:scale-[0.98]"
                 :class="
                   selectedBuyer?.id === rec.code || selectedBuyer?.code === rec.code
                     ? 'border border-[#7FA28A] bg-[#F3FAF4] text-[#285734] font-black shadow-[0_3px_10px_-8px_rgba(34,84,52,0.45)]'
@@ -281,6 +268,43 @@ const handleManualPageSize = (size) => {
                 </template>
                 <template v-else>선택</template>
               </button>
+            </div>
+
+            <!-- 하단 정보: 순위(28)+gap(12)+뱃지(40)+gap(12) = 92px 들여쓰기 -->
+            <div style="padding-left: 92px">
+              <!-- 업종 + 소재 -->
+              <div class="flex flex-wrap items-center gap-x-5 gap-y-2" style="margin-top: 1px">
+                <span class="flex items-center gap-1.5 text-sm font-bold text-gray-600">
+                  <Building2 class="h-3.5 w-3.5 shrink-0 text-gray-400" :stroke-width="2" />
+                  {{ rec.industryGroup || '-' }}
+                </span>
+                <span class="flex items-center gap-1.5 text-sm font-bold text-gray-600">
+                  <Layers3 class="h-3.5 w-3.5 shrink-0 text-gray-400" :stroke-width="2" />
+                  {{ lockedMaterialType || '-' }}
+                </span>
+              </div>
+
+              <!-- 취급 제품 -->
+              <div class="flex items-center gap-1.5 text-sm font-bold text-gray-400" style="margin-top: 4px">
+                <Package class="h-3.5 w-3.5 shrink-0 text-gray-300" :stroke-width="2" />
+                {{ recommendationProductLabel(rec, index) }}
+              </div>
+
+              <!-- 담당자 + 연락처 + 위치 -->
+              <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5" style="margin-top: 6px">
+                <span class="flex items-center gap-1 text-xs font-bold text-gray-500">
+                  <User class="h-3 w-3 shrink-0 text-gray-400" :stroke-width="2" />
+                  {{ recommendationManagerLabel(rec, index) }}
+                </span>
+                <span class="flex items-center gap-1 text-xs font-bold text-gray-400">
+                  <Phone class="h-3 w-3 shrink-0" :stroke-width="2" />
+                  {{ recommendationPhoneLabel(rec, index) }}
+                </span>
+                <span class="flex items-center gap-1 text-xs font-bold text-gray-400">
+                  <MapPin class="h-3 w-3 shrink-0" :stroke-width="2" />
+                  {{ recommendationLocationLabel(rec) }}
+                </span>
+              </div>
             </div>
           </div>
           <div
@@ -363,11 +387,12 @@ const handleManualPageSize = (size) => {
           <table v-if="filteredBuyers.length > 0" class="w-full border-collapse text-left text-sm">
             <thead>
               <tr class="border-b border-gray-200 bg-gray-50 text-[11px] font-black uppercase tracking-[0.1em] text-gray-400">
-                <th class="px-4 py-3">거래처</th>
-                <th class="px-4 py-3">취급 소재</th>
-                <th class="px-4 py-3">업종 · 제품</th>
-                <th class="px-4 py-3">담당자</th>
-                <th class="px-4 py-3" />
+                <th class="w-[13%] px-4 py-3">거래처</th>
+                <th class="w-[18%] px-2 py-3 text-center">취급 소재</th>
+                <th class="w-[27%] px-4 py-3">업종 · 제품</th>
+                <th class="w-[18%] px-4 py-3">담당자</th>
+                <th class="w-[14%] px-4 py-3">소재지</th>
+                <th class="w-[10%] px-4 py-3" />
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -398,7 +423,7 @@ const handleManualPageSize = (size) => {
                 </td>
 
                 <!-- 취급 소재 -->
-                <td class="px-4 py-3">
+                <td class="px-2 py-3 text-center">
                   <span
                     class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-black"
                     :class="
@@ -423,7 +448,7 @@ const handleManualPageSize = (size) => {
                   </p>
                 </td>
 
-                <!-- 담당자 + 연락처 + 지역 -->
+                <!-- 담당자 + 연락처 -->
                 <td class="px-4 py-3">
                   <div class="flex items-center gap-1 text-xs font-bold text-gray-700">
                     <User class="h-3 w-3 shrink-0 text-gray-400" :stroke-width="2" />
@@ -433,8 +458,12 @@ const handleManualPageSize = (size) => {
                     <Phone class="h-3 w-3 shrink-0" :stroke-width="2" />
                     {{ buyer.phone || '-' }}
                   </div>
-                  <div class="mt-0.5 flex items-center gap-1 text-xs font-bold text-gray-400">
-                    <MapPin class="h-3 w-3 shrink-0" :stroke-width="2" />
+                </td>
+
+                <!-- 위치 -->
+                <td class="px-4 py-3">
+                  <div class="flex items-center gap-1 text-xs font-bold text-gray-500">
+                    <MapPin class="h-3 w-3 shrink-0 text-gray-400" :stroke-width="2" />
                     {{ recommendationLocationLabel(buyer) }}
                   </div>
                 </td>
