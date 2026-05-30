@@ -279,13 +279,13 @@ onMounted(() => {
           <table class="w-full table-fixed border-collapse text-xs">
             <thead class="bg-gray-100 text-[10px] uppercase tracking-wider text-gray-500">
               <tr>
-                <th class="w-[15%] px-2 py-2 text-left font-black">요청일시</th>
+                <th class="w-[15%] px-4 py-2 text-left font-black">요청일시</th>
                 <th class="w-[14%] px-2 py-2 text-left font-black">입고번호</th>
-                <th class="w-[14%] px-2 py-2 text-left font-black">원천번호</th>
+                <th class="w-[14%] px-2 py-2 text-left font-black">발주번호</th>
                 <th class="w-[14%] px-2 py-2 text-left font-black">출고번호</th>
                 <th class="w-[14%] px-2 py-2 text-left font-black">출고지 창고</th>
-                <th class="w-[11%] px-2 py-2 text-center font-black">출고상태</th>
-                <th class="w-[7%] px-2 py-2 text-right font-black">예정수량</th>
+                <th class="w-[7%] px-2 py-2 text-center font-black">예정수량</th>
+                <th class="w-[11%] py-2 pl-6 pr-2 text-center font-black">출고상태</th>
                 <th class="w-[11%] px-2 py-2 text-center font-black">입고상태</th>
                 <th class="w-[10%] px-2 py-2 text-center font-black">도착예정일</th>
               </tr>
@@ -301,17 +301,17 @@ onMounted(() => {
                 class="cursor-pointer transition-colors hover:bg-gray-50"
                 @click="goToInboundDetail(row.inboundNo)"
               >
-                <td class="px-2 py-2.5 font-bold text-gray-600">{{ formatDateTime(row.requestedAt) }}</td>
+                <td class="px-4 py-2.5 font-bold text-gray-600">{{ formatDateTime(row.requestedAt) }}</td>
                 <td class="px-2 py-2.5 font-mono font-black text-gray-800">{{ row.inboundNo }}</td>
                 <td class="px-2 py-2.5 font-black text-gray-900">{{ row.sourceRefNo }}</td>
                 <td class="px-2 py-2.5 font-black text-gray-700">{{ row.outboundNo || '-' }}</td>
                 <td class="px-2 py-2.5 font-bold text-gray-700">{{ row.fromWarehouseName || '-' }}</td>
-                <td class="px-2 py-2.5 text-center">
+                <td class="px-2 py-2.5 text-center font-black text-gray-900">{{ row.totalExpectedQuantity || 0 }}</td>
+                <td class="py-2.5 pl-6 pr-2 text-center">
                   <span class="inline-flex px-2 py-1 text-[10px] font-black" :class="outboundStatusClass(row.outboundStatus)">
                     {{ outboundStatusLabel(row.outboundStatus) }}
                   </span>
                 </td>
-                <td class="px-2 py-2.5 text-right font-black text-gray-900">{{ row.totalExpectedQuantity || 0 }}</td>
                 <td class="px-2 py-2.5 text-center">
                   <span class="inline-flex px-2 py-1 text-[10px] font-black" :class="inboundStatusClass(row.status)">
                     {{ inboundStatusLabel(row.status) }}
