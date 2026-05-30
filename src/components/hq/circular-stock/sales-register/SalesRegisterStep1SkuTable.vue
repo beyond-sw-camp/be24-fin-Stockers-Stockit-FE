@@ -104,9 +104,9 @@ function formatMaterials(materials) {
     </div>
     <div class="h-3" />
     <div
-      class="flex items-start gap-2 rounded-lg border border-[#F1E7CF] bg-[#FFFBF3] px-4 py-2 text-xs font-bold text-[#7D6432]"
+      class="flex items-start gap-2 rounded-lg border border-indigo-300 bg-indigo-50 px-4 py-2 text-xs font-bold text-indigo-700"
     >
-      <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#B38A3A]" :stroke-width="2" />
+      <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-indigo-500" :stroke-width="2" />
       <span>한 건의 판매에서는 같은 소재 구분의 SKU만 함께 선택할 수 있습니다.</span>
     </div>
   </div>

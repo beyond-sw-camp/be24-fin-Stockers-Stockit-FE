@@ -1,7 +1,7 @@
 ﻿<script setup>
 import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
-import { Info, X } from 'lucide-vue-next'
+import { AlertCircle, Info, X } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
 import SalesRegisterLeaveConfirmModal from '@/components/hq/circular-stock/sales-register/SalesRegisterLeaveConfirmModal.vue'
@@ -29,6 +29,41 @@ const showResetConfirmModal = ref(false)
 const pendingQuery = ref(null)
 const showLeaveConfirmModal = ref(false)
 const pendingNavigationTarget = ref('')
+// null | 'both' | 'warehouse' | 'material'
+const filterGuideType = ref(null)
+
+const filterGuideConfig = computed(() => {
+  switch (filterGuideType.value) {
+    case 'both':
+      return {
+        titleParts: [
+          { text: '출고 창고', highlight: true },
+          { text: '와 ' },
+          { text: '소재 구분', highlight: true },
+          { text: '을 먼저 선택해 주세요.' },
+        ],
+        description: null,
+      }
+    case 'warehouse':
+      return {
+        titleParts: [
+          { text: '출고 창고', highlight: true },
+          { text: '를 먼저 선택해 주세요.' },
+        ],
+        description: null,
+      }
+    case 'material':
+      return {
+        titleParts: [
+          { text: '소재 구분', highlight: true },
+          { text: '을 먼저 선택해 주세요.' },
+        ],
+        description: '한 건의 판매에서는 같은 소재 구분의 SKU만 함께 선택할 수 있습니다.',
+      }
+    default:
+      return null
+  }
+})
 let toastTimer = null
 const registerRouteNames = new Set([
   'hq-circular-inventory-sales-register',
@@ -109,11 +144,11 @@ function addItemToDraft(row) {
   const hasMaterialGroup = Boolean(String(inventoryStore.inventoryMaterialGroup || '').trim())
   if (!hasWarehouse || !hasMaterialGroup) {
     if (!hasWarehouse && !hasMaterialGroup) {
-      showToast('창고와 소재 구분을 먼저 선택해 주세요.', 'error')
+      filterGuideType.value = 'both'
     } else if (!hasWarehouse) {
-      showToast('창고를 먼저 선택해주세요.', 'error')
+      filterGuideType.value = 'warehouse'
     } else {
-      showToast('소재 구분을 먼저 선택해주세요.', 'error')
+      filterGuideType.value = 'material'
     }
     return
   }
@@ -313,10 +348,10 @@ onBeforeRouteLeave((to, _from, next) => {
       </section>
 
       <div
-        class="flex items-start gap-2 rounded-lg border border-[#CFE0FF] bg-[#F5F9FF] px-4 py-2 text-xs font-bold text-[#2E4C86]"
+        class="flex items-start gap-2 rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-xs font-bold text-blue-700"
       >
-        <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#4F78C6]" :stroke-width="2" />
-        <span>한 건의 판매에서는 같은 소재 구분의 SKU만 함께 선택할 수 있습니다. 판매 등록을 시작하려면 창고를 먼저 선택해 주세요.</span>
+        <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-500" :stroke-width="2" />
+        <span>판매 등록을 시작하려면 창고와 소재 구분을 먼저 선택해 주세요.</span>
       </div>
       <CircularStockInventoryBrowseSection
         title="판매 대상 순환 재고 리스트"
@@ -564,6 +599,45 @@ onBeforeRouteLeave((to, _from, next) => {
         @cancel="cancelLeaveAndKeepDraft"
         @confirm="confirmLeaveAndClearDraft"
       />
+
+      <div
+        v-if="filterGuideType && filterGuideConfig"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4"
+        @click.self="filterGuideType = null"
+      >
+        <section class="flex w-full max-w-sm flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl">
+          <div class="flex flex-col items-center gap-6 px-6 pb-6 pt-8">
+            <div class="flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 ring-2 ring-amber-100">
+              <AlertCircle class="h-6 w-6 text-amber-500" :stroke-width="2" />
+            </div>
+            <p class="text-center text-base font-black leading-snug text-gray-900">
+              <template v-for="part in filterGuideConfig.titleParts" :key="part.text">
+                <span
+                  v-if="part.highlight"
+                  class="text-amber-600"
+                >{{ part.text }}</span>
+                <span v-else>{{ part.text }}</span>
+              </template>
+            </p>
+          </div>
+
+          <div v-if="filterGuideConfig.description" class="mx-5 mb-6 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+            <p class="text-xs font-bold leading-relaxed text-gray-500">
+              {{ filterGuideConfig.description }}
+            </p>
+          </div>
+
+          <div class="flex justify-end border-t border-gray-100 bg-gray-50/60 px-5 py-4">
+            <button
+              type="button"
+              class="h-9 rounded-lg border border-[#004D3C] bg-[#004D3C] px-6 text-xs font-black text-white hover:bg-[#00382c]"
+              @click="filterGuideType = null"
+            >
+              확인
+            </button>
+          </div>
+        </section>
+      </div>
 
       <p
         v-if="toastMessage"
