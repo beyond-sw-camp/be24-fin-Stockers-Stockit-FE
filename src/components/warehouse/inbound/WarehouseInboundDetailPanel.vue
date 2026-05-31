@@ -84,7 +84,7 @@ const visibleHistory = computed(() => {
             <p class="mt-0.5 text-sm font-black text-gray-900">{{ order.inboundCode }}</p>
           </div>
           <div>
-            <p class="text-[10px] font-bold uppercase text-gray-400">출처번호</p>
+            <p class="text-[10px] font-bold uppercase text-gray-400">출고번호</p>
             <p class="mt-0.5 text-xs font-black text-gray-700">{{ order.sourceRefNo }}</p>
           </div>
         </div>
