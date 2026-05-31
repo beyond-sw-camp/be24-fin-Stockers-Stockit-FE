@@ -48,7 +48,7 @@ const INBOUND_TYPE_BADGE = {
 
 const INBOUND_TYPE_LABEL = {
   PURCHASE_ORDER: '발주',
-  WAREHOUSE_TRANSFER: '이동',
+  WAREHOUSE_TRANSFER: '창고간 이동',
 }
 
 export function useWarehouseStatusFormat() {

@@ -107,12 +107,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
 </script>
 
 <template>
-  <AppLayout
-    active-top-menu="입고 관리"
-    :top-menus="topMenus"
-    :side-menus="[]"
-
-  >
+  <AppLayout active-top-menu="입고 관리" :top-menus="topMenus" :side-menus="[]">
     <div class="flex flex-col gap-4">
       <!-- 상단 헤더 영역: 상태 탭 -->
       <section class="border border-gray-300 bg-white p-3 shadow-sm">
@@ -202,15 +197,15 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
             <table class="w-full min-w-[920px] table-fixed border-collapse text-xs">
               <thead class="bg-gray-100 text-[10px] uppercase tracking-wider text-gray-500">
                 <tr>
-                  <th class="w-16 px-2 py-2 text-center font-black">종류</th>
-                  <th class="w-36 px-3 py-2 text-left font-black">입고번호</th>
-                  <th class="w-36 px-3 py-2 text-left font-black">출처번호</th>
-                  <th class="w-32 px-3 py-2 text-left font-black">출처</th>
-                  <th class="w-44 px-3 py-2 text-left font-black">품목</th>
-                  <th class="w-20 px-3 py-2 text-right font-black">수량</th>
-                  <th class="w-28 px-3 py-2 text-right font-black">금액</th>
-                  <th class="w-20 px-3 py-2 text-center font-black">상태</th>
-                  <th class="w-28 px-3 py-2 text-center font-black">도착(예정)일</th>
+                  <th class="w-[10%] py-2 pl-5 pr-2 text-left font-black">입고 유형</th>
+                  <th class="w-[14%] px-3 py-2 text-left font-black">입고번호</th>
+                  <th class="w-[16%] px-3 py-2 text-left font-black">원천문서번호</th>
+                  <th class="w-[18%] px-3 py-2 text-left font-black">출발지</th>
+                  <th class="w-[20%] px-3 py-2 text-left font-black">품목</th>
+                  <th class="w-[7%] px-3 py-2 text-right font-black">수량</th>
+                  <th class="w-[10%] px-3 py-2 text-right font-black">금액</th>
+                  <th class="w-[9%] px-3 py-2 text-center font-black">상태</th>
+                  <th class="w-[12%] px-3 py-2 text-center font-black">도착(예정)일</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">
@@ -221,7 +216,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
                   :class="{ 'bg-[#E6F2F0]': inbound.selectedOrderId === order.id }"
                   @click="selectOrder(order.id)"
                 >
-                  <td class="px-2 py-3 text-center">
+                  <td class="py-3 pl-5 pr-2 text-left">
                     <span
                       class="inline-flex px-2 py-1 text-[10px] font-black"
                       :class="inboundTypeClass(order.inboundType)"
@@ -231,7 +226,11 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
                   </td>
                   <td class="px-3 py-3 font-bold text-gray-700">{{ order.inboundCode }}</td>
                   <td class="px-3 py-3 font-bold text-gray-500">{{ order.sourceRefNo }}</td>
-                  <td class="px-3 py-3 font-black text-gray-800">{{ order.sourceName }}</td>
+                  <td class="px-3 py-3 font-black text-gray-800">
+                    {{
+                      (order.sourceName ?? '').replace(/^창고간\s*이동\s*[—-]\s*/, '').trim() || '—'
+                    }}
+                  </td>
                   <td class="px-3 py-3 font-bold text-gray-700">
                     <span class="block truncate" :title="(order.productNames ?? []).join(', ')">
                       <template v-if="order.productNames && order.productNames.length > 0">

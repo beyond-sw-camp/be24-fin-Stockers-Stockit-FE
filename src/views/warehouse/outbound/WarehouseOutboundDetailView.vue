@@ -195,7 +195,7 @@ onMounted(fetchDetail)
               <p class="text-xs font-bold text-gray-500">원천번호 <strong class="ml-2 text-gray-900">{{ outbound.sourceRefNo }}</strong></p>
               <p class="text-xs font-bold text-gray-500">창고 <strong class="ml-2 text-gray-900">{{ outbound.warehouseName || '-' }}</strong></p>
               <p class="text-xs font-bold text-gray-500">
-                목적지
+                도착지
                 <strong class="ml-2 text-gray-900">
                   {{ outbound.destinationName || `${outbound.destinationType || '-'}${outbound.destinationId ? ` (${outbound.destinationId})` : ''}` }}
                 </strong>

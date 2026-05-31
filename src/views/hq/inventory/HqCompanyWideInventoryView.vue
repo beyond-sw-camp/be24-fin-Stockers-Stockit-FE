@@ -324,7 +324,7 @@ const statusClass = (status) => ({
   >
     <div class="flex flex-col gap-4">
       <section class="border border-gray-200 bg-white p-4 shadow-sm">
-        <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div class="flex flex-wrap items-end justify-between gap-3" style="margin-bottom: 12px">
           <div>
             <p class="text-[11px] font-black uppercase tracking-[0.18em] text-gray-400">Inventory</p>
             <h1 class="mt-1 text-lg font-black text-gray-900">전사 재고 조회</h1>
@@ -338,6 +338,17 @@ const statusClass = (status) => ({
         <!-- 필터 영역 (한 줄, 8칸) — 지역 → 거점 유형 → 거점 선택 순 (큰 단위 → 작은 단위) -->
         <div class="grid gap-3 xl:grid-cols-[120px_120px_minmax(200px,1.4fr)_120px_120px_120px_minmax(160px,1.3fr)_auto]">
           <label class="flex flex-col gap-1.5">
+            <span class="text-[11px] font-black uppercase tracking-wider text-gray-400">거점 유형</span>
+            <select
+              v-model="locationType"
+              class="h-9 border border-gray-300 bg-white px-3 text-sm font-bold text-gray-900 outline-none focus:border-[#004D3C]"
+              @change="handleLocationTypeChange"
+            >
+              <option v-for="opt in locationTypeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+            </select>
+          </label>
+
+          <label class="flex flex-col gap-1.5">
             <span class="text-[11px] font-black uppercase tracking-wider text-gray-400">지역</span>
             <select
               v-model="selectedRegion"
@@ -346,17 +357,6 @@ const statusClass = (status) => ({
             >
               <option value="">전체</option>
               <option v-for="r in regionOptions" :key="r" :value="r">{{ r }}</option>
-            </select>
-          </label>
-
-          <label class="flex flex-col gap-1.5">
-            <span class="text-[11px] font-black uppercase tracking-wider text-gray-400">거점 유형</span>
-            <select
-              v-model="locationType"
-              class="h-9 border border-gray-300 bg-white px-3 text-sm font-bold text-gray-900 outline-none focus:border-[#004D3C]"
-              @change="handleLocationTypeChange"
-            >
-              <option v-for="opt in locationTypeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
             </select>
           </label>
 
