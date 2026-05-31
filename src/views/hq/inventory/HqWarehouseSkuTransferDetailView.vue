@@ -420,19 +420,13 @@ const moveBack = () => {
                   </button>
                 </th>
                 <th class="px-3 py-3 text-right font-black">
-                  <button type="button" class="inline-flex items-center gap-1 hover:text-gray-700" @click="toggleSort('reservedStock')">
-                    예약
-                    <span class="text-[10px]">{{ sortIndicator('reservedStock') }}</span>
-                  </button>
-                </th>
-                <th class="px-3 py-3 text-right font-black">
                   <button type="button" class="inline-flex items-center gap-1 hover:text-gray-700" @click="toggleSort('availableStock')">
-                    가용
+                    가용재고
                     <span class="text-[10px]">{{ sortIndicator('availableStock') }}</span>
                   </button>
                 </th>
-                <th class="px-3 py-3 text-right font-black">안전재고</th>
-                <th class="px-3 py-3 text-center font-black">
+                <th class="px-3 py-3 pr-8 text-right font-black">안전재고</th>
+                <th class="px-3 py-3 pl-8 text-center font-black">
                   <button type="button" class="inline-flex items-center gap-1 hover:text-gray-700" @click="toggleSort('status')">
                     상태
                     <span class="text-[10px]">{{ sortIndicator('status') }}</span>
@@ -459,10 +453,9 @@ const moveBack = () => {
                 </td>
                 <td class="px-3 py-3 font-bold text-gray-600">{{ row.location }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ row.onHandStock.toLocaleString() }}</td>
-                <td class="px-3 py-3 text-right font-bold text-gray-500">{{ row.reservedStock.toLocaleString() }}</td>
                 <td class="px-3 py-3 text-right font-black text-gray-900">{{ row.availableStock.toLocaleString() }}</td>
-                <td class="px-3 py-3 text-right font-bold text-gray-500">{{ row.safetyStock.toLocaleString() }}</td>
-                <td class="px-3 py-3 text-center">
+                <td class="px-3 py-3 pr-8 text-right font-bold text-gray-500">{{ row.safetyStock.toLocaleString() }}</td>
+                <td class="px-3 py-3 pl-8 text-center">
                   <span class="inline-flex min-w-12 justify-center px-2 py-1 text-[11px] font-black" :class="statusClass(row.status)">{{ row.status }}</span>
                 </td>
                 <td class="px-3 py-3 text-center">
