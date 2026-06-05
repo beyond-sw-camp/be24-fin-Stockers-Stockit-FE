@@ -29,13 +29,13 @@ const sideMenus = computed(
 )
 const activeSideMenu = ref('배출권 시장 가치')
 
-// ─────────── 기간 필터 ───────────
+// ─────────── 기간 필터 — 1개월 기본, 1개월/3개월/6개월 ───────────
 const PERIOD_OPTIONS = [
-  { key: 'SEVEN_DAYS', label: '7일' },
-  { key: 'ONE_MONTH',  label: '1개월' },
-  { key: 'SIX_MONTHS', label: '6개월' },
+  { key: 'ONE_MONTH',    label: '1개월' },
+  { key: 'THREE_MONTHS', label: '3개월' },
+  { key: 'SIX_MONTHS',   label: '6개월' },
 ]
-const selectedPeriod = ref('SEVEN_DAYS')
+const selectedPeriod = ref('ONE_MONTH')
 
 // ─────────── 페이징 (일자별 상세 테이블) — 알림/계정 관리와 동일한 5그룹 패턴 ───────────
 const PAGE_SIZE = 15
@@ -132,9 +132,10 @@ const formatBasDt = (yyyymmdd) => {
   if (!yyyymmdd || yyyymmdd.length !== 8) return yyyymmdd ?? '-'
   return `${yyyymmdd.slice(0,4)}-${yyyymmdd.slice(4,6)}-${yyyymmdd.slice(6,8)}`
 }
+// 차트 X축 라벨 — "YY/MM/DD" 형식으로 연·월 가시화 (예: 20260131 → "26/01/31")
 const shortDt = (yyyymmdd) => {
   if (!yyyymmdd || yyyymmdd.length !== 8) return yyyymmdd ?? ''
-  return `${yyyymmdd.slice(4,6)}/${yyyymmdd.slice(6,8)}`
+  return `${yyyymmdd.slice(2,4)}/${yyyymmdd.slice(4,6)}/${yyyymmdd.slice(6,8)}`
 }
 
 // ─────────── 기간 메타 ───────────
@@ -167,7 +168,7 @@ const chartData = computed(() => ({
   labels: trend.value.map(d => shortDt(d.basDt)),
   datasets: [
     {
-      label: 'KAU25 종가 (원/톤)',
+      label: 'KOC25-30 종가 (원/톤)',
       data: trend.value.map(d => d.pricePerTon),
       borderColor: '#004D3C',
       backgroundColor: 'rgba(0, 77, 60, 0.08)',
@@ -244,7 +245,7 @@ const chartOptions = {
             탄소 배출권 시장
           </h1>
           <p class="mt-0.5 text-[12px] text-gray-500">
-            KRX 한국거래소 배출권 시장(KAU25) 시세 — 공공데이터포털 연동
+            KRX 한국거래소 배출권 시장(KOC25-30) 시세 — 공공데이터포털 연동
           </p>
         </div>
         <button
@@ -344,7 +345,7 @@ const chartOptions = {
           <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3">
             <div>
               <h2 class="text-[14px] font-bold text-gray-800">시세 추이 ({{ trend.length }}거래일)</h2>
-              <p class="text-[10px] text-gray-500">KAU25 일별 종가 (원/톤) · 거래량 0 인 날짜는 제외</p>
+              <p class="text-[10px] text-gray-500">KOC25-30 일별 종가 (원/톤) · 종가(clpr) 있는 날 표시</p>
               <p v-if="trend.length" class="mt-0.5 text-[10.5px] text-gray-600">
                 기간: <span class="font-mono">{{ trendStartDate }}</span>
                 <span class="mx-1 text-gray-400">~</span>

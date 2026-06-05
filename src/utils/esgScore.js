@@ -25,26 +25,22 @@ export const SCORE_RULES = {
   localPartnerBonus: 150,     // 지역 파트너 보너스
 }
 
-// 탄소 점수 스케일링 — Phase 2: 0.5 → 0.1 (Higg MSI 표준값 적용에 따른 균형)
-export const CARBON_SCALE = 0.1
-
 // ─────────── 소재 계수 (kgCO₂e/kg) — Phase 1 BE 이관 후 fallback ───────────
 //   - 정상 동작 시 esgStore.materialFactors (BE 응답) 사용
 //   - BE 응답 실패 / 신규 진입 직후 짧은 순간만 본 상수가 사용됨
 //   - 값은 Phase 1 옵션 B (Higg MSI v3 / EU PEF 표준 + cap) 와 동일하게 동기화
 export const MATERIAL_FACTORS = {
-  COTTON:     { label: '면',         group: 'NATURAL_SINGLE', factor: 6.0 },
-  WOOL:       { label: '울',         group: 'NATURAL_SINGLE', factor: 5.0 },
-  CASHMERE:   { label: '캐시미어',   group: 'NATURAL_SINGLE', factor: 8.0 },
-  SILK:       { label: '실크',       group: 'NATURAL_SINGLE', factor: 5.0 },
-  LINEN:      { label: '린넨',       group: 'NATURAL_SINGLE', factor: 1.8 },
-  POLYESTER:  { label: '폴리에스터', group: 'SYNTHETIC',      factor: 6.5 },
-  ACRYLIC:    { label: '아크릴',     group: 'SYNTHETIC',      factor: 5.7 },
-  POLYAMIDE:  { label: '나일론',     group: 'SYNTHETIC',      factor: 8.0 },
-  NYLON:      { label: '나일론',     group: 'SYNTHETIC',      factor: 8.0 },
-  ELASTANE:   { label: '스판덱스',   group: 'SYNTHETIC',      factor: 12.0 },
-  RAYON:      { label: '레이온',     group: 'SYNTHETIC',      factor: 4.5 },
-  BLEND:      { label: '혼방',       group: 'BLEND',          factor: 5.5 },
+  COTTON:     { label: '면',         group: 'NATURAL_SINGLE', factor: 1.8 },
+  WOOL:       { label: '울',         group: 'NATURAL_SINGLE', factor: 1.2 },
+  CASHMERE:   { label: '캐시미어',   group: 'NATURAL_SINGLE', factor: 1.3 },
+  SILK:       { label: '실크',       group: 'NATURAL_SINGLE', factor: 1.3 },
+  LINEN:      { label: '린넨',       group: 'NATURAL_SINGLE', factor: 1.7 },
+  POLYESTER:  { label: '폴리에스터', group: 'SYNTHETIC',      factor: 2.3 },
+  ACRYLIC:    { label: '아크릴',     group: 'SYNTHETIC',      factor: 2.4 },
+  POLYAMIDE:  { label: '나일론',     group: 'SYNTHETIC',      factor: 2.5 },
+  NYLON:      { label: '나일론',     group: 'SYNTHETIC',      factor: 2.5 },
+  ELASTANE:   { label: '스판덱스',   group: 'SYNTHETIC',      factor: 2.2 },
+  BLEND:      { label: '혼방',       group: 'BLEND',          factor: 2.0 },
 }
 
 // 소재별 고정 색 매핑 — ESG 대시보드 "순환 활동 탄소 감축 현황" 카드 +
@@ -61,7 +57,6 @@ export const MATERIAL_COLORS = {
   POLYAMIDE: '#eab308',  // yellow-500   (나일론)
   NYLON:     '#eab308',  // yellow-500   (나일론)
   ELASTANE:  '#c084fc',  // purple-400   (스판덱스)
-  RAYON:     '#0d9488',  // teal-600     (레이온 — 셀룰로스 재생 섬유, 자연-인조 중간 톤)
   BLEND:     '#f87171',  // red-400      (혼방)
 }
 export const MATERIAL_COLOR_FALLBACK = '#94a3b8'  // slate-400 (미매핑 소재용)
@@ -98,18 +93,15 @@ export function normalizeSaleEvent(e) {
 
 /**
  * 거래의 effective carbon factor 산출 (kgCO₂e/kg).
- *   - 혼방 (material='BLEND' + mainMaterialCode 존재): mainFactor × mainRatio (0.7)
- *   - 단일 (또는 main 누락된 BLEND): 자기 material 의 factor
+ *   - 정책 변경 (2026-05-27): 혼방은 구성 소재 무관 BLEND factor(2.0) 일괄 적용.
+ *     종전 "주 소재 × 0.7 가중" 산식 폐기. mainMaterialCode/Ratio 는 응답에 남아 있어도 무시.
+ *   - 단일 거래 → 자기 material 의 factor 그대로.
  *
  * @param {object} e          거래 이벤트 (normalizeSaleEvent 결과)
  * @param {object} [factors]  factor 룩업 맵 (BE 응답 또는 FE 상수). { CODE: { factor, ... } }
  */
 export function resolveEffectiveFactor(e, factors = MATERIAL_FACTORS) {
   if (!e) return 0
-  if (e.material === 'BLEND' && e.mainMaterialCode && e.mainMaterialRatio != null) {
-    const mainFactor = Number(factors?.[e.mainMaterialCode]?.factor) || 0
-    return mainFactor * Number(e.mainMaterialRatio)
-  }
   return Number(factors?.[e.material]?.factor) || 0
 }
 
@@ -130,12 +122,12 @@ export function calcEventScore(e, factors = MATERIAL_FACTORS) {
       valid: e.scoreValid === true,
     }
   }
-  // ── Fallback: FE 자체 계산 (BE 산식과 동일 — Higg MSI factor × CARBON_SCALE 0.1) ──
+  // ── Fallback: FE 자체 계산 (BE 산식과 동일 — 무게(kg) × Higg MSI factor, 보정계수 없음) ──
   const valid = e?.weightKg >= SCORE_RULES.minWeightKg
   if (!valid) return { saleExecution: 0, carbon: 0, newBuyer: 0, localPartner: 0, total: 0, valid: false }
   const factor = resolveEffectiveFactor(e, factors)
   const saleExecution = SCORE_RULES.saleBase
-  const carbon = Math.round(e.weightKg * factor * CARBON_SCALE)
+  const carbon = Math.round(e.weightKg * factor)
   const newBuyer = e.isNewBuyer ? SCORE_RULES.newBuyerBonus : 0
   const localPartner = e.isLocalPartner ? SCORE_RULES.localPartnerBonus : 0
   const total = saleExecution + carbon + newBuyer + localPartner
@@ -152,7 +144,7 @@ export function computeTotalScore(events, factors = MATERIAL_FACTORS) {
 }
 
 /**
- * 실제 탄소 배출 절감량 (kg CO₂) — 점수용 CARBON_SCALE 미적용.
+ * 실제 탄소 배출 절감량 (kg CO₂) — 점수 산식과 동일한 단순 곱 (보정계수 없음).
  *   - Phase 2: 혼방은 mainFactor × ratio 가중 적용
  *   - 의미: 폐기·소각되지 않고 순환재고로 회피한 실제 탄소량
  */
@@ -187,8 +179,8 @@ export function computeCarbonReductionByMaterial(events, factors = MATERIAL_FACT
 /**
  * events 배열 → 소재 그룹별 탄소 절감량 (kg CO₂) 버킷
  *   - NATURAL_SINGLE: 면(COTTON), 울, 실크, 캐시미어, 린넨
- *   - SYNTHETIC: 폴리에스터, 아크릴, 나일론, 스판덱스, 레이온
- *   - BLEND: 혼방 (mainFactor × 0.7 가중치 적용된 effective factor 사용)
+ *   - SYNTHETIC: 폴리에스터, 아크릴, 나일론, 스판덱스
+ *   - BLEND: 혼방 (구성 소재 무관 BLEND factor 일괄 적용)
  */
 export function computeCarbonReductionByGroup(events, factors = MATERIAL_FACTORS) {
   const buckets = { NATURAL_SINGLE: 0, SYNTHETIC: 0, BLEND: 0 }
