@@ -1,6 +1,6 @@
 <script setup>
 // 창고 입고 우측 상세 패널.
-// inboundType 분기 — PURCHASE_ORDER 면 품목 테이블 + 단가/소계, WAREHOUSE_TRANSFER 는 placeholder.
+// inboundType 분기 — PURCHASE_ORDER 면 품목 테이블 + 단가/소계, WAREHOUSE_TRANSFER 면 수량 + 실재고/안전(단가 없음).
 // ARRIVED 일 때만 [입고 확정] 버튼 노출, 그 외는 안내 문구.
 import { computed } from 'vue'
 import {
@@ -180,13 +180,55 @@ const visibleHistory = computed(() => {
         </table>
       </section>
 
-      <!-- 이동 입고 분기 (WAREHOUSE_TRANSFER) — 후속 사이클 -->
-      <div
-        v-else-if="order.inboundType === 'WAREHOUSE_TRANSFER'"
-        class="border border-dashed border-gray-300 bg-gray-50 px-3 py-6 text-center text-xs text-gray-400"
-      >
-        창고간 이동 입고 상세는 outbound 도메인 합류 후 사이클에서 추가됩니다.
-      </div>
+      <!-- 이동 입고 분기 (WAREHOUSE_TRANSFER) — 자산 이동이라 단가/소계 없음. 수량 + 실재고/안전 -->
+      <section v-else-if="order.inboundType === 'WAREHOUSE_TRANSFER'">
+        <p class="mb-2 text-[10px] font-black uppercase text-gray-400">이동 품목</p>
+        <table class="w-full text-xs">
+          <thead class="bg-gray-100 text-[10px] uppercase text-gray-500">
+            <tr>
+              <th class="px-2 py-2 text-left font-black">제품명</th>
+              <th class="w-12 px-2 py-2 text-right font-black">수량</th>
+              <th class="w-12 px-2 py-2 text-right font-black">실재고</th>
+              <th class="w-10 px-2 py-2 text-right font-black">안전</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr v-for="item in order.items" :key="item.id">
+              <td class="px-2 py-2 font-bold text-gray-800">
+                <div>{{ item.productName }}</div>
+                <div
+                  v-if="item.displayOption"
+                  class="mt-0.5 text-[10px] font-bold text-[#004D3C]"
+                >
+                  {{ item.displayOption }}
+                </div>
+              </td>
+              <td class="px-2 py-2 text-right font-bold text-gray-700">{{ item.quantity }}</td>
+              <td
+                class="px-2 py-2 text-right font-black"
+                :class="isItemShortage(item) ? 'text-red-600' : 'text-gray-800'"
+              >
+                <template v-if="getItemStock(item)">{{ getItemStock(item).onHand }}</template>
+                <span v-else class="text-gray-300">—</span>
+              </td>
+              <td class="px-2 py-2 text-right font-bold text-gray-500">
+                <template v-if="getItemStock(item)">{{ getItemStock(item).safetyStock }}</template>
+                <span v-else class="text-gray-300">—</span>
+              </td>
+            </tr>
+          </tbody>
+          <tfoot class="border-t border-gray-300 bg-gray-50 font-black text-gray-900">
+            <tr>
+              <td class="px-2 py-2">총 수량</td>
+              <td class="px-2 py-2 text-right text-[#004D3C]">{{ order.totalQuantity }}</td>
+              <td colspan="2"></td>
+            </tr>
+          </tfoot>
+        </table>
+        <p class="mt-2 text-[10px] leading-relaxed text-gray-400">
+          창고간 이동은 자산 이동이라 단가·금액 없이 수량 기준으로 입고합니다. 출발 창고: {{ order.sourceName }}
+        </p>
+      </section>
 
       <!-- 진행 이력 타임라인 — 모든 inboundType 공통 -->
       <section v-if="visibleHistory.length">
