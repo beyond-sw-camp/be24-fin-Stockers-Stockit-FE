@@ -16,9 +16,12 @@ const selectedRole = ref('')   // 'HQ' | 'STORE' | 'WAREHOUSE'
 
 // 권한별 간편 로그인 계정 — BE AdminBootstrapRunner 가 생성하는 계정 (.env ADMIN_BOOTSTRAP_PASSWORD)
 const quickAccounts = {
-  HQ:        { code: 'hq0001', password: 'Stockit!2026', label: '본사 관리자', icon: Building2, desc: '본사 통합 운영' },
-  STORE:     { code: 'st0001', password: 'Stockit!2026', label: '매장 관리자', icon: Store,     desc: '매장 재고/주문' },
-  WAREHOUSE: { code: 'wh0001', password: 'Stockit!2026', label: '창고 관리자', icon: Warehouse, desc: '입출고/물류' },
+  HQ:         { code: 'hq0001', password: 'Stockit!2026', label: '본사 관리자 ①', icon: Building2, desc: '본사 통합 운영' },
+  STORE:      { code: 'st0001', password: 'Stockit!2026', label: '매장 관리자 ①', icon: Store,     desc: '강남 플래그십점' },
+  WAREHOUSE:  { code: 'wh0001', password: 'Stockit!2026', label: '창고 관리자 ①', icon: Warehouse, desc: '도심 풀필먼트 허브' },
+  HQ2:        { code: 'hq0002', password: 'Stockit!2026', label: '본사 관리자 ②', icon: Building2, desc: '본사 통합 운영' },
+  STORE2:     { code: 'st0002', password: 'Stockit!2026', label: '매장 관리자 ②', icon: Store,     desc: '홍대 라이프스타일점' },
+  WAREHOUSE2: { code: 'wh0002', password: 'Stockit!2026', label: '창고 관리자 ②', icon: Warehouse, desc: '동북권 물류센터' },
 }
 
 const roleOptions = computed(() => Object.entries(quickAccounts).map(([key, v]) => ({ key, ...v })))
