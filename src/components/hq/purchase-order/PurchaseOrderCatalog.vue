@@ -120,10 +120,14 @@ const skuRows = computed(() => catalogRows.value)
 
 const matchedSkuCount = computed(() => poStore.catalogTotalElements)
 
-// 카탈로그 응답에 safetyStock 미포함 — 품절(availableQty === 0) row 개수만 카운트.
+// 부족(가용 < 안전재고) row 개수 — BE shortageOnly 필터와 동일 기준. 안전재고 null 이면 품절(0)만.
 const shortageCount = computed(() => {
   if (!props.selectedWarehouseCode) return 0
-  return catalogRows.value.filter((r) => Number(r.availableQty ?? 0) === 0).length
+  return catalogRows.value.filter((r) => {
+    const avail = Number(r.availableQty ?? 0)
+    const safety = r.warehouseSafetyStock
+    return safety == null ? avail === 0 : avail < Number(safety)
+  }).length
 })
 
 function isInCart(skuCode) {

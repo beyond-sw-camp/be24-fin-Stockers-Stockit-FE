@@ -432,12 +432,11 @@ const iconMap = {
       <div class="flex items-center gap-4 max-[980px]:flex-col max-[980px]:items-stretch">
         <button
           type="button"
-          class="mr-2 flex items-center gap-2 rounded px-1 py-0.5 transition-colors hover:bg-white/10 active:bg-white/20 max-[980px]:mr-0"
-          title="대시보드로 이동"
+          class="group mr-2 flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 max-[980px]:mr-0"
           @click="dashboardPath && router.push(dashboardPath)"
         >
-          <Leaf :size="20" :stroke-width="2.5" class="text-white" />
-          <span class="text-sm font-black text-white">Stockit</span>
+          <Leaf :size="20" :stroke-width="2.5" class="text-white transition-all duration-300 group-hover:scale-105 group-hover:drop-shadow-[0_0_5px_rgba(255,255,255,0.6)]" />
+          <span class="text-sm font-black text-white transition-all duration-300 group-hover:scale-105 group-hover:drop-shadow-[0_0_5px_rgba(255,255,255,0.6)]">Stockit</span>
         </button>
       </div>
 

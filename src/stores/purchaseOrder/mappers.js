@@ -94,6 +94,9 @@ export function toFeCatalogRow(beRow) {
     unitPrice: Number(beRow.unitPrice ?? 0),
     contractUnitPrice: Number(beRow.contractUnitPrice ?? 0),
     availableQty: Number(beRow.availableQty ?? 0),
+    // 안전재고 — BE 카탈로그 응답에 포함 (없으면 null). 상태칩 3단계·권장 발주량 계산에 사용.
+    warehouseSafetyStock:
+      beRow.warehouseSafetyStock == null ? null : Number(beRow.warehouseSafetyStock),
   }
 }
 
