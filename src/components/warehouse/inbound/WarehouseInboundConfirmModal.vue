@@ -27,7 +27,10 @@ const emit = defineEmits(['cancel', 'confirm'])
             <strong>{{ order.id }}</strong> ·
             {{ order.vendorName }} ·
             <span class="font-bold text-[#004D3C]">
-              ₩{{ order.totalPrice.toLocaleString() }}
+              <template v-if="order.totalPrice != null">
+                ₩{{ order.totalPrice.toLocaleString() }}
+              </template>
+              <template v-else>총 {{ (order.totalQuantity ?? 0).toLocaleString() }}개</template>
             </span>
           </p>
         </div>
