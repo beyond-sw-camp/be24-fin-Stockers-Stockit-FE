@@ -64,7 +64,6 @@ const materialReductionRows = computed(() => {
     NYLON:     '나일론 (Nylon)',
     POLYAMIDE: '나일론 (Nylon)',
     ELASTANE:  '스판덱스 (Elastane)',
-    RAYON:     '레이온 (Rayon)',
     BLEND:     '혼방 (Blend)',
   }
   const rows = Object.entries(merged).map(([key, kg]) => ({
@@ -83,9 +82,9 @@ const materialReductionRows = computed(() => {
   }))
 })
 
-// ─────────── 배출권(KAU25) 실시간 시세 — BE 연동 ───────────
+// ─────────── 배출권(KOC25-30) 실시간 시세 — BE 연동 ───────────
 const carbonLatest = ref(null)        // { pricePerTon, symbol, basDt, fltRt, fallback }
-const carbonTrend = ref([])           // 최근 7거래일 시세 배열
+const carbonTrend = ref([])           // 최근 12개월 월말 종가 배열 (월별 집계)
 const carbonLoading = ref(false)
 const carbonError = ref('')
 
@@ -93,9 +92,10 @@ async function loadCarbonPrice() {
   carbonLoading.value = true
   carbonError.value = ''
   try {
+    // 차트는 월별 집계(최근 12개월 월말 종가) 사용 — KOC25-30 일별 변동 거의 없어 월별이 시각적으로 의미 있음
     const [latestRes, trendRes] = await Promise.all([
       carbonPriceApi.getLatest(),
-      carbonPriceApi.getTrend('SEVEN_DAYS'),
+      carbonPriceApi.getMonthlyTrend(12),
     ])
     carbonLatest.value = latestRes
     carbonTrend.value = trendRes ?? []
@@ -124,14 +124,16 @@ const carbonLow7d = computed(() => {
   return Math.min(...carbonTrend.value.map(d => d.pricePerTon))
 })
 
-// 7일 라인 차트 데이터
+// 월별 라인 차트 데이터 — 12개월 월말 종가 (라벨 "YY/MM" 형식, 예: 26/01)
 const carbonChartData = computed(() => ({
   labels: carbonTrend.value.map(d => {
     const s = d.basDt ?? ''
-    return s.length === 8 ? `${s.slice(4,6)}/${s.slice(6,8)}` : s
+    // basDt 는 YYYYMMDD (그 달 마지막 거래일) — "YY/MM" 로 표시해 연·월 동시 인지 + 자리수 통일
+    if (s.length < 6) return s
+    return `${s.slice(2, 4)}/${s.slice(4, 6)}`            // 예: 20260131 → "26/01"
   }),
   datasets: [{
-    label: 'KAU25 종가',
+    label: 'KOC25-30 월말 종가',
     data: carbonTrend.value.map(d => d.pricePerTon),
     borderColor: '#d97706',
     backgroundColor: 'rgba(217, 119, 6, 0.1)',
@@ -233,14 +235,14 @@ const kpiMetrics = computed(() => [
 ])
 
 // ─────────── 배출권 시장 가치 환산 (자산 포트폴리오 스타일) ───────────
-//   순환 활동 탄소 감축량 (tCO₂e) × KAU25 시세 = 절감 가치 (환산 가치)
+//   순환 활동 탄소 감축량 (tCO₂e) × KOC25-30 시세 = 절감 가치 (환산 가치)
 //   - 의미: 우리가 순환재고 활동으로 회피한 탄소량을 배출권으로 환산했을 때의 시장 가치
 //   - 데이터: esgStore.totalCarbonReductionTon (= "순환 활동 탄소 감축 현황" 막대 합계)
 const carbonAssetValue = computed(() =>
   Math.round((totalCarbonReductionTon.value || 0) * (kauPrice.value || 0)),
 )
 
-// 변동률 (7거래일 첫째 날 대비) — carbonTrend 의 첫째 날 종가를 baseline 으로 동적 산정
+// 변동률 (12개월 전 첫달 대비) — carbonTrend 의 첫달 종가를 baseline 으로 동적 산정
 const carbonAssetTrend = computed(() => {
   const reductionTon = totalCarbonReductionTon.value || 0
   const trend = carbonTrend.value ?? []
@@ -257,12 +259,12 @@ const carbonAssetTrend = computed(() => {
   const formattedDiff = (diff >= 0 ? '+' : '−') + '₩' + Math.abs(diff).toLocaleString('ko-KR')
   return {
     up: diff > 0, down: diff < 0,
-    label: `${formattedPct} (vs 7거래일 첫날)`,
+    label: `${formattedPct} (vs 12개월 전)`,
     detail: `${formattedDiff} · 절감량 ${reductionTon.toFixed(1)} tCO₂e × ₩${(kauPrice.value || 0).toLocaleString()}`,
   }
 })
 
-// 월별 환산 가치 추이 — 월별 탄소 절감량(kg → tCO₂e) × 현재 KAU25 시세
+// 월별 환산 가치 추이 — 월별 탄소 절감량(kg → tCO₂e) × 현재 KOC25-30 시세
 //   - esgStore.carbonReductionMonthly: 1~12월 kg CO₂ (computeMonthlyCarbonReduction 결과)
 //   - 의미: 각 월에 회피한 탄소량을 배출권 시장 가치로 환산 (막대 그래프 표시)
 const carbonAssetMonthlyData = computed(() => {
@@ -517,15 +519,15 @@ const dateLabel = computed(() =>
                 탄소 감축량 시장 가치 환산
               </span>
               <span class="text-[10.5px] font-normal text-amber-700/80">
-                ⓘ 순환 활동 탄소 감축량 × KAU25 시세
+                ⓘ 순환 활동 탄소 감축량 × KOC25-30 시세
               </span>
             </h3>
             <span class="shrink-0 text-[10px] text-gray-400">기준: {{ dateLabel }}</span>
           </div>
 
           <!-- 순환재고 판매 누적 환산 가치 (메인 메트릭) -->
-          <!--   = 연간 누적 탄소 감축량(tCO₂) × KAU25 현재 시세(원/톤) -->
-          <!--   "보유 자산" 이 아니라 "탄소 감축 효과를 KAU 시세로 환산한 누적 가치" 라는 의미 -->
+          <!--   = 연간 누적 탄소 감축량(tCO₂) × KOC25-30 현재 시세(원/톤) -->
+          <!--   "보유 자산" 이 아니라 "탄소 감축 효과를 배출권 시세로 환산한 누적 가치" 라는 의미 -->
           <div class="border-b border-amber-100 bg-gradient-to-br from-amber-50 to-yellow-50 px-3 py-3">
             <p class="text-[10px] font-medium text-amber-700/80">탄소 감축량 누적 환산 가치</p>
             <div class="mt-1 flex items-baseline gap-1.5">
@@ -597,7 +599,7 @@ const dateLabel = computed(() =>
           </div>
         </article>
 
-        <!-- 탄소 배출권 시장 (BE 실시간 KAU25 연동) -->
+        <!-- 탄소 배출권 시장 (BE 실시간 KOC25-30 연동) -->
         <article class="flex flex-col border border-gray-300 bg-white shadow-sm">
           <div class="flex items-center justify-between gap-2 border-b border-gray-200 px-3 py-2.5">
             <h3 class="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
@@ -616,7 +618,7 @@ const dateLabel = computed(() =>
                 {{ formatBasDtShort(carbonLatest.basDt) }} 기준
               </span>
               <span class="inline-flex items-center gap-1 border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-                {{ carbonLatest?.symbol ?? 'KAU25' }} · KRX
+                {{ carbonLatest?.symbol ?? 'KOC25-30' }} · KRX
               </span>
               <button
                 type="button"
@@ -639,7 +641,7 @@ const dateLabel = computed(() =>
               ⚠ 외부 시세 API 응답 지연 — 예비값 표시 중
             </div>
 
-            <!-- 메인: 탄소배출권 현재 시세 (KAU25 가장 최근 종가) -->
+            <!-- 메인: 탄소배출권 현재 시세 (KOC25-30 가장 최근 종가) -->
             <div class="border border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 px-4 py-5">
               <p class="text-[11px] font-medium text-amber-700">탄소배출권 현재 시세</p>
               <div class="mt-2 flex items-baseline gap-1.5">
@@ -649,14 +651,14 @@ const dateLabel = computed(() =>
                 <span class="text-[12px] text-amber-700/80">/ tCO₂</span>
               </div>
               <p class="mt-2 text-[10px] text-amber-700/70">
-                KRX 한국거래소 배출권 시장 KAU25 가장 최근 종가
+                KRX 한국거래소 배출권 시장 KOC25-30 가장 최근 종가
               </p>
             </div>
 
             <!-- 7일 시세 추이 (라인 차트) — 기존 "월별 환산 가치 추이" 자리 -->
             <div class="flex flex-col gap-3">
               <div class="flex items-center justify-between">
-                <p class="text-[11px] font-medium text-gray-500">최근 7거래일 시세 추이 (KAU25)</p>
+                <p class="text-[11px] font-medium text-gray-500">최근 12개월 월말 종가 추이 (KOC25-30)</p>
               </div>
               <LineChart
                 v-if="carbonTrend.length"
