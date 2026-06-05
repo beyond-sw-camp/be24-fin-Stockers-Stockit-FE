@@ -96,7 +96,7 @@ export const useEmissionQuotaStore = defineStore('emissionQuota', () => {
   ])
 
   // 외부 자발적 시장 톤당 단가 (원/tCO₂)
-  // - mock 기본값 KAU25 시세 ≈ 17,000원
+  // - mock 기본값 자발적 시장가 ≈ 17,000원 (BE 연동 시 KOC25-30 시세 기준으로 갱신)
   // - 향후 carbon-price API 의 latest 값을 actions 으로 갱신 가능
   const externalUnitPriceWon = ref(17000)
   function setExternalUnitPrice(won) {

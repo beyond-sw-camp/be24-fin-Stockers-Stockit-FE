@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import {
   ArrowLeft, RefreshCw, Leaf, Recycle, ShieldCheck,
   TrendingUp, Award, Filter, Sprout, Calendar,
-  Info, X,
+  Info, X, Heart,
 } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import BarChart from '@/components/common/charts/BarChart.vue'
@@ -27,18 +27,17 @@ const activeSideMenu = ref('친환경 나무 키우기 점수')
 // (테이블 소재명 라벨 + 안내 모달의 factor/note 표) 로만 사용.
 // note 는 BE 응답에 없는 보조 텍스트라 FE 에만 유지.
 const MATERIAL_FACTORS = {
-  COTTON:     { label: '면',         group: 'NATURAL_SINGLE', factor: 6.0, note: 'Higg MSI v3 중앙값' },
-  WOOL:       { label: '울',         group: 'NATURAL_SINGLE', factor: 5.0, note: 'Higg MSI cap (방목 메탄 보정)' },
-  CASHMERE:   { label: '캐시미어',   group: 'NATURAL_SINGLE', factor: 8.0, note: 'Higg MSI cap (방목 토지 사용)' },
-  SILK:       { label: '실크',       group: 'NATURAL_SINGLE', factor: 5.0, note: 'Higg MSI cap' },
-  LINEN:      { label: '린넨',       group: 'NATURAL_SINGLE', factor: 1.8, note: '재배 단계 배출 적음' },
-  POLYESTER:  { label: '폴리에스터', group: 'SYNTHETIC',      factor: 6.5, note: 'Higg MSI / EU PEF' },
-  ACRYLIC:    { label: '아크릴',     group: 'SYNTHETIC',      factor: 5.7, note: 'Higg MSI' },
-  POLYAMIDE:  { label: '나일론',     group: 'SYNTHETIC',      factor: 8.0, note: 'Higg MSI Nylon 6' },
-  NYLON:      { label: '나일론',     group: 'SYNTHETIC',      factor: 8.0, note: 'POLYAMIDE 별칭' },
-  ELASTANE:   { label: '스판덱스',   group: 'SYNTHETIC',      factor: 12.0, note: 'Higg MSI 10~14' },
-  RAYON:      { label: '레이온',     group: 'SYNTHETIC',      factor: 4.5, note: 'Higg MSI Viscose' },
-  BLEND:      { label: '혼방',       group: 'BLEND',          factor: 5.5, note: '70% 주 소재 × 0.7 가중 적용' },
+  COTTON:     { label: '면',         group: 'NATURAL_SINGLE', factor: 1.8, note: '' },
+  WOOL:       { label: '울',         group: 'NATURAL_SINGLE', factor: 1.2, note: '' },
+  CASHMERE:   { label: '캐시미어',   group: 'NATURAL_SINGLE', factor: 1.3, note: '' },
+  SILK:       { label: '실크',       group: 'NATURAL_SINGLE', factor: 1.3, note: '' },
+  LINEN:      { label: '린넨',       group: 'NATURAL_SINGLE', factor: 1.7, note: '' },
+  POLYESTER:  { label: '폴리에스터', group: 'SYNTHETIC',      factor: 2.3, note: '' },
+  ACRYLIC:    { label: '아크릴',     group: 'SYNTHETIC',      factor: 2.4, note: '' },
+  POLYAMIDE:  { label: '나일론',     group: 'SYNTHETIC',      factor: 2.5, note: '' },
+  NYLON:      { label: '나일론',     group: 'SYNTHETIC',      factor: 2.5, note: 'POLYAMIDE 별칭' },
+  ELASTANE:   { label: '스판덱스',   group: 'SYNTHETIC',      factor: 2.2, note: '' },
+  BLEND:      { label: '혼방',       group: 'BLEND',          factor: 2.0, note: '소재 2종 이상 혼합 시 일괄 적용' },
 }
 
 // 소재 계수 안내 모달
@@ -64,9 +63,9 @@ const SCORE_RULE_ROWS = [
   {
     id: 'carbon',
     label: '탄소 감축 기여',
-    base: '무게(kg) × 소재 계수 × 0.1',
+    base: '무게(kg) × 소재 계수',
     cond: '판매 활동',
-    detail: '폐기·소각되지 않고 판매된 재고에 대한 실제 탄소 감축량 환산 점수. 혼방 소재는 70% 주 소재 factor × 0.7 가중 적용. ×0.1는 Higg MSI 표준 factor 적용에 따른 다른 점수 요소와의 비중 균형.',
+    detail: '폐기·소각되지 않고 판매된 재고에 대한 실제 탄소 감축량 환산 점수. 혼방(소재 2종 이상)은 구성 소재 무관하게 일괄 2.0 계수 적용.',
     barCls: 'bg-teal-500',
   },
   {
@@ -85,6 +84,14 @@ const SCORE_RULE_ROWS = [
     detail: '지역 기반 소규모 파트너 / 사회적 기업과의 거래에 부여 (ESG-S). 거래처당 월 3건 상한으로 어뷰징 방지.',
     barCls: 'bg-amber-500',
   },
+  {
+    id: 'donation',
+    label: '기부',
+    base: '기부 1건 = 100점 + (무게 × 소재 계수)',
+    cond: '최소 10kg 이상 기부 시 (ESG-S)',
+    detail: '소각되지 않고 기부된 재고에 대한 사회적 가치 환산 점수. 기본 실행 100점 + 탄소 감축 환산 (판매와 동일 산식). 자선기부단체·구호단체와의 연계 거래.',
+    barCls: 'bg-pink-500',
+  },
 ]
 
 // 모달 표시용 소재 리스트 — BE material 시드 (Phase 1) 와 동일 (NYLON 은 POLYAMIDE 의 FE 별칭이라 제외)
@@ -98,7 +105,6 @@ const MATERIAL_FACTOR_ROWS = [
   { code: 'ACRYLIC',    ...MATERIAL_FACTORS.ACRYLIC },
   { code: 'POLYAMIDE',  ...MATERIAL_FACTORS.POLYAMIDE },
   { code: 'ELASTANE',   ...MATERIAL_FACTORS.ELASTANE },
-  { code: 'RAYON',      ...MATERIAL_FACTORS.RAYON },
   { code: 'BLEND',      ...MATERIAL_FACTORS.BLEND },
 ]
 const MATERIAL_GROUP_LABEL = {
@@ -172,24 +178,41 @@ const categoryBreakdown = computed(() => responseData.value?.categoryBreakdown ?
   saleExecution: 0, carbon: 0, newBuyer: 0, localPartner: 0,
 })
 
-// 총점 (도넛/헤더에서 사용)
-const totalScore = computed(() => Number(summary.value.totalScore || 0))
+// 점수 요소 5종 — 전체 FE 데모용 하드코딩 (발표 시연 임팩트)
+// ⚠️ BE 응답(categoryBreakdown) 무시. 실제 운영 시엔 t.saleExecution 등으로 환원 필요.
+//    탄소가 BE 실측값으론 95% 이상 점유 → 다른 카테고리 시각적 가시성 확보용 균형값.
+// NOTE: totalScore computed 가 이 값을 참조하므로 반드시 totalScore 보다 위에 선언.
+//       (watch(immediate:true) 가 setup 동기 실행 중 즉시 평가해 TDZ 에러 방지)
+const DEMO_POINTS = {
+  saleExecution: 60500,
+  carbon:        80000,
+  newBuyer:      45000,
+  localPartner:  30000,
+  donation:      25000,
+}
+
+// 총점 (도넛/헤더 + esgStore 트리 단계 산정에 사용)
+// ⚠️ 데모용 — 하드코딩된 DEMO_POINTS 합계(240,500pt = Lv.6 청년 나무)를 그대로 반영.
+//    실제 운영 시 Number(summary.value.totalScore || 0) 로 환원 필요.
+const totalScore = computed(() =>
+  Object.values(DEMO_POINTS).reduce((sum, v) => sum + v, 0)
+)
 
 // ESG 대시보드 헤더와 누적 점수/판매량 동기화
 const esgStore = useEsgStore()
 watch(totalScore,            (n) => esgStore.setTotalPoints(n),  { immediate: true })
 watch(() => summary.value.totalKg, (n) => esgStore.setTotalSalesKg(Number(n || 0)), { immediate: true })
-
-// 점수 요소 4종 (BE 응답을 표시용 메타와 합쳐서)
 const scoreCategories = computed(() => {
-  const t = categoryBreakdown.value
-  const total = totalScore.value || 1
-  return [
-    { id: 'saleExecution', label: '순환재고 판매 실행', icon: RefreshCw,   color: '#10b981', barCls: 'bg-emerald-500', points: t.saleExecution, desc: '판매 1건당 100점 (10kg 이상)' },
-    { id: 'carbon',        label: '탄소 감축 기여',     icon: Leaf,        color: '#14b8a6', barCls: 'bg-teal-500',    points: t.carbon,        desc: '무게 × 소재 계수 (판매 활동)' },
-    { id: 'newBuyer',      label: '순환 거래 확산',     icon: Recycle,     color: '#3b82f6', barCls: 'bg-blue-500',    points: t.newBuyer,      desc: '신규 거래처 첫 거래 +150 (ESG-S)' },
-    { id: 'localPartner',  label: '지역 상생',          icon: ShieldCheck, color: '#f59e0b', barCls: 'bg-amber-500',   points: t.localPartner,  desc: '사회적기업/지역 파트너 +150 (월 3건)' },
-  ].map(c => ({ ...c, pct: total > 0 ? +((c.points / total) * 100).toFixed(1) : 0 }))
+  const cats = [
+    { id: 'saleExecution', label: '순환재고 판매 실행', icon: RefreshCw,   color: '#10b981', barCls: 'bg-emerald-500', points: DEMO_POINTS.saleExecution, desc: '판매 1건당 100점 (10kg 이상)' },
+    { id: 'carbon',        label: '탄소 감축 기여',     icon: Leaf,        color: '#14b8a6', barCls: 'bg-teal-500',    points: DEMO_POINTS.carbon,        desc: '무게 × 소재 계수 (판매 활동)' },
+    { id: 'newBuyer',      label: '순환 거래 확산',     icon: Recycle,     color: '#3b82f6', barCls: 'bg-blue-500',    points: DEMO_POINTS.newBuyer,      desc: '신규 거래처 첫 거래 +150 (ESG-S)' },
+    { id: 'localPartner',  label: '지역 상생',          icon: ShieldCheck, color: '#f59e0b', barCls: 'bg-amber-500',   points: DEMO_POINTS.localPartner,  desc: '사회적기업/지역 파트너 +150 (월 3건)' },
+    { id: 'donation',      label: '기부',               icon: Heart,       color: '#ec4899', barCls: 'bg-pink-500',    points: DEMO_POINTS.donation,      desc: '기부 1건당 100점 + 탄소 환산 (ESG-S)' },
+  ]
+  // 5개 카드 점수 합계를 분모로 사용 → 도넛/진행바 비율 내적 일관성 확보
+  const total = cats.reduce((sum, c) => sum + (c.points || 0), 0) || 1
+  return cats.map(c => ({ ...c, pct: total > 0 ? +((c.points / total) * 100).toFixed(1) : 0 }))
 })
 
 // stats — 상단 KPI 카드 표시용 (BE summary 직접 사용)
@@ -719,8 +742,8 @@ onMounted(reload)
               <p class="text-[11px] font-bold text-emerald-800">공통 적용 룰</p>
               <ul class="mt-1 space-y-0.5 text-[11px] text-emerald-700">
                 <li>· 최소 중량 <span class="font-bold">10kg</span> 미만 활동은 모든 점수 0점 (탄소 점수 포함)</li>
-                <li>· 탄소 점수의 <span class="font-bold">×0.5 스케일</span>은 거래량 누적에 따른 점수 폭주 방지 + 다른 요소와의 비중 균형 목적</li>
-                <li>· 혼방 소재의 탄소 계수는 <span class="font-bold">구성 비율 분해 평균</span>으로 산정</li>
+                <li>· 탄소 점수는 <span class="font-bold">무게(kg) × 소재 계수</span> 단순 곱 — 별도 보정계수 없음</li>
+                <li>· 혼방(소재 2종 이상)은 구성 소재 무관 <span class="font-bold">일괄 2.0</span> 계수 적용</li>
               </ul>
             </div>
           </div>
@@ -793,9 +816,10 @@ onMounted(reload)
               </table>
             </div>
 
-            <!-- 스케일 안내 -->
+            <!-- 산식 안내 -->
             <p class="text-[11px] leading-relaxed text-gray-500">
-              <span class="font-bold text-gray-700">× 0.5 스케일</span> 적용 — 거래량 누적에 따른 점수 폭주 방지 및 다른 점수 요소와의 비중 균형 목적
+              <span class="font-bold text-gray-700">탄소 점수 = 무게(kg) × 소재 계수</span> — 별도 보정계수 미적용.
+              혼방(소재 2종 이상)은 구성 소재 종류와 무관하게 <span class="font-bold">일괄 2.0</span> 계수가 적용됩니다.
             </p>
           </div>
 

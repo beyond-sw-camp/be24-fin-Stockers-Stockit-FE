@@ -29,8 +29,9 @@ const MAX_LEVEL_POINTS = STAGE_THRESHOLDS[MAX_STAGE - 1]   // 1,500,000
 // 매 사이클마다 그루 +1 + Lv.1 씨앗으로 리셋
 const FULL_TREE_POINTS = 2_000_000
 
-// BE 응답 실패 시 폴백 가격 (BE 의 esg.carbon-api.fallback-price 와 동기화: 9,200)
-const KAU_FALLBACK_PRICE = 9200
+// BE 응답 실패 시 폴백 가격 (BE 의 esg.carbon-api.fallback-price 와 동기화: 13,000 — KOC25-30 최근 종가)
+// NOTE: 변수명은 옵션 A 정책으로 kau 유지 (DB 스냅샷 필드 kauPriceAtSale 호환). 실제 값은 KOC25-30 시세 기준.
+const KAU_FALLBACK_PRICE = 13000
 
 export const useEsgStore = defineStore('esg', () => {
   // 초기 0 → fetchTotalPoints() 호출 시 BE sale events 기반으로 자동 계산
@@ -42,7 +43,7 @@ export const useEsgStore = defineStore('esg', () => {
   // fetchTotalPoints 시 자동 갱신 + TreeScore 페이지 watcher 로도 sync
   const totalSalesKg = ref(0)
 
-  // 실제 탄소 배출 절감량 (kg CO₂) — SUM(weight × material_factor), CARBON_SCALE 미적용
+  // 실제 탄소 배출 절감량 (kg CO₂) — SUM(weight × material_factor), 별도 보정계수 없음
   // ESG 대시보드 KPI "탄소 배출 절감" + 탄소중립 "절감한 탄소 배출량" 카드 공유
   const totalCarbonReductionKg = ref(0)
   // 월별 탄소 절감량 (kg CO₂) 12개 — 전월 대비 변동률 계산용
@@ -130,7 +131,7 @@ export const useEsgStore = defineStore('esg', () => {
   })
 
   /**
-   * KAU25 최신 종가를 BE 에서 조회.
+   * 배출권 최신 종가를 BE 에서 조회 (현재 target-symbol = KOC25-30).
    *  - 정상: carbonPriceApi.getLatest() 응답으로 kauPrice 갱신
    *  - 폴백/실패: kauPrice 는 직전값(또는 KAU_FALLBACK_PRICE)을 유지하고 에러만 기록
    */
@@ -188,7 +189,7 @@ export const useEsgStore = defineStore('esg', () => {
           factor: Number(it.factor) || 0,
         }
       }
-      // BE 응답에 RAYON 이 있어도 FE 의 NYLON alias (POLYAMIDE 와 동일 label) 같은 호환성은 유지.
+      // BE 응답 키와 FE 상수 키가 다를 경우 FE 의 NYLON alias (POLYAMIDE 와 동일 label) 같은 호환성은 유지.
       // 누락된 키는 FE 상수에서 보강해서 막대 그래프 등 다른 의존부 깨지지 않도록 함.
       materialFactors.value = { ...MATERIAL_FACTORS, ...map }
       materialFactorsLoaded.value = true

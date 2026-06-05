@@ -754,7 +754,7 @@ function handleBack() {
                         <p class="mt-1 text-sm font-black text-gray-900">{{ saleEsgSnapshot?.esgMeta?.treatmentType || '-' }}</p>
                       </div>
                       <div>
-                        <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">판매 시점 KAU 단가</p>
+                        <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">판매 시점 KOC 단가</p>
                         <p class="mt-1 text-sm font-black text-gray-900">{{ formatCurrency(saleEsgSnapshot?.esgMeta?.kauPriceAtSale) }} / tCO2</p>
                       </div>
                       <div>
