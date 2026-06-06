@@ -37,11 +37,11 @@ const resolvedEsgSnapshot = computed(() => {
     return {
       total: s.esgTotalScore,
       scoreBreakdown: [
-        { category: 'saleExecution',     point: s.saleExecution     },
-        { category: 'donationExecution', point: s.donationExecution },
-        { category: 'carbon',            point: s.carbonScore       },
-        { category: 'newBuyer',          point: s.newBuyerScore     },
-        { category: 'localPartner',      point: s.localPartnerScore },
+        { scoreType: 'circularSaleExecution', points: s.saleExecution     },
+        { scoreType: 'donationExecution',     points: s.donationExecution },
+        { scoreType: 'carbonReduction',       points: s.carbonScore       },
+        { scoreType: 'newBuyerExpansion',     points: s.newBuyerScore     },
+        { scoreType: 'localPartner',          points: s.localPartnerScore },
       ],
     }
   }
