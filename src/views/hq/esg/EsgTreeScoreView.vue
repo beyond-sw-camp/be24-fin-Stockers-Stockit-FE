@@ -125,6 +125,7 @@ const LOG_FILTERS = [
   { v: 'carbon',            l: '탄소 감축',     dot: '#14b8a6' },
   { v: 'newBuyer',          l: '신규 확산',     dot: '#3b82f6' },
   { v: 'localPartner',      l: '지역 상생',     dot: '#f59e0b' },
+  { v: 'donation',          l: '기부',          dot: '#ec4899' },
 ]
 // 단일 카테고리 필터 시 점수 분해/총점 컬럼 라벨 & 텍스트 색상
 const FILTER_BREAKDOWN_META = {
@@ -132,6 +133,7 @@ const FILTER_BREAKDOWN_META = {
   carbon:            { label: '탄소 감축', cls: 'text-teal-700' },
   newBuyer:          { label: '신규 확산', cls: 'text-blue-700' },
   localPartner:      { label: '지역 상생', cls: 'text-amber-700' },
+  donation:          { label: '기부',      cls: 'text-pink-700' },
 }
 
 // ─────────── BE 응답 통째 보관 (Phase 3 — A''-1 서버 페이징/통계) ───────────
@@ -144,8 +146,9 @@ function normalizeSaleEvent(e) {
   return {
     id: e.id,
     date: e.date,
-    type: 'sale',
-    buyer: e.buyer,
+    type: e.type ?? (e.saleType ?? 'SALE').toLowerCase(),
+    saleType: e.saleType ?? 'SALE',
+    buyer: e.buyer ?? e.doneeName ?? '-',
     material: e.material,
     weightKg: e.weightKg,
     // Jackson+Lombok 직렬화 quirk: isXxx → "xxx" 로 직렬화될 수 있음. 양쪽 모두 수용.
@@ -158,6 +161,8 @@ function normalizeSaleEvent(e) {
     carbon:        e.carbon        ?? 0,
     newBuyer:      e.newBuyer      ?? 0,
     localPartner:  e.localPartner  ?? 0,
+    donationExecution: e.donationExecution ?? 0,
+    donation:      e.donationExecution ?? 0,
     total:         e.total         ?? 0,
     scoreValid:    e.scoreValid    === true,
   }
@@ -170,13 +175,13 @@ const pagedEvents = computed(() =>
 
 // BE summary — KPI/통계
 const summary = computed(() => responseData.value?.summary ?? {
-  totalScore: 0, saleExecutionSum: 0, carbonSum: 0, newBuyerSum: 0, localPartnerSum: 0,
+  totalScore: 0, saleExecutionSum: 0, carbonSum: 0, newBuyerSum: 0, localPartnerSum: 0, donationExecutionSum: 0,
   totalEventCount: 0, validEventCount: 0, totalKg: 0, avgScore: 0,
 })
 
 // BE categoryBreakdown — 도넛 차트 & 점수 요소 리스트
 const categoryBreakdown = computed(() => responseData.value?.categoryBreakdown ?? {
-  saleExecution: 0, carbon: 0, newBuyer: 0, localPartner: 0,
+  saleExecution: 0, carbon: 0, newBuyer: 0, localPartner: 0, donationExecution: 0,
 })
 
 // 총점 (도넛/헤더에서 사용)
@@ -187,9 +192,6 @@ const esgStore = useEsgStore()
 watch(totalScore,            (n) => esgStore.setTotalPoints(n),  { immediate: true })
 watch(() => summary.value.totalKg, (n) => esgStore.setTotalSalesKg(Number(n || 0)), { immediate: true })
 
-// 점수 요소 5종 (BE 응답 4종 + donation FE 하드코딩 1종)
-// ⚠️ donation 은 BE 미지원 — FE 데모용 하드코딩 (발표 시연 임팩트)
-const DONATION_DEMO_POINTS = 2655
 const scoreCategories = computed(() => {
   const t = categoryBreakdown.value
   const cats = [
@@ -197,7 +199,7 @@ const scoreCategories = computed(() => {
     { id: 'carbon',        label: '탄소 감축 기여',     icon: Leaf,        color: '#14b8a6', barCls: 'bg-teal-500',    points: t.carbon,        desc: '무게 × 소재 계수 (판매 활동)' },
     { id: 'newBuyer',      label: '순환 거래 확산',     icon: Recycle,     color: '#3b82f6', barCls: 'bg-blue-500',    points: t.newBuyer,      desc: '신규 거래처 첫 거래 +150 (ESG-S)' },
     { id: 'localPartner',  label: '지역 상생',          icon: ShieldCheck, color: '#f59e0b', barCls: 'bg-amber-500',   points: t.localPartner,  desc: '사회적기업/지역 파트너 +150 (월 3건)' },
-    { id: 'donation',      label: '기부',               icon: Heart,       color: '#ec4899', barCls: 'bg-pink-500',    points: DONATION_DEMO_POINTS, desc: '기부 1건당 100점 + 탄소 환산 (ESG-S)' },
+    { id: 'donation',      label: '기부',               icon: Heart,       color: '#ec4899', barCls: 'bg-pink-500',    points: t.donationExecution ?? 0, desc: '기부 1건당 100점 + 탄소 환산 (10kg 이상)' },
   ]
   // 5개 카드 점수 합계를 분모로 사용 → 도넛/진행바 비율 내적 일관성 확보
   const total = cats.reduce((sum, c) => sum + (c.points || 0), 0) || 1
@@ -561,9 +563,14 @@ onMounted(reload)
               <tr v-for="e in pagedEvents" :key="e.id" class="border-b border-gray-100 last:border-0" :class="{ 'opacity-50': !e.scoreValid }">
                 <td class="px-3 py-2 font-mono text-gray-700">{{ formatDate(e.date) }}</td>
                 <td class="px-3 py-2 text-center">
-                  <span class="inline-flex items-center border px-2 py-0.5 text-[10px] font-bold" :class="typeCls(e.type)">
-                    {{ typeLabel(e.type) }}
-                  </span>
+                  <template v-if="e.type === 'donation'">
+                    <span class="inline-flex items-center rounded border border-pink-200 bg-pink-100 px-2 py-0.5 text-[10px] font-bold text-pink-700">기부</span>
+                  </template>
+                  <template v-else>
+                    <span class="inline-flex items-center border px-2 py-0.5 text-[10px] font-bold" :class="typeCls(e.type)">
+                      {{ typeLabel(e.type) }}
+                    </span>
+                  </template>
                 </td>
                 <td class="px-3 py-2 text-gray-800">{{ e.buyer }}</td>
                 <td class="px-3 py-2 text-gray-600">
@@ -578,6 +585,7 @@ onMounted(reload)
                       <span v-if="e.carbon">+ 탄소 {{ formatNum(e.carbon) }}</span>
                       <span v-if="e.newBuyer" class="text-blue-600">+ 신규 {{ e.newBuyer }}</span>
                       <span v-if="e.localPartner" class="text-amber-600">+ 지역 {{ e.localPartner }}</span>
+                      <span v-if="e.donationExecution" class="text-pink-600">+ 기부 {{ formatNum(e.donationExecution) }}</span>
                     </template>
                     <!-- 단일 카테고리 필터: 해당 점수 요소 1개만 표시 -->
                     <template v-else>
