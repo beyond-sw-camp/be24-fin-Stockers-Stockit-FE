@@ -36,6 +36,10 @@ defineProps({
     type: Function,
     required: true,
   },
+  saleType: {
+    type: String,
+    default: 'SALE',
+  },
 })
 
 const emit = defineEmits(['move-step', 'open-final-review'])
@@ -50,7 +54,7 @@ const emit = defineEmits(['move-step', 'open-final-review'])
         :disabled="!canMoveStep2"
         @click="emit('move-step', 2)"
       >
-        거래처 매칭 →
+        {{ saleType === 'DONATION' ? '기부처 입력 →' : '거래처 매칭 →' }}
       </button>
     </div>
   </div>
@@ -123,7 +127,7 @@ const emit = defineEmits(['move-step', 'open-final-review'])
           class="h-10 cursor-pointer rounded-xl border border-gray-300 bg-white px-6 text-base font-black text-gray-700 transition-all duration-150 hover:bg-gray-50 hover:shadow-sm"
           @click="emit('move-step', 2)"
         >
-          ← 거래처 매칭으로
+          {{ saleType === 'DONATION' ? '← 기부처 입력으로' : '← 거래처 매칭으로' }}
         </button>
         <button
           type="button"

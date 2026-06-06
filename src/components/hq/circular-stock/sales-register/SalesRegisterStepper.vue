@@ -4,6 +4,10 @@ defineProps({
     type: Number,
     required: true,
   },
+  saleType: {
+    type: String,
+    default: 'SALE',
+  },
 })
 
 const emit = defineEmits(['move-step'])
@@ -69,7 +73,7 @@ const emit = defineEmits(['move-step'])
         <span
           class="text-xs font-black"
           :class="saleStep === 2 ? 'text-[#0F5C4D]' : 'text-gray-600'"
-          >거래처 매칭</span
+          >{{ saleType === 'DONATION' ? '기부처 입력' : '거래처 매칭' }}</span
         >
       </button>
 

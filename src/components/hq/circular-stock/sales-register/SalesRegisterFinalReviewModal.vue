@@ -67,9 +67,13 @@ const props = defineProps({
     type: Function,
     required: true,
   },
+  saleType: { type: String, default: 'SALE' },
+  doneeName: { type: String, default: '' },
 })
 
 const emit = defineEmits(['close', 'return-edit', 'submit'])
+
+const isDonation = computed(() => props.saleType === 'DONATION')
 
 const groupedDraftItems = computed(() => {
   const groups = new Map()
@@ -125,7 +129,7 @@ const includedMaterialBadges = computed(() => {
         <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <div>
             <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Final Review</p>
-            <h2 class="mt-1 text-lg font-black text-gray-900">최종 판매 등록서 확인</h2>
+            <h2 class="mt-1 text-lg font-black text-gray-900">{{ isDonation ? '최종 기부 등록서 확인' : '최종 판매 등록서 확인' }}</h2>
           </div>
           <button
             type="button"
@@ -209,7 +213,7 @@ const includedMaterialBadges = computed(() => {
                 </div>
               </article>
 
-              <article class="kpi-card">
+              <article v-if="!isDonation" class="kpi-card">
                 <p class="kpi-title">
                   <CircleDollarSign :size="12" />
                   최종 금액
@@ -227,7 +231,7 @@ const includedMaterialBadges = computed(() => {
 
             <div class="h-4"></div>
             <div
-              v-if="Math.abs(finalReviewSummary.totalActualWeightKg - finalReviewSummary.totalRequestedWeightKg) >= 0.01"
+              v-if="!isDonation && Math.abs(finalReviewSummary.totalActualWeightKg - finalReviewSummary.totalRequestedWeightKg) >= 0.01"
               class="rounded-md border border-[#EADFC8] bg-[#FFFBEB] px-3 py-3"
             >
               <p class="flex items-center gap-3 text-sm font-black text-gray-900">
@@ -246,7 +250,7 @@ const includedMaterialBadges = computed(() => {
           </div>
           <section class="px-5 bg-white">
             <div class="grid gap-8 px-1 lg:grid-cols-2">
-              <article>
+              <article v-if="!isDonation">
                 <h3 class="info-header">
                   <Building2 :size="13" />
                   거래처 정보
@@ -277,6 +281,18 @@ const includedMaterialBadges = computed(() => {
                   </div>
                 </dl>
               </article>
+              <div v-else>
+                <h3 class="info-header">
+                  <Building2 :size="13" />
+                  기부처 정보
+                </h3>
+                <dl class="mt-3 text-sm">
+                  <div class="info-line">
+                    <dt class="info-key">기부처</dt>
+                    <dd class="info-value">{{ doneeName || '-' }}</dd>
+                  </div>
+                </dl>
+              </div>
 
               <article>
                 <h3 class="info-header">
