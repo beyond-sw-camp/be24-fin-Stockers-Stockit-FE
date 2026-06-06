@@ -51,6 +51,7 @@ function openScoreRuleModal()  { showScoreRuleModal.value = true }
 function closeScoreRuleModal() { showScoreRuleModal.value = false }
 
 // 점수 산정 안내 표시용 룰 (5종 + 공통 조건)
+// ⚠️ donation 항목은 BE 미지원 — FE 데모용 안내 표시만
 const SCORE_RULE_ROWS = [
   {
     id: 'saleExecution',
@@ -178,37 +179,25 @@ const categoryBreakdown = computed(() => responseData.value?.categoryBreakdown ?
   saleExecution: 0, carbon: 0, newBuyer: 0, localPartner: 0,
 })
 
-// 점수 요소 5종 — 전체 FE 데모용 하드코딩 (발표 시연 임팩트)
-// ⚠️ BE 응답(categoryBreakdown) 무시. 실제 운영 시엔 t.saleExecution 등으로 환원 필요.
-//    탄소가 BE 실측값으론 95% 이상 점유 → 다른 카테고리 시각적 가시성 확보용 균형값.
-// NOTE: totalScore computed 가 이 값을 참조하므로 반드시 totalScore 보다 위에 선언.
-//       (watch(immediate:true) 가 setup 동기 실행 중 즉시 평가해 TDZ 에러 방지)
-const DEMO_POINTS = {
-  saleExecution: 60500,
-  carbon:        80000,
-  newBuyer:      45000,
-  localPartner:  30000,
-  donation:      25000,
-}
-
-// 총점 (도넛/헤더 + esgStore 트리 단계 산정에 사용)
-// ⚠️ 데모용 — 하드코딩된 DEMO_POINTS 합계(240,500pt = Lv.6 청년 나무)를 그대로 반영.
-//    실제 운영 시 Number(summary.value.totalScore || 0) 로 환원 필요.
-const totalScore = computed(() =>
-  Object.values(DEMO_POINTS).reduce((sum, v) => sum + v, 0)
-)
+// 총점 (도넛/헤더에서 사용)
+const totalScore = computed(() => Number(summary.value.totalScore || 0))
 
 // ESG 대시보드 헤더와 누적 점수/판매량 동기화
 const esgStore = useEsgStore()
 watch(totalScore,            (n) => esgStore.setTotalPoints(n),  { immediate: true })
 watch(() => summary.value.totalKg, (n) => esgStore.setTotalSalesKg(Number(n || 0)), { immediate: true })
+
+// 점수 요소 5종 (BE 응답 4종 + donation FE 하드코딩 1종)
+// ⚠️ donation 은 BE 미지원 — FE 데모용 하드코딩 (발표 시연 임팩트)
+const DONATION_DEMO_POINTS = 2655
 const scoreCategories = computed(() => {
+  const t = categoryBreakdown.value
   const cats = [
-    { id: 'saleExecution', label: '순환재고 판매 실행', icon: RefreshCw,   color: '#10b981', barCls: 'bg-emerald-500', points: DEMO_POINTS.saleExecution, desc: '판매 1건당 100점 (10kg 이상)' },
-    { id: 'carbon',        label: '탄소 감축 기여',     icon: Leaf,        color: '#14b8a6', barCls: 'bg-teal-500',    points: DEMO_POINTS.carbon,        desc: '무게 × 소재 계수 (판매 활동)' },
-    { id: 'newBuyer',      label: '순환 거래 확산',     icon: Recycle,     color: '#3b82f6', barCls: 'bg-blue-500',    points: DEMO_POINTS.newBuyer,      desc: '신규 거래처 첫 거래 +150 (ESG-S)' },
-    { id: 'localPartner',  label: '지역 상생',          icon: ShieldCheck, color: '#f59e0b', barCls: 'bg-amber-500',   points: DEMO_POINTS.localPartner,  desc: '사회적기업/지역 파트너 +150 (월 3건)' },
-    { id: 'donation',      label: '기부',               icon: Heart,       color: '#ec4899', barCls: 'bg-pink-500',    points: DEMO_POINTS.donation,      desc: '기부 1건당 100점 + 탄소 환산 (ESG-S)' },
+    { id: 'saleExecution', label: '순환재고 판매 실행', icon: RefreshCw,   color: '#10b981', barCls: 'bg-emerald-500', points: t.saleExecution, desc: '판매 1건당 100점 (10kg 이상)' },
+    { id: 'carbon',        label: '탄소 감축 기여',     icon: Leaf,        color: '#14b8a6', barCls: 'bg-teal-500',    points: t.carbon,        desc: '무게 × 소재 계수 (판매 활동)' },
+    { id: 'newBuyer',      label: '순환 거래 확산',     icon: Recycle,     color: '#3b82f6', barCls: 'bg-blue-500',    points: t.newBuyer,      desc: '신규 거래처 첫 거래 +150 (ESG-S)' },
+    { id: 'localPartner',  label: '지역 상생',          icon: ShieldCheck, color: '#f59e0b', barCls: 'bg-amber-500',   points: t.localPartner,  desc: '사회적기업/지역 파트너 +150 (월 3건)' },
+    { id: 'donation',      label: '기부',               icon: Heart,       color: '#ec4899', barCls: 'bg-pink-500',    points: DONATION_DEMO_POINTS, desc: '기부 1건당 100점 + 탄소 환산 (ESG-S)' },
   ]
   // 5개 카드 점수 합계를 분모로 사용 → 도넛/진행바 비율 내적 일관성 확보
   const total = cats.reduce((sum, c) => sum + (c.points || 0), 0) || 1
@@ -404,7 +393,7 @@ onMounted(reload)
                   친환경 나무 키우기 점수
                 </h1>
                 <p class="mt-0.5 truncate text-[11px] text-gray-500">
-                  순환재고 판매 활동 1건마다 적립되는 ESG 점수 — 4종 점수 요소 합산
+                  순환재고 판매 활동 1건마다 적립되는 ESG 점수 — 5종 점수 요소 합산
                 </p>
               </div>
             </div>
@@ -453,7 +442,7 @@ onMounted(reload)
         <article class="flex flex-col border border-gray-300 bg-white shadow-sm">
           <div class="border-b border-gray-200 px-4 py-3">
             <h2 class="text-[14px] font-bold text-gray-800">카테고리별 비중</h2>
-            <p class="text-[10px] text-gray-500">4종 점수 요소 — 올해</p>
+            <p class="text-[10px] text-gray-500">5종 점수 요소 — 올해</p>
           </div>
           <div class="min-h-[240px] flex-1 p-4">
             <DoughnutChart :data="categoryDoughnutData" :options="categoryDoughnutOptions" />
@@ -540,7 +529,7 @@ onMounted(reload)
               <Calendar :size="14" class="text-[#004D3C]" />
               활동 이력
             </h2>
-            <p class="text-[10px] text-gray-500">이벤트 1건 = 1행 · 점수 분해 표시 · 5개 점수 요소별 필터링 가능</p>
+            <p class="text-[10px] text-gray-500">이벤트 1건 = 1행 · 점수 분해 표시 · 4개 점수 요소별 필터링 가능</p>
           </div>
           <div class="inline-flex items-center gap-2">
             <Filter :size="13" class="text-gray-500" />
