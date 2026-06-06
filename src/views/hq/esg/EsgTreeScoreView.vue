@@ -559,7 +559,7 @@ onMounted(reload)
             <tbody>
               <!-- Phase 3 — BE 가 점수 4종/total/scoreValid 를 직접 계산해 응답에 포함.
                    FE 는 e.scoreValid, e.saleExecution, e.carbon, e.newBuyer, e.localPartner, e.total 을 그대로 사용. -->
-              <tr v-for="e in pagedEvents" :key="e.id" class="border-b border-gray-100 last:border-0" :class="{ 'opacity-50': !e.scoreValid }">
+              <tr v-for="e in pagedEvents" :key="e.id" class="border-b border-gray-100 last:border-0">
                 <td class="px-3 py-2 font-mono text-gray-700">{{ formatDate(e.date) }}</td>
                 <td class="px-3 py-2 text-center">
                   <template v-if="e.type === 'donation'">
@@ -577,30 +577,27 @@ onMounted(reload)
                 </td>
                 <td class="px-3 py-2 text-right font-mono text-gray-700">{{ formatNum(e.weightKg) }} kg</td>
                 <td class="px-3 py-2 text-[10.5px] text-gray-500">
-                  <template v-if="e.scoreValid">
-                    <!-- 전체 필터: 모든 점수 요소 분해 표시 -->
-                    <template v-if="filterCategory === 'ALL'">
-                      <span v-if="e.saleExecution">실행 {{ e.saleExecution }}</span>
-                      <span v-if="e.carbon">+ 탄소 {{ formatNum(e.carbon) }}</span>
-                      <span v-if="e.newBuyer" class="text-blue-600">+ 신규 {{ e.newBuyer }}</span>
-                      <span v-if="e.localPartner" class="text-amber-600">+ 지역 {{ e.localPartner }}</span>
-                      <span v-if="e.donationExecution" class="text-pink-600">+ 기부 {{ formatNum(e.donationExecution) }}</span>
-                    </template>
-                    <!-- 단일 카테고리 필터: 해당 점수 요소 1개만 표시 -->
-                    <template v-else>
-                      <span class="font-black" :class="FILTER_BREAKDOWN_META[filterCategory]?.cls">
-                        {{ FILTER_BREAKDOWN_META[filterCategory]?.label }}
-                        +{{ formatNum(e[filterCategory] || 0) }}
-                      </span>
-                    </template>
+                  <template v-if="filterCategory === 'ALL'">
+                    <!-- 전체 필터: 모든 점수 요소 분해 표시 (실행만 scoreValid 조건) -->
+                    <span v-if="e.scoreValid && e.saleExecution">실행 {{ e.saleExecution }} + </span>
+                    <span v-if="e.carbon">탄소 {{ formatNum(e.carbon) }}</span>
+                    <span v-if="e.newBuyer" class="text-blue-600"> + 신규 {{ e.newBuyer }}</span>
+                    <span v-if="e.localPartner" class="text-amber-600"> + 지역 {{ e.localPartner }}</span>
+                    <span v-if="e.donationExecution" class="text-pink-600"> + 기부 {{ formatNum(e.donationExecution) }}</span>
+                    <span v-if="!e.saleExecution && !e.carbon && !e.newBuyer && !e.localPartner && !e.donationExecution"
+                          class="italic text-red-500">최소 10kg 미달 — 점수 부여 없음</span>
                   </template>
-                  <span v-else class="italic text-red-500">최소 10kg 미달 — 점수 부여 없음</span>
+                  <!-- 단일 카테고리 필터: 해당 점수 요소 1개만 표시 -->
+                  <template v-else>
+                    <span class="font-black" :class="FILTER_BREAKDOWN_META[filterCategory]?.cls">
+                      {{ FILTER_BREAKDOWN_META[filterCategory]?.label }}
+                      +{{ formatNum(e[filterCategory] || 0) }}
+                    </span>
+                  </template>
                 </td>
                 <td class="px-3 py-2 text-right">
                   <div class="font-black"
-                       :class="e.scoreValid
-                         ? (filterCategory === 'ALL' ? 'text-emerald-700' : FILTER_BREAKDOWN_META[filterCategory]?.cls)
-                         : 'text-gray-400'">
+                       :class="filterCategory === 'ALL' ? 'text-emerald-700' : FILTER_BREAKDOWN_META[filterCategory]?.cls">
                     +{{ formatNum(filterCategory === 'ALL' ? e.total : (e[filterCategory] || 0)) }}
                   </div>
                 </td>
