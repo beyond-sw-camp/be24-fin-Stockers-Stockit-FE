@@ -1,7 +1,7 @@
 ﻿<script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Building2, ChevronDown, CircleDollarSign, Scale, Settings2, Shirt, Tag, Truck } from 'lucide-vue-next'
+import { Building2, ChevronDown, CircleDollarSign, Heart, Info, Scale, Settings2, Shirt, Tag, Truck } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useCircularStockSaleStore } from '@/stores/hq/circularStock/circularStockSale.js'
@@ -30,6 +30,11 @@ const activeTab = ref('sales')
 const saleId = computed(() => String(route.params.saleId ?? ''))
 const sale = computed(() => circularStockStore.getSaleById(saleId.value))
 const saleEsgSnapshot = computed(() => circularStockStore.getSaleEsgSnapshot(sale.value))
+const saleType = computed(() => sale.value?.saleType ?? 'SALE')
+const isDonation = computed(() => saleType.value === 'DONATION')
+const doneeOrBuyerName = computed(() =>
+  isDonation.value ? (sale.value?.doneeName ?? '-') : (sale.value?.buyerName ?? '-'),
+)
 const linkedBuyer = ref(null)
 const buyerSalesTotalCount = ref(null)
 const openGroups = ref(new Set())
@@ -457,13 +462,24 @@ function handleBack() {
                       </p>
 
                       <div class="mt-4 space-y-3">
-                        <div v-for="scoreItem in scoreSummaryCards" :key="scoreItem.scoreType">
+                        <template v-for="scoreItem in scoreSummaryCards" :key="scoreItem.scoreType">
+                          <div v-if="!isDonation || scoreItem.scoreType === 'carbonReduction'">
+                            <div class="flex items-center justify-between gap-3 text-[11px] font-black">
+                              <span class="text-gray-700">{{ scoreItem.label }}</span>
+                              <span :class="scoreItem.isInactive ? 'score-muted-text' : scoreItem.accent">+{{ formatQuantity(scoreItem.points) }} pt</span>
+                            </div>
+                            <div class="mt-1 h-2 overflow-hidden rounded-full bg-gray-100">
+                              <div class="h-full rounded-full" :class="scoreItem.bar" :style="{ width: `${scoreItem.ratio}%` }"></div>
+                            </div>
+                          </div>
+                        </template>
+                        <div v-if="isDonation">
                           <div class="flex items-center justify-between gap-3 text-[11px] font-black">
-                            <span class="text-gray-700">{{ scoreItem.label }}</span>
-                            <span :class="scoreItem.isInactive ? 'score-muted-text' : scoreItem.accent">+{{ formatQuantity(scoreItem.points) }} pt</span>
+                            <span class="flex items-center gap-1 text-gray-700"><Heart :size="12" class="text-pink-500" />기부 실행</span>
+                            <span class="text-pink-600">+{{ formatQuantity(sale?.donationExecution ?? 0) }} pt</span>
                           </div>
                           <div class="mt-1 h-2 overflow-hidden rounded-full bg-gray-100">
-                            <div class="h-full rounded-full" :class="scoreItem.bar" :style="{ width: `${scoreItem.ratio}%` }"></div>
+                            <div class="h-full rounded-full bg-pink-300" :style="{ width: `${sale?.donationExecution ? 100 : 0}%` }"></div>
                           </div>
                         </div>
                       </div>
@@ -477,9 +493,9 @@ function handleBack() {
               <div class="sales-summary-stack">
                 <div class="sales-summary-head flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p class="text-2xl font-medium text-gray-900">{{ sale.buyerName }}</p>
+                  <p class="text-2xl font-medium text-gray-900">{{ doneeOrBuyerName }}</p>
                   <p class="sales-buyer-subline text-xs text-gray-500">
-                    {{ sale.buyerIndustryGroup || linkedBuyer?.industryGroup || '-' }} · SKU {{ formatQuantity(sale.totalSkuCount) }}종
+                    <template v-if="!isDonation">{{ sale.buyerIndustryGroup || linkedBuyer?.industryGroup || '-' }} · </template>SKU {{ formatQuantity(sale.totalSkuCount) }}종
                   </p>
                 </div>
                 <span class="inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-black" :class="outboundStatusBadgeClass(sale.outboundStatus)">
@@ -511,14 +527,14 @@ function handleBack() {
                     <span v-if="includedMaterialBadges.length === 0" class="text-sm text-gray-500">-</span>
                   </div>
                 </article>
-                <article class="kpi-card">
+                <article v-if="!isDonation" class="kpi-card">
                   <p class="kpi-title"><CircleDollarSign :size="14" />최종 금액</p>
                   <p class="kpi-content-gap text-2xl font-black text-[#1C8E73]">{{ formatCurrency(sale.totalAmount) }}</p>
                   <p class="kpi-subtext"><Info :size="12" class="kpi-subtext-icon" />요청 기준 <span class="line-through">{{ formatCurrency(totalRequestedAmount) }}</span></p>
                 </article>
               </div>
               <div
-                v-if="Math.abs(Number(sale.totalActualWeightKg || 0) - Number(sale.totalRequestedWeightKg || 0)) >= 0.01"
+                v-if="!isDonation && Math.abs(Number(sale.totalActualWeightKg || 0) - Number(sale.totalRequestedWeightKg || 0)) >= 0.01"
                 class="sales-summary-alert flex items-center gap-2 rounded-md border border-[#EADFC8] bg-[#FFFBEB] px-3 py-3 text-sm text-[#8b5e34]"
               >
                 <Settings2 :size="16" class="shrink-0" />
@@ -533,12 +549,12 @@ function handleBack() {
 
             <section class="w-full grid gap-8 px-4 pt-4 lg:grid-cols-2">
               <div>
-                <h3 class="info-header"><Building2 :size="13" />거래처 정보</h3>
+                <h3 class="info-header"><Building2 :size="13" />{{ isDonation ? '기부처 정보' : '거래처 정보' }}</h3>
                 <div class="info-line">
-                  <p class="info-key">거래처명</p>
-                  <p class="info-value">{{ sale.buyerName }}<span class="buyer-code">{{ sale.buyerCode || '-' }}</span></p>
+                  <p class="info-key">{{ isDonation ? '기부처명' : '거래처명' }}</p>
+                  <p class="info-value">{{ doneeOrBuyerName }}<span v-if="!isDonation" class="buyer-code">{{ sale.buyerCode || '-' }}</span></p>
                 </div>
-                <div class="info-line">
+                <div v-if="!isDonation" class="info-line">
                   <p class="info-key">산업군</p>
                   <p class="info-value">{{ sale.buyerIndustryGroup || linkedBuyer?.industryGroup || '-' }}</p>
                 </div>
@@ -698,26 +714,39 @@ function handleBack() {
                       </p>
 
                       <div class="mt-4 space-y-3">
-                        <div
-                          v-for="scoreItem in scoreSummaryCards"
-                          :key="scoreItem.scoreType"
-                          class="rounded-md border px-3 py-3"
-                          :class="scoreItem.isInactive ? 'score-secondary-border score-secondary-card' : 'border-gray-100 bg-gray-50'"
-                        >
+                        <template v-for="scoreItem in scoreSummaryCards" :key="scoreItem.scoreType">
+                          <div
+                            v-if="!isDonation || scoreItem.scoreType === 'carbonReduction'"
+                            class="rounded-md border px-3 py-3"
+                            :class="scoreItem.isInactive ? 'score-secondary-border score-secondary-card' : 'border-gray-100 bg-gray-50'"
+                          >
+                            <div class="flex items-center justify-between gap-3">
+                              <p class="text-[11px] font-black text-gray-800">{{ scoreItem.label }}</p>
+                              <p class="text-sm font-black" :class="scoreItem.isInactive ? 'score-muted-text' : scoreItem.accent">+{{ formatQuantity(scoreItem.points) }} pt</p>
+                            </div>
+                            <div class="mt-2 h-2 overflow-hidden rounded-full bg-white">
+                              <div class="h-full rounded-full" :class="scoreItem.bar" :style="{ width: `${scoreItem.ratio}%` }"></div>
+                            </div>
+                            <p class="mt-2 text-[11px] font-bold leading-5 text-gray-500">{{ scoreItem.insight }}</p>
+                            <span
+                              v-if="scoreItem.badgeText"
+                              class="score-inactive-badge mt-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold"
+                            >
+                              {{ scoreItem.badgeText }}
+                            </span>
+                          </div>
+                        </template>
+                        <div v-if="isDonation" class="rounded-md border border-pink-200 bg-pink-50 px-3 py-3">
                           <div class="flex items-center justify-between gap-3">
-                            <p class="text-[11px] font-black text-gray-800">{{ scoreItem.label }}</p>
-                            <p class="text-sm font-black" :class="scoreItem.isInactive ? 'score-muted-text' : scoreItem.accent">+{{ formatQuantity(scoreItem.points) }} pt</p>
+                            <p class="flex items-center gap-1 text-[11px] font-black text-gray-800">
+                              <Heart :size="12" class="text-pink-500" />기부 실행
+                            </p>
+                            <p class="text-sm font-black text-pink-600">+{{ formatQuantity(sale?.donationExecution ?? 0) }} pt</p>
                           </div>
                           <div class="mt-2 h-2 overflow-hidden rounded-full bg-white">
-                            <div class="h-full rounded-full" :class="scoreItem.bar" :style="{ width: `${scoreItem.ratio}%` }"></div>
+                            <div class="h-full rounded-full bg-pink-300" :style="{ width: `${sale?.donationExecution ? 100 : 0}%` }"></div>
                           </div>
-                          <p class="mt-2 text-[11px] font-bold leading-5 text-gray-500">{{ scoreItem.insight }}</p>
-                          <span
-                            v-if="scoreItem.badgeText"
-                            class="score-inactive-badge mt-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold"
-                          >
-                            {{ scoreItem.badgeText }}
-                          </span>
+                          <p class="mt-2 text-[11px] font-bold leading-5 text-gray-500">기부 실행 자체가 ESG 순환 활동으로 인정된 점수입니다.</p>
                         </div>
                       </div>
                     </div>
