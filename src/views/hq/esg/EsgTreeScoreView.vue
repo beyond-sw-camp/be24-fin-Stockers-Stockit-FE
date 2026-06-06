@@ -125,7 +125,7 @@ const LOG_FILTERS = [
   { v: 'carbon',            l: '탄소 감축',     dot: '#14b8a6' },
   { v: 'newBuyer',          l: '신규 확산',     dot: '#3b82f6' },
   { v: 'localPartner',      l: '지역 상생',     dot: '#f59e0b' },
-  { v: 'donation',          l: '기부',          dot: '#ec4899' },
+  { v: 'donationExecution', l: '기부',          dot: '#ec4899' },
 ]
 // 단일 카테고리 필터 시 점수 분해/총점 컬럼 라벨 & 텍스트 색상
 const FILTER_BREAKDOWN_META = {
@@ -133,7 +133,7 @@ const FILTER_BREAKDOWN_META = {
   carbon:            { label: '탄소 감축', cls: 'text-teal-700' },
   newBuyer:          { label: '신규 확산', cls: 'text-blue-700' },
   localPartner:      { label: '지역 상생', cls: 'text-amber-700' },
-  donation:          { label: '기부',      cls: 'text-pink-700' },
+  donationExecution: { label: '기부',      cls: 'text-pink-700' },
 }
 
 // ─────────── BE 응답 통째 보관 (Phase 3 — A''-1 서버 페이징/통계) ───────────
@@ -162,7 +162,6 @@ function normalizeSaleEvent(e) {
     newBuyer:      e.newBuyer      ?? 0,
     localPartner:  e.localPartner  ?? 0,
     donationExecution: e.donationExecution ?? 0,
-    donation:      e.donationExecution ?? 0,
     total:         e.total         ?? 0,
     scoreValid:    e.scoreValid    === true,
   }

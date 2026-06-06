@@ -892,8 +892,10 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
       if (Number.isNaN(requestedWeightKg) || requestedWeightKg <= 0) {
         return fail(`${skuLabel} 판매 kg를 입력해 주세요.`, 'REQUESTED_KG_MISSING', item.draftId)
       }
-      if (Number.isNaN(unitPrice) || unitPrice <= 0) {
-        return fail(`${skuLabel} kg당 단가를 입력해 주세요.`, 'UNIT_PRICE_MISSING', item.draftId)
+      if (draftSaleType.value !== 'DONATION') {
+        if (Number.isNaN(unitPrice) || unitPrice <= 0) {
+          return fail(`${skuLabel} kg당 단가를 입력해 주세요.`, 'UNIT_PRICE_MISSING', item.draftId)
+        }
       }
       if (item.deductedQuantity <= 0) {
         return fail(`${skuLabel} 차감 수량이 계산되지 않았습니다. 판매 kg와 단위중량을 확인해 주세요.`, 'DEDUCTED_QTY_INVALID', item.draftId)
