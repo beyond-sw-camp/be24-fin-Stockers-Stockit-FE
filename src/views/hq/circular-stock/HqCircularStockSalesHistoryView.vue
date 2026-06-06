@@ -361,7 +361,8 @@ onMounted(() => {
           </div>
         </div>
 
-        <div class="pt-3">
+        <Transition name="tab-fade" mode="out-in">
+        <div :key="activeSaleType" class="pt-3">
           <div :class="activeSaleType === 'DONATION' ? 'grid gap-3 md:grid-cols-3' : 'grid gap-3 md:grid-cols-4'">
             <div class="border border-slate-100 bg-slate-50 px-4 py-3">
               <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">
@@ -397,9 +398,11 @@ onMounted(() => {
             </div>
           </div>
         </div>
+        </Transition>
       </section>
 
-      <section class="border border-gray-300 bg-white shadow-sm">
+      <Transition name="tab-fade" mode="out-in">
+      <section :key="activeSaleType" class="border border-gray-300 bg-white shadow-sm">
         <div class="border-b border-gray-200 px-4 py-3">
           <div class="flex flex-wrap items-end justify-between gap-3">
             <div>
@@ -545,7 +548,20 @@ onMounted(() => {
           </div>
         </div>
       </section>
+      </Transition>
     </div>
   </AppLayout>
 </template>
+
+<style scoped>
+.tab-fade-enter-active,
+.tab-fade-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.tab-fade-enter-from,
+.tab-fade-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
+}
+</style>
 
