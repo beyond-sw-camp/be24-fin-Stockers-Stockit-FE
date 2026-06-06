@@ -362,7 +362,7 @@ onMounted(() => {
         </div>
 
         <div class="pt-3">
-          <div class="grid gap-3 md:grid-cols-4">
+          <div :class="activeSaleType === 'DONATION' ? 'grid gap-3 md:grid-cols-3' : 'grid gap-3 md:grid-cols-4'">
             <div class="border border-slate-100 bg-slate-50 px-4 py-3">
               <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">
                 {{ activeSaleType === 'DONATION' ? '기부건 수' : '판매건 수' }}
@@ -379,9 +379,9 @@ onMounted(() => {
                 {{ formatKg(filteredSummary.totalActualWeightKg) }}
               </p>
             </div>
-            <div class="border border-amber-100 bg-amber-50 px-4 py-3">
+            <div v-if="activeSaleType !== 'DONATION'" class="border border-amber-100 bg-amber-50 px-4 py-3">
               <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">
-                {{ activeSaleType === 'DONATION' ? '총 기부 금액' : '총 판매 금액' }}
+                총 판매 금액
               </p>
               <p class="mt-1.5 text-lg font-black text-amber-700">
                 {{ formatCurrency(filteredSummary.totalSalesAmount) }}
@@ -421,18 +421,18 @@ onMounted(() => {
         </div>
 
         <div class="overflow-x-auto">
-          <table class="min-w-[1200px] w-full border-collapse text-xs">
+          <table :class="['w-full border-collapse text-xs', activeSaleType === 'DONATION' ? 'min-w-[900px]' : 'min-w-[1200px]']">
             <thead class="bg-gray-50 text-[10px] uppercase tracking-[0.12em] text-gray-500">
               <tr>
                 <th class="px-3 py-3 text-left font-black">판매번호</th>
                 <th class="px-3 py-3 text-left font-black">출고 창고</th>
                 <th class="px-3 py-3 text-left font-black">{{ activeSaleType === 'DONATION' ? '기부처' : '거래처' }}</th>
-                <th class="pl-5 pr-4 py-3 text-left font-black">산업군</th>
+                <th v-if="activeSaleType !== 'DONATION'" class="pl-5 pr-4 py-3 text-left font-black">산업군</th>
                 <th class="px-4 py-3 text-center font-black">소재 분류</th>
                 <th class="px-4 py-3 text-left font-black">대표 품목</th>
                 <th class="px-4 py-3 text-right font-black">{{ activeSaleType === 'DONATION' ? '기부 KG' : '판매 KG' }}</th>
                 <th class="px-4 py-3 text-right font-black">{{ activeSaleType === 'DONATION' ? '기부 수량' : '판매 수량' }}</th>
-                <th class="px-4 py-3 text-right font-black">{{ activeSaleType === 'DONATION' ? '기부 금액' : '판매 금액' }}</th>
+                <th v-if="activeSaleType !== 'DONATION'" class="px-4 py-3 text-right font-black">판매 금액</th>
                 <th class="px-4 py-3 text-center font-black">상태</th>
               </tr>
             </thead>
@@ -453,8 +453,8 @@ onMounted(() => {
                   {{ sale.outboundWarehouseName || '-' }}
                 </td>
                 <td class="px-3 py-3 font-black text-gray-900">{{ displayName(sale) }}</td>
-                <td class="pl-5 pr-4 py-3 font-bold text-gray-700">
-                  {{ isDonation(sale) ? '-' : buyerIndustryGroupLabel(sale) }}
+                <td v-if="activeSaleType !== 'DONATION'" class="pl-5 pr-4 py-3 font-bold text-gray-700">
+                  {{ buyerIndustryGroupLabel(sale) }}
                 </td>
                 <td class="px-4 py-3 text-center">
                   <span
@@ -471,8 +471,8 @@ onMounted(() => {
                 <td class="px-4 py-3 text-right font-black text-gray-700">
                   {{ formatQuantity(sale.totalSoldQuantity) }}
                 </td>
-                <td class="px-4 py-3 text-right font-black text-gray-900">
-                  {{ isDonation(sale) ? '-' : formatCurrency(sale.totalAmount) }}
+                <td v-if="activeSaleType !== 'DONATION'" class="px-4 py-3 text-right font-black text-gray-900">
+                  {{ formatCurrency(sale.totalAmount) }}
                 </td>
                 <td class="px-4 py-3 text-center">
                   <span
@@ -484,15 +484,21 @@ onMounted(() => {
                 </td>
               </tr>
               <tr v-if="filteredSales.length === 0">
-                <td colspan="10" class="px-4 py-12 text-center text-gray-400">{{ activeSaleType === 'DONATION' ? '조회 가능한 기부 이력이 없습니다.' : '조회 가능한 판매 이력이 없습니다.' }}</td>
+                <td :colspan="activeSaleType === 'DONATION' ? 8 : 10" class="px-4 py-12 text-center text-gray-400">{{ activeSaleType === 'DONATION' ? '조회 가능한 기부 이력이 없습니다.' : '조회 가능한 판매 이력이 없습니다.' }}</td>
               </tr>
             </tbody>
             <tfoot class="border-t-2 border-gray-200 bg-gray-50 text-xs">
-              <tr>
+              <tr v-if="activeSaleType !== 'DONATION'">
                 <td colspan="6" class="px-4 py-4 text-right font-black text-gray-600">총 집계</td>
                 <td class="px-4 py-4 text-right font-black text-emerald-700">{{ formatKg(filteredSummary.totalActualWeightKg) }}</td>
                 <td class="px-4 py-4 text-right font-black text-sky-700">{{ formatQuantity(filteredSummary.totalDeductedQuantity) }}</td>
                 <td class="px-4 py-4 text-right font-black text-amber-700">{{ formatCurrency(filteredSummary.totalSalesAmount) }}</td>
+                <td class="px-4 py-4"></td>
+              </tr>
+              <tr v-else>
+                <td colspan="5" class="px-4 py-4 text-right font-black text-gray-600">총 집계</td>
+                <td class="px-4 py-4 text-right font-black text-emerald-700">{{ formatKg(filteredSummary.totalActualWeightKg) }}</td>
+                <td class="px-4 py-4 text-right font-black text-sky-700">{{ formatQuantity(filteredSummary.totalDeductedQuantity) }}</td>
                 <td class="px-4 py-4"></td>
               </tr>
             </tfoot>
