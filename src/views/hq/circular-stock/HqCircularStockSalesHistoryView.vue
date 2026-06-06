@@ -16,6 +16,12 @@ const circularStockStore = useCircularStockSaleStore()
 const hqMenus = roleMenus.hq
 const circularStockMenus =
   roleMenus.hq.find((menu) => menu.label === '순환 재고 관리')?.children ?? []
+const saleTypeTabs = [
+  { key: 'SALE',     label: '판매' },
+  { key: 'DONATION', label: '기부' },
+]
+const activeSaleType = ref('SALE')
+
 const periodTabs = [
   { key: 'all', label: '전체' },
   { key: 'week', label: '주별' },
@@ -179,7 +185,7 @@ function formatDate(date) {
 }
 
 function formatPeriodLabel() {
-  if (activePeriod.value === 'all') return '전체 판매 내역'
+  if (activePeriod.value === 'all') return activeSaleType.value === 'DONATION' ? '전체 기부 내역' : '전체 판매 내역'
   if (activePeriod.value === 'year') return `${referenceDate.value.getFullYear()}년 기준`
   return `${formatDate(periodRange.value.start)} ~ ${formatDate(periodRange.value.end)}`
 }
@@ -194,6 +200,14 @@ function formatCurrency(value) {
 
 function formatQuantity(value) {
   return `${Number(value || 0).toLocaleString()}벌`
+}
+
+function displayName(sale) {
+  return sale.saleType === 'DONATION' ? (sale.doneeName || '-') : (sale.buyerName || '-')
+}
+
+function isDonation(sale) {
+  return sale.saleType === 'DONATION'
 }
 
 function openSaleDetail(saleId) {
@@ -223,6 +237,7 @@ async function loadSales(options = {}) {
     from: activePeriod.value === 'all' ? undefined : toDateParam(range.start),
     to: activePeriod.value === 'all' ? undefined : toDateParam(range.end),
     keyword: searchTerm.value?.trim() || undefined,
+    saleType: activeSaleType.value === 'all' ? undefined : activeSaleType.value,
   })
   const latest = circularStockStore.sortedSales[0]
   if (latest?.soldAt) {
@@ -264,6 +279,11 @@ watch([activePeriod, searchTerm], () => {
   loadSales()
 })
 
+watch(activeSaleType, () => {
+  currentPage.value = 1
+  loadSales()
+})
+
 onMounted(() => {
   loadSales()
 })
@@ -293,23 +313,44 @@ onMounted(() => {
 
       <section class="border border-gray-300 bg-white p-4 shadow-sm">
         <div class="flex flex-wrap items-center justify-between gap-4">
-          <div
-            class="inline-flex flex-wrap items-center gap-1 rounded-[14px] border border-[#E5E7EB] bg-[#F7F7F8] p-1"
-          >
-            <button
-              v-for="tab in periodTabs"
-              :key="tab.key"
-              type="button"
-              class="rounded-[12px] px-2.5 py-1 text-[11px] font-semibold tracking-[0.01em] transition-all duration-150"
-              :class="
-                activePeriod === tab.key
-                  ? 'bg-white text-[#111827] shadow-[0_1px_2px_rgba(17,24,39,0.06)]'
-                  : 'bg-transparent text-[#6B7280] hover:bg-white hover:text-[#374151]'
-              "
-              @click="setPeriod(tab.key)"
-            >
-              {{ tab.label }}
-            </button>
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="inline-flex flex-wrap items-center gap-1 rounded-[14px] border border-[#E5E7EB] bg-[#F7F7F8] p-1">
+              <button
+                v-for="tab in saleTypeTabs"
+                :key="tab.key"
+                type="button"
+                class="rounded-[12px] px-2.5 py-1 text-[11px] font-semibold tracking-[0.01em] transition-all duration-150"
+                :class="
+                  activeSaleType === tab.key
+                    ? (tab.key === 'DONATION'
+                        ? 'bg-pink-500 text-white shadow-[0_1px_2px_rgba(17,24,39,0.06)]'
+                        : tab.key === 'SALE'
+                        ? 'bg-emerald-500 text-white shadow-[0_1px_2px_rgba(17,24,39,0.06)]'
+                        : 'bg-white text-[#111827] shadow-[0_1px_2px_rgba(17,24,39,0.06)]')
+                    : 'bg-transparent text-[#6B7280] hover:bg-white hover:text-[#374151]'
+                "
+                @click="activeSaleType = tab.key"
+              >
+                {{ tab.label }}
+              </button>
+            </div>
+
+            <div class="inline-flex flex-wrap items-center gap-1 rounded-[14px] border border-[#E5E7EB] bg-[#F7F7F8] p-1">
+              <button
+                v-for="tab in periodTabs"
+                :key="tab.key"
+                type="button"
+                class="rounded-[12px] px-2.5 py-1 text-[11px] font-semibold tracking-[0.01em] transition-all duration-150"
+                :class="
+                  activePeriod === tab.key
+                    ? 'bg-white text-[#111827] shadow-[0_1px_2px_rgba(17,24,39,0.06)]'
+                    : 'bg-transparent text-[#6B7280] hover:bg-white hover:text-[#374151]'
+                "
+                @click="setPeriod(tab.key)"
+              >
+                {{ tab.label }}
+              </button>
+            </div>
           </div>
 
           <div class="text-right">
@@ -324,7 +365,7 @@ onMounted(() => {
           <div class="grid gap-3 md:grid-cols-4">
             <div class="border border-slate-100 bg-slate-50 px-4 py-3">
               <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">
-                판매건 수
+                {{ activeSaleType === 'DONATION' ? '기부건 수' : '판매건 수' }}
               </p>
               <p class="mt-1.5 text-lg font-black text-slate-700">
                 {{ filteredSummary.totalSalesCount.toLocaleString() }}건
@@ -332,7 +373,7 @@ onMounted(() => {
             </div>
             <div class="border border-emerald-100 bg-emerald-50 px-4 py-3">
               <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">
-                총 판매 KG
+                {{ activeSaleType === 'DONATION' ? '총 기부 KG' : '총 판매 KG' }}
               </p>
               <p class="mt-1.5 text-lg font-black text-emerald-700">
                 {{ formatKg(filteredSummary.totalActualWeightKg) }}
@@ -340,7 +381,7 @@ onMounted(() => {
             </div>
             <div class="border border-amber-100 bg-amber-50 px-4 py-3">
               <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">
-                총 판매 금액
+                {{ activeSaleType === 'DONATION' ? '총 기부 금액' : '총 판매 금액' }}
               </p>
               <p class="mt-1.5 text-lg font-black text-amber-700">
                 {{ formatCurrency(filteredSummary.totalSalesAmount) }}
@@ -348,7 +389,7 @@ onMounted(() => {
             </div>
             <div class="border border-sky-100 bg-sky-50 px-4 py-3">
               <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">
-                총 판매 재고 수량
+                {{ activeSaleType === 'DONATION' ? '총 기부 수량' : '총 판매 수량' }}
               </p>
               <p class="mt-1.5 text-lg font-black text-sky-700">
                 {{ formatQuantity(filteredSummary.totalDeductedQuantity) }}
@@ -362,9 +403,9 @@ onMounted(() => {
         <div class="border-b border-gray-200 px-4 py-3">
           <div class="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 class="text-sm font-extrabold text-gray-900">판매 이력 목록</h2>
+              <h2 class="text-sm font-extrabold text-gray-900">{{ activeSaleType === 'DONATION' ? '기부 이력 목록' : '판매 이력 목록' }}</h2>
               <p class="mt-1 text-[11px] font-bold text-gray-400">
-                행을 클릭하면 판매 상세 페이지로 이동합니다.
+                {{ activeSaleType === 'DONATION' ? '행을 클릭하면 기부 상세 페이지로 이동합니다.' : '행을 클릭하면 판매 상세 페이지로 이동합니다.' }}
               </p>
             </div>
             <label class="flex min-w-[300px] items-center gap-2">
@@ -373,7 +414,7 @@ onMounted(() => {
                 v-model="searchTerm"
                 type="search"
                 class="h-9 flex-1 border border-gray-300 bg-white px-3 text-xs font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#111827]"
-                placeholder="판매번호, 거래처명, 대표품목"
+                :placeholder="activeSaleType === 'DONATION' ? '기부번호, 기부처명, 대표품목' : '판매번호, 거래처명, 대표품목'"
               />
             </label>
           </div>
@@ -385,13 +426,13 @@ onMounted(() => {
               <tr>
                 <th class="px-3 py-3 text-left font-black">판매번호</th>
                 <th class="px-3 py-3 text-left font-black">출고 창고</th>
-                <th class="px-3 py-3 text-left font-black">거래처</th>
+                <th class="px-3 py-3 text-left font-black">{{ activeSaleType === 'DONATION' ? '기부처' : '거래처' }}</th>
                 <th class="pl-5 pr-4 py-3 text-left font-black">산업군</th>
                 <th class="px-4 py-3 text-center font-black">소재 분류</th>
                 <th class="px-4 py-3 text-left font-black">대표 품목</th>
-                <th class="px-4 py-3 text-right font-black">판매 KG</th>
-                <th class="px-4 py-3 text-right font-black">판매 수량</th>
-                <th class="px-4 py-3 text-right font-black">판매 금액</th>
+                <th class="px-4 py-3 text-right font-black">{{ activeSaleType === 'DONATION' ? '기부 KG' : '판매 KG' }}</th>
+                <th class="px-4 py-3 text-right font-black">{{ activeSaleType === 'DONATION' ? '기부 수량' : '판매 수량' }}</th>
+                <th class="px-4 py-3 text-right font-black">{{ activeSaleType === 'DONATION' ? '기부 금액' : '판매 금액' }}</th>
                 <th class="px-4 py-3 text-center font-black">상태</th>
               </tr>
             </thead>
@@ -402,13 +443,18 @@ onMounted(() => {
                 class="cursor-pointer transition-colors hover:bg-gray-50"
                 @click="openSaleDetail(sale.saleId)"
               >
-                <td class="px-3 py-3 font-mono font-black text-gray-800">{{ sale.saleNo }}</td>
+                <td class="px-3 py-3 font-mono font-black text-gray-800">
+                  <span class="flex items-center gap-1.5">
+                    {{ sale.saleNo }}
+                    <span v-if="isDonation(sale)" class="rounded bg-pink-100 px-1 text-xs text-pink-700">기부</span>
+                  </span>
+                </td>
                 <td class="px-3 py-3 font-bold text-gray-700">
                   {{ sale.outboundWarehouseName || '-' }}
                 </td>
-                <td class="px-3 py-3 font-black text-gray-900">{{ sale.buyerName }}</td>
+                <td class="px-3 py-3 font-black text-gray-900">{{ displayName(sale) }}</td>
                 <td class="pl-5 pr-4 py-3 font-bold text-gray-700">
-                  {{ buyerIndustryGroupLabel(sale) }}
+                  {{ isDonation(sale) ? '-' : buyerIndustryGroupLabel(sale) }}
                 </td>
                 <td class="px-4 py-3 text-center">
                   <span
@@ -426,7 +472,7 @@ onMounted(() => {
                   {{ formatQuantity(sale.totalSoldQuantity) }}
                 </td>
                 <td class="px-4 py-3 text-right font-black text-gray-900">
-                  {{ formatCurrency(sale.totalAmount) }}
+                  {{ isDonation(sale) ? '-' : formatCurrency(sale.totalAmount) }}
                 </td>
                 <td class="px-4 py-3 text-center">
                   <span
@@ -438,7 +484,7 @@ onMounted(() => {
                 </td>
               </tr>
               <tr v-if="filteredSales.length === 0">
-                <td colspan="10" class="px-4 py-12 text-center text-gray-400">조회 가능한 판매 이력이 없습니다.</td>
+                <td colspan="10" class="px-4 py-12 text-center text-gray-400">{{ activeSaleType === 'DONATION' ? '조회 가능한 기부 이력이 없습니다.' : '조회 가능한 판매 이력이 없습니다.' }}</td>
               </tr>
             </tbody>
             <tfoot class="border-t-2 border-gray-200 bg-gray-50 text-xs">
