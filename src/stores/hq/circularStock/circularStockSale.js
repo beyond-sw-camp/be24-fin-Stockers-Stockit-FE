@@ -329,6 +329,8 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
   const lockedMaterialType = ref('')
   const selectedWarehouseCode = ref('')
   const selectedWarehouseName = ref('')
+  const draftSaleType = ref('SALE')
+  const draftDoneeName = ref('')
   const sortedSales = computed(() => [...salesPage.value.content])
   const selectedBuyer = computed(() =>
     buyerStore.getBuyerById(draftBuyerId.value) ?? null,
@@ -440,6 +442,8 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
       totalSoldQuantity: Number(row.totalSoldQuantity || 0),
       totalAmount: Number(row.totalAmount || 0),
       headline: String(row.headline || ''),
+      saleType: row.saleType ?? 'SALE',
+      doneeName: row.doneeName ?? null,
     }
   }
 
@@ -504,13 +508,18 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
       memo: detail.memo ?? null,
       items,
       statusHistory: Array.isArray(detail.statusHistory) ? detail.statusHistory : [],
+      saleType: detail.saleType ?? 'SALE',
+      doneeName: detail.doneeName ?? null,
     }
   }
 
   // 현재 draft를 판매 생성 API payload 규격으로 변환한다.
   function mapCreatePayloadToApi() {
     return {
-      buyerCode: String(draftBuyerId.value || ''),
+      saleType: draftSaleType.value,
+      ...(draftSaleType.value === 'DONATION'
+        ? { doneeName: draftDoneeName.value.trim() }
+        : { buyerCode: String(draftBuyerId.value || '') }),
       materialType: String(lockedMaterialType.value || ''),
       memo: String(draftMemo.value || '').trim(),
       items: draftItems.value.map((item) => ({
@@ -735,6 +744,15 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     recommendationError.value = null
     lastRecommendationBasisKey.value = ''
     recommendationDirty.value = true
+    draftSaleType.value = 'SALE'
+    draftDoneeName.value = ''
+  }
+
+  function setDraftSaleType(type) {
+    draftSaleType.value = type === 'DONATION' ? 'DONATION' : 'SALE'
+  }
+  function setDraftDoneeName(name) {
+    draftDoneeName.value = String(name ?? '')
   }
 
   // 등록 워크플로우 시작 여부를 표시한다.
@@ -779,7 +797,14 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     const parsed = Number(nextStep)
     if (![1, 2, 3].includes(parsed)) return
     if (parsed === 2 && draftItems.value.length === 0) return
-    if (parsed === 3 && (!draftBuyerId.value || draftItems.value.length === 0)) return
+    if (parsed === 3) {
+      if (draftItems.value.length === 0) return
+      if (draftSaleType.value === 'DONATION') {
+        if (!draftDoneeName.value || !draftDoneeName.value.trim()) return
+      } else {
+        if (!draftBuyerId.value) return
+      }
+    }
     saleStep.value = parsed
   }
 
@@ -823,8 +848,14 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     if (draftItems.value.length === 0) {
       return fail('Step 1에서 판매할 SKU를 1건 이상 선택해 주세요.', 'NO_SKU')
     }
-    if (!draftBuyerId.value) {
-      return fail('Step 2에서 거래처를 선택해 주세요.', 'NO_BUYER')
+    if (draftSaleType.value === 'DONATION') {
+      if (!draftDoneeName.value || !draftDoneeName.value.trim()) {
+        return fail('Step 2에서 기부처명을 입력해 주세요.', 'NO_DONEE_NAME')
+      }
+    } else {
+      if (!draftBuyerId.value) {
+        return fail('Step 2에서 거래처를 선택해 주세요.', 'NO_BUYER')
+      }
     }
     if (!lockedMaterialType.value) {
       return fail('요청 소재 구분이 확정되지 않았습니다. Step 1 선택 상태를 다시 확인해 주세요.', 'MATERIAL_TYPE_MISSING')
@@ -833,16 +864,18 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
       return fail('출고 창고를 먼저 선택해 주세요.', 'WAREHOUSE_MISSING')
     }
 
-    const buyer = buyerStore.getBuyerById(draftBuyerId.value)
-    if (!buyer) {
-      return fail('선택한 거래처 정보를 찾을 수 없습니다. Step 2에서 다시 선택해 주세요.', 'BUYER_NOT_FOUND')
-    }
-    const expectedBuyerFit = buyerMaterialFitValue(lockedMaterialType.value)
-    if (buyer.primaryMaterialFit !== expectedBuyerFit) {
-      return fail(
-        `선택한 거래처의 대표 소재 적합도(${buyerStore.materialFitLabel(buyer.primaryMaterialFit)})가 요청 소재 구분(${lockedMaterialType.value})과 맞지 않습니다.`,
-        'BUYER_MATERIAL_MISMATCH',
-      )
+    if (draftSaleType.value !== 'DONATION') {
+      const buyer = buyerStore.getBuyerById(draftBuyerId.value)
+      if (!buyer) {
+        return fail('선택한 거래처 정보를 찾을 수 없습니다. Step 2에서 다시 선택해 주세요.', 'BUYER_NOT_FOUND')
+      }
+      const expectedBuyerFit = buyerMaterialFitValue(lockedMaterialType.value)
+      if (buyer.primaryMaterialFit !== expectedBuyerFit) {
+        return fail(
+          `선택한 거래처의 대표 소재 적합도(${buyerStore.materialFitLabel(buyer.primaryMaterialFit)})가 요청 소재 구분(${lockedMaterialType.value})과 맞지 않습니다.`,
+          'BUYER_MATERIAL_MISMATCH',
+        )
+      }
     }
 
     const inventoryAggregate = new Map()
@@ -906,7 +939,9 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
       codes: [],
       counts: buildCounts(),
       firstBlockingSku: null,
-      buyer,
+      buyer: draftSaleType.value !== 'DONATION'
+        ? (buyerStore.getBuyerById(draftBuyerId.value) ?? null)
+        : null,
     }
   }
 
@@ -976,5 +1011,9 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     fetchRecommendations,
     validateCircularStockSaleDraft,
     submitCircularStockSale,
+    draftSaleType,
+    draftDoneeName,
+    setDraftSaleType,
+    setDraftDoneeName,
   }
 })
