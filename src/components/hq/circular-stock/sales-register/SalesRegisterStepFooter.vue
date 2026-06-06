@@ -103,7 +103,7 @@ const emit = defineEmits(['move-step', 'open-final-review'])
           "
           @click="emit('move-step', 3)"
         >
-          판매 조건 확정으로 →
+          {{ saleType === 'DONATION' ? '기부 조건 확정으로 →' : '판매 조건 확정으로 →' }}
         </button>
       </div>
     </div>
@@ -135,7 +135,7 @@ const emit = defineEmits(['move-step', 'open-final-review'])
           :disabled="!step3CanRegisterNow"
           @click="emit('open-final-review')"
         >
-          최종 판매 등록서 확인
+          {{ saleType === 'DONATION' ? '최종 기부 등록서 확인' : '최종 판매 등록서 확인' }}
         </button>
       </div>
     </div>

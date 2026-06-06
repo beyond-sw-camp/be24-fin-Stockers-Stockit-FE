@@ -145,16 +145,22 @@ const includedMaterialBadges = computed(() => {
           <section class="bg-white p-4 pr-6 pl-6">
             <div class="flex flex-wrap items-start justify-between gap-3">
               <div class="flex flex-col">
-                <p class="text-base !font-semibold uppercase tracking-[0.1em] text-gray-500">거래 요약</p>
+                <p class="text-base !font-semibold uppercase tracking-[0.1em] text-gray-500">{{ isDonation ? '기부 요약' : '거래 요약' }}</p>
                 <div class="h-3"></div>
-                <p class="text-2xl !font-medium text-gray-900">{{ selectedBuyer?.companyName ?? '-' }}</p>
+                <p class="text-2xl !font-medium text-gray-900">{{ isDonation ? (doneeName || '-') : (selectedBuyer?.companyName ?? '-') }}</p>
                 <div class="h-1"></div>
-                <p class="text-xs font-bold text-gray-500">
+                <p v-if="!isDonation" class="text-xs font-bold text-gray-500">
                   {{ selectedBuyer?.industryGroup ?? '-' }} · SKU {{ formatQuantity(drawerSummary.totalItems) }}종
                 </p>
+                <p v-else class="text-xs font-bold text-gray-500">
+                  SKU {{ formatQuantity(drawerSummary.totalItems) }}종
+                </p>
               </div>
-              <div class="rounded-full bg-[#EAF4F0] px-3 py-1 text-[10px] font-black text-[#255F52]">
+              <div v-if="!isDonation" class="rounded-full bg-[#EAF4F0] px-3 py-1 text-[10px] font-black text-[#255F52]">
                 {{ materialFitLabel(selectedBuyer?.primaryMaterialFit) || '-' }}
+              </div>
+              <div v-else class="rounded-full bg-pink-100 px-3 py-1 text-[10px] font-black text-pink-700">
+                기부
               </div>
             </div>
 
@@ -163,7 +169,7 @@ const includedMaterialBadges = computed(() => {
               <article class="kpi-card">
                 <p class="kpi-title">
                   <Shirt :size="12" />
-                  판매 수량
+                  {{ isDonation ? '기부 수량' : '판매 수량' }}
                 </p>
                 <div class="kpi-content-gap">
                   <p class="text-2xl !font-medium text-gray-900">{{ formatQuantity(finalReviewSummary.totalDeductedQuantity) }}벌</p>
@@ -313,7 +319,7 @@ const includedMaterialBadges = computed(() => {
                     <dd class="info-value">{{ formatQuantity(drawerSummary.totalItems) }}종</dd>
                   </div>
                   <div class="info-line">
-                    <dt class="info-key">판매 메모</dt>
+                    <dt class="info-key">{{ isDonation ? '기부 메모' : '판매 메모' }}</dt>
                     <dd class="info-value info-value-memo text-gray-500 italic">{{ draftMemo?.trim() || '입력된 메모 없음' }}</dd>
                   </div>
                 </dl>
@@ -326,7 +332,7 @@ const includedMaterialBadges = computed(() => {
           </div>
           <section class="min-w-0 bg-white">
             <div class="px-6">
-              <h3 class="text-sm !font-semibold text-gray-500">소재별 판매 상세</h3>
+              <h3 class="text-sm !font-semibold text-gray-500">{{ isDonation ? '소재별 기부 상세' : '소재별 판매 상세' }}</h3>
             </div>
 
             <div class="space-y-3 p-3 pr-5 pl-5">
@@ -340,7 +346,7 @@ const includedMaterialBadges = computed(() => {
                       {{ group.materialLabel }}
                     </span>
                     <p class="text-[13px] font-bold text-gray-500">
-                      SKU {{ formatQuantity(group.items.length) }}종 · {{ formatCurrency(group.items[0]?.unitPrice || 0) }}/kg
+                      SKU {{ formatQuantity(group.items.length) }}종<template v-if="!isDonation"> · {{ formatCurrency(group.items[0]?.unitPrice || 0) }}/kg</template>
                     </p>
                   </div>
                   <div class="flex flex-wrap items-end gap-5 text-right">
@@ -352,7 +358,7 @@ const includedMaterialBadges = computed(() => {
                       <p class="group-kpi-label">실출고</p>
                       <p class="group-kpi-value">{{ formatKg(group.totalActualWeightKg).replace('kg', ' kg') }}</p>
                     </div>
-                    <div class="group-kpi">
+                    <div v-if="!isDonation" class="group-kpi">
                       <p class="group-kpi-label">금액</p>
                       <p class="group-kpi-value group-kpi-value-amount">{{ formatCurrency(group.totalActualAmount) }}</p>
                     </div>
@@ -362,13 +368,13 @@ const includedMaterialBadges = computed(() => {
                 <div class="overflow-x-auto">
                   <table class="min-w-[700px] w-full table-fixed border-collapse text-right text-sm">
                     <colgroup>
-                      <col class="w-[15%]" />
+                      <col :class="isDonation ? 'w-[18%]' : 'w-[15%]'" />
                       <col class="w-[13%]" />
                       <col class="w-[13%]" />
                       <col class="w-[7%]" />
-                      <col class="w-[10%]" />
-                      <col class="w-[13%]" />
-                      <col class="w-[13%]" />
+                      <col :class="isDonation ? 'w-[15%]' : 'w-[10%]'" />
+                      <col :class="isDonation ? 'w-[20%]' : 'w-[13%]'" />
+                      <col v-if="!isDonation" class="w-[13%]" />
                     </colgroup>
                     <thead class="border-b border-gray-200 text-[12px] text-gray-500">
                       <tr>
@@ -376,9 +382,9 @@ const includedMaterialBadges = computed(() => {
                         <th class="cell-head text-right">재고</th>
                         <th class="cell-head text-right">요청 kg</th>
                         <th class="cell-head text-right"></th>
-                        <th class="cell-head text-right">판매 벌 수</th>
+                        <th class="cell-head text-right">{{ isDonation ? '기부 벌 수' : '판매 벌 수' }}</th>
                         <th class="cell-head text-right">실제 무게</th>
-                        <th class="cell-head text-right">금액</th>
+                        <th v-if="!isDonation" class="cell-head text-right">금액</th>
                       </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200">
@@ -395,7 +401,7 @@ const includedMaterialBadges = computed(() => {
                           <p class="mt-0.5 text-[11px] font-bold text-gray-500">{{ Number(item.estimatedQuantity || 0).toFixed(2) }}벌 올림</p>
                         </td>
                         <td class="cell-body font-black text-gray-900">{{ formatKg(item.actualWeightKg).replace('kg', ' kg') }}</td>
-                        <td class="cell-body font-black text-gray-900">{{ formatCurrency(item.lineAmount) }}</td>
+                        <td v-if="!isDonation" class="cell-body font-black text-gray-900">{{ formatCurrency(item.lineAmount) }}</td>
                       </tr>
                       <tr class="bg-[#F6F6F4]">
                         <td class="cell-body !text-left text-sm font-black text-gray-800" style="text-align: left">합계</td>
@@ -404,7 +410,7 @@ const includedMaterialBadges = computed(() => {
                         <td class="cell-body"></td>
                         <td class="cell-body font-black text-gray-900">{{ formatQuantity(group.items.reduce((sum, item) => sum + (Number(item.deductedQuantity) || 0), 0)) }}벌</td>
                         <td class="cell-body font-black text-gray-900">{{ formatKg(group.totalActualWeightKg).replace('kg', ' kg') }}</td>
-                        <td class="cell-body font-black text-gray-900">{{ formatCurrency(group.totalActualAmount) }}</td>
+                        <td v-if="!isDonation" class="cell-body font-black text-gray-900">{{ formatCurrency(group.totalActualAmount) }}</td>
                       </tr>
                     </tbody>
                   </table>

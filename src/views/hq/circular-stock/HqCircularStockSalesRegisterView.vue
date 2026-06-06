@@ -902,13 +902,13 @@ onBeforeRouteLeave((to, _from, next) => {
               class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-5"
             >
               <div class="flex flex-wrap items-center gap-3">
-                <span class="text-sm font-black text-gray-900">판매 등록</span>
+                <span class="text-sm font-black text-gray-900">{{ draftSaleType === 'DONATION' ? '기부 등록' : '판매 등록' }}</span>
                 <span class="text-[11px] font-bold text-gray-500">
                   소재 구분 {{ lockedMaterialType || '-' }} · 담긴 SKU
                   {{ drawerSummary.totalItems }}건
                 </span>
               </div>
-              <div class="flex items-center gap-3">
+              <div v-if="draftSaleType !== 'DONATION'" class="flex items-center gap-3">
                 <span class="text-sm font-black text-gray-900">{{
                   formatCurrency(drawerSummary.totalAmount)
                 }}</span>
@@ -988,6 +988,8 @@ onBeforeRouteLeave((to, _from, next) => {
                 :format-kg="formatKg"
                 :format-currency="formatCurrency"
                 :rounded-up-quantity-label="roundedUpQuantityLabel"
+                :is-donation="draftSaleType === 'DONATION'"
+                :doneeName="draftDoneeName"
                 @group-requested-input="onGroupRequestedKgInput"
                 @group-requested-blur="onGroupRequestedKgBlur"
                 @toggle-group="toggleStep3Group"
