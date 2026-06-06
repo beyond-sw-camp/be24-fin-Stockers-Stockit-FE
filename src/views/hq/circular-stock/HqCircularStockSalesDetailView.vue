@@ -12,10 +12,13 @@ import {
   circularSaleOutboundStatusLabel,
 } from '@/stores/hq/circularStock/circularStockCommon.js'
 import { MATERIAL_FACTORS } from '@/utils/esgMaterialFactors.js'
+import { useEsgStore } from '@/stores/esg.js'
 
 const route = useRoute()
 const router = useRouter()
 const circularStockStore = useCircularStockSaleStore()
+const esgStore = useEsgStore()
+const kocPrice = computed(() => esgStore.kocPrice)
 
 const hqMenus = roleMenus.hq
 const circularStockMenus = roleMenus.hq.find((menu) => menu.label === '순환 재고 관리')?.children ?? []
@@ -171,7 +174,7 @@ const esgMaterialNames = computed(() => {
 const carbonReductionKpi = computed(() => Number(sale.value?.carbonScore ?? 0))
 const carbonCreditValueKpi = computed(() => {
   const carbonKg = Number(sale.value?.carbonScore ?? 0)
-  return Math.round((carbonKg / 1000) * 13000)
+  return Math.round((carbonKg / 1000) * kocPrice.value)
 })
 const tradableCarbonCreditValueKpi = computed(() => carbonCreditValueKpi.value)
 const salesRevenueKpi = computed(() => Number(sale.value?.totalAmount ?? 0))
@@ -412,6 +415,7 @@ onMounted(async () => {
   if (!saleId.value) return
   await circularStockStore.fetchCircularSaleDetail(saleId.value)
   openGroups.value = new Set(groupedItems.value.map(group => group.key))
+  esgStore.fetchKocPrice().catch(() => {})
   if (sale.value?.buyerCode) {
     try {
       const [buyerDetail, buyerSalesPage] = await Promise.all([
@@ -830,15 +834,15 @@ function handleBack() {
 
                 <div class="grid gap-4">
                   <section class="border border-gray-200 bg-gray-50 px-4 py-4">
-                    <h3 class="text-sm font-black text-gray-900">점수 / KPI 산정 근거</h3>
+                    <h3 class="text-sm font-black text-gray-900" style="margin-bottom: 13px;">점수 / KPI 산정 근거</h3>
                     <div class="mt-3 grid gap-3 md:grid-cols-2">
                       <div>
-                        <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">처리 방식</p>
-                        <p class="mt-1 text-sm font-black text-gray-900">{{ resolvedEsgSnapshot?.esgMeta?.treatmentType || '-' }}</p>
+                        <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">소재 유형</p>
+                        <p class="mt-1 text-sm font-black text-gray-900">{{ sale?.materialType || '-' }}</p>
                       </div>
                       <div>
                         <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">판매 시점 KOC 단가</p>
-                        <p class="mt-1 text-sm font-black text-gray-900">{{ formatCurrency(resolvedEsgSnapshot?.esgMeta?.kauPriceAtSale) }} / tCO2</p>
+                        <p class="mt-1 text-sm font-black text-gray-900">{{ formatCurrency(kocPrice) }} / tCO2</p>
                       </div>
                       <div>
                         <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">적용 소재</p>
