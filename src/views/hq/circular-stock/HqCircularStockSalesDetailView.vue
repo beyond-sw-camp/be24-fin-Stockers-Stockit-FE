@@ -30,6 +30,23 @@ const activeTab = ref('sales')
 const saleId = computed(() => String(route.params.saleId ?? ''))
 const sale = computed(() => circularStockStore.getSaleById(saleId.value))
 const saleEsgSnapshot = computed(() => circularStockStore.getSaleEsgSnapshot(sale.value))
+const resolvedEsgSnapshot = computed(() => {
+  const s = sale.value
+  if (!s) return null
+  if (s.esgTotalScore > 0) {
+    return {
+      total: s.esgTotalScore,
+      scoreBreakdown: [
+        { category: 'saleExecution',     point: s.saleExecution     },
+        { category: 'donationExecution', point: s.donationExecution },
+        { category: 'carbon',            point: s.carbonScore       },
+        { category: 'newBuyer',          point: s.newBuyerScore     },
+        { category: 'localPartner',      point: s.localPartnerScore },
+      ],
+    }
+  }
+  return saleEsgSnapshot.value
+})
 const saleType = computed(() => sale.value?.saleType ?? 'SALE')
 const isDonation = computed(() => saleType.value === 'DONATION')
 const doneeOrBuyerName = computed(() =>
@@ -103,15 +120,15 @@ const includedMaterialNames = computed(() => {
 })
 
 const esgMaterialNames = computed(() => {
-  const names = saleEsgSnapshot.value?.esgMeta?.materialBreakdown?.map((item) => item.materialName) ?? []
+  const names = resolvedEsgSnapshot.value?.esgMeta?.materialBreakdown?.map((item) => item.materialName) ?? []
   return [...new Set(names)]
 })
 
-const carbonReductionKpi = computed(() => Number(saleEsgSnapshot.value?.kpiSnapshot?.savedCarbonKg) || 0)
-const carbonCreditValueKpi = computed(() => Number(saleEsgSnapshot.value?.kpiSnapshot?.carbonCreditValue) || 0)
-const tradableCarbonCreditValueKpi = computed(() => Number(saleEsgSnapshot.value?.kpiSnapshot?.tradableCarbonCreditValue) || 0)
-const salesRevenueKpi = computed(() => Number(saleEsgSnapshot.value?.kpiSnapshot?.salesRevenue) || 0)
-const wasteLossRecoveredValueKpi = computed(() => Number(saleEsgSnapshot.value?.kpiSnapshot?.wasteLossRecoveredValue) || 0)
+const carbonReductionKpi = computed(() => Number(resolvedEsgSnapshot.value?.kpiSnapshot?.savedCarbonKg) || 0)
+const carbonCreditValueKpi = computed(() => Number(resolvedEsgSnapshot.value?.kpiSnapshot?.carbonCreditValue) || 0)
+const tradableCarbonCreditValueKpi = computed(() => Number(resolvedEsgSnapshot.value?.kpiSnapshot?.tradableCarbonCreditValue) || 0)
+const salesRevenueKpi = computed(() => Number(resolvedEsgSnapshot.value?.kpiSnapshot?.salesRevenue) || 0)
+const wasteLossRecoveredValueKpi = computed(() => Number(resolvedEsgSnapshot.value?.kpiSnapshot?.wasteLossRecoveredValue) || 0)
 
 function readNumericScore(...candidates) {
   for (const value of candidates) {
@@ -122,7 +139,7 @@ function readNumericScore(...candidates) {
 }
 
 function findScoreBreakdownPoint(scoreTypes = []) {
-  const found = (saleEsgSnapshot.value?.scoreBreakdown ?? []).find((item) =>
+  const found = (resolvedEsgSnapshot.value?.scoreBreakdown ?? []).find((item) =>
     scoreTypes.includes(item.scoreType),
   )
   return Number(found?.points)
@@ -144,24 +161,24 @@ const newBuyerExpansionScoreFallback = computed(() => {
 const normalizedScoreItems = computed(() => {
   const totalActualWeightKg = Number(sale.value?.totalActualWeightKg) || 0
   const executionPoints = readNumericScore(
-    saleEsgSnapshot.value?.circularSaleExecutionScore,
-    saleEsgSnapshot.value?.esgMeta?.circularSaleExecutionScore,
+    resolvedEsgSnapshot.value?.circularSaleExecutionScore,
+    resolvedEsgSnapshot.value?.esgMeta?.circularSaleExecutionScore,
     totalActualWeightKg >= 10 ? 100 : 0,
   ) ?? 0
   const carbonReductionPoints = readNumericScore(
-    saleEsgSnapshot.value?.carbonReductionScore,
-    saleEsgSnapshot.value?.esgMeta?.carbonReductionScore,
+    resolvedEsgSnapshot.value?.carbonReductionScore,
+    resolvedEsgSnapshot.value?.esgMeta?.carbonReductionScore,
     findScoreBreakdownPoint(['carbonReduction', 'carbonContribution']),
     carbonReductionKpi.value,
   ) ?? 0
   const localPartnerPoints = readNumericScore(
-    saleEsgSnapshot.value?.localPartnerScore,
-    saleEsgSnapshot.value?.esgMeta?.localPartnerScore,
+    resolvedEsgSnapshot.value?.localPartnerScore,
+    resolvedEsgSnapshot.value?.esgMeta?.localPartnerScore,
     localPartnerScoreFallback.value,
   ) ?? 0
   const newBuyerExpansionPoints = readNumericScore(
-    saleEsgSnapshot.value?.newBuyerExpansionScore,
-    saleEsgSnapshot.value?.esgMeta?.newBuyerExpansionScore,
+    resolvedEsgSnapshot.value?.newBuyerExpansionScore,
+    resolvedEsgSnapshot.value?.esgMeta?.newBuyerExpansionScore,
     newBuyerExpansionScoreFallback.value,
   ) ?? 0
 
@@ -229,8 +246,8 @@ const normalizedScoreItems = computed(() => {
 
 const treeGrowPoints = computed(() => {
   const explicit = readNumericScore(
-    saleEsgSnapshot.value?.totalEsgScore,
-    saleEsgSnapshot.value?.esgMeta?.totalEsgScore,
+    resolvedEsgSnapshot.value?.totalEsgScore,
+    resolvedEsgSnapshot.value?.esgMeta?.totalEsgScore,
   )
   if (explicit !== null) return explicit
   return normalizedScoreItems.value.reduce((sum, item) => sum + (Number(item.points) || 0), 0)
@@ -780,11 +797,11 @@ function handleBack() {
                     <div class="mt-3 grid gap-3 md:grid-cols-2">
                       <div>
                         <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">처리 방식</p>
-                        <p class="mt-1 text-sm font-black text-gray-900">{{ saleEsgSnapshot?.esgMeta?.treatmentType || '-' }}</p>
+                        <p class="mt-1 text-sm font-black text-gray-900">{{ resolvedEsgSnapshot?.esgMeta?.treatmentType || '-' }}</p>
                       </div>
                       <div>
                         <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">판매 시점 KOC 단가</p>
-                        <p class="mt-1 text-sm font-black text-gray-900">{{ formatCurrency(saleEsgSnapshot?.esgMeta?.kauPriceAtSale) }} / tCO2</p>
+                        <p class="mt-1 text-sm font-black text-gray-900">{{ formatCurrency(resolvedEsgSnapshot?.esgMeta?.kauPriceAtSale) }} / tCO2</p>
                       </div>
                       <div>
                         <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">적용 소재</p>
@@ -818,7 +835,7 @@ function handleBack() {
                           </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
-                          <tr v-for="material in saleEsgSnapshot?.esgMeta?.materialBreakdown ?? []" :key="`resource-${material.materialName}`">
+                          <tr v-for="material in resolvedEsgSnapshot?.esgMeta?.materialBreakdown ?? []" :key="`resource-${material.materialName}`">
                             <td class="px-3 py-3 font-black text-gray-900">{{ material.materialName }}</td>
                             <td class="px-3 py-3 text-right font-black text-gray-700">{{ formatKg(material.weightKg) }}</td>
                             <td class="px-3 py-3 text-right font-black text-gray-900">{{ Number(material.carbonReductionFactor || 0).toFixed(1) }}</td>

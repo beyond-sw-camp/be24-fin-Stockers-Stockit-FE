@@ -510,6 +510,12 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
       statusHistory: Array.isArray(detail.statusHistory) ? detail.statusHistory : [],
       saleType: detail.saleType ?? 'SALE',
       doneeName: detail.doneeName ?? null,
+      saleExecution:     Number(detail.saleExecution     ?? 0),
+      donationExecution: Number(detail.donationExecution ?? 0),
+      carbonScore:       Number(detail.carbonScore       ?? 0),
+      newBuyerScore:     Number(detail.newBuyerScore     ?? 0),
+      localPartnerScore: Number(detail.localPartnerScore ?? 0),
+      esgTotalScore:     Number(detail.esgTotalScore     ?? 0),
     }
   }
 
@@ -749,7 +755,17 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
   }
 
   function setDraftSaleType(type) {
-    draftSaleType.value = type === 'DONATION' ? 'DONATION' : 'SALE'
+    const newType = type === 'DONATION' ? 'DONATION' : 'SALE'
+    if (newType === draftSaleType.value) return
+    draftSaleType.value = newType
+    draftBuyerId.value = ''
+    draftDoneeName.value = ''
+    saleStep.value = 1
+    step3GroupRequestedKg.value = {}
+    recommendations.value = []
+    recommendationDirty.value = true
+    lastRecommendationBasisKey.value = ''
+    recommendationError.value = null
   }
   function setDraftDoneeName(name) {
     draftDoneeName.value = String(name ?? '')
