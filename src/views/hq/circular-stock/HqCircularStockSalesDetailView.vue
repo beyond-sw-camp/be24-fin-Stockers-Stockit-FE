@@ -29,23 +29,19 @@ const activeSideMenu = ref('순환 재고 판매 내역')
 const activeTab = ref('sales')
 const saleId = computed(() => String(route.params.saleId ?? ''))
 const sale = computed(() => circularStockStore.getSaleById(saleId.value))
-const saleEsgSnapshot = computed(() => circularStockStore.getSaleEsgSnapshot(sale.value))
 const resolvedEsgSnapshot = computed(() => {
   const s = sale.value
   if (!s) return null
-  if (s.esgTotalScore > 0) {
-    return {
-      total: s.esgTotalScore,
-      scoreBreakdown: [
-        { scoreType: 'circularSaleExecution', points: s.saleExecution     },
-        { scoreType: 'donationExecution',     points: s.donationExecution },
-        { scoreType: 'carbonReduction',       points: s.carbonScore       },
-        { scoreType: 'newBuyerExpansion',     points: s.newBuyerScore     },
-        { scoreType: 'localPartner',          points: s.localPartnerScore },
-      ],
-    }
+  return {
+    total: s.esgTotalScore ?? 0,
+    scoreBreakdown: [
+      { scoreType: 'circularSaleExecution', points: s.saleExecution     ?? 0 },
+      { scoreType: 'donationExecution',     points: s.donationExecution ?? 0 },
+      { scoreType: 'carbonReduction',       points: s.carbonScore       ?? 0 },
+      { scoreType: 'newBuyerExpansion',     points: s.newBuyerScore     ?? 0 },
+      { scoreType: 'localPartner',          points: s.localPartnerScore ?? 0 },
+    ],
   }
-  return saleEsgSnapshot.value
 })
 const saleType = computed(() => sale.value?.saleType ?? 'SALE')
 const isDonation = computed(() => saleType.value === 'DONATION')
@@ -162,23 +158,19 @@ const normalizedScoreItems = computed(() => {
   const totalActualWeightKg = Number(sale.value?.totalActualWeightKg) || 0
   const executionPoints = readNumericScore(
     resolvedEsgSnapshot.value?.circularSaleExecutionScore,
-    resolvedEsgSnapshot.value?.esgMeta?.circularSaleExecutionScore,
     totalActualWeightKg >= 10 ? 100 : 0,
   ) ?? 0
   const carbonReductionPoints = readNumericScore(
     resolvedEsgSnapshot.value?.carbonReductionScore,
-    resolvedEsgSnapshot.value?.esgMeta?.carbonReductionScore,
     findScoreBreakdownPoint(['carbonReduction', 'carbonContribution']),
     carbonReductionKpi.value,
   ) ?? 0
   const localPartnerPoints = readNumericScore(
     resolvedEsgSnapshot.value?.localPartnerScore,
-    resolvedEsgSnapshot.value?.esgMeta?.localPartnerScore,
     localPartnerScoreFallback.value,
   ) ?? 0
   const newBuyerExpansionPoints = readNumericScore(
     resolvedEsgSnapshot.value?.newBuyerExpansionScore,
-    resolvedEsgSnapshot.value?.esgMeta?.newBuyerExpansionScore,
     newBuyerExpansionScoreFallback.value,
   ) ?? 0
 
@@ -245,10 +237,7 @@ const normalizedScoreItems = computed(() => {
 })
 
 const treeGrowPoints = computed(() => {
-  const explicit = readNumericScore(
-    resolvedEsgSnapshot.value?.totalEsgScore,
-    resolvedEsgSnapshot.value?.esgMeta?.totalEsgScore,
-  )
+  const explicit = readNumericScore(resolvedEsgSnapshot.value?.totalEsgScore)
   if (explicit !== null) return explicit
   return normalizedScoreItems.value.reduce((sum, item) => sum + (Number(item.points) || 0), 0)
 })
