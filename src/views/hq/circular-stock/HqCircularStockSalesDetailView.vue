@@ -23,10 +23,10 @@ const kocPrice = computed(() => esgStore.kocPrice)
 const hqMenus = roleMenus.hq
 const circularStockMenus = roleMenus.hq.find((menu) => menu.label === '순환 재고 관리')?.children ?? []
 
-const tabs = [
-  { key: 'sales', label: '판매 상세' },
+const tabs = computed(() => [
+  { key: 'sales', label: isDonation.value ? '기부 상세' : '판매 상세' },
   { key: 'esg', label: 'ESG 성과' },
-]
+])
 
 const activeTopMenu = computed(() => '순환 재고 관리')
 const activeSideMenu = ref('순환 재고 판매 내역')
@@ -305,12 +305,12 @@ const scoreSummaryCards = computed(() => normalizedScoreItems.value)
 const kpiSummaryCards = computed(() => [
   {
     key: 'revenue',
-    label: '얼마나 이익이 났나',
-    value: formatCurrency(wasteLossRecoveredValueKpi.value),
+    label: isDonation.value ? '기부 환산 가치' : '얼마나 이익이 났나',
+    value: displayCurrency(wasteLossRecoveredValueKpi.value),
     accent: 'text-amber-700',
     bg: 'bg-amber-50',
     border: 'border-amber-100',
-    insight: '폐기 손실로 끝날 재고가 실제 판매 수익으로 전환됐습니다.',
+    insight: isDonation.value ? '기부는 직접 수익이 발생하지 않습니다.' : '폐기 손실로 끝날 재고가 실제 판매 수익으로 전환됐습니다.',
   },
   {
     key: 'carbon',
@@ -332,12 +332,12 @@ const kpiSummaryCards = computed(() => [
   },
   {
     key: 'sales',
-    label: '실제 거래 매출',
-    value: formatCurrency(salesRevenueKpi.value),
+    label: isDonation.value ? '기부 거래 금액' : '실제 거래 매출',
+    value: displayCurrency(salesRevenueKpi.value),
     accent: 'text-emerald-700',
     bg: 'bg-emerald-50',
     border: 'border-emerald-100',
-    insight: '판매 확정 금액 기준의 실제 매출입니다.',
+    insight: isDonation.value ? '기부 거래에는 매출이 발생하지 않습니다.' : '판매 확정 금액 기준의 실제 매출입니다.',
   },
 ])
 
@@ -347,18 +347,27 @@ const impactNarrative = computed(() => [
     title: '무엇을 순환시켰나',
     value: esgMaterialNames.value.join(', ') || includedMaterialNames.value.join(', ') || '-',
     detail: `${formatQuantity(sale.value?.totalSkuCount || 0)}개 SKU를 순환 판매로 전환`,
+    accent: 'text-emerald-600',
+    border: 'border-emerald-100',
+    bg: 'bg-emerald-50/60',
   },
   {
     key: 'environment',
     title: '환경에 어떤 영향을 줬나',
     value: formatCarbonKg(carbonReductionKpi.value),
     detail: '신규 생산을 줄여 탄소 배출을 낮춘 효과',
+    accent: 'text-sky-600',
+    border: 'border-sky-100',
+    bg: 'bg-sky-50/60',
   },
   {
     key: 'business',
-    title: '사업적으로 어떤 의미가 있나',
-    value: formatCurrency(wasteLossRecoveredValueKpi.value),
-    detail: '폐기 손실을 회수 가능한 판매 수익으로 전환',
+    title: isDonation.value ? '기부 수익 환산' : '사업적으로 어떤 의미가 있나',
+    value: displayCurrency(wasteLossRecoveredValueKpi.value),
+    detail: isDonation.value ? '기부는 직접 수익이 발생하지 않습니다' : '폐기 손실을 회수 가능한 판매 수익으로 전환',
+    accent: isDonation.value ? 'text-gray-400' : 'text-violet-600',
+    border: isDonation.value ? 'border-gray-100' : 'border-violet-100',
+    bg: isDonation.value ? 'bg-gray-50/60' : 'bg-violet-50/60',
   },
 ])
 
@@ -393,6 +402,11 @@ function formatCarbonKg(value) {
 
 function formatCurrency(value) {
   return `₩${Number(value || 0).toLocaleString()}`
+}
+
+// 기부인 경우 금액 표시를 '-'로 처리
+function displayCurrency(value) {
+  return isDonation.value ? '-' : formatCurrency(value)
 }
 
 function formatQuantity(value) {
@@ -455,8 +469,8 @@ function handleBack() {
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Circular Inventory Sales</p>
-            <h1 class="mt-1 text-lg font-black text-gray-900">순환 재고 판매 상세</h1>
-            <p class="mt-1 text-xs font-bold text-gray-500">판매 한 건의 거래 내역을 중심으로 확인하고, ESG 성과는 별도 탭에서 자세히 볼 수 있습니다.</p>
+            <h1 class="mt-1 text-lg font-black text-gray-900">순환 재고 {{ isDonation ? '기부' : '판매' }} 상세</h1>
+            <p class="mt-1 text-xs font-bold text-gray-500">{{ isDonation ? '기부' : '판매' }} 한 건의 거래 내역을 중심으로 확인하고, ESG 성과는 별도 탭에서 자세히 볼 수 있습니다.</p>
           </div>
           <button
             type="button"
@@ -496,20 +510,26 @@ function handleBack() {
                       <div class="flex flex-wrap items-center gap-2">
                         <p class="text-[10px] font-black uppercase tracking-[0.18em] text-[#4D7A6F]">ESG 요약 · Impact Snapshot</p>
                       </div>
-                      <h3 class="mt-2 text-xl font-black text-gray-900">한 번의 판매가 만든 성과를 한눈에</h3>
+                      <h3 class="mt-2 text-xl font-black text-gray-900">한 번의 {{ isDonation ? '기부가' : '판매가' }} 만든 성과를 한눈에</h3>
                       <p class="mt-2 text-sm font-bold leading-6 text-gray-600">
-                        이번 판매는 <span class="text-[#0F5C4D]">{{ formatCurrency(wasteLossRecoveredValueKpi) }}</span>의 수익 전환과
-                        <span class="text-sky-700">{{ formatCarbonKg(carbonReductionKpi) }}</span>의 탄소 감축으로 이어졌습니다.
+                        <template v-if="!isDonation">
+                          이번 판매는 <span class="text-[#0F5C4D]">{{ formatCurrency(wasteLossRecoveredValueKpi) }}</span>의 수익 전환과
+                          <span class="text-sky-700">{{ formatCarbonKg(carbonReductionKpi) }}</span>의 탄소 감축으로 이어졌습니다.
+                        </template>
+                        <template v-else>
+                          이번 기부는 <span class="text-sky-700">{{ formatCarbonKg(carbonReductionKpi) }}</span>의 탄소 감축으로 이어졌습니다.
+                        </template>
                       </p>
 
                       <div class="sales-esg-story-cards grid gap-3 md:grid-cols-3">
                         <div
                           v-for="impactItem in impactNarrative"
                           :key="impactItem.key"
-                          class="border border-white/80 bg-white/80 px-3 py-3 backdrop-blur"
+                          class="rounded-lg px-4 py-4 shadow-md"
+                          :class="[impactItem.bg, impactItem.border, 'border']"
                         >
                           <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">{{ impactItem.title }}</p>
-                          <p class="mt-2 text-2xl font-black text-sky-700">{{ impactItem.value }}</p>
+                          <p class="mt-2 text-2xl font-black" :class="impactItem.accent">{{ impactItem.value }}</p>
                           <p class="mt-1 text-[11px] font-bold leading-5 text-gray-500">{{ impactItem.detail }}</p>
                         </div>
                       </div>
@@ -565,7 +585,7 @@ function handleBack() {
               </div>
               <div class="sales-summary-kpi grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <article class="kpi-card">
-                  <p class="kpi-title"><Shirt :size="14" />판매 수량</p>
+                  <p class="kpi-title"><Shirt :size="14" />{{ isDonation ? '기부' : '판매' }} 수량</p>
                   <p class="kpi-content-gap text-2xl font-black text-gray-900">{{ formatQuantity(sale.totalSoldQuantity) }}벌</p>
                   <p class="kpi-subtext"><Info :size="12" class="kpi-subtext-icon" />환산 {{ Number(sale.totalEstimatedQuantity || 0).toFixed(2) }}벌 <span class="kpi-emphasis">→ 올림 {{ formatQuantity(sale.totalSoldQuantity) }}벌</span></p>
                 </article>
@@ -647,11 +667,11 @@ function handleBack() {
                   <p class="info-value">{{ formatQuantity(sale.totalSkuCount) }}종</p>
                 </div>
                 <div class="info-line">
-                  <p class="info-key">판매 메모</p>
+                  <p class="info-key">{{ isDonation ? '기부' : '판매' }} 메모</p>
                   <p class="info-value info-value-memo">{{ sale.memo || '입력된 메모 없음' }}</p>
                 </div>
                 <div class="info-line">
-                  <p class="info-key">판매일시/등록자</p>
+                  <p class="info-key">{{ isDonation ? '기부' : '판매' }}일시/등록자</p>
                   <p class="info-value">{{ formatDateTime(sale.soldAt) }} / {{ sale.soldByName || '-' }}</p>
                 </div>
               </div>
@@ -660,17 +680,17 @@ function handleBack() {
             <div class="border-t border-gray-200"></div>
 
             <section class="sales-material-detail-section w-full space-y-6">
-              <h3 class="sales-material-title w-full text-left text-gray-500">소재별 판매 상세</h3>
+              <h3 class="sales-material-title w-full text-left text-gray-500">소재별 {{ isDonation ? '기부' : '판매' }} 상세</h3>
               <div v-for="group in groupedItems" :key="group.key" class="sales-material-accordion w-full overflow-hidden rounded-md border border-gray-300">
                 <button type="button" class="flex w-full flex-wrap items-center justify-between gap-3 border-b border-gray-300 bg-[#F6F6F4] pl-3 px-4 py-3 text-left" @click="toggleGroup(group.key)">
                   <div class="flex items-center gap-2">
                     <span class="inline-flex items-center rounded-full bg-[#D9EFE7] px-2.5 py-1 text-xs font-semibold text-[#1F7A63]">{{ group.materialLabel }}</span>
-                    <p class="text-[13px] font-bold text-gray-500">SKU {{ formatQuantity(group.items.length) }}종 · {{ formatCurrency(group.items[0]?.unitPrice || 0) }}/kg</p>
+                    <p class="text-[13px] font-bold text-gray-500">SKU {{ formatQuantity(group.items.length) }}종<template v-if="!isDonation"> · {{ formatCurrency(group.items[0]?.unitPrice || 0) }}/kg</template></p>
                   </div>
                   <div class="flex flex-wrap items-center gap-5 text-right">
                     <div class="group-kpi"><p class="group-kpi-label">요청</p><p class="group-kpi-value">{{ formatKg(group.totalRequestedWeightKg) }}</p></div>
                     <div class="group-kpi"><p class="group-kpi-label">실출고</p><p class="group-kpi-value">{{ formatKg(group.totalActualWeightKg) }}</p></div>
-                    <div class="group-kpi"><p class="group-kpi-label">금액</p><p class="group-kpi-value group-kpi-value-amount">{{ formatCurrency(group.totalActualAmount) }}</p></div>
+                    <div class="group-kpi"><p class="group-kpi-label">금액</p><p class="group-kpi-value group-kpi-value-amount">{{ displayCurrency(group.totalActualAmount) }}</p></div>
                     <ChevronDown :size="18" class="text-gray-600 transition-transform" :class="openGroups.has(group.key) ? 'rotate-180' : ''" />
                   </div>
                 </button>
@@ -693,7 +713,7 @@ function handleBack() {
                         <th class="cell-head text-right">재고</th>
                         <th class="cell-head text-right">요청 kg</th>
                         <th class="cell-head text-right"></th>
-                        <th class="cell-head text-right">판매 벌 수</th>
+                        <th class="cell-head text-right">{{ isDonation ? '기부' : '판매' }} 벌 수</th>
                         <th class="cell-head !text-right">실제 무게</th>
                         <th class="cell-head !text-right">금액</th>
                       </tr>
@@ -707,7 +727,7 @@ function handleBack() {
                         <td class="cell-body text-right text-lg font-black text-gray-700">→</td>
                         <td class="cell-body"><p class="font-black text-[#0F7C62]">{{ formatQuantity(item.soldQuantity) }}벌</p><p class="text-[11px] text-gray-500">{{ Number(item.estimatedQuantity || 0).toFixed(2) }}벌 올림</p></td>
                         <td class="cell-body !text-right font-black text-gray-900">{{ formatKg(item.actualWeightKg) }}</td>
-                        <td class="cell-body !text-right font-black text-gray-900">{{ formatCurrency(item.lineAmount) }}</td>
+                        <td class="cell-body !text-right font-black text-gray-900">{{ displayCurrency(item.lineAmount) }}</td>
                       </tr>
                     </tbody>
                     <tfoot>
@@ -716,7 +736,7 @@ function handleBack() {
                         <td class="cell-body"></td><td class="cell-body"></td><td class="cell-body"></td><td class="cell-body"></td>
                         <td class="cell-body font-black text-gray-900">{{ formatQuantity(group.items.reduce((sum, item) => sum + (Number(item.soldQuantity) || 0), 0)) }}벌</td>
                         <td class="cell-body !text-right font-black text-gray-900">{{ formatKg(group.totalActualWeightKg) }}</td>
-                        <td class="cell-body !text-right font-black text-gray-900">{{ formatCurrency(group.totalActualAmount) }}</td>
+                        <td class="cell-body !text-right font-black text-gray-900">{{ displayCurrency(group.totalActualAmount) }}</td>
                       </tr>
                     </tfoot>
                   </table>
@@ -725,8 +745,8 @@ function handleBack() {
             </section>
 
             <section class="sales-total-bar w-full flex items-center justify-between border-t border-gray-200 bg-gray-50 px-8 py-5">
-              <p class="text-sm font-semibold text-gray-700">총 실제 무게 {{ formatKg(sale.totalActualWeightKg) }} · 총 판매 수량 {{ formatQuantity(sale.totalSoldQuantity) }}벌 · SKU {{ formatQuantity(sale.totalSkuCount) }}종</p>
-              <p class="text-lg !font-semibold text-[#1C8E73]">최종 판매 금액 {{ formatCurrency(sale.totalAmount) }}</p>
+              <p class="text-sm font-semibold text-gray-700">총 실제 무게 {{ formatKg(sale.totalActualWeightKg) }} · 총 {{ isDonation ? '기부' : '판매' }} 수량 {{ formatQuantity(sale.totalSoldQuantity) }}벌 · SKU {{ formatQuantity(sale.totalSkuCount) }}종</p>
+              <p v-if="!isDonation" class="text-lg !font-semibold text-[#1C8E73]">최종 판매 금액 {{ formatCurrency(sale.totalAmount) }}</p>
             </section>
 
           </div>
@@ -747,21 +767,21 @@ function handleBack() {
                   <div class="grid gap-4 px-4 py-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
                     <div>
                       <p class="text-[10px] font-black uppercase tracking-[0.16em] text-sky-700">Environmental Story</p>
-                      <h3 class="mt-2 text-xl font-black text-gray-900">이번 판매는 환경적으로 어떤 의미가 있었나</h3>
+                      <h3 class="mt-2 text-xl font-black text-gray-900">이번 {{ isDonation ? '기부는' : '판매는' }} 환경적으로 어떤 의미가 있었나</h3>
                       <div class="sales-esg-performance-story-cards grid gap-3 md:grid-cols-3">
-                        <div class="border border-sky-100 bg-white/90 px-4 py-4">
+                        <div class="rounded-lg border border-sky-100 bg-sky-50/60 px-4 py-4 shadow-md">
                           <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">탄소 감축</p>
-                          <p class="mt-2 text-2xl font-black text-sky-700">{{ formatCarbonKg(carbonReductionKpi) }}</p>
+                          <p class="mt-2 text-2xl font-black text-sky-600">{{ formatCarbonKg(carbonReductionKpi) }}</p>
                           <p class="mt-2 text-[11px] font-bold leading-5 text-gray-600">신규 생산을 줄여 직접적으로 절감한 환경 부담입니다.</p>
                         </div>
-                        <div class="border border-emerald-100 bg-white/90 px-4 py-4">
+                        <div class="rounded-lg border border-emerald-100 bg-emerald-50/60 px-4 py-4 shadow-md">
                           <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">순환 전환 소재</p>
-                          <p class="mt-2 text-2xl font-black text-emerald-700">{{ esgMaterialNames.join(', ') || '-' }}</p>
+                          <p class="mt-2 text-2xl font-black text-emerald-600">{{ esgMaterialNames.join(', ') || '-' }}</p>
                           <p class="mt-2 text-[11px] font-bold leading-5 text-gray-600">판매를 통해 다시 활용 흐름으로 들어간 소재 구성입니다.</p>
                         </div>
-                        <div class="border border-violet-100 bg-white/90 px-4 py-4">
+                        <div class="rounded-lg border border-violet-100 bg-violet-50/60 px-4 py-4 shadow-md">
                           <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">탄소 가치 환산</p>
-                          <p class="mt-2 text-2xl font-black text-violet-700">{{ formatCurrency(carbonCreditValueKpi) }}</p>
+                          <p class="mt-2 text-2xl font-black text-violet-600">{{ formatCurrency(carbonCreditValueKpi) }}</p>
                           <p class="mt-2 text-[11px] font-bold leading-5 text-gray-600">환경 기여를 경제적 기준으로 환산했을 때의 참고 가치입니다.</p>
                         </div>
                       </div>
@@ -901,7 +921,7 @@ function handleBack() {
           class="mt-5 h-9 border border-[#004D3C] bg-[#004D3C] px-4 text-xs font-black text-white transition hover:bg-[#0F5C4D]"
           @click="handleBack"
         >
-          판매 내역으로 이동
+          {{ isDonation ? '기부' : '판매' }} 내역으로 이동
         </button>
       </section>
     </div>
