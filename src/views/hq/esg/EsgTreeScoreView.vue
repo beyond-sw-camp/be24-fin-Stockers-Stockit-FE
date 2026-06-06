@@ -15,6 +15,7 @@ import { useAuthStore } from '@/stores/auth.js'
 import { useEsgStore } from '@/stores/esg.js'
 import { scoreEventsApi } from '@/api/hq/esg.js'
 import { extractErrorMessage } from '@/api/axios.js'
+import { MATERIAL_FACTORS } from '@/utils/esgMaterialFactors.js'
 const router = useRouter()
 const auth = useAuthStore()
 const topMenus = computed(() => roleMenus.hq ?? [])
@@ -22,23 +23,6 @@ const sideMenus = computed(
   () => (roleMenus.hq ?? []).find((menu) => menu.label === 'ESG 탄소 성과 관리')?.children ?? [],
 )
 const activeSideMenu = ref('친환경 나무 키우기 점수')
-
-// Phase 1 BE 이관 후: 산식·factor 모두 BE 에서 처리. 본 객체는 화면 표시용
-// (테이블 소재명 라벨 + 안내 모달의 factor/note 표) 로만 사용.
-// note 는 BE 응답에 없는 보조 텍스트라 FE 에만 유지.
-const MATERIAL_FACTORS = {
-  COTTON:     { label: '면',         group: 'NATURAL_SINGLE', factor: 1.8, note: '' },
-  WOOL:       { label: '울',         group: 'NATURAL_SINGLE', factor: 1.2, note: '' },
-  CASHMERE:   { label: '캐시미어',   group: 'NATURAL_SINGLE', factor: 1.3, note: '' },
-  SILK:       { label: '실크',       group: 'NATURAL_SINGLE', factor: 1.3, note: '' },
-  LINEN:      { label: '린넨',       group: 'NATURAL_SINGLE', factor: 1.7, note: '' },
-  POLYESTER:  { label: '폴리에스터', group: 'SYNTHETIC',      factor: 2.3, note: '' },
-  ACRYLIC:    { label: '아크릴',     group: 'SYNTHETIC',      factor: 2.4, note: '' },
-  POLYAMIDE:  { label: '나일론',     group: 'SYNTHETIC',      factor: 2.5, note: '' },
-  NYLON:      { label: '나일론',     group: 'SYNTHETIC',      factor: 2.5, note: 'POLYAMIDE 별칭' },
-  ELASTANE:   { label: '스판덱스',   group: 'SYNTHETIC',      factor: 2.2, note: '' },
-  BLEND:      { label: '혼방',       group: 'BLEND',          factor: 2.0, note: '소재 2종 이상 혼합 시 일괄 적용' },
-}
 
 // 소재 계수 안내 모달
 const showFactorModal = ref(false)

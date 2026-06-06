@@ -11,6 +11,7 @@ import {
   circularSaleOutboundStatusBadgeClass,
   circularSaleOutboundStatusLabel,
 } from '@/stores/hq/circularStock/circularStockCommon.js'
+import { MATERIAL_FACTORS } from '@/utils/esgMaterialFactors.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -43,6 +44,47 @@ const resolvedEsgSnapshot = computed(() => {
     ],
   }
 })
+const materialBreakdown = computed(() => {
+  const items = sale.value?.items ?? []
+
+  const byCode = {}
+  for (const item of items) {
+    const itemWeight = Number(item.actualWeightKg ?? 0)
+    if (!itemWeight || !Array.isArray(item.materials)) continue
+
+    const totalRatio = item.materials.reduce((s, m) => s + (m.ratio ?? 0), 0)
+    if (!totalRatio) continue
+
+    for (const mat of item.materials) {
+      const code = mat.code          // store에서 materialCode → code로 매핑됨
+      const ratio = mat.ratio ?? 0
+      const mf = MATERIAL_FACTORS[code]
+      if (!mf || !ratio) continue
+
+      const weightKg = itemWeight * (ratio / totalRatio)
+      const carbonKg = weightKg * mf.factor
+
+      if (!byCode[code]) {
+        byCode[code] = { code, label: mf.label, factor: mf.factor, weightKg: 0, carbonKg: 0 }
+      }
+      byCode[code].weightKg += weightKg
+      byCode[code].carbonKg += carbonKg
+    }
+  }
+
+  const rows = Object.values(byCode)
+  const totalCarbonKg = rows.reduce((s, r) => s + r.carbonKg, 0)
+
+  return rows
+    .sort((a, b) => b.carbonKg - a.carbonKg)
+    .map((r) => ({
+      materialName:          r.label,
+      weightKg:              Math.round(r.weightKg * 10) / 10,
+      carbonReductionFactor: r.factor,
+      appliedWeightRatio:    totalCarbonKg > 0 ? r.carbonKg / totalCarbonKg : 0,
+    }))
+})
+
 const saleType = computed(() => sale.value?.saleType ?? 'SALE')
 const isDonation = computed(() => saleType.value === 'DONATION')
 const doneeOrBuyerName = computed(() =>
@@ -116,15 +158,24 @@ const includedMaterialNames = computed(() => {
 })
 
 const esgMaterialNames = computed(() => {
-  const names = resolvedEsgSnapshot.value?.esgMeta?.materialBreakdown?.map((item) => item.materialName) ?? []
-  return [...new Set(names)]
+  const items = sale.value?.items ?? []
+  const names = new Set()
+  for (const item of items) {
+    if (Array.isArray(item.materials)) {
+      item.materials.forEach((m) => { if (m.name) names.add(m.name) })
+    }
+  }
+  return [...names]
 })
 
-const carbonReductionKpi = computed(() => Number(resolvedEsgSnapshot.value?.kpiSnapshot?.savedCarbonKg) || 0)
-const carbonCreditValueKpi = computed(() => Number(resolvedEsgSnapshot.value?.kpiSnapshot?.carbonCreditValue) || 0)
-const tradableCarbonCreditValueKpi = computed(() => Number(resolvedEsgSnapshot.value?.kpiSnapshot?.tradableCarbonCreditValue) || 0)
-const salesRevenueKpi = computed(() => Number(resolvedEsgSnapshot.value?.kpiSnapshot?.salesRevenue) || 0)
-const wasteLossRecoveredValueKpi = computed(() => Number(resolvedEsgSnapshot.value?.kpiSnapshot?.wasteLossRecoveredValue) || 0)
+const carbonReductionKpi = computed(() => Number(sale.value?.carbonScore ?? 0))
+const carbonCreditValueKpi = computed(() => {
+  const carbonKg = Number(sale.value?.carbonScore ?? 0)
+  return Math.round((carbonKg / 1000) * 13000)
+})
+const tradableCarbonCreditValueKpi = computed(() => carbonCreditValueKpi.value)
+const salesRevenueKpi = computed(() => Number(sale.value?.totalAmount ?? 0))
+const wasteLossRecoveredValueKpi = computed(() => Number(sale.value?.totalAmount ?? 0))
 
 function readNumericScore(...candidates) {
   for (const value of candidates) {
@@ -243,7 +294,7 @@ const treeGrowPoints = computed(() => {
 })
 
 const scoreFormulaSummary = computed(
-  () => '나무 키우기 점수 = 순환 판매 실행 + 탄소 감축 기여 + 지역 상생 + 순환 거래 확산',
+  () => '나무 키우기 점수 = 순환 판매 실행 + 탄소 감축 기여 + 지역 상생 + 순환 거래 확산 + 기부 점수',
 )
 
 const scoreSummaryCards = computed(() => normalizedScoreItems.value)
@@ -454,7 +505,7 @@ function handleBack() {
                           class="border border-white/80 bg-white/80 px-3 py-3 backdrop-blur"
                         >
                           <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">{{ impactItem.title }}</p>
-                          <p class="mt-2 text-sm font-black text-gray-900">{{ impactItem.value }}</p>
+                          <p class="mt-2 text-2xl font-black text-sky-700">{{ impactItem.value }}</p>
                           <p class="mt-1 text-[11px] font-bold leading-5 text-gray-500">{{ impactItem.detail }}</p>
                         </div>
                       </div>
@@ -701,7 +752,7 @@ function handleBack() {
                         </div>
                         <div class="border border-emerald-100 bg-white/90 px-4 py-4">
                           <p class="text-[10px] font-black uppercase tracking-[0.08em] text-gray-400">순환 전환 소재</p>
-                          <p class="mt-2 text-sm font-black text-emerald-700">{{ esgMaterialNames.join(', ') || '-' }}</p>
+                          <p class="mt-2 text-2xl font-black text-emerald-700">{{ esgMaterialNames.join(', ') || '-' }}</p>
                           <p class="mt-2 text-[11px] font-bold leading-5 text-gray-600">판매를 통해 다시 활용 흐름으로 들어간 소재 구성입니다.</p>
                         </div>
                         <div class="border border-violet-100 bg-white/90 px-4 py-4">
@@ -715,9 +766,6 @@ function handleBack() {
                     <div class="border border-white/80 bg-white/90 px-4 py-4">
                       <p class="text-[10px] font-black uppercase tracking-[0.12em] text-gray-400">점수 구조 한눈에 보기</p>
                       <p class="mt-2 text-3xl font-black text-emerald-700">+{{ formatQuantity(treeGrowPoints) }} pt</p>
-                      <p class="mt-2 text-xs font-bold leading-5 text-gray-500">
-                        가장 큰 비중은 {{ topScoreContributor?.label || '점수 요소' }}에서 발생했고, 점수는 순환 판매/탄소 감축/지역 상생/거래 확산 기준으로 반영됩니다.
-                      </p>
 
                       <div class="mt-4 space-y-3">
                         <template v-for="scoreItem in scoreSummaryCards" :key="scoreItem.scoreType">
@@ -824,7 +872,7 @@ function handleBack() {
                           </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
-                          <tr v-for="material in resolvedEsgSnapshot?.esgMeta?.materialBreakdown ?? []" :key="`resource-${material.materialName}`">
+                          <tr v-for="material in materialBreakdown" :key="`resource-${material.materialName}`">
                             <td class="px-3 py-3 font-black text-gray-900">{{ material.materialName }}</td>
                             <td class="px-3 py-3 text-right font-black text-gray-700">{{ formatKg(material.weightKg) }}</td>
                             <td class="px-3 py-3 text-right font-black text-gray-900">{{ Number(material.carbonReductionFactor || 0).toFixed(1) }}</td>
