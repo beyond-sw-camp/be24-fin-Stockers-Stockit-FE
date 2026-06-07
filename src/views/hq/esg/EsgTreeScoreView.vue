@@ -359,16 +359,6 @@ onMounted(reload)
         <div class="flex items-center justify-between gap-4 px-4 py-3">
           <!-- 좌측: 돌아가기 버튼 + 구분선 + 제목 가로 정렬 -->
           <div class="flex items-center gap-3 min-w-0">
-            <button
-              type="button"
-              class="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-[#004D3C]/30 bg-white/80 px-3 py-1.5 text-[12px] font-bold text-[#004D3C] backdrop-blur transition hover:bg-[#004D3C] hover:text-white"
-              @click="router.push('/hq/esg')"
-            >
-              <ArrowLeft :size="14" />
-              ESG 대시보드로 돌아가기
-            </button>
-            <!-- 세로 구분선 -->
-            <div class="h-9 w-px shrink-0 bg-emerald-300/60"></div>
             <!-- 둥근 아이콘 + 제목 + 부제 -->
             <div class="flex items-center gap-2.5 min-w-0">
               <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-100 to-emerald-200 ring-1 ring-emerald-300/50">
