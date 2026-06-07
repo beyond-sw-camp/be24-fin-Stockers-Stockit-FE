@@ -23,6 +23,7 @@ const TYPE_OPTIONS = [
   { value: 'STORE_OUTBOUND', label: '매장 출고' },
   { value: 'WH_TRANSFER', label: '창고간 이동' },
   { value: 'CIRCULAR_SALE', label: '순환재고 판매' },
+  { value: 'CIRCULAR_DONATION', label: '순환재고 기부' },
 ]
 
 const PERIOD_TABS = [
@@ -43,37 +44,41 @@ const dateFrom = ref('')
 const dateTo = ref('')
 const activePeriod = ref('ALL')
 
-function normalizeOutboundType(sourceType) {
+function normalizeOutboundType(sourceType, destinationType) {
   if (sourceType === 'STORE_ORDER' || sourceType === 'STORE_OUTBOUND') return 'STORE_OUTBOUND'
   if (sourceType === 'WAREHOUSE_TRANSFER' || sourceType === 'WH_TRANSFER') return 'WH_TRANSFER'
-  if (sourceType === 'CIRCULAR_SALE') return 'CIRCULAR_SALE'
+  if (sourceType === 'CIRCULAR_SALE') {
+    return destinationType === 'DONATION' ? 'CIRCULAR_DONATION' : 'CIRCULAR_SALE'
+  }
   return sourceType
 }
 
-function outboundTypeLabel(sourceType) {
+function outboundTypeLabel(sourceType, destinationType) {
   return (
     {
       STORE_OUTBOUND: '매장 출고',
       WH_TRANSFER: '창고간 이동',
       CIRCULAR_SALE: '순환재고 판매',
-    }[normalizeOutboundType(sourceType)] ?? sourceType
+      CIRCULAR_DONATION: '순환재고 기부',
+    }[normalizeOutboundType(sourceType, destinationType)] ?? sourceType
   )
 }
 
-function outboundTypeClass(sourceType) {
+function outboundTypeClass(sourceType, destinationType) {
   return (
     {
       STORE_OUTBOUND: 'bg-blue-50 text-blue-700 border-blue-200',
       WH_TRANSFER: 'bg-orange-50 text-orange-700 border-orange-200',
       CIRCULAR_SALE: 'bg-violet-50 text-violet-700 border-violet-200',
-    }[normalizeOutboundType(sourceType)] ?? 'bg-gray-100 text-gray-600 border-gray-200'
+      CIRCULAR_DONATION: 'bg-pink-50 text-pink-700 border-pink-200',
+    }[normalizeOutboundType(sourceType, destinationType)] ?? 'bg-gray-100 text-gray-600 border-gray-200'
   )
 }
 
 const visibleRows = computed(() => {
   if (activeTypeTab.value === 'ALL') return outboundRows.value
   return outboundRows.value.filter(
-    (row) => normalizeOutboundType(row.sourceType) === activeTypeTab.value,
+    (row) => normalizeOutboundType(row.sourceType, row.destinationType) === activeTypeTab.value,
   )
 })
 
@@ -293,9 +298,9 @@ onMounted(() => {
                 <td class="px-4 py-3">
                   <span
                     class="inline-flex rounded-md border px-2.5 py-1 text-[10px] font-black"
-                    :class="outboundTypeClass(row.sourceType)"
+                    :class="outboundTypeClass(row.sourceType, row.destinationType)"
                   >
-                    {{ outboundTypeLabel(row.sourceType) }}
+                    {{ outboundTypeLabel(row.sourceType, row.destinationType) }}
                   </span>
                 </td>
                 <td class="px-4 py-3 font-bold text-slate-700">{{ destinationLabel(row) }}</td>
