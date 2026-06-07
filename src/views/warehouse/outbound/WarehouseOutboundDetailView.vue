@@ -29,20 +29,23 @@ const outboundSteps = [
   { key: 'ARRIVED', label: '배송 완료' },
 ]
 
-function normalizeOutboundType(sourceType) {
+function normalizeOutboundType(sourceType, destinationType) {
   if (sourceType === 'STORE_ORDER' || sourceType === 'STORE_OUTBOUND') return 'STORE_OUTBOUND'
   if (sourceType === 'WAREHOUSE_TRANSFER' || sourceType === 'WH_TRANSFER') return 'WH_TRANSFER'
-  if (sourceType === 'CIRCULAR_SALE') return 'CIRCULAR_SALE'
+  if (sourceType === 'CIRCULAR_SALE') {
+    return destinationType === 'DONATION' ? 'CIRCULAR_DONATION' : 'CIRCULAR_SALE'
+  }
   return sourceType
 }
 
-function outboundTypeLabel(sourceType) {
+function outboundTypeLabel(sourceType, destinationType) {
   return (
     {
       STORE_OUTBOUND: '매장 출고',
       WH_TRANSFER: '창고간 이동',
       CIRCULAR_SALE: '순환재고 판매',
-    }[normalizeOutboundType(sourceType)] ?? sourceType
+      CIRCULAR_DONATION: '순환재고 기부',
+    }[normalizeOutboundType(sourceType, destinationType)] ?? sourceType
   )
 }
 
@@ -197,10 +200,14 @@ onMounted(fetchDetail)
               <p class="text-xs font-bold text-gray-500">
                 도착지
                 <strong class="ml-2 text-gray-900">
-                  {{ outbound.destinationName || `${outbound.destinationType || '-'}${outbound.destinationId ? ` (${outbound.destinationId})` : ''}` }}
+                  {{ outbound.destinationName && outbound.destinationType !== 'DONATION'
+                    ? outbound.destinationName
+                    : outbound.destinationType === 'DONATION'
+                      ? (outbound.destinationName || '-')
+                      : `${outbound.destinationType || '-'}${outbound.destinationId ? ` (${outbound.destinationId})` : ''}` }}
                 </strong>
               </p>
-              <p class="text-xs font-bold text-gray-500">유형 <strong class="ml-2 text-gray-900">{{ outboundTypeLabel(outbound.sourceType) }}</strong></p>
+              <p class="text-xs font-bold text-gray-500">유형 <strong class="ml-2 text-gray-900">{{ outboundTypeLabel(outbound.sourceType, outbound.destinationType) }}</strong></p>
               <p class="text-xs font-bold text-gray-500">요청일시 <strong class="ml-2 text-gray-900">{{ formatDateTime(outbound.requestedAt) }}</strong></p>
             </div>
             <div class="overflow-auto" style="margin-top: 16px;">
