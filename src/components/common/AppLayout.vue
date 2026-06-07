@@ -442,7 +442,7 @@ const iconMap = {
 
       <div class="flex items-center gap-4 max-[980px]:flex-col max-[980px]:items-stretch">
         <div
-          class="flex items-center gap-1 border-l border-white/20 pl-4 max-[980px]:justify-start max-[980px]:border-l-0 max-[980px]:pl-0"
+          class="flex items-center gap-2 max-[980px]:justify-start"
         >
           <button
             v-if="isHq"
@@ -452,8 +452,19 @@ const iconMap = {
             @click="router.push('/hq/esg')"
           >
             <Sprout :size="14" />
-            <span>ESG 대시보드</span>
+            <span>ESG 탄소 배출 관리</span>
           </button>
+          <button
+            v-if="isHq"
+            type="button"
+            class="mr-1 flex items-center gap-1.5 rounded border border-emerald-300/40 bg-emerald-500/15 px-2 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-emerald-500/30"
+            title="친환경 나무 키우기 점수 바로가기"
+            @click="router.push('/hq/esg/tree-score')"
+          >
+            <Leaf :size="14" />
+            <span>나무 키우기 점수</span>
+          </button>
+          <span class="ml-4 mr-5 h-5 w-px bg-white/20 max-[980px]:hidden" style="margin-left: 5px;" />
           <div class="relative">
             <button
               ref="notifButtonRef"
