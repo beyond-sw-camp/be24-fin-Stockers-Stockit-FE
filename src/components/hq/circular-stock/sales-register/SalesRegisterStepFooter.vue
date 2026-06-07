@@ -36,6 +36,10 @@ defineProps({
     type: Function,
     required: true,
   },
+  saleType: {
+    type: String,
+    default: 'SALE',
+  },
 })
 
 const emit = defineEmits(['move-step', 'open-final-review'])
@@ -50,7 +54,7 @@ const emit = defineEmits(['move-step', 'open-final-review'])
         :disabled="!canMoveStep2"
         @click="emit('move-step', 2)"
       >
-        거래처 매칭 →
+        {{ saleType === 'DONATION' ? '기부처 입력 →' : '거래처 매칭 →' }}
       </button>
     </div>
   </div>
@@ -99,7 +103,7 @@ const emit = defineEmits(['move-step', 'open-final-review'])
           "
           @click="emit('move-step', 3)"
         >
-          판매 조건 확정으로 →
+          {{ saleType === 'DONATION' ? '기부 조건 확정으로 →' : '판매 조건 확정으로 →' }}
         </button>
       </div>
     </div>
@@ -123,7 +127,7 @@ const emit = defineEmits(['move-step', 'open-final-review'])
           class="h-10 cursor-pointer rounded-xl border border-gray-300 bg-white px-6 text-base font-black text-gray-700 transition-all duration-150 hover:bg-gray-50 hover:shadow-sm"
           @click="emit('move-step', 2)"
         >
-          ← 거래처 매칭으로
+          {{ saleType === 'DONATION' ? '← 기부처 입력으로' : '← 거래처 매칭으로' }}
         </button>
         <button
           type="button"
@@ -131,7 +135,7 @@ const emit = defineEmits(['move-step', 'open-final-review'])
           :disabled="!step3CanRegisterNow"
           @click="emit('open-final-review')"
         >
-          최종 판매 등록서 확인
+          {{ saleType === 'DONATION' ? '최종 기부 등록서 확인' : '최종 판매 등록서 확인' }}
         </button>
       </div>
     </div>

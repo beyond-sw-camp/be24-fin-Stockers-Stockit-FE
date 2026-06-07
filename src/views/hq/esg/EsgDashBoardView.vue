@@ -36,9 +36,9 @@ const {
   carbonReductionDeltaPct,
   carbonReductionByMaterialKg,
   carbonReductionMonthly,
-  kauPrice,
-  kauPriceUpdatedAt,
-  kauPriceLoading,
+  kocPrice,
+  kocPriceUpdatedAt,
+  kocPriceLoading,
 } = storeToRefs(esgStore)
 
 // ─────────── 순환 활동 탄소 감축 현황 (소재 전체, 사용량 많은 순) ───────────
@@ -99,9 +99,9 @@ async function loadCarbonPrice() {
     ])
     carbonLatest.value = latestRes
     carbonTrend.value = trendRes ?? []
-    // esgStore.kauPrice 와 동기화 — circularStock 빌더 / 다른 화면이 동일 가격 참조
+    // esgStore.kocPrice 와 동기화 — circularStock 빌더 / 다른 화면이 동일 가격 참조
     if (latestRes?.pricePerTon != null) {
-      esgStore.setKauPrice(latestRes.pricePerTon)
+      esgStore.setKocPrice(latestRes.pricePerTon)
     }
   } catch (err) {
     carbonError.value = extractErrorMessage(err, '배출권 시세를 불러오지 못했습니다.')
@@ -199,8 +199,8 @@ onMounted(() => {
 
 // 월별 환산 가치 추이 BarChart (1~4월 실적만 표시, 5~12월은 라벨만)
 const kauUpdatedLabel = computed(() => {
-  if (!kauPriceUpdatedAt.value) return '시세 미조회'
-  const d = new Date(kauPriceUpdatedAt.value)
+  if (!kocPriceUpdatedAt.value) return '시세 미조회'
+  const d = new Date(kocPriceUpdatedAt.value)
   const diffMin = Math.floor((Date.now() - d.getTime()) / 60000)
   if (diffMin < 1) return '방금 전 갱신'
   if (diffMin < 60) return `${diffMin}분 전 갱신`
@@ -216,8 +216,8 @@ const kauUpdatedLabel = computed(() => {
   )
 })
 
-// 별도 esgStore.fetchKauPrice() 호출은 제거 — loadCarbonPrice 가 BE 호출 후
-// esgStore.setKauPrice 로 동기화하므로 중복 API 호출을 피함
+// 별도 esgStore.fetchKocPrice() 호출은 제거 — loadCarbonPrice 가 BE 호출 후
+// esgStore.setKocPrice 로 동기화하므로 중복 API 호출을 피함
 
 // KPI 2카드 — BE 데이터 기반 (esgStore.fetchTotalPoints 에서 계산)
 //   탄소 배출 절감 = SUM(weight × material_factor) / 1000 [tCO₂]
@@ -239,7 +239,7 @@ const kpiMetrics = computed(() => [
 //   - 의미: 우리가 순환재고 활동으로 회피한 탄소량을 배출권으로 환산했을 때의 시장 가치
 //   - 데이터: esgStore.totalCarbonReductionTon (= "순환 활동 탄소 감축 현황" 막대 합계)
 const carbonAssetValue = computed(() =>
-  Math.round((totalCarbonReductionTon.value || 0) * (kauPrice.value || 0)),
+  Math.round((totalCarbonReductionTon.value || 0) * (kocPrice.value || 0)),
 )
 
 // 변동률 (12개월 전 첫달 대비) — carbonTrend 의 첫달 종가를 baseline 으로 동적 산정
@@ -260,7 +260,7 @@ const carbonAssetTrend = computed(() => {
   return {
     up: diff > 0, down: diff < 0,
     label: `${formattedPct} (vs 12개월 전)`,
-    detail: `${formattedDiff} · 절감량 ${reductionTon.toFixed(1)} tCO₂e × ₩${(kauPrice.value || 0).toLocaleString()}`,
+    detail: `${formattedDiff} · 절감량 ${reductionTon.toFixed(1)} tCO₂e × ₩${(kocPrice.value || 0).toLocaleString()}`,
   }
 })
 
@@ -269,7 +269,7 @@ const carbonAssetTrend = computed(() => {
 //   - 의미: 각 월에 회피한 탄소량을 배출권 시장 가치로 환산 (막대 그래프 표시)
 const carbonAssetMonthlyData = computed(() => {
   const monthly = carbonReductionMonthly.value ?? Array(12).fill(0)
-  const price = Number(kauPrice.value) || 0
+  const price = Number(kocPrice.value) || 0
   const labels = Array.from({ length: 12 }, (_, i) => `${i + 1}월`)
   const data = monthly.map(kg => Math.round(((Number(kg) || 0) / 1000) * price))
   return {

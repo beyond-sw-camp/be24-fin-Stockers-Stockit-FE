@@ -6,7 +6,6 @@ import { circularBuyerApi } from '@/api/hq/circularBuyer.js'
 import { extractErrorMessage } from '@/api/axios.js'
 import { createCircularSale as createCircularSaleApi, getCircularSaleDetail as getCircularSaleDetailApi, getCircularSales as getCircularSalesApi } from '@/api/hq/circularSale.js'
 import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
-import { useEsgStore } from '@/stores/esg.js'
 
 const NATURAL_SINGLE_MATERIALS = ['면', '울', '캐시미어', '실크', '리넨']
 const SYNTHETIC_MATERIALS = ['폴리에스터', '아크릴', '나일론', '스판덱스']
@@ -56,216 +55,6 @@ function buyerMaterialFitValue(materialType) {
   return 'blended'
 }
 
-const CARBON_REDUCTION_FACTORS = {
-  면: 1.8,
-  울: 1.2,
-  캐시미어: 1.3,
-  실크: 1.3,
-  리넨: 1.7,
-  폴리에스터: 2.3,
-  아크릴: 2.4,
-  나일론: 2.5,
-  스판덱스: 2.2,
-  혼방: 2.0,
-  default: 2.0,
-}
-
-const RESOURCE_CIRCULATION_FACTORS = {
-  면: 1.8,
-  울: 2.5,
-  캐시미어: 2.8,
-  실크: 2.4,
-  리넨: 1.6,
-  폴리에스터: 2.3,
-  나일론: 2.1,
-  아크릴: 2.0,
-  스판덱스: 1.7,
-  혼방: 1.9,
-  default: 1.9,
-}
-
-const EXECUTION_BASE_POINTS = 120
-const CARBON_POINT_MULTIPLIER = 1
-const TRACEABILITY_POINT_RULES = [
-  { key: 'materialClassified', label: '소재 분류 완료', points: 25 },
-  { key: 'buyerClassified', label: '거래처 유형 확정', points: 25 },
-  { key: 'treatmentResolved', label: '처리 목적 확정', points: 20 },
-  { key: 'carbonEvidenceStored', label: '탄소 계산 근거 저장', points: 15 },
-  { key: 'snapshotStored', label: '판매 스냅샷 저장 완료', points: 15 },
-]
-
-const INDUSTRY_TREATMENT_TYPE_MAP = {
-  재생원사: '재활용',
-  '화학 재활용': '재활용',
-  '가구 자재': '재활용',
-  '물류 자재': '재활용',
-  '물류 패키지': '재활용',
-  '패션 잡화': '업사이클링',
-  텍스타일: '업사이클링',
-  '반려용품': '업사이클링',
-  '교육/공예': '업사이클링',
-  인테리어: '업사이클링',
-  빈티지: '중고 재판매',
-  '의류/핸드메이드': '중고 재판매',
-  '리퍼브/핸드케어': '중고 재판매',
-  '건설 자재': '다운사이클링',
-  '자동차 부품': '다운사이클링',
-  '산업 소모품': '다운사이클링',
-  에너지: '다운사이클링',
-}
-
-// 소재명 기준 계수를 조회하되, 미정의 시 기본 계수를 사용한다.
-function getMaterialFactor(map, materialName) {
-  const normalizedName = normalizeMaterialName(materialName)
-  return map[normalizedName] ?? map.default
-}
-
-// 거래처 산업군/생산품 정보를 기반으로 처리 목적(재활용/업사이클링 등)을 추론한다.
-function resolveTreatmentTypeFromBuyer(buyer = {}) {
-  const exactMatch = INDUSTRY_TREATMENT_TYPE_MAP[buyer?.industryGroup]
-  if (exactMatch) return exactMatch
-
-  const joinedProductTypes = Array.isArray(buyer?.productTypes)
-    ? buyer.productTypes.join(' ')
-    : String(buyer?.productNote ?? '')
-
-  if (/빈티지|핸드케어|중고|의류\/핸드메이드/.test(joinedProductTypes)) return '중고 재판매'
-  if (/가방|파우치|쿠션|컨버전|텍스타일|잡화|공예/.test(joinedProductTypes)) return '업사이클링'
-  if (/보온|단열|완충|부품|소모품/.test(joinedProductTypes)) return '다운사이클링'
-  if (/재생|원사|방적|재활용|재생원료|패키지/.test(joinedProductTypes)) return '재활용'
-
-  return '재활용'
-}
-
-// 판매건 기준 ESG 스냅샷(점수/KPI/근거)을 계산한다.
-function buildSaleEsgSnapshot(sale, buyer, kauPrice, options = {}) {
-  const items = Array.isArray(sale?.items) ? sale.items : []
-  const treatmentType = resolveTreatmentTypeFromBuyer(buyer)
-  const materialBreakdownMap = new Map()
-  let savedCarbonKg = 0
-  let resourceCirculationPointsRaw = 0
-
-  for (const item of items) {
-    const actualWeightKg = Number(item.actualWeightKg) || 0
-    const materials = Array.isArray(item.materials) && item.materials.length > 0
-      ? item.materials
-      : [{ name: '기타', ratio: 100 }]
-
-    const totalRatio = materials.reduce((sum, material) => sum + (Number(material.ratio) || 0), 0) || 100
-
-    for (const material of materials) {
-      const normalizedName = normalizeMaterialName(material.name)
-      const appliedWeightRatio = (Number(material.ratio) || 0) / totalRatio
-      const weightKg = roundTo(actualWeightKg * appliedWeightRatio, 4)
-      const carbonReductionFactor = getMaterialFactor(CARBON_REDUCTION_FACTORS, normalizedName)
-      const resourceCirculationFactor = getMaterialFactor(RESOURCE_CIRCULATION_FACTORS, normalizedName)
-
-      savedCarbonKg += weightKg * carbonReductionFactor
-      resourceCirculationPointsRaw += weightKg * resourceCirculationFactor
-
-      const existing = materialBreakdownMap.get(normalizedName) ?? {
-        materialName: normalizedName,
-        weightKg: 0,
-        carbonReductionFactor,
-        resourceCirculationFactor,
-        appliedWeightRatio: 0,
-      }
-
-      existing.weightKg += weightKg
-      existing.appliedWeightRatio += appliedWeightRatio
-      materialBreakdownMap.set(normalizedName, existing)
-    }
-  }
-
-  const totalBreakdownWeightKg = [...materialBreakdownMap.values()]
-    .reduce((sum, entry) => sum + (Number(entry.weightKg) || 0), 0)
-  const normalizedBreakdown = [...materialBreakdownMap.values()].map(entry => ({
-    ...entry,
-    weightKg: roundTo(entry.weightKg, 4),
-    // 소재별 반영 비중은 전체 반영 무게 합계 대비 비율(합계 100%)로 표기한다.
-    appliedWeightRatio: roundTo(
-      totalBreakdownWeightKg > 0 ? (Number(entry.weightKg) || 0) / totalBreakdownWeightKg : 0,
-      4,
-    ),
-  }))
-
-  const roundedSavedCarbonKg = roundTo(savedCarbonKg, 2)
-  const resourceCirculationPoints = roundTo(resourceCirculationPointsRaw, 0)
-  const carbonContributionPoints = roundTo(roundedSavedCarbonKg * CARBON_POINT_MULTIPLIER, 0)
-  const carbonCreditValue = roundTo((roundedSavedCarbonKg / 1000) * (Number(kauPrice) || 0), 0)
-  const salesRevenue = Number(sale?.totalAmount)
-    || items.reduce((sum, item) => sum + (Number(item.lineAmount) || 0), 0)
-  const wasteLossRecoveredValue = roundTo(salesRevenue, 0)
-  const tradableCarbonCreditValue = carbonCreditValue
-
-  const traceabilityChecks = {
-    materialClassified: items.every(item =>
-      Boolean(item.materialType)
-      && Array.isArray(item.materials)
-      && item.materials.length > 0
-      && item.materials.every(material => Boolean(material.name) && Number(material.ratio) > 0),
-    ),
-    buyerClassified: Boolean(buyer?.industryGroup || buyer?.primaryMaterialFit),
-    treatmentResolved: Boolean(treatmentType),
-    carbonEvidenceStored: normalizedBreakdown.length > 0,
-    snapshotStored: Boolean(sale?.saleId || options.isEstimated),
-  }
-
-  const traceabilityBreakdown = TRACEABILITY_POINT_RULES.map(rule => ({
-    scoreType: rule.key,
-    label: rule.label,
-    points: traceabilityChecks[rule.key] ? rule.points : 0,
-    formulaSummary: traceabilityChecks[rule.key] ? `${rule.label} 충족` : `${rule.label} 미충족`,
-  }))
-
-  const scoreBreakdown = [
-    {
-      scoreType: 'execution',
-      label: '순환 판매 실행 점수',
-      points: items.length > 0 ? EXECUTION_BASE_POINTS : 0,
-      formulaSummary: `판매 1건 최종 등록 완료 시 기본 ${EXECUTION_BASE_POINTS}pt`,
-    },
-    {
-      scoreType: 'resourceCirculation',
-      label: '자원 순환 전환 점수',
-      points: resourceCirculationPoints,
-      formulaSummary: '실제 판매 무게 × 소재별 순환 전환 계수',
-    },
-    {
-      scoreType: 'carbonContribution',
-      label: '탄소 절감 기여 점수',
-      points: carbonContributionPoints,
-      formulaSummary: `실제 탄소 절감량 ${roundedSavedCarbonKg.toFixed(2)}kgCO2 × ${CARBON_POINT_MULTIPLIER}`,
-    },
-    {
-      scoreType: 'traceability',
-      label: '인증/추적 완료 점수',
-      points: traceabilityBreakdown.reduce((sum, item) => sum + item.points, 0),
-      formulaSummary: `${traceabilityBreakdown.filter(item => item.points > 0).length}/${traceabilityBreakdown.length} 항목 충족`,
-    },
-  ]
-
-  return {
-    scoreBreakdown,
-    kpiSnapshot: {
-      savedCarbonKg: roundedSavedCarbonKg,
-      carbonCreditValue,
-      tradableCarbonCreditValue,
-      salesRevenue: roundTo(salesRevenue, 0),
-      wasteLossRecoveredValue,
-    },
-    esgMeta: {
-      treeGrowPoints: scoreBreakdown.reduce((sum, item) => sum + item.points, 0),
-      treatmentType,
-      kauPriceAtSale: Number(kauPrice) || 0,
-      formulaSummary: '나무 심기 점수 = 순환 판매 실행 + 자원 순환 전환 + 탄소 절감 기여 + 인증/추적 완료',
-      materialBreakdown: normalizedBreakdown,
-      traceabilityBreakdown,
-    },
-    isEstimated: Boolean(options.isEstimated),
-  }
-}
-
 // 판매 등록 draft 항목을 정규화하고 파생값(수량/금액)을 재계산한다.
 function normalizeDraftField(current = {}, patch = {}) {
   const merged = { ...current, ...patch }
@@ -308,7 +97,6 @@ function normalizeDraftField(current = {}, patch = {}) {
 // 순환재고 판매 도메인 상태/등록 흐름/목록·상세 조회를 관리하는 Store다.
 export const useCircularStockSaleStore = defineStore('circularStockSale', () => {
   const buyerStore = useCircularStockBuyerStore()
-  const esgStore = useEsgStore()
   const inventoryStore = useCircularStockInventoryStore()
   const salesPage = ref({
     page: 0,
@@ -329,6 +117,8 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
   const lockedMaterialType = ref('')
   const selectedWarehouseCode = ref('')
   const selectedWarehouseName = ref('')
+  const draftSaleType = ref('SALE')
+  const draftDoneeName = ref('')
   const sortedSales = computed(() => [...salesPage.value.content])
   const selectedBuyer = computed(() =>
     buyerStore.getBuyerById(draftBuyerId.value) ?? null,
@@ -440,6 +230,8 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
       totalSoldQuantity: Number(row.totalSoldQuantity || 0),
       totalAmount: Number(row.totalAmount || 0),
       headline: String(row.headline || ''),
+      saleType: row.saleType ?? 'SALE',
+      doneeName: row.doneeName ?? null,
     }
   }
 
@@ -504,13 +296,24 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
       memo: detail.memo ?? null,
       items,
       statusHistory: Array.isArray(detail.statusHistory) ? detail.statusHistory : [],
+      saleType: detail.saleType ?? 'SALE',
+      doneeName: detail.doneeName ?? null,
+      saleExecution:     Number(detail.saleExecution     ?? 0),
+      donationExecution: Number(detail.donationExecution ?? 0),
+      carbonScore:       Number(detail.carbonScore       ?? 0),
+      newBuyerScore:     Number(detail.newBuyerScore     ?? 0),
+      localPartnerScore: Number(detail.localPartnerScore ?? 0),
+      esgTotalScore:     Number(detail.esgTotalScore     ?? 0),
     }
   }
 
   // 현재 draft를 판매 생성 API payload 규격으로 변환한다.
   function mapCreatePayloadToApi() {
     return {
-      buyerCode: String(draftBuyerId.value || ''),
+      saleType: draftSaleType.value,
+      ...(draftSaleType.value === 'DONATION'
+        ? { doneeName: draftDoneeName.value.trim() }
+        : { buyerCode: String(draftBuyerId.value || '') }),
       materialType: String(lockedMaterialType.value || ''),
       memo: String(draftMemo.value || '').trim(),
       items: draftItems.value.map((item) => ({
@@ -559,27 +362,6 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     return salesDetailById.value[String(saleId)]
       ?? sortedSales.value.find(sale => String(sale.saleId) === String(saleId))
       ?? null
-  }
-
-  // 판매건 ESG 스냅샷을 반환한다(저장값 우선, 없으면 추정 계산).
-  function getSaleEsgSnapshot(saleInput) {
-    const saleRecord = typeof saleInput === 'string' ? getSaleById(saleInput) : saleInput
-    if (!saleRecord) return null
-
-    if (Array.isArray(saleRecord.scoreBreakdown) && saleRecord.kpiSnapshot && saleRecord.esgMeta) {
-      return {
-        scoreBreakdown: saleRecord.scoreBreakdown,
-        kpiSnapshot: saleRecord.kpiSnapshot,
-        esgMeta: saleRecord.esgMeta,
-        isEstimated: false,
-      }
-    }
-
-    const buyer = buyerStore.getBuyerById(saleRecord.buyerCode) ?? {
-      industryGroup: saleRecord.buyerIndustryGroup,
-    }
-
-    return buildSaleEsgSnapshot(saleRecord, buyer, esgStore.kauPrice, { isEstimated: true })
   }
 
   // draftId로 등록 초안 항목을 조회한다.
@@ -735,6 +517,25 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     recommendationError.value = null
     lastRecommendationBasisKey.value = ''
     recommendationDirty.value = true
+    draftSaleType.value = 'SALE'
+    draftDoneeName.value = ''
+  }
+
+  function setDraftSaleType(type) {
+    const newType = type === 'DONATION' ? 'DONATION' : 'SALE'
+    if (newType === draftSaleType.value) return
+    draftSaleType.value = newType
+    draftBuyerId.value = ''
+    draftDoneeName.value = ''
+    saleStep.value = 1
+    step3GroupRequestedKg.value = {}
+    recommendations.value = []
+    recommendationDirty.value = true
+    lastRecommendationBasisKey.value = ''
+    recommendationError.value = null
+  }
+  function setDraftDoneeName(name) {
+    draftDoneeName.value = String(name ?? '')
   }
 
   // 등록 워크플로우 시작 여부를 표시한다.
@@ -779,7 +580,14 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     const parsed = Number(nextStep)
     if (![1, 2, 3].includes(parsed)) return
     if (parsed === 2 && draftItems.value.length === 0) return
-    if (parsed === 3 && (!draftBuyerId.value || draftItems.value.length === 0)) return
+    if (parsed === 3) {
+      if (draftItems.value.length === 0) return
+      if (draftSaleType.value === 'DONATION') {
+        if (!draftDoneeName.value || !draftDoneeName.value.trim()) return
+      } else {
+        if (!draftBuyerId.value) return
+      }
+    }
     saleStep.value = parsed
   }
 
@@ -823,8 +631,14 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     if (draftItems.value.length === 0) {
       return fail('Step 1에서 판매할 SKU를 1건 이상 선택해 주세요.', 'NO_SKU')
     }
-    if (!draftBuyerId.value) {
-      return fail('Step 2에서 거래처를 선택해 주세요.', 'NO_BUYER')
+    if (draftSaleType.value === 'DONATION') {
+      if (!draftDoneeName.value || !draftDoneeName.value.trim()) {
+        return fail('Step 2에서 기부처명을 입력해 주세요.', 'NO_DONEE_NAME')
+      }
+    } else {
+      if (!draftBuyerId.value) {
+        return fail('Step 2에서 거래처를 선택해 주세요.', 'NO_BUYER')
+      }
     }
     if (!lockedMaterialType.value) {
       return fail('요청 소재 구분이 확정되지 않았습니다. Step 1 선택 상태를 다시 확인해 주세요.', 'MATERIAL_TYPE_MISSING')
@@ -833,16 +647,18 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
       return fail('출고 창고를 먼저 선택해 주세요.', 'WAREHOUSE_MISSING')
     }
 
-    const buyer = buyerStore.getBuyerById(draftBuyerId.value)
-    if (!buyer) {
-      return fail('선택한 거래처 정보를 찾을 수 없습니다. Step 2에서 다시 선택해 주세요.', 'BUYER_NOT_FOUND')
-    }
-    const expectedBuyerFit = buyerMaterialFitValue(lockedMaterialType.value)
-    if (buyer.primaryMaterialFit !== expectedBuyerFit) {
-      return fail(
-        `선택한 거래처의 대표 소재 적합도(${buyerStore.materialFitLabel(buyer.primaryMaterialFit)})가 요청 소재 구분(${lockedMaterialType.value})과 맞지 않습니다.`,
-        'BUYER_MATERIAL_MISMATCH',
-      )
+    if (draftSaleType.value !== 'DONATION') {
+      const buyer = buyerStore.getBuyerById(draftBuyerId.value)
+      if (!buyer) {
+        return fail('선택한 거래처 정보를 찾을 수 없습니다. Step 2에서 다시 선택해 주세요.', 'BUYER_NOT_FOUND')
+      }
+      const expectedBuyerFit = buyerMaterialFitValue(lockedMaterialType.value)
+      if (buyer.primaryMaterialFit !== expectedBuyerFit) {
+        return fail(
+          `선택한 거래처의 대표 소재 적합도(${buyerStore.materialFitLabel(buyer.primaryMaterialFit)})가 요청 소재 구분(${lockedMaterialType.value})과 맞지 않습니다.`,
+          'BUYER_MATERIAL_MISMATCH',
+        )
+      }
     }
 
     const inventoryAggregate = new Map()
@@ -859,8 +675,10 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
       if (Number.isNaN(requestedWeightKg) || requestedWeightKg <= 0) {
         return fail(`${skuLabel} 판매 kg를 입력해 주세요.`, 'REQUESTED_KG_MISSING', item.draftId)
       }
-      if (Number.isNaN(unitPrice) || unitPrice <= 0) {
-        return fail(`${skuLabel} kg당 단가를 입력해 주세요.`, 'UNIT_PRICE_MISSING', item.draftId)
+      if (draftSaleType.value !== 'DONATION') {
+        if (Number.isNaN(unitPrice) || unitPrice <= 0) {
+          return fail(`${skuLabel} kg당 단가를 입력해 주세요.`, 'UNIT_PRICE_MISSING', item.draftId)
+        }
       }
       if (item.deductedQuantity <= 0) {
         return fail(`${skuLabel} 차감 수량이 계산되지 않았습니다. 판매 kg와 단위중량을 확인해 주세요.`, 'DEDUCTED_QTY_INVALID', item.draftId)
@@ -906,7 +724,9 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
       codes: [],
       counts: buildCounts(),
       firstBlockingSku: null,
-      buyer,
+      buyer: draftSaleType.value !== 'DONATION'
+        ? (buyerStore.getBuyerById(draftBuyerId.value) ?? null)
+        : null,
     }
   }
 
@@ -963,7 +783,6 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     fetchCircularSalesPage,
     fetchCircularSaleDetail,
     getSaleById,
-    getSaleEsgSnapshot,
     getDraftItem,
     selectBuyer,
     setDraftMemo,
@@ -976,5 +795,9 @@ export const useCircularStockSaleStore = defineStore('circularStockSale', () => 
     fetchRecommendations,
     validateCircularStockSaleDraft,
     submitCircularStockSale,
+    draftSaleType,
+    draftDoneeName,
+    setDraftSaleType,
+    setDraftDoneeName,
   }
 })
