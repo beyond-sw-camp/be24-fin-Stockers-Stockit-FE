@@ -8,6 +8,7 @@ import SalesRegisterStep2BuyerSection from '@/components/hq/circular-stock/sales
 import SalesRegisterStep3ConditionsSection from '@/components/hq/circular-stock/sales-register/SalesRegisterStep3ConditionsSection.vue'
 import SalesRegisterStepFooter from '@/components/hq/circular-stock/sales-register/SalesRegisterStepFooter.vue'
 import SalesRegisterFinalReviewModal from '@/components/hq/circular-stock/sales-register/SalesRegisterFinalReviewModal.vue'
+import DonationStep2DoneeSection from '@/components/hq/circular-stock/sales-register/DonationStep2DoneeSection.vue'
 import SalesRegisterLeaveConfirmModal from '@/components/hq/circular-stock/sales-register/SalesRegisterLeaveConfirmModal.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import { useCircularStockBuyerStore } from '@/stores/hq/circularStock/circularStockBuyers.js'
@@ -86,7 +87,11 @@ const canMoveStep2 = computed(
     Boolean(lockedMaterialType.value) &&
     Boolean(selectedWarehouseCode.value),
 )
-const canMoveStep3 = computed(() => canMoveStep2.value && Boolean(selectedBuyer.value))
+const canMoveStep3 = computed(() => {
+  if (!canMoveStep2.value) return false
+  if (draftSaleType.value === 'DONATION') return Boolean(draftDoneeName.value?.trim())
+  return Boolean(selectedBuyer.value)
+})
 const canSubmit = computed(() => submitValidation.value.success)
 const includedMaterialNames = computed(() => [
   ...new Set(draftItems.value.flatMap((item) => item.materials.map((material) => material.name))),
@@ -128,6 +133,8 @@ const recommendationKey = computed(() =>
     .join('|'),
 )
 const hasActiveDraft = computed(() => circularStockStore.hasActiveDraft)
+const draftSaleType = computed(() => circularStockStore.draftSaleType)
+const draftDoneeName = computed(() => circularStockStore.draftDoneeName)
 
 function isRegisterFlowRoute(routeLike) {
   return registerRouteNames.has(String(routeLike?.name || ''))
@@ -895,13 +902,13 @@ onBeforeRouteLeave((to, _from, next) => {
               class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-5"
             >
               <div class="flex flex-wrap items-center gap-3">
-                <span class="text-sm font-black text-gray-900">판매 등록</span>
+                <span class="text-sm font-black text-gray-900">{{ draftSaleType === 'DONATION' ? '기부 등록' : '판매 등록' }}</span>
                 <span class="text-[11px] font-bold text-gray-500">
                   소재 구분 {{ lockedMaterialType || '-' }} · 담긴 SKU
                   {{ drawerSummary.totalItems }}건
                 </span>
               </div>
-              <div class="flex items-center gap-3">
+              <div v-if="draftSaleType !== 'DONATION'" class="flex items-center gap-3">
                 <span class="text-sm font-black text-gray-900">{{
                   formatCurrency(drawerSummary.totalAmount)
                 }}</span>
@@ -911,6 +918,7 @@ onBeforeRouteLeave((to, _from, next) => {
             <div class="flex-1 overflow-y-auto p-7">
               <SalesRegisterStepper
                 :sale-step="saleStep"
+                :sale-type="draftSaleType"
                 @move-step="moveStep"
               />
 
@@ -923,7 +931,7 @@ onBeforeRouteLeave((to, _from, next) => {
               />
 
               <SalesRegisterStep2BuyerSection
-                v-else-if="saleStep === 2"
+                v-else-if="saleStep === 2 && draftSaleType !== 'DONATION'"
                 :buyer-panel-mode="buyerPanelMode"
                 :buyer-search-term="buyerSearchTerm"
                 :outbound-warehouse-label="outboundWarehouseLabel"
@@ -954,6 +962,12 @@ onBeforeRouteLeave((to, _from, next) => {
                 @select-buyer="selectBuyer"
               />
 
+              <DonationStep2DoneeSection
+                v-else-if="saleStep === 2"
+                :doneeName="draftDoneeName"
+                @update:doneeName="circularStockStore.setDraftDoneeName"
+              />
+
               <SalesRegisterStep3ConditionsSection
                 v-else
                 :step3-group-cards="step3GroupCards"
@@ -974,6 +988,8 @@ onBeforeRouteLeave((to, _from, next) => {
                 :format-kg="formatKg"
                 :format-currency="formatCurrency"
                 :rounded-up-quantity-label="roundedUpQuantityLabel"
+                :is-donation="draftSaleType === 'DONATION'"
+                :doneeName="draftDoneeName"
                 @group-requested-input="onGroupRequestedKgInput"
                 @group-requested-blur="onGroupRequestedKgBlur"
                 @toggle-group="toggleStep3Group"
@@ -985,6 +1001,7 @@ onBeforeRouteLeave((to, _from, next) => {
             </div>
             <SalesRegisterStepFooter
               :sale-step="saleStep"
+              :sale-type="draftSaleType"
               :can-move-step2="canMoveStep2"
               :can-move-step3="canMoveStep3"
               :selected-buyer="selectedBuyer"
@@ -1011,6 +1028,8 @@ onBeforeRouteLeave((to, _from, next) => {
         :included-material-names="includedMaterialNames"
         :draft-items="draftItems"
         :draft-memo="circularStockStore.draftMemo"
+        :sale-type="draftSaleType"
+        :doneeName="draftDoneeName"
         :format-materials="formatMaterials"
         :format-kg="formatKg"
         :format-currency="formatCurrency"

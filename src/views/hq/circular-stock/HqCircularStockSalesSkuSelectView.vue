@@ -1,7 +1,7 @@
 ﻿<script setup>
 import { computed, onBeforeUnmount, onMounted, ref, unref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
-import { AlertCircle, ArrowRight, Info, Tag, Warehouse, X } from 'lucide-vue-next'
+import { AlertCircle, ArrowRight, Heart, Info, RefreshCw, Tag, Warehouse, X } from 'lucide-vue-next'
 import AppLayout from '@/components/common/AppLayout.vue'
 import CircularStockInventoryBrowseSection from '@/components/hq/circular-stock/CircularStockInventoryBrowseSection.vue'
 import SalesRegisterLeaveConfirmModal from '@/components/hq/circular-stock/sales-register/SalesRegisterLeaveConfirmModal.vue'
@@ -92,6 +92,7 @@ const selectedMaterialGroup = computed(() =>
   String(inventoryStore.inventoryMaterialGroup || ''),
 )
 const hasActiveDraft = computed(() => circularStockStore.hasActiveDraft)
+const draftSaleType = computed(() => circularStockStore.draftSaleType)
 
 function isRegisterFlowRoute(routeLike) {
   return registerRouteNames.has(String(routeLike?.name || ''))
@@ -380,11 +381,31 @@ onBeforeRouteLeave((to, _from, next) => {
         </div>
       </section>
 
+      <div class="flex items-center gap-2 mb-4">
+        <button
+          v-for="tab in [{ key: 'SALE', label: '판매', icon: RefreshCw }, { key: 'DONATION', label: '기부', icon: Heart }]"
+          :key="tab.key"
+          @click="circularStockStore.setDraftSaleType(tab.key)"
+          :class="[
+            'flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium border transition-colors',
+            draftSaleType === tab.key
+              ? (tab.key === 'DONATION' ? 'bg-pink-500 text-white border-pink-500' : 'bg-emerald-500 text-white border-emerald-500')
+              : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
+          ]"
+        >
+          <component :is="tab.icon" :size="14" />
+          {{ tab.label }}
+        </button>
+      </div>
+      <p v-if="draftSaleType === 'DONATION'" class="text-xs text-pink-600 mb-3">
+        기부 등록 시 Step 2에서 기부처명을 입력합니다.
+      </p>
+
       <div
         class="flex items-start gap-2 rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-xs font-bold text-blue-700"
       >
         <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-500" :stroke-width="2" />
-        <span>판매 등록을 시작하려면 창고와 소재 구분을 먼저 선택해 주세요.</span>
+        <span>{{ draftSaleType === 'DONATION' ? '기부 등록을 시작하려면 창고와 소재 구분을 먼저 선택해 주세요.' : '판매 등록을 시작하려면 창고와 소재 구분을 먼저 선택해 주세요.' }}</span>
       </div>
       <CircularStockInventoryBrowseSection
         title="판매 대상 순환 재고 리스트"

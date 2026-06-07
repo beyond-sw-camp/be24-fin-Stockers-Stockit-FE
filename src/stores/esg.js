@@ -30,8 +30,8 @@ const MAX_LEVEL_POINTS = STAGE_THRESHOLDS[MAX_STAGE - 1]   // 1,500,000
 const FULL_TREE_POINTS = 2_000_000
 
 // BE 응답 실패 시 폴백 가격 (BE 의 esg.carbon-api.fallback-price 와 동기화: 13,000 — KOC25-30 최근 종가)
-// NOTE: 변수명은 옵션 A 정책으로 kau 유지 (DB 스냅샷 필드 kauPriceAtSale 호환). 실제 값은 KOC25-30 시세 기준.
-const KAU_FALLBACK_PRICE = 13000
+// NOTE: 변수명은 옵션 A 정책으로 kau 유지 (DB 스냅샷 필드 kocPriceAtSale 호환). 실제 값은 KOC25-30 시세 기준.
+const KOC_FALLBACK_PRICE = 13000
 
 export const useEsgStore = defineStore('esg', () => {
   // 초기 0 → fetchTotalPoints() 호출 시 BE sale events 기반으로 자동 계산
@@ -56,10 +56,10 @@ export const useEsgStore = defineStore('esg', () => {
   // 키: COTTON / WOOL / CASHMERE / SILK / LINEN / POLYESTER / ACRYLIC / NYLON / POLYAMIDE / ELASTANE / BLEND
   const carbonReductionByMaterialKg = ref({})
 
-  const kauPrice = ref(KAU_FALLBACK_PRICE)
-  const kauPriceUpdatedAt = ref(null)
-  const kauPriceLoading = ref(false)
-  const kauPriceError = ref(null)
+  const kocPrice = ref(KOC_FALLBACK_PRICE)
+  const kocPriceUpdatedAt = ref(null)
+  const kocPriceLoading = ref(false)
+  const kocPriceError = ref(null)
 
   // Phase 1: 소재 환산 계수 마스터 (BE 응답 캐싱)
   //  - shape: { COTTON: { label, group, factor }, ... } — FE esgScore.js 의 MATERIAL_FACTORS 와 동일 키 구조
@@ -132,29 +132,29 @@ export const useEsgStore = defineStore('esg', () => {
 
   /**
    * 배출권 최신 종가를 BE 에서 조회 (현재 target-symbol = KOC25-30).
-   *  - 정상: carbonPriceApi.getLatest() 응답으로 kauPrice 갱신
-   *  - 폴백/실패: kauPrice 는 직전값(또는 KAU_FALLBACK_PRICE)을 유지하고 에러만 기록
+   *  - 정상: carbonPriceApi.getLatest() 응답으로 kocPrice 갱신
+   *  - 폴백/실패: kocPrice 는 직전값(또는 KOC_FALLBACK_PRICE)을 유지하고 에러만 기록
    */
-  async function fetchKauPrice() {
-    kauPriceLoading.value = true
-    kauPriceError.value = null
+  async function fetchKocPrice() {
+    kocPriceLoading.value = true
+    kocPriceError.value = null
     try {
       const res = await carbonPriceApi.getLatest()
       if (res?.pricePerTon != null) {
-        kauPrice.value = Number(res.pricePerTon)
+        kocPrice.value = Number(res.pricePerTon)
       }
-      kauPriceUpdatedAt.value = new Date().toISOString()
+      kocPriceUpdatedAt.value = new Date().toISOString()
       return res
     } catch (e) {
-      kauPriceError.value = e?.message ?? '시세 조회 실패'
+      kocPriceError.value = e?.message ?? '시세 조회 실패'
     } finally {
-      kauPriceLoading.value = false
+      kocPriceLoading.value = false
     }
   }
 
-  function setKauPrice(price, updatedAt = new Date().toISOString()) {
-    kauPrice.value = price
-    kauPriceUpdatedAt.value = updatedAt
+  function setKocPrice(price, updatedAt = new Date().toISOString()) {
+    kocPrice.value = price
+    kocPriceUpdatedAt.value = updatedAt
   }
 
   /**
@@ -274,12 +274,12 @@ export const useEsgStore = defineStore('esg', () => {
     // Curved 단계 정책 노출 — EsgTreeWidget 등에서 진척도 표시용
     stageThresholds: STAGE_THRESHOLDS,
     maxStage: MAX_STAGE,
-    kauPrice,
-    kauPriceUpdatedAt,
-    kauPriceLoading,
-    kauPriceError,
-    fetchKauPrice,
-    setKauPrice,
+    kocPrice,
+    kocPriceUpdatedAt,
+    kocPriceLoading,
+    kocPriceError,
+    fetchKocPrice,
+    setKocPrice,
     fetchTotalPoints,
     setTotalPoints,
     setTotalSalesKg,

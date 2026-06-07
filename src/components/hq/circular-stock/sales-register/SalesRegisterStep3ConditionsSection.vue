@@ -20,6 +20,8 @@ defineProps({
   formatKg: { type: Function, required: true },
   formatCurrency: { type: Function, required: true },
   roundedUpQuantityLabel: { type: Function, required: true },
+  isDonation: { type: Boolean, default: false },
+  doneeName: { type: String, default: '' },
 })
 
 const emit = defineEmits([
@@ -40,7 +42,11 @@ const emit = defineEmits([
       style="margin-bottom: 1.4%;"
     >
       <Info class="mt-0.5 h-3.5 w-3.5 shrink-0 text-indigo-500" :stroke-width="2" />
-      <span>
+      <span v-if="isDonation">
+        기부처는 kg 단위로 요청합니다. 벌 수 환산 시 요청값과 실제 kg 합계가 다를 수
+        있으며, 재고 한도(수량/무게) 초과 기부는 제한됩니다.
+      </span>
+      <span v-else>
         거래처는 kg 단위로 요청합니다. 벌 수 환산 시 요청값과 실제 kg 합계가 다를 수
         있으며, 재고 한도(수량/무게) 초과 판매은 제한됩니다.
       </span>
@@ -84,8 +90,8 @@ const emit = defineEmits([
                   </span>
                 </div>
                 <p class="mt-1 text-sm font-bold text-gray-500">
-                  {{ group.materialType }} · SKU {{ group.items.length }}종 ·
-                  ₩{{ Number(group.items[0]?.defaultKgUnitPrice || 0).toLocaleString() }}/kg
+                  {{ group.materialType }} · SKU {{ group.items.length }}종
+                  <template v-if="!isDonation"> · ₩{{ Number(group.items[0]?.defaultKgUnitPrice || 0).toLocaleString() }}/kg</template>
                 </p>
               </div>
             </div>
@@ -105,7 +111,7 @@ const emit = defineEmits([
                 <span
                   class="inline-flex h-[46px] items-center -translate-y-[1px] text-sm leading-none text-gray-900"
                   style="font-weight: 600"
-                  >거래처 요청</span
+                  >{{ isDonation ? '기부처 전달' : '거래처 요청' }}</span
                 >
                 <div class="inline-flex h-[45px] items-center gap-1 rounded-xl border-2 border-gray-300 bg-white px-3">
                   <input
@@ -156,14 +162,14 @@ const emit = defineEmits([
             <div class="overflow-x-auto">
               <table class="min-w-[800px] w-full border-collapse text-left">
                 <colgroup>
-                  <col style="width: 20%" />
-                  <col style="width: 12%" />
-                  <col style="width: 16%" />
+                  <col :style="isDonation ? 'width: 22%' : 'width: 20%'" />
+                  <col :style="isDonation ? 'width: 14%' : 'width: 12%'" />
+                  <col :style="isDonation ? 'width: 18%' : 'width: 16%'" />
                   <col style="width: 4%" />
-                  <col style="width: 12%" />
+                  <col :style="isDonation ? 'width: 16%' : 'width: 12%'" />
                   <col style="width: 4%" />
-                  <col style="width: 12%" />
-                  <col style="width: 13%" />
+                  <col :style="isDonation ? 'width: 22%' : 'width: 12%'" />
+                  <col v-if="!isDonation" style="width: 13%" />
                 </colgroup>
                 <thead class="bg-[#FCFDFC] text-xs font-black text-gray-500">
                   <tr>
@@ -171,10 +177,10 @@ const emit = defineEmits([
                     <th class="px-3 py-3 text-center">재고</th>
                     <th class="px-3 py-3 text-center">kg</th>
                     <th class="px-1 py-3"></th>
-                    <th class="px-3 py-3 text-center">판매 벌 수</th>
+                    <th class="px-3 py-3 text-center">{{ isDonation ? '기부 벌 수' : '판매 벌 수' }}</th>
                     <th class="px-1 py-3"></th>
                     <th class="px-3 py-3 text-center">실제 무게</th>
-                    <th class="px-5 py-3 text-right">금액</th>
+                    <th v-if="!isDonation" class="px-5 py-3 text-right">금액</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 text-sm">
@@ -228,7 +234,7 @@ const emit = defineEmits([
                     <td class="px-3 py-4 text-center text-lg font-black text-gray-900">
                       {{ formatKg(item.actualWeightKg) }}
                     </td>
-                    <td class="px-5 py-4 text-right text-lg text-[#2F8F6A]" style="font-weight: 500">
+                    <td v-if="!isDonation" class="px-5 py-4 text-right text-lg text-[#2F8F6A]" style="font-weight: 500">
                       {{ formatCurrency(item.lineAmount) }}
                     </td>
                   </tr>
@@ -240,7 +246,7 @@ const emit = defineEmits([
                     <td class="px-3 py-3 text-center text-base text-gray-900">{{ group.totalActualQty }}벌</td>
                     <td />
                     <td class="px-3 py-3 text-center text-base text-gray-900">{{ formatKg(group.totalActualKg) }}</td>
-                    <td class="px-5 py-3 text-right text-base text-[#2F8F6A]" style="font-weight: 500">{{ formatCurrency(group.totalActualAmount) }}</td>
+                    <td v-if="!isDonation" class="px-5 py-3 text-right text-base text-[#2F8F6A]" style="font-weight: 500">{{ formatCurrency(group.totalActualAmount) }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -251,19 +257,19 @@ const emit = defineEmits([
               <span class="inline-flex items-center gap-1.5">
                 <Package class="h-3.5 w-3.5" :stroke-width="2.1" />
                 <span class="text-[#1E4B39]" style="font-weight: 600">{{ group.totalActualQty }}벌</span>
-                <span>출고</span>
+                <span>{{ isDonation ? '기부' : '출고' }}</span>
               </span>
               <span class="inline-flex items-center gap-1.5">
                 <Ruler class="h-3.5 w-3.5" :stroke-width="2.1" />
                 <span>실제</span>
                 <span class="text-[#1E4B39]" style="font-weight: 600">{{ formatKg(group.totalActualKg) }}</span>
               </span>
-              <span class="inline-flex items-center gap-1.5">
+              <span v-if="!isDonation" class="inline-flex items-center gap-1.5">
                 <Tag class="h-3.5 w-3.5" :stroke-width="2.1" />
                 단가 ₩{{ Number(group.items[0]?.unitPrice || group.items[0]?.defaultKgUnitPrice || 0).toLocaleString() }}/kg
               </span>
             </div>
-            <span class="text-sm" style="font-weight: 600">{{ formatCurrency(group.totalActualAmount) }}</span>
+            <span v-if="!isDonation" class="text-sm" style="font-weight: 600">{{ formatCurrency(group.totalActualAmount) }}</span>
           </footer>
         </article>
       </div>
@@ -292,19 +298,27 @@ const emit = defineEmits([
           </div>
 
           <section style="margin-top: -18px;">
-            <p class="text-xs text-gray-500" style="font-weight: 600; margin-bottom: 6px">거래처</p>
+            <p class="text-xs text-gray-500" style="font-weight: 600; margin-bottom: 6px">{{ isDonation ? '기부처' : '거래처' }}</p>
             <div class="rounded-xl border border-gray-200 bg-white px-3 py-3.5">
               <div class="flex items-center gap-3">
                 <span
+                  v-if="!isDonation"
                   class="inline-flex h-10 w-10 items-center justify-center rounded-xl text-xs font-black tracking-tight"
                   :class="step3BuyerBadgeClass()"
                 >
                   {{ companyBadgeText(selectedBuyer?.companyName || '거래처') }}
                 </span>
+                <span
+                  v-else
+                  class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-pink-100 text-xs font-black tracking-tight text-pink-700"
+                >
+                  {{ companyBadgeText(doneeName || '기부처') }}
+                </span>
                 <div class="min-w-0">
-                  <p class="truncate text-base font-black text-gray-900">{{ selectedBuyer?.companyName || '-' }}</p>
+                  <p v-if="!isDonation" class="truncate text-base font-black text-gray-900">{{ selectedBuyer?.companyName || '-' }}</p>
+                  <p v-else class="truncate text-base font-black text-gray-900">{{ doneeName || '-' }}</p>
                   <p class="mt-0.5 text-xs font-bold text-gray-500">
-                    {{ selectedBuyer?.industryGroup || '-' }} 거래처
+                    {{ isDonation ? '기부처' : (selectedBuyer?.industryGroup || '-') + ' 거래처' }}
                   </p>
                 </div>
               </div>
@@ -316,7 +330,7 @@ const emit = defineEmits([
           </div>
 
           <section>
-            <p class="text-xs text-gray-500" style="font-weight: 600; margin-bottom: 4px">판매 요약</p>
+            <p class="text-xs text-gray-500" style="font-weight: 600; margin-bottom: 4px">{{ isDonation ? '기부 요약' : '판매 요약' }}</p>
             <div class="mt-2 divide-y divide-gray-200 text-xs">
               <div class="flex items-center justify-between py-2.5">
                 <span class="font-bold text-gray-500">소재 구분</span>
@@ -337,7 +351,7 @@ const emit = defineEmits([
                 <span class="text-sm text-[#7C5A18]" style="font-weight: 600">{{ step3Summary.inputCompletedCount }} / {{ step3Summary.totalSku }}</span>
               </div>
               <div class="flex items-center justify-between py-2.5">
-                <span class="font-bold text-gray-500">총 판매 벌 수</span>
+                <span class="font-bold text-gray-500">{{ isDonation ? '총 기부 벌 수' : '총 판매 벌 수' }}</span>
                 <span class="text-sm text-gray-900" style="font-weight: 600">{{ step3Summary.totalActualQty }}벌</span>
               </div>
               <div class="flex items-center justify-between py-2.5">
@@ -347,7 +361,7 @@ const emit = defineEmits([
             </div>
           </section>
 
-          <section class="rounded-2xl border border-[#1F4E43] bg-[#1F4E43] px-4 py-4.5 text-white">
+          <section v-if="!isDonation" class="rounded-2xl border border-[#1F4E43] bg-[#1F4E43] px-4 py-4.5 text-white">
             <p class="text-xs font-bold text-[#BED8CF]">예상 판매 금액</p>
             <p class="mt-2 text-xl font-black">{{ formatCurrency(step3Summary.totalActualAmount) }}</p>
             <p class="mt-1 text-xs font-bold text-[#9EC3B8]">
@@ -360,13 +374,13 @@ const emit = defineEmits([
           </div>
 
           <section>
-            <p class="text-xs text-gray-500" style="font-weight: 600; margin-bottom: 6px">판매 메모</p>
+            <p class="text-xs text-gray-500" style="font-weight: 600; margin-bottom: 6px">{{ isDonation ? '기부 메모' : '판매 메모' }}</p>
             <textarea
               :value="draftMemo"
               rows="4"
               maxlength="500"
               class="mt-3 w-full resize-none rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-bold text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#004D3C]"
-              placeholder="거래 조건, 출고 메모 등을 입력하세요."
+              :placeholder="isDonation ? '기부 관련 메모, 출고 일정 등을 입력하세요.' : '거래 조건, 출고 메모 등을 입력하세요.'"
               @input="emit('update-draft-memo', $event.target.value)"
             />
           </section>
