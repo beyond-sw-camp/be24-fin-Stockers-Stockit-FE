@@ -395,7 +395,7 @@ onMounted(reload)
       <!-- ───────── 1. 총점 + 통계 ───────── -->
       <section class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
         <div class="border-2 border-emerald-300 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm xl:col-span-2">
-          <div class="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-emerald-700/70">
+          <div class="inline-flex items-center gap-1.5 text-[13px] font-bold uppercase tracking-widest text-emerald-700/70">
             <Award :size="13" /> 누적 ESG 점수
           </div>
           <div class="mt-2 flex items-baseline gap-2">
@@ -409,12 +409,12 @@ onMounted(reload)
         </div>
 
         <div class="border border-gray-300 bg-white p-4 shadow-sm">
-          <p class="text-[10px] font-bold uppercase tracking-widest text-gray-400">순환재고 판매 건수</p>
+          <p class="text-[13px] font-bold uppercase tracking-widest text-gray-400">순환재고 판매/기부 건수</p>
           <p class="mt-1 text-[22px] font-black text-emerald-700">{{ stats.saleCount }}</p>
           <p class="mt-0.5 text-[10px] text-gray-500">건 (≥10kg)</p>
         </div>
         <div class="border border-gray-300 bg-white p-4 shadow-sm">
-          <p class="text-[10px] font-bold uppercase tracking-widest text-gray-400">총 순환재고 판매량</p>
+          <p class="text-[13px] font-bold uppercase tracking-widest text-gray-400">총 순환재고 판매/기부량</p>
           <p class="mt-1 flex items-baseline gap-1">
             <span class="text-[22px] font-black text-gray-800">{{ formatNum(stats.totalKg) }}</span>
             <span class="text-[11px] font-medium text-gray-500">kg</span>

@@ -211,20 +211,19 @@ const newBuyerExpansionScoreFallback = computed(() => {
 const normalizedScoreItems = computed(() => {
   const totalActualWeightKg = Number(sale.value?.totalActualWeightKg) || 0
   const executionPoints = readNumericScore(
-    resolvedEsgSnapshot.value?.circularSaleExecutionScore,
+    findScoreBreakdownPoint(['circularSaleExecution']),
     totalActualWeightKg >= 10 ? 100 : 0,
   ) ?? 0
   const carbonReductionPoints = readNumericScore(
-    resolvedEsgSnapshot.value?.carbonReductionScore,
     findScoreBreakdownPoint(['carbonReduction', 'carbonContribution']),
     carbonReductionKpi.value,
   ) ?? 0
   const localPartnerPoints = readNumericScore(
-    resolvedEsgSnapshot.value?.localPartnerScore,
+    findScoreBreakdownPoint(['localPartner']),
     localPartnerScoreFallback.value,
   ) ?? 0
   const newBuyerExpansionPoints = readNumericScore(
-    resolvedEsgSnapshot.value?.newBuyerExpansionScore,
+    findScoreBreakdownPoint(['newBuyerExpansion', 'newBuyer']),
     newBuyerExpansionScoreFallback.value,
   ) ?? 0
 
