@@ -167,7 +167,8 @@ const categoryBreakdown = computed(() => responseData.value?.categoryBreakdown ?
   saleExecution: 0, carbon: 0, newBuyer: 0, localPartner: 0, donationExecution: 0,
 })
 
-// 총점 (도넛/헤더에서 사용)
+// 총점 (도넛/헤더 + esgStore 트리 단계 산정에 사용)
+// BE summary.totalScore = 5종(saleExecution + carbon + newBuyer + localPartner + donationExecution) 합산
 const totalScore = computed(() => Number(summary.value.totalScore || 0))
 
 // ESG 대시보드 헤더와 누적 점수/판매량 동기화

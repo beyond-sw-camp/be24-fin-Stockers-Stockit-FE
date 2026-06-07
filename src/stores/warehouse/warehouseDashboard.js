@@ -65,11 +65,11 @@ export const useWarehouseDashboardStore = defineStore('warehouseDashboard', () =
       progress.value = progressRes
       // 입고 예정 테이블 — 도착 임박 (오래된 순) 노출 위해 createdAt asc 로 재정렬
       const mapped = listRes.map((o) => ({
-        id: o.code,
-        vendorName: o.vendorName,
+        id: o.sourceRefNo,
+        vendorName: o.sourceName,
         warehouseName: o.warehouseName,
         createdAt: o.createdAt,
-        itemCount: o.itemCount,
+        itemCount: o.totalQuantity,
         totalPrice: o.totalAmount,
       }))
       mapped.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
