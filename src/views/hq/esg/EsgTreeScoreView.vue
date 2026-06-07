@@ -167,8 +167,25 @@ const categoryBreakdown = computed(() => responseData.value?.categoryBreakdown ?
   saleExecution: 0, carbon: 0, newBuyer: 0, localPartner: 0, donationExecution: 0,
 })
 
-// 총점 (도넛/헤더에서 사용)
-const totalScore = computed(() => Number(summary.value.totalScore || 0))
+// 점수 요소 5종 — 전체 FE 데모용 하드코딩 (발표 시연 임팩트)
+// ⚠️ BE 응답(categoryBreakdown) 무시. 실제 운영 시엔 t.saleExecution 등으로 환원 필요.
+//    탄소가 BE 실측값으론 95% 이상 점유 → 다른 카테고리 시각적 가시성 확보용 균형값.
+// NOTE: totalScore computed 가 이 값을 참조하므로 반드시 totalScore 보다 위에 선언.
+//       (watch(immediate:true) 가 setup 동기 실행 중 즉시 평가해 TDZ 에러 방지)
+const DEMO_POINTS = {
+  saleExecution: 60500,
+  carbon:        80000,
+  newBuyer:      45000,
+  localPartner:  30000,
+  donation:      25000,
+}
+
+// 총점 (도넛/헤더 + esgStore 트리 단계 산정에 사용)
+// ⚠️ 데모용 — 하드코딩된 DEMO_POINTS 합계(240,500pt = Lv.6 청년 나무)를 그대로 반영.
+//    실제 운영 시 Number(summary.value.totalScore || 0) 로 환원 필요.
+const totalScore = computed(() =>
+  Object.values(DEMO_POINTS).reduce((sum, v) => sum + v, 0)
+)
 
 // ESG 대시보드 헤더와 누적 점수/판매량 동기화
 const esgStore = useEsgStore()
