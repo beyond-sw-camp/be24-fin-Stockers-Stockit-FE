@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import AppLayout from '@/components/common/AppLayout.vue'
 import { roleMenus } from '@/config/roleMenus.js'
 import LineChart from '@/components/common/charts/LineChart.vue'
-import { getStoreInventories } from '@/api/store/inventory.js'
+import { getStoreInventorySkus } from '@/api/store/inventory.js'
 import { getStoreOrders } from '@/api/store/orders.js'
 import { getSales } from '@/api/store/sales.js'
 import { getStoreInboundList } from '@/api/store/inbound.js'
@@ -19,7 +19,7 @@ const salesError = ref(false)
 const dailySalesError = ref(false)
 const storeOrdersError = ref(false)
 
-const inventories = ref([])
+const inventorySkus = ref([])
 const todaySalesAmount = ref(0)
 const todaySalesCount = ref(0)
 
@@ -48,11 +48,11 @@ const storeOrderBarWidth = (count) =>
   Math.max(2, Math.round((count / maxStoreOrderStatusCount.value) * 100))
 
 
-const safeInventories = computed(() => (Array.isArray(inventories.value) ? inventories.value : []))
-const totalItems = computed(() => safeInventories.value.length)
-const lowStockCount = computed(() => safeInventories.value.filter((row) => Number(row.availableStock ?? 0) > 0 && Number(row.availableStock ?? 0) <= Number(row.safetyStock ?? 0)).length)
-const outOfStockCount = computed(() => safeInventories.value.filter((row) => Number(row.availableStock ?? 0) <= 0).length)
-const riskItems = computed(() => safeInventories.value.filter((row) => Number(row.availableStock ?? 0) <= Number(row.safetyStock ?? 0)))
+const safeInventorySkus = computed(() => (Array.isArray(inventorySkus.value) ? inventorySkus.value : []))
+const totalItems = computed(() => safeInventorySkus.value.length)
+const lowStockCount = computed(() => safeInventorySkus.value.filter((row) => Number(row.availableStock ?? 0) > 0 && Number(row.availableStock ?? 0) <= Number(row.safetyStock ?? 0)).length)
+const outOfStockCount = computed(() => safeInventorySkus.value.filter((row) => Number(row.availableStock ?? 0) <= 0).length)
+const riskItems = computed(() => safeInventorySkus.value.filter((row) => Number(row.availableStock ?? 0) <= Number(row.safetyStock ?? 0)))
 
 // 재고 리스크 미니 리스트 — 품절 우선, 그 다음 부족(부족분 큰 순) — TOP 6
 const topRiskItems = computed(() =>
@@ -79,7 +79,7 @@ const riskRatio = computed(() => {
 })
 
 const statusDistribution = computed(() => {
-  const normal = safeInventories.value.filter((row) => Number(row.availableStock ?? 0) > Number(row.safetyStock ?? 0)).length
+  const normal = safeInventorySkus.value.filter((row) => Number(row.availableStock ?? 0) > Number(row.safetyStock ?? 0)).length
   const low = lowStockCount.value
   const out = outOfStockCount.value
   const sum = Math.max(normal + low + out, 1)
@@ -108,6 +108,25 @@ function dateStr(d) {
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
+}
+
+async function fetchAllStoreInventorySkus() {
+  const size = 500
+  const allItems = []
+  let page = 0
+  let hasNext = true
+
+  while (hasNext) {
+    const res = await getStoreInventorySkus({ page, size })
+    const items = Array.isArray(res?.items)
+      ? res.items
+      : (Array.isArray(res) ? res : [])
+    allItems.push(...items)
+    hasNext = Boolean(res?.hasNext)
+    page += 1
+  }
+
+  return allItems
 }
 
 // 일별 매출 추이 차트 데이터
@@ -162,10 +181,20 @@ async function fetchStats() {
   salesError.value = false
 
   try {
-    const inventoryRes = await getStoreInventories()
-    inventories.value = Array.isArray(inventoryRes) ? inventoryRes : []
+    const items = await fetchAllStoreInventorySkus()
+    inventorySkus.value = items.map((row) => ({
+      skuCode: row.skuCode,
+      itemCode: row.itemCode,
+      itemName: row.itemName,
+      color: row.color,
+      size: row.size,
+      actualStock: Number(row.actualStock ?? 0),
+      availableStock: Number(row.availableStock ?? 0),
+      safetyStock: Number(row.safetyStock ?? 0),
+      status: row.status,
+    }))
   } catch {
-    inventories.value = []
+    inventorySkus.value = []
     inventoryError.value = true
   }
 
@@ -341,10 +370,13 @@ onMounted(fetchStats)
           <ul class="divide-y divide-gray-100">
             <li
               v-for="row in topRiskItems"
-              :key="row.itemCode"
+              :key="row.skuCode"
               class="flex items-center gap-3 px-4 py-2.5"
             >
-              <span class="min-w-0 flex-1 truncate text-xs font-bold text-gray-900">{{ row.itemName }}</span>
+              <span class="min-w-0 flex-1 truncate text-xs font-bold text-gray-900">
+                {{ row.itemName }}
+                <span class="ml-1 text-[10px] font-black text-gray-400">{{ row.color }} / {{ row.size }}</span>
+              </span>
               <span class="shrink-0 font-mono text-[11px] font-black text-gray-600">{{ row.available }} / {{ row.safety }}</span>
               <span
                 class="shrink-0 px-2 py-0.5 text-[10px] font-black"
