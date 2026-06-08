@@ -69,8 +69,8 @@ export const useWarehouseDashboardStore = defineStore('warehouseDashboard', () =
         vendorName: o.sourceName,
         warehouseName: o.warehouseName,
         createdAt: o.createdAt,
-        itemCount: o.totalQuantity,
-        totalPrice: o.totalAmount,
+        itemCount: o.totalQuantity ?? 0,
+        totalPrice: o.totalAmount ?? 0,
       }))
       mapped.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
       shippingOrders.value = mapped

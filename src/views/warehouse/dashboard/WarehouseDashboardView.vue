@@ -294,7 +294,7 @@ function formatDate(iso) {
                     {{ formatDate(o.createdAt) }}
                   </td>
                   <td class="px-4 py-3 text-right font-black text-gray-900">
-                    {{ o.itemCount }}품목 / ₩{{ o.totalPrice.toLocaleString() }}
+                    {{ o.itemCount }}품목 / ₩{{ Number(o.totalPrice ?? 0).toLocaleString() }}
                   </td>
                 </tr>
                 <tr v-if="shippingOrders.length === 0">
