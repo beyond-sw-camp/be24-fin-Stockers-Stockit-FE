@@ -25,7 +25,7 @@ const BASE = '/api/hq/purchase-orders'
 export const purchaseOrderApi = {
   /**
    * 목록 조회. 모든 필터 optional. server-side 필터 미사용 시 인자 없이 호출.
-   * @param {{vendorCode?: string, status?: string, from?: string, to?: string}} params
+   * @param {{vendorCode?: string, status?: string, from?: string, to?: string, page?: number, size?: number}} params
    */
   list: (params = {}) => {
     const query = {}
@@ -33,6 +33,8 @@ export const purchaseOrderApi = {
     if (params.status) query.status = params.status
     if (params.from) query.from = params.from
     if (params.to) query.to = params.to
+    if (params.page !== undefined) query.page = params.page
+    if (params.size !== undefined) query.size = params.size
     return apiClient.get(BASE, { params: query }).then(unwrap)
   },
 
