@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { purchaseOrderApi } from '@/api/hq/purchaseOrder.js'
 import { getInfrastructures } from '@/api/hq/infrastructure.js'
 import { useAuthStore } from '@/stores/auth.js'
@@ -76,6 +76,34 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
         sorted.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
     }
     return sorted
+  })
+
+  // ─── 발주내역 클라이언트사이드 페이지네이션 ──────────────────────────────
+  // 전체를 로드(fetchOrders size 크게)해 두고, 탭/검색/정렬/합계는 전체(filteredOrders)
+  // 기준 그대로 동작시키되 "표시"만 페이지로 끊는다. (서버 페이지네이션은 클라사이드
+  // 탭/검색과 충돌하므로 채택 X — 데이터셋 소규모라 전체 로드가 정확+단순)
+  const ordersPage = ref(0) // 0-based
+  const ordersPageSize = ref(20)
+  const ordersTotalElements = computed(() => filteredOrders.value.length)
+  const ordersTotalPages = computed(() =>
+    Math.max(1, Math.ceil(ordersTotalElements.value / ordersPageSize.value)),
+  )
+  const pagedOrders = computed(() => {
+    const start = ordersPage.value * ordersPageSize.value
+    return filteredOrders.value.slice(start, start + ordersPageSize.value)
+  })
+  const ordersHasPrevious = computed(() => ordersPage.value > 0)
+  const ordersHasNext = computed(() => ordersPage.value < ordersTotalPages.value - 1)
+  function setOrdersPage(p) {
+    ordersPage.value = Math.min(Math.max(0, p), ordersTotalPages.value - 1)
+  }
+  function setOrdersPageSize(s) {
+    ordersPageSize.value = Number(s) || 20
+    ordersPage.value = 0
+  }
+  // 필터/검색 바뀌면 1페이지로 리셋 (정렬은 집합 불변이라 제외)
+  watch([activeStatusTab, searchKeyword, vendorFilter, dateFrom, dateTo], () => {
+    ordersPage.value = 0
   })
 
   const statusCounts = computed(() => {
@@ -250,7 +278,7 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     loading.value = true
     error.value = null
     try {
-      const res = await purchaseOrderApi.list()
+      const res = await purchaseOrderApi.list({ size: 500 })
       // BE 가 Page<ListRes> (po-list-pagination-be) 또는 List 둘 다 대응.
       // 페이지네이션 UI 도입은 별 phase 책임 — 일단 첫 페이지 데이터만 표시.
       const list = Array.isArray(res) ? res : (res?.content ?? [])
@@ -432,6 +460,15 @@ export const usePurchaseOrderStore = defineStore('purchaseOrder', () => {
     // getters
     selectedOrder,
     filteredOrders,
+    pagedOrders,
+    ordersPage,
+    ordersPageSize,
+    ordersTotalPages,
+    ordersTotalElements,
+    ordersHasPrevious,
+    ordersHasNext,
+    setOrdersPage,
+    setOrdersPageSize,
     statusCounts,
     vendorOptions,
     summary,

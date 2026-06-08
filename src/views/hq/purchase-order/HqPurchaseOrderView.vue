@@ -8,6 +8,7 @@ import { usePurchaseOrderStore } from '@/stores/purchaseOrder.js'
 import { PlusIcon, TruckIcon, ZapIcon } from '@/components/hq/purchase-order/icons.js'
 import PurchaseOrderCancelModal from '@/components/hq/purchase-order/PurchaseOrderCancelModal.vue'
 import PurchaseOrderDetailPanel from '@/components/hq/purchase-order/PurchaseOrderDetailPanel.vue'
+import PaginationNav from '@/components/common/PaginationNav.vue'
 import { useStatusFormat } from '@/composables/hq/purchaseOrder/useStatusFormat.js'
 
 const router = useRouter()
@@ -311,7 +312,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
               </thead>
               <tbody class="divide-y divide-gray-100">
                 <tr
-                  v-for="order in poStore.filteredOrders"
+                  v-for="order in poStore.pagedOrders"
                   :key="order.id"
                   class="cursor-pointer transition-colors hover:bg-gray-50"
                   :class="{ 'bg-[#E6F2F0]': poStore.selectedOrderId === order.id }"
@@ -354,6 +355,18 @@ onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
               </tbody>
             </table>
           </div>
+          <PaginationNav
+            v-if="poStore.ordersTotalElements > 0"
+            class="border-t border-gray-100"
+            :page="poStore.ordersPage"
+            :size="poStore.ordersPageSize"
+            :total-pages="poStore.ordersTotalPages"
+            :total-elements="poStore.ordersTotalElements"
+            :has-previous="poStore.ordersHasPrevious"
+            :has-next="poStore.ordersHasNext"
+            @update:page="poStore.setOrdersPage($event)"
+            @update:size="poStore.setOrdersPageSize($event)"
+          />
         </div>
 
         <PurchaseOrderDetailPanel
